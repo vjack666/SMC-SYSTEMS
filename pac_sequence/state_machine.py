@@ -9,6 +9,7 @@ import pandas as pd
 STATES = {
     "FVG_CREATED": "FVG_CREATED",
     "FVG_MITIGATED": "FVG_MITIGATED",
+    "EXHAUSTION_CONFIRMED": "EXHAUSTION_CONFIRMED",
     "STRUCTURE_CONFIRMED": "STRUCTURE_CONFIRMED",
     "ENTRY_READY": "ENTRY_READY",
 }
@@ -60,6 +61,7 @@ def run_state_machine(
     zone_high: float,
     config: StateMachineConfig,
     setup_id: str,
+    exhaustion_series: pd.Series | None = None,
 ) -> dict[str, object]:
     transitions: list[dict[str, object]] = []
     invalidations: list[dict[str, object]] = []
@@ -68,6 +70,7 @@ def run_state_machine(
     structure_idx: int | None = None
     entry_idx: int | None = None
     touch_count = 0
+    exhaustion_confirmed: bool = False
 
     created_row = scored.iloc[create_idx]
     transitions.append(
@@ -109,6 +112,7 @@ def run_state_machine(
                 "structure_idx": structure_idx,
                 "entry_idx": None,
                 "touch_count": touch_count,
+                "exhaustion_confirmed": exhaustion_confirmed,
                 "invalidation": INVALIDATION_REASONS["OPPOSITE_CHOCH"],
                 "transitions": transitions,
                 "invalidations": invalidations,
@@ -128,6 +132,7 @@ def run_state_machine(
                 "structure_idx": structure_idx,
                 "entry_idx": None,
                 "touch_count": touch_count,
+                "exhaustion_confirmed": exhaustion_confirmed,
                 "invalidation": INVALIDATION_REASONS["OPPOSITE_BOS"],
                 "transitions": transitions,
                 "invalidations": invalidations,
@@ -147,6 +152,7 @@ def run_state_machine(
                 "structure_idx": structure_idx,
                 "entry_idx": None,
                 "touch_count": touch_count,
+                "exhaustion_confirmed": exhaustion_confirmed,
                 "invalidation": INVALIDATION_REASONS["FVG_INVALIDATED"],
                 "transitions": transitions,
                 "invalidations": invalidations,
@@ -166,6 +172,7 @@ def run_state_machine(
                 "structure_idx": structure_idx,
                 "entry_idx": None,
                 "touch_count": touch_count,
+                "exhaustion_confirmed": exhaustion_confirmed,
                 "invalidation": INVALIDATION_REASONS["FVG_INVALIDATED"],
                 "transitions": transitions,
                 "invalidations": invalidations,
@@ -188,6 +195,22 @@ def run_state_machine(
                 }
             )
             continue
+
+        if mitigation_idx is not None and not exhaustion_confirmed and exhaustion_series is not None:
+            ex_val = exhaustion_series.iloc[j] if j < len(exhaustion_series) else False
+            if bool(ex_val):
+                exhaustion_confirmed = True
+                transitions.append(
+                    {
+                        "setup_id": setup_id,
+                        "bar_idx": int(j),
+                        "time": str(row["time"]),
+                        "from_state": STATES["FVG_MITIGATED"],
+                        "to_state": STATES["EXHAUSTION_CONFIRMED"],
+                        "reason": "EXHAUSTION_CONVERGENCE",
+                    }
+                )
+                continue
 
         if mitigation_idx is not None and structure_idx is None:
             if (direction == 1 and bos > 0) or (direction == -1 and bos < 0):
@@ -218,6 +241,7 @@ def run_state_machine(
                     "structure_idx": structure_idx,
                     "entry_idx": entry_idx,
                     "touch_count": touch_count,
+                    "exhaustion_confirmed": exhaustion_confirmed,
                     "invalidation": None,
                     "transitions": transitions,
                     "invalidations": invalidations,
@@ -236,6 +260,7 @@ def run_state_machine(
         "structure_idx": structure_idx,
         "entry_idx": None,
         "touch_count": touch_count,
+        "exhaustion_confirmed": exhaustion_confirmed,
         "invalidation": INVALIDATION_REASONS["TTL_EXPIRED"],
         "transitions": transitions,
         "invalidations": invalidations,

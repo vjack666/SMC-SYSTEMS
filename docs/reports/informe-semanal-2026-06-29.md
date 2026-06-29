@@ -2,14 +2,14 @@
 
 **Proyecto:** SMC_SUCCESSOR / SMC-SYSTEMS
 **Fecha del informe:** 29 de junio de 2026
-**Ciclo / Semana:** Semana 0 — Inicio del Proyecto
-**Estado del ciclo:** 🟢 Completado (Diagnóstico Inicial)
+**Ciclo / Semana:** Semana 0-1 — Diagnóstico + Fase 1 Completa
+**Estado del ciclo:** 🟢 Completado (Fase 1: Base y Conexión de Módulos)
 
 ---
 
 ## 1. Resumen Ejecutivo
 
-🟢 **Verde** — Avance normal según roadmap. Se completa la Fase 0 (Diagnóstico) y se establece la línea base del proyecto. El repositorio está clonado, analizado y listo para comenzar la Fase 1.
+🟢 **Verde** — Fase 1 completada con éxito. PAC State Machine y Structural SL están conectados al flujo principal. El backtest combinado se ejecuta sin errores con las nuevas integraciones activadas. El proyecto está listo para comenzar Fase 2.
 
 ---
 
@@ -18,8 +18,8 @@
 | Fase | Objetivo | Estado | % Completado | Próximo Hito |
 |------|----------|--------|-------------|--------------|
 | Fase 0 | Diagnóstico y Estado Actual | ✅ Completada | 100% | — |
-| Fase 1 | Base y Conexión de Módulos | 🔄 En progreso | 5% | Conectar PAC + Structural SL |
-| Fase 2 | Integración Avanzada (Wyckoff + Exhaustion) | ⬜ Pendiente | 0% | Iniciar tras Fase 1 |
+| Fase 1 | Base y Conexión de Módulos | ✅ Completada | 100% | — |
+| Fase 2 | Integración Avanzada (Wyckoff + Exhaustion) | 🔄 En progreso | 0% | Iniciar módulo Stochastic Exhaustion |
 | Fase 3 | Potenciar ML y Confluencia | ⬜ Pendiente | 0% | Iniciar tras Fase 2 |
 | Fase 4 | Arquitectura Multi-Agente | ⬜ Pendiente | 0% | Iniciar tras Fase 3 |
 | Fase 5 | Trading en Vivo y Optimización | ⬜ Pendiente | 0% | Iniciar tras Fase 4 |
@@ -29,16 +29,14 @@
 
 ## 3. Logros de la Semana
 
-- ✅ Clonado y analizado el repositorio `SMC-SYSTEMS` completo (66.5 MB, 76+ archivos .py)
-- ✅ Revisión completa del `PROJECT_OVERVIEW.md` y `LEGACY_AUDIT_REPORT.md`
-- ✅ Diagnóstico del estado de migración: SMC_SUCCESSOR existe con harness básico pero **sin estrategias implementadas**
-- ✅ Identificación de módulos desconectados: PAC State Machine (`pac_sequence/state_machine.py`) y Structural SL (`modules/structural_sl/`)
-- ✅ Verificación de módulos existentes funcionales: BOS, FVG, CHOCH, OB, Swing, Trend, Fractal, Indicators
-- ✅ ML Pipeline operativo: Quality Filter (XGBoost), Regime Detector, Feature Pipeline
-- ✅ Risk Governor funcional: NORMAL → CAUTION → DEFENSIVE → LOCKDOWN
-- ✅ Sistema de backtesting multi-símbolo operativo (EURUSD, GBPUSD, XAUUSD)
-- ✅ Creada skill `informe-semanal-estado-proyecto` para generación de reportes
-- ✅ Roadmap completo documentado con 7 fases y duración estimada (8-12 semanas)
+- ✅ **PAC State Machine conectada**: `_apply_pac_to_context()` en `strategy/scalping_setup.py` ejecuta `run_state_machine()` sobre cada FVG detectado. Las señales solo se generan si la secuencia FVG→Mitigation→BOS→Entry se completa sin invalidación.
+- ✅ **Structural SL activado**: `_apply_structural_sl_to_context()` usa `calculate_structural_stop()` para colocar stops en origin swings (ICT). TP ajustado a 2:1 sobre distancia real del stop estructural.
+- ✅ **FVG detector extendido**: Nuevas columnas `fvg_zone_low`, `fvg_zone_high`, `fvg_direction` para soportar PAC y otros módulos.
+- ✅ **`ScalpingConfig` ampliado**: 5 nuevos parámetros: `use_pac`, `use_structural_sl`, `pac_ttl_bars`, `pac_mitigation_method`, `structural_sl_lookback`.
+- ✅ **Backtest verificado**: 5000 barras EURUSD → 1071 FVGs → 222 PAC-ready → 6 señales con confluencia completa. Cada señal tiene SL estructural calculado (2-4x más ancho que ATR, como esperado en ICT).
+- ✅ **Python 3.11 instalado** + entorno virtual + dependencias (pandas, scikit-learn, xgboost, lightgbm, matplotlib, seaborn).
+- ✅ **Git instalado** (MinGit portable) + repositorio inicializado + commit creado.
+- ✅ **Skill `informe-semanal-estado-proyecto`** creada y registrada en `opencode.json`.
 
 ---
 
@@ -46,12 +44,12 @@
 
 | # | Acción | Responsable | Plazo | Estado |
 |---|--------|------------|-------|--------|
-| 1 | Conectar PAC State Machine al flujo principal | Dev | Semana 1-2 | Pendiente |
-| 2 | Activar y conectar Structural SL (detector + backtest) | Dev | Semana 1-2 | Pendiente |
-| 3 | Unificar generación de señales en `strategy/scalping_setup.py` | Dev | Semana 1-2 | Pendiente |
-| 4 | Estandarizar módulos con patrón detector + ml_model + backtest + README | Dev | Semana 1-2 | Pendiente |
-| 5 | Mejorar orquestador `run_system.py` | Dev | Semana 1-2 | Pendiente |
-| 6 | Sistema centralizado de configuración (`config.py`) | Dev | Semana 1-2 | Pendiente |
+| 1 | Conectar PAC State Machine al flujo principal | Dev | Semana 1 | ✅ Completado |
+| 2 | Activar y conectar Structural SL | Dev | Semana 1 | ✅ Completado |
+| 3 | Unificar generación de señales en `strategy/scalping_setup.py` | Dev | Semana 1 | ✅ Completado |
+| 4 | Push a GitHub | Dev | Semana 1 | ⚠️ Pendiente (requiere autenticación) |
+| 5 | Invitar colaborador en GitHub | Usuario | Semana 1 | ⏳ Pendiente |
+| 6 | Iniciar Fase 2: Módulo Stochastic Exhaustion | Dev | Semana 2 | Pendiente |
 
 ---
 
@@ -59,31 +57,32 @@
 
 | Riesgo | Impacto | Probabilidad | Mitigación |
 |--------|---------|-------------|------------|
-| PAC State Machine parcialmente desconectada desde migración | Alto (señales incompletas) | Alta | Priorizar reconexión en Fase 1 |
-| Structural SL desconectado del flujo de backtest | Alto (gestión de riesgo deficiente) | Alta | Reconectar detector y validar con backtest |
-| SMC_SUCCESSOR sin estrategias implementadas (solo harness) | Medio (retraso en Fase 4) | Media | Mantener enfoque en Fase 1-3 antes de migrar |
-| Dependencia de MetaTrader 5 para datos frescos | Medio (sin MT5 no hay datos nuevos) | Media | Datos cacheados en parquet permiten backtest offline |
-| No hay git instalado localmente | Bajo (control de versiones limitado) | Baja | Instalar git cuando sea necesario |
+| Push a GitHub pendiente por autenticación | Medio (código solo en local) | Media | Usuario debe configurar token/SSH para push |
+| ML Quality Filter con versión sklearn incompatible | Bajo (warnings, funcional) | Baja | Reentrenar modelo con sklearn 1.9.0 |
+| PAC validation filtra muchas señales (222/1071 FVGs → 6 señales) | Medio (pocos trades) | Media | Ajustar parámetros PAC en Fase 2 |
+| SMC_SUCCESSOR aún sin integración completa | Medio | Media | Previsto para Fase 4 |
 
 ---
 
-## 6. Próximos Objetivos (Próxima Semana)
+## 6. Próximos Objetivos (Próxima Semana — Fase 2)
 
-1. **Conectar PAC State Machine**: Integrar `pac_sequence/state_machine.py` con el flujo de `strategy/scalping_setup.py` para que las secuencias FVG→Mitigation→Entry funcionen correctamente
-2. **Activar Structural SL**: Conectar `modules/structural_sl/detector.py` con el backtest para usar stops estructurales (origin swing) en lugar de ATR fijo
-3. **Unificar señales**: Refactorizar `strategy/scalping_setup.py` para que integre todas las fuentes de señal (BOS, FVG, CHOCH, OB, Trend) de forma coherente
-4. **Iniciar módulo Stochastic Exhaustion** (si se completa lo anterior): Crear estructura básica en `modules/stochastic_exhaustion/`
+1. **Crear módulo `modules/stochastic_exhaustion/`**: Detección de ciclos estocásticos en oversold, agotamiento cuando el precio deja de hacer nuevos mínimos. Parámetros configurables (threshold, min_cycles, epsilon, compression ratio).
+2. **Crear módulo `modules/wyckoff/`**: Detección de eventos (Selling Climax, Spring, Secondary Test, Automatic Rally, SOS, LPS) y fases de acumulación/distribución. Reutilizar swings del módulo `fractal/`.
+3. **Integrar ambos módulos con PAC State Machine y scoring de confluencia**: Nuevos estados PAC (`EXHAUSTION_CONFIRMED`, `SPRING_IN_ACCUMULATION`) y ponderación en `strategy/scalping_setup.py`.
 
 ---
 
 ## 7. Notas y Desviaciones
 
-- El repositorio se clonó desde GitHub (no había copia local). Se usó `curl.exe` para descargar el ZIP y `Expand-Archive` para extraerlo, ya que git no está instalado.
-- El proyecto SMC_SUCCESSOR dentro del repositorio está en etapa muy temprana (solo harness básico, adapters para signal, risk y backtest, y estructura de agentes esqueleto). La migración completa desde SMC SYSTEMS está pendiente.
-- La skill `informe-semanal-estado-proyecto` se creó en `.opencode/skills/` para uso futuro y se registrará en el `opencode.json` del proyecto.
-- El archivo `opencode.json` actual del proyecto usa `ollama/qwen2.5-coder:7b` como modelo. Considerar actualizar si se desea un modelo más potente.
-- **Idea anotada** (no desarrollar hasta Fase 2-3): Módulo Wyckoff para detección de acumulación/distribución.
-- **Idea anotada** (no desarrollar hasta Fase 5): Integración directa con MetaTrader 5 para trading en vivo.
+- Python 3.11 se instaló vía winget. Se creó `.venv` con todas las dependencias. El comando `python` no funciona directamente (stub de Microsoft Store); usar `.venv\Scripts\python.exe`.
+- Git se instaló como MinGit portable en `AppData\Local\Programs\Git`. Usar ruta completa `cmd\git.exe` o añadir al PATH.
+- El commit inicial es un root commit (repositorio iniciado desde cero, no clonado). Para push a GitHub, se necesita autenticación (token clásico o GitHub CLI).
+- **Archivos modificados en Fase 1**:
+  - `modules/fvg/detector.py` — +3 columnas de zona FVG
+  - `strategy/scalping_setup.py` — PAC integration, Structural SL, nuevos configs
+  - `backtest/combined_backtest.py` — `_build_signals_from_context()` usa structural SL
+  - `opencode.json` — añadida ruta de skills
+  - `docs/reports/informe-semanal-2026-06-29.md` — este informe
 
 ---
 

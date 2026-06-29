@@ -54,6 +54,9 @@ def build_feature_pipeline(
         "bos_displacement_atr",
         "liquidity_sweep_size",
         "liquidity_sweep_atr",
+        "exhaustion_score",
+        "exhaustion_cycles",
+        "price_compressed",
     ]
     categorical_cols = [
         "symbol",

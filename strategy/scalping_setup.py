@@ -11,8 +11,12 @@ from modules.choch.detector import CHOCH_BEARISH, CHOCH_BULLISH, detect_choch
 from modules.fvg.detector import detect_fvg
 from modules.indicators import add_atr, add_ema, add_rsi
 from modules.ob.detector import detect_order_blocks
+from modules.stochastic_exhaustion.config import StochasticExhaustionConfig
+from modules.stochastic_exhaustion.detector import detect_exhaustion
 from modules.structural_sl.detector import calculate_structural_stop
 from modules.trend.context_engine import build_trend_context_frame
+from modules.wyckoff.config import WyckoffConfig
+from modules.wyckoff.detector import detect_wyckoff
 from pac_sequence.state_machine import StateMachineConfig, run_state_machine
 
 
@@ -42,6 +46,8 @@ class ScalpingConfig:
     pac_ttl_bars: int = 64
     pac_mitigation_method: str = "wick"
     structural_sl_lookback: int = 20
+    use_stochastic_exhaustion: bool = True
+    use_wyckoff: bool = True
 
 
 def _load_frame(data_dir: Path, symbol: str, timeframe: str) -> pd.DataFrame:
@@ -69,6 +75,15 @@ def _last_anchor(series: pd.Series, condition: pd.Series) -> pd.Series:
     return marker.ffill()
 
 
+def _build_exhaustion_series(data: pd.DataFrame, config: ScalpingConfig) -> pd.Series:
+    series = pd.Series(False, index=data.index)
+    if config.use_stochastic_exhaustion and "exhaustion_bullish" in data.columns and "exhaustion_bearish" in data.columns:
+        series = series | data["exhaustion_bullish"] | data["exhaustion_bearish"]
+    if config.use_wyckoff and "wyckoff_accumulation" in data.columns:
+        series = series | data["wyckoff_accumulation"]
+    return series
+
+
 def _apply_pac_to_context(
     data: pd.DataFrame,
     config: ScalpingConfig,
@@ -81,6 +96,9 @@ def _apply_pac_to_context(
     data["pac_mitigation_idx"] = -1
     data["pac_entry_idx"] = -1
     data["pac_invalidation"] = ""
+    data["pac_exhaustion_confirmed"] = False
+
+    exhaustion_series = _build_exhaustion_series(data, config) if (config.use_stochastic_exhaustion or config.use_wyckoff) else None
 
     fvg_indices = data.index[data["fvg_bullish"] | data["fvg_bearish"]].tolist()
 
@@ -102,6 +120,7 @@ def _apply_pac_to_context(
             zone_high=zone_high,
             config=pac_config,
             setup_id=f"pac_{create_idx}",
+            exhaustion_series=exhaustion_series,
         )
 
         entry_idx = result.get("entry_idx")
@@ -111,6 +130,7 @@ def _apply_pac_to_context(
             data.at[data.index[entry_idx], "pac_entry_ready"] = True
             data.at[data.index[entry_idx], "pac_mitigation_idx"] = result.get("mitigation_idx", -1)
             data.at[data.index[entry_idx], "pac_entry_idx"] = entry_idx
+            data.at[data.index[entry_idx], "pac_exhaustion_confirmed"] = result.get("exhaustion_confirmed", False)
         elif invalidation is not None:
             last_idx = min(create_idx + config.pac_ttl_bars, len(data) - 1)
             data.at[data.index[last_idx], "pac_invalidation"] = invalidation
@@ -159,8 +179,16 @@ def build_scalping_context(
     data = detect_choch(data)
     data = detect_fvg(data)
     data = detect_order_blocks(data)
-
     data["atr"] = add_atr(data, 14)
+
+    if config.use_stochastic_exhaustion:
+        ex_config = StochasticExhaustionConfig()
+        data = detect_exhaustion(data, ex_config)
+
+    if config.use_wyckoff:
+        wyc_config = WyckoffConfig()
+        data = detect_wyckoff(data, wyc_config)
+
     data["ema_fast"] = add_ema(data, 20)
     data["ema_slow"] = add_ema(data, 50)
     data["rsi"] = add_rsi(data, 14)
@@ -251,16 +279,32 @@ def build_scalping_context(
     data["filter_choch"] = choch_filter
     data["filter_swing"] = swing_filter
 
+    exhaustion_ok = pd.Series(True, index=data.index)
+    if config.use_stochastic_exhaustion and "exhaustion_bullish" in data.columns:
+        exhaustion_ok = exhaustion_ok & (
+            (data["exhaustion_bullish"] & (data["macro_direction"] == "BEARISH"))
+            | (data["exhaustion_bearish"] & (data["macro_direction"] == "BULLISH"))
+        )
+    data["filter_exhaustion"] = exhaustion_ok
+
+    wyckoff_ok = pd.Series(True, index=data.index)
+    if config.use_wyckoff and "wyckoff_accumulation" in data.columns:
+        wyckoff_ok = wyckoff_ok & data["wyckoff_accumulation"]
+    data["filter_wyckoff"] = wyckoff_ok
+
+    max_confluence = 7
     confluence_score = (
         data["filter_trend"].astype(int)
         + data["filter_bos"].astype(int)
         + data["filter_ob_fvg"].astype(int)
         + data["filter_choch"].astype(int)
         + data["filter_swing"].astype(int)
+        + data["filter_exhaustion"].astype(int)
+        + data["filter_wyckoff"].astype(int)
     )
     data["confluence_score"] = confluence_score
 
-    data["signal_confidence"] = (0.40 + (data["confluence_score"] / 5.0) * 0.55).clip(lower=0.40, upper=0.95)
+    data["signal_confidence"] = (0.40 + (data["confluence_score"] / max_confluence) * 0.55).clip(lower=0.40, upper=0.95)
 
     mandatory_pass = data["filter_session"] & data["filter_atr"]
     signal_pass = mandatory_pass & (data["confluence_score"] >= config.min_confluence_score)
@@ -269,7 +313,7 @@ def build_scalping_context(
     data.loc[signal_pass & (data["macro_direction"] == "BULLISH"), "signal_direction"] = 1
     data.loc[signal_pass & (data["macro_direction"] == "BEARISH"), "signal_direction"] = -1
 
-    data["passed_all_filters"] = mandatory_pass & (data["confluence_score"] == 5)
+    data["passed_all_filters"] = mandatory_pass & (data["confluence_score"] == max_confluence)
 
     if config.use_pac:
         data = _apply_pac_to_context(data, config)
