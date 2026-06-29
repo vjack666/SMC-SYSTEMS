@@ -13,7 +13,7 @@ from sklearn.calibration import CalibratedClassifierCV
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import brier_score_loss, log_loss, precision_score, recall_score, roc_auc_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -27,63 +27,63 @@ class TrainingConfig:
     random_state: int = 42
 
 
-def _pick_estimator() -> tuple[str, Any]:
+def _pick_estimator(with_tuning: bool = False) -> tuple[str, Any, dict[str, list] | None]:
     try:
         from xgboost import XGBClassifier
 
-        return (
-            "xgboost",
-            XGBClassifier(
-                n_estimators=220,
-                max_depth=4,
-                learning_rate=0.05,
-                subsample=0.9,
-                colsample_bytree=0.9,
-                random_state=42,
-                objective="binary:logistic",
-                eval_metric="logloss",
-            ),
+        base = XGBClassifier(
+            random_state=42,
+            objective="binary:logistic",
+            eval_metric="logloss",
+            verbosity=0,
         )
+        param_grid = {
+            "clf__n_estimators": [120, 220, 320],
+            "clf__max_depth": [3, 4, 6],
+            "clf__learning_rate": [0.03, 0.05, 0.08],
+            "clf__subsample": [0.8, 0.9, 1.0],
+            "clf__colsample_bytree": [0.8, 0.9, 1.0],
+        } if with_tuning else {}
+        return ("xgboost", base, param_grid)
     except Exception:
         pass
 
     try:
         from lightgbm import LGBMClassifier
 
-        return (
-            "lightgbm",
-            LGBMClassifier(
-                n_estimators=280,
-                max_depth=-1,
-                learning_rate=0.05,
-                random_state=42,
-            ),
-        )
+        base = LGBMClassifier(random_state=42, verbosity=-1)
+        param_grid = {
+            "clf__n_estimators": [180, 280, 380],
+            "clf__max_depth": [-1, 5, 8],
+            "clf__learning_rate": [0.03, 0.05, 0.08],
+            "clf__subsample": [0.8, 0.9, 1.0],
+        } if with_tuning else {}
+        return ("lightgbm", base, param_grid)
     except Exception:
         pass
 
     try:
         from catboost import CatBoostClassifier
 
-        return (
-            "catboost",
-            CatBoostClassifier(
-                iterations=260,
-                depth=5,
-                learning_rate=0.05,
-                verbose=False,
-                random_state=42,
-            ),
-        )
+        base = CatBoostClassifier(verbose=False, random_state=42)
+        param_grid = {
+            "clf__iterations": [180, 260, 340],
+            "clf__depth": [4, 5, 7],
+            "clf__learning_rate": [0.03, 0.05, 0.08],
+        } if with_tuning else {}
+        return ("catboost", base, param_grid)
     except Exception:
         pass
 
     from sklearn.ensemble import HistGradientBoostingClassifier
 
-    return (
-        "hist_gradient_boosting",
-        HistGradientBoostingClassifier(random_state=42),
-    )
+    base = HistGradientBoostingClassifier(random_state=42)
+    param_grid = {
+        "clf__max_iter": [180, 260, 340],
+        "clf__max_depth": [3, 5, 7],
+        "clf__learning_rate": [0.03, 0.05, 0.08],
+    } if with_tuning else {}
+    return ("hist_gradient_boosting", base, param_grid)
 
 
 def train_quality_model(cfg: TrainingConfig | None = None) -> dict[str, Any]:
@@ -141,7 +141,8 @@ def train_quality_model(cfg: TrainingConfig | None = None) -> dict[str, Any]:
         ]
     )
 
-    model_name, estimator = _pick_estimator()
+    do_tuning = len(cfg.dataset_path) > 0 and len(df) >= 200
+    model_name, estimator, param_grid = _pick_estimator(with_tuning=do_tuning)
 
     pipeline = Pipeline(
         steps=[
@@ -165,7 +166,23 @@ def train_quality_model(cfg: TrainingConfig | None = None) -> dict[str, Any]:
         X_train, y_train = X.copy(), y.copy()
         X_test, y_test = X.copy(), y.copy()
 
-    pipeline.fit(X_train, y_train)
+    if do_tuning and param_grid and y_train.nunique() > 1:
+        grid = GridSearchCV(
+            pipeline,
+            param_grid=param_grid,
+            cv=3,
+            scoring="roc_auc",
+            n_jobs=-1,
+            verbose=0,
+        )
+        grid.fit(X_train, y_train)
+        pipeline = grid.best_estimator_
+        best_params = {k.replace("clf__", ""): v for k, v in grid.best_params_.items()}
+        print(f"[TRAIN] GridSearchCV best CV AUC: {grid.best_score_:.4f}")
+        print(f"[TRAIN] Best params: {best_params}")
+    else:
+        best_params = {}
+        pipeline.fit(X_train, y_train)
 
     class_counts = y_train.value_counts()
     min_class_count = int(class_counts.min()) if len(class_counts) > 0 else 0
@@ -197,6 +214,8 @@ def train_quality_model(cfg: TrainingConfig | None = None) -> dict[str, Any]:
         "calibration_used": calibration_used,
         "calibration_method": calibration_method,
         "calibration_cv": int(calibration_cv),
+        "grid_search_used": do_tuning,
+        "best_params": best_params,
     }
 
     cfg.model_dir.mkdir(parents=True, exist_ok=True)

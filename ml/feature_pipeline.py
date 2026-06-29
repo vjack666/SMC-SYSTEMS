@@ -57,6 +57,15 @@ def build_feature_pipeline(
         "exhaustion_score",
         "exhaustion_cycles",
         "price_compressed",
+        "exhaustion_compression_ratio",
+        "wyckoff_event_score",
+        "distance_to_fvg_zone",
+        "distance_to_ob_zone",
+        "distance_to_swing_high",
+        "distance_to_swing_low",
+        "temporal_alignment_score",
+        "pac_completion_rate",
+        "exhaustion_confluence_ratio",
     ]
     categorical_cols = [
         "symbol",
@@ -67,6 +76,8 @@ def build_feature_pipeline(
         "h4_bias",
         "trend_alignment",
         "direction",
+        "wyckoff_phase",
+        "accumulation_phase",
     ]
 
     for col in numeric_cols:

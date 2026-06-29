@@ -17,7 +17,9 @@ from modules.structural_sl.detector import calculate_structural_stop
 from modules.trend.context_engine import build_trend_context_frame
 from modules.wyckoff.config import WyckoffConfig
 from modules.wyckoff.detector import detect_wyckoff
+from ml.regime_detector import detect_regimes
 from pac_sequence.state_machine import StateMachineConfig, run_state_machine
+from strategy.confluence_scorer import calculate_confluence_score, ConfluenceWeights, REGIME_BOOSTS
 
 
 @dataclass(frozen=True)
@@ -206,7 +208,9 @@ def build_scalping_context(
     data["d1_direction"] = np.where(data["d1_trend"].isin(["BULLISH", "BEARISH"]), data["d1_trend"], "RANGING")
     data["macro_trend"] = data["macro_direction"]
 
-    regime_pass = ~data["regime_state"].isin(["LOW_VOL", "CHAOTIC"])
+    data = detect_regimes(data)
+
+    regime_pass = ~data["market_regime"].isin(["LOW_VOL", "CHAOTIC"])
     trend_filter = (
         data["macro_direction"].isin(["BULLISH", "BEARISH"])
         & (data["trend_confidence"] >= float(config.trend_confidence_threshold))
@@ -292,8 +296,50 @@ def build_scalping_context(
         wyckoff_ok = wyckoff_ok & data["wyckoff_accumulation"]
     data["filter_wyckoff"] = wyckoff_ok
 
+    data["exhaustion_compression_ratio"] = np.where(
+        data["atr"].replace(0.0, np.nan) > 0,
+        (data["high"] - data["low"]) / data["atr"].replace(0.0, np.nan),
+        0.0,
+    )
+    wyckoff_events = (
+        data["wyckoff_sc"].astype(int)
+        + data["wyckoff_ar"].astype(int)
+        + data["wyckoff_st"].astype(int)
+        + data["wyckoff_spring"].astype(int)
+        + data["wyckoff_sos"].astype(int)
+        + data["wyckoff_lps"].astype(int)
+    ) if "wyckoff_sc" in data.columns else 0
+    data["wyckoff_event_score"] = np.minimum(wyckoff_events, 5) if isinstance(wyckoff_events, pd.Series) else 0
+    data["distance_to_fvg_zone"] = np.nan
+    data["distance_to_swing_high"] = np.nan
+    data["distance_to_swing_low"] = np.nan
+    if "fvg_zone_low" in data.columns and "fvg_zone_high" in data.columns:
+        data["distance_to_fvg_zone"] = np.where(
+            data["fvg_zone_low"].notna() & data["fvg_zone_high"].notna(),
+            np.minimum(
+                (data["close"] - data["fvg_zone_low"]).abs(),
+                (data["close"] - data["fvg_zone_high"]).abs(),
+            ) / data["atr"].replace(0.0, np.nan),
+            np.nan,
+        )
+    if "swing_high" in data.columns:
+        data["distance_to_swing_high"] = (data["swing_high"].ffill() - data["close"]).abs() / data["atr"].replace(0.0, np.nan)
+    if "swing_low" in data.columns:
+        data["distance_to_swing_low"] = (data["close"] - data["swing_low"].ffill()).abs() / data["atr"].replace(0.0, np.nan)
+    data["temporal_alignment_score"] = np.where(
+        data["macro_direction"].isin(["BULLISH", "BEARISH"]),
+        np.where(data["d1_direction"] == data["macro_direction"], 1.0, 0.5),
+        0.0,
+    )
+    pac_ready_count = data["pac_entry_ready"].rolling(100, min_periods=1).sum() if "pac_entry_ready" in data.columns else 0
+    total_fvg = (data["fvg_bullish"] | data["fvg_bearish"]).rolling(100, min_periods=1).sum().replace(0, 1)
+    data["pac_completion_rate"] = (pac_ready_count / total_fvg) if isinstance(pac_ready_count, pd.Series) else 0.0
+    exhaustion_total = (data["exhaustion_bullish"] | data["exhaustion_bearish"]).astype(int) if "exhaustion_bullish" in data.columns else 0
+    total_bars = data.index / max(len(data), 1)
+    data["exhaustion_confluence_ratio"] = (exhaustion_total.rolling(50).sum() / 50.0) if isinstance(exhaustion_total, pd.Series) else 0.0
+
     max_confluence = 7
-    confluence_score = (
+    raw_score = (
         data["filter_trend"].astype(int)
         + data["filter_bos"].astype(int)
         + data["filter_ob_fvg"].astype(int)
@@ -302,22 +348,32 @@ def build_scalping_context(
         + data["filter_exhaustion"].astype(int)
         + data["filter_wyckoff"].astype(int)
     )
-    data["confluence_score"] = confluence_score
+    data["confluence_score"] = raw_score
+    data["passed_all_filters"] = data["filter_session"] & data["filter_atr"] & (raw_score == max_confluence)
 
-    data["signal_confidence"] = (0.40 + (data["confluence_score"] / max_confluence) * 0.55).clip(lower=0.40, upper=0.95)
+    if config.use_pac:
+        data = _apply_pac_to_context(data, config)
+
+    if "ml_probability" not in data.columns:
+        data["ml_probability"] = 0.50
+    weights = ConfluenceWeights()
+    confidences = []
+    for i in range(len(data)):
+        row = data.iloc[i]
+        regime = str(row.get("market_regime", "RANGING"))
+        conf = calculate_confluence_score(row, weights=weights, regime=regime)
+        confidences.append(conf)
+    data["signal_confidence"] = np.clip(confidences, 0.30, 0.95)
 
     mandatory_pass = data["filter_session"] & data["filter_atr"]
-    signal_pass = mandatory_pass & (data["confluence_score"] >= config.min_confluence_score)
+    min_conf = 0.35
+    signal_pass = mandatory_pass & (data["signal_confidence"] >= min_conf)
 
     data["signal_direction"] = 0
     data.loc[signal_pass & (data["macro_direction"] == "BULLISH"), "signal_direction"] = 1
     data.loc[signal_pass & (data["macro_direction"] == "BEARISH"), "signal_direction"] = -1
 
-    data["passed_all_filters"] = mandatory_pass & (data["confluence_score"] == max_confluence)
-
-    if config.use_pac:
-        data = _apply_pac_to_context(data, config)
-        data["signal_direction"] = data["signal_direction"] * data["pac_entry_ready"].astype(int)
+    data["signal_direction"] = data["signal_direction"] * data["pac_entry_ready"].astype(int)
 
     if config.use_structural_sl:
         data = _apply_structural_sl_to_context(data, config)

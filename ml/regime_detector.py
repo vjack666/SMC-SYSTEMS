@@ -67,6 +67,16 @@ def detect_regimes(frame: pd.DataFrame, cfg: RegimeConfig | None = None) -> pd.D
     out["ema_slope"] = ema_slope
     out["directional_efficiency"] = directional_eff
     out["range_compression"] = compression
+
+    min_regime_score = 0.20
+    max_regime_score = 1.00
+    regime_scores = pd.Series(min_regime_score, index=out.index, dtype=float)
+    regime_scores.loc[regime == "TRENDING"] = max_regime_score
+    regime_scores.loc[regime == "RANGING"] = 0.50
+    regime_scores.loc[regime == "HIGH_VOL"] = 0.70
+    regime_scores.loc[regime == "LOW_VOL"] = min_regime_score
+    regime_scores.loc[regime == "CHAOTIC"] = 0.10
+    out["regime_score"] = regime_scores
     return out
 
 
