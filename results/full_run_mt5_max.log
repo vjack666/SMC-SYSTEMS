@@ -1,0 +1,3 @@
+
+=== MT5 MAX DOWNLOAD ===
+& ".venv/Scripts/python.exe" data/mt5/downloader.py --terminal-path "C:\Program Files\FTMO Global Markets MT5 Terminal\terminal64.exe" --output-dir data/mt5 --symbols EURUSD GBPUSD XAUUSD --timeframes M15 H1 H4 D1 --years 50

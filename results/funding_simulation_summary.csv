@@ -1,0 +1,5 @@
+start_capital,passed,pass_pct,days_to_pass,reason,final_equity,max_drawdown_usd,max_drawdown_pct
+10000,True,100.0,13,target reached,10812.908862708699,0.0,0.0
+25000,True,100.0,13,target reached,27032.272156771738,0.0,0.0
+50000,True,100.0,13,target reached,54064.544313543476,0.0,0.0
+100000,True,100.0,13,target reached,108129.08862708695,0.0,0.0

@@ -1,0 +1,26 @@
+[
+  {
+    "scenario": {
+      "name": "risk governor normal",
+      "module": "risk_governor",
+      "fixture": "risk_smoke_fixture.yaml",
+      "expected": {
+        "module": "risk_governor",
+        "status": "ok",
+        "mode": "NORMAL",
+        "risk_multiplier": 1.0
+      },
+      "tags": [
+        "smoke",
+        "risk"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 0.7191000040620565,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  }
+]

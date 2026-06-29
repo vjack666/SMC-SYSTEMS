@@ -1,0 +1,13 @@
+{
+  "symbols": [
+    "EURUSD",
+    "GBPUSD",
+    "XAUUSD"
+  ],
+  "total_bars_analyzed": 300000,
+  "total_valid_pullbacks": 768,
+  "global_valid_rate": 0.00256,
+  "mean_pullback_score": 34.54160940053402,
+  "summary_file": "results\\pullback_audit_summary.json",
+  "snapshot_file": "results/pullback_view_latest.csv"
+}

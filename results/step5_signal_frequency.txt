@@ -1,0 +1,3 @@
+EURUSD: 1123 signals from 24864 bars (4.52%), annualized=1126.86
+GBPUSD: 1224 signals from 49676 bars (2.46%), annualized=613.26
+XAUUSD: 924 signals from 47204 bars (1.96%), annualized=462.95

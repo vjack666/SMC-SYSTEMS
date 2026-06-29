@@ -1,0 +1,74 @@
+{
+  "swing": {
+    "n_samples": 299944,
+    "n_features": 5,
+    "cv_mean": 0.534218642805827,
+    "cv_std": 0.0049718334776572715,
+    "positive_rate": 0.7965286853545995,
+    "confidence_floor": 0.55,
+    "model_path": "modules\\swing\\models\\swing_v3.pkl"
+  },
+  "choch": {
+    "n_samples": 300000,
+    "n_features": 5,
+    "cv_mean": 0.9877060787926364,
+    "cv_std": 0.0006167789076027325,
+    "positive_rate": 0.015793333333333333,
+    "confidence_floor": 0.55,
+    "model_path": "modules\\choch\\models\\choch_v3.pkl"
+  },
+  "fvg": {
+    "n_samples": 299987,
+    "n_features": 5,
+    "cv_mean": 0.9293415384824435,
+    "cv_std": 0.0008207353810464014,
+    "positive_rate": 0.08207022304299853,
+    "confidence_floor": 0.55,
+    "model_path": "modules\\fvg\\models\\fvg_v3.pkl"
+  },
+  "ob": {
+    "n_samples": 299987,
+    "n_features": 5,
+    "cv_mean": 0.9973628039463591,
+    "cv_std": 0.00023297417479361447,
+    "positive_rate": 0.010370449386140066,
+    "confidence_floor": 0.55,
+    "model_path": "modules\\ob\\models\\ob_v3.pkl"
+  },
+  "fractal": {
+    "n_samples": 300000,
+    "n_features": 5,
+    "cv_mean": 0.9323249265284206,
+    "cv_std": 0.002062291218826801,
+    "positive_rate": 0.1337,
+    "confidence_floor": 0.55,
+    "model_path": "modules\\fractal\\models\\fractal_v3.pkl"
+  },
+  "indicators": {
+    "n_samples": 299987,
+    "n_features": 5,
+    "cv_mean": 0.5069352754631754,
+    "cv_std": 0.0029244919481592343,
+    "positive_rate": 0.400910706130599,
+    "confidence_floor": 0.5,
+    "model_path": "modules\\indicators\\models\\indicators_v3.pkl"
+  },
+  "bos": {
+    "n_samples": 74182,
+    "n_features": 6,
+    "cv_mean": 0.5134439008849219,
+    "cv_std": 0.0136097054041562,
+    "positive_rate": 0.3888005176457901,
+    "confidence_floor": 0.5,
+    "model_path": "modules\\bos\\models\\bos_v3.pkl"
+  },
+  "trend": {
+    "n_samples": 299682,
+    "n_features": 8,
+    "cv_mean": 0.7659280673730319,
+    "cv_std": 0.014803427739551359,
+    "positive_rate": 0.27314953851082147,
+    "confidence_floor": 0.55,
+    "model_path": "modules\\trend\\models\\trend_v3.pkl"
+  }
+}

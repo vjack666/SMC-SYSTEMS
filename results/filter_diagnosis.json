@@ -1,0 +1,12 @@
+{
+  "EURUSD": {
+    "total_bars": 5000,
+    "rejected_by_trend": 4954,
+    "rejected_by_session": 2920,
+    "rejected_by_atr": 2392,
+    "rejected_by_ob_fvg": 4871,
+    "rejected_by_bos": 4909,
+    "rejected_by_volume": 2340,
+    "passed": 14
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "count":3,
+  "timeframe":"M15",
+  "trades":[
+    {
+      "symbol":"GBPUSD",
+      "timeframe":"M15",
+      "strategy":"A_immediate",
+      "side":"SHORT",
+      "sl_atr_mult":1.0,
+      "entry_time":"2026-05-29 23:45:00+00:00",
+      "entry_price":1.34546,
+      "sl_price":1.3459707143,
+      "tp_price":1.3439278571,
+      "pnl_r":0.0
+    },
+    {
+      "symbol":"GBPUSD",
+      "timeframe":"M15",
+      "strategy":"A_immediate",
+      "side":"SHORT",
+      "sl_atr_mult":2.0,
+      "entry_time":"2026-05-29 23:45:00+00:00",
+      "entry_price":1.34546,
+      "sl_price":1.3464814286,
+      "tp_price":1.3423957143,
+      "pnl_r":0.0
+    },
+    {
+      "symbol":"GBPUSD",
+      "timeframe":"M15",
+      "strategy":"A_immediate",
+      "side":"SHORT",
+      "sl_atr_mult":1.5,
+      "entry_time":"2026-05-29 23:45:00+00:00",
+      "entry_price":1.34546,
+      "sl_price":1.3462260714,
+      "tp_price":1.3431617857,
+      "pnl_r":0.0
+    }
+  ],
+  "image":"results\\last_3_backtest_trades_visual.png"
+}

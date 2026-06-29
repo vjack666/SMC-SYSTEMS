@@ -1,0 +1,52 @@
+{
+  "count":3,
+  "timeframe":"M15",
+  "symbol_filter":"EURUSD",
+  "selection":{
+    "unique_by":"entry_time",
+    "preferred_sl":1.5,
+    "strategy_priority":{
+      "B_mitigation":0,
+      "A_immediate":1
+    }
+  },
+  "trades":[
+    {
+      "symbol":"EURUSD",
+      "timeframe":"M15",
+      "strategy":"B_mitigation",
+      "side":"LONG",
+      "sl_atr_mult":1.5,
+      "entry_time":"2026-05-29 22:45:00+00:00",
+      "entry_price":1.16646,
+      "sl_price":1.1657978571,
+      "tp_price":1.1684464286,
+      "pnl_r":-0.5436893204
+    },
+    {
+      "symbol":"EURUSD",
+      "timeframe":"M15",
+      "strategy":"A_immediate",
+      "side":"SHORT",
+      "sl_atr_mult":1.5,
+      "entry_time":"2026-05-29 23:00:00+00:00",
+      "entry_price":1.16631,
+      "sl_price":1.1669207143,
+      "tp_price":1.1644778571,
+      "pnl_r":0.3438596491
+    },
+    {
+      "symbol":"EURUSD",
+      "timeframe":"M15",
+      "strategy":"A_immediate",
+      "side":"SHORT",
+      "sl_atr_mult":1.5,
+      "entry_time":"2026-05-29 23:15:00+00:00",
+      "entry_price":1.16614,
+      "sl_price":1.1667389286,
+      "tp_price":1.1643432143,
+      "pnl_r":0.0667859273
+    }
+  ],
+  "image":"results\\last_3_backtest_trades_EURUSD_visual.png"
+}

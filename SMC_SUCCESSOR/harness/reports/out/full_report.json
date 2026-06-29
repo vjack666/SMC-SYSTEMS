@@ -1,0 +1,141 @@
+[
+  {
+    "scenario": {
+      "name": "echo smoke",
+      "module": "echo",
+      "fixture": "echo_fixture.yaml",
+      "expected": {
+        "module": "echo",
+        "event_names": [
+          "market.tick"
+        ]
+      },
+      "tags": [
+        "smoke",
+        "golden"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 0.7647001184523106,
+    "metrics": {
+      "event_count": 1,
+      "error_count": 0
+    },
+    "errors": []
+  },
+  {
+    "scenario": {
+      "name": "risk governor caution",
+      "module": "risk_governor",
+      "fixture": "risk_caution_fixture.yaml",
+      "expected": {
+        "module": "risk_governor",
+        "status": "ok",
+        "mode": "CAUTION",
+        "risk_multiplier": 0.75
+      },
+      "tags": [
+        "risk"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 0.7172999903559685,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  },
+  {
+    "scenario": {
+      "name": "risk governor defensive",
+      "module": "risk_governor",
+      "fixture": "risk_defensive_fixture.yaml",
+      "expected": {
+        "module": "risk_governor",
+        "status": "ok",
+        "mode": "DEFENSIVE",
+        "risk_multiplier": 0.5
+      },
+      "tags": [
+        "risk"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 0.6742000114172697,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  },
+  {
+    "scenario": {
+      "name": "risk governor lockdown",
+      "module": "risk_governor",
+      "fixture": "risk_lockdown_fixture.yaml",
+      "expected": {
+        "module": "risk_governor",
+        "status": "ok",
+        "mode": "LOCKDOWN",
+        "risk_multiplier": 0.0
+      },
+      "tags": [
+        "risk"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 0.6587000098079443,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  },
+  {
+    "scenario": {
+      "name": "risk governor normal",
+      "module": "risk_governor",
+      "fixture": "risk_smoke_fixture.yaml",
+      "expected": {
+        "module": "risk_governor",
+        "status": "ok",
+        "mode": "NORMAL",
+        "risk_multiplier": 1.0
+      },
+      "tags": [
+        "smoke",
+        "risk"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 0.622499966993928,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  },
+  {
+    "scenario": {
+      "name": "signal pipeline smoke",
+      "module": "signal_pipeline",
+      "fixture": "signal_smoke_fixture.yaml",
+      "expected": {
+        "module": "signal_pipeline",
+        "event_names": []
+      },
+      "tags": [
+        "smoke",
+        "signal"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 0.5425999406725168,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  }
+]

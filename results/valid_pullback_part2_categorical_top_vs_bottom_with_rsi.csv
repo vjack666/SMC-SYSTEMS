@@ -1,0 +1,10 @@
+target_metric,feature,p_value_chi2,top_n,bottom_n
+signed_return_10,trend_alignment,0.19963836907129778,192,192
+signed_return_10,regime_state,0.32602730927940987,192,192
+signed_return_10,macro_direction,0.021350412932335784,192,192
+mfe_r_10,trend_alignment,0.8882288681198502,192,192
+mfe_r_10,regime_state,0.008096922834641786,192,192
+mfe_r_10,macro_direction,0.015195642393656233,192,192
+continuity_10,trend_alignment,0.18936643147866522,418,350
+continuity_10,regime_state,0.3513607459907405,418,350
+continuity_10,macro_direction,0.3280511215555722,418,350

@@ -1,0 +1,11 @@
+{
+  "files": 6,
+  "sha256": {
+    "results\\comparison_table.csv": "f357ea463de4d969916ad82e5d169e08c0ccd713911f6940bafa21745adf8bec",
+    "results\\state_transition_log.csv": "d3e7aae81116448f180c44e14afb1c273f3edf5e4609fa44db7ece51d7fe653a",
+    "results\\invalidation_log.csv": "b71c1a3f1ed3036ef5049efe4ecdca9f95261fc95366e0099e284e2a23bdef83",
+    "results\\expectancy_report.csv": "ddf5600b0593bc0b7a8bb0fb46278cf2add4eb294b7263449927ad87109dadf7",
+    "results\\drawdown_report.csv": "07b7d1464ad00487f1342e73ef2fd0485e80a0bb4838ee0ef4c80f8e2bf33f73",
+    "results\\symbol_breakdown.csv": "359e5a6f87996c5fca0abb74b16cf29b7acae0a9b31f190e9d67e7d24ed6a16e"
+  }
+}

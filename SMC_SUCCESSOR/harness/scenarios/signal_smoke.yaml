@@ -1,0 +1,9 @@
+name: signal pipeline smoke
+module: signal_pipeline
+fixture: signal_smoke_fixture.yaml
+expected:
+  module: signal_pipeline
+  event_names: []
+tags:
+  - smoke
+  - signal

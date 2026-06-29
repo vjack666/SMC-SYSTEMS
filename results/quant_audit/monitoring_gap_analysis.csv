@@ -1,0 +1,9 @@
+drift_type,current_state,industry_standard,gap_level,priority
+Concept Drift,No production monitoring,Continuous model performance monitoring with alerts,High,High
+Feature Drift,Limited drift report in feature pipeline,Live feature distribution drift detection,High,High
+Label Drift,Not implemented,Supervised model label consistency tracking,High,Medium
+Prediction Drift,Not implemented,Prediction distribution monitoring and threshold shift alerts,High,High
+Equity Drift,Not implemented,Equity curve telemetry and drawdown alerting,High,High
+Regime Drift,Not implemented,Regime transition monitoring and regime-specific performance tracking,Medium,High
+Model Drift,Not implemented,Automated retraining triggers and degradation alarms,High,High
+Data Drift,Limited schema validation,Full data-quality and distribution drift detection pipeline,High,High

@@ -1,0 +1,5 @@
+phase,objective,actions,expected_roi,difficulty,estimated_time
+FASE 13,Robust validation and risk metrics,Implement Purged KFold, embargo, bootstrap validation, CVaR, Drawdown duration and rolling metrics,High,High,4-6 weeks
+FASE 14,Feature and regime enrichment,Add liquidity sweeps, inducements, displacement, premium discount arrays, regime labels and interaction features,Medium,Medium,4-6 weeks
+FASE 15,Production monitoring,Build drift monitoring, alerts, equity telemetry, and model governance dashboards,High,Medium,3-5 weeks
+FASE 16,Governance and automation,Automate retraining, model selection, report generation, and deployment controls,Medium,High,4-6 weeks

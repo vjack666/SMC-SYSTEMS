@@ -1,0 +1,32 @@
+[
+  {
+    "total_bars": 100000,
+    "valid_pullbacks": 174,
+    "bullish_valid_pullbacks": 110,
+    "bearish_valid_pullbacks": 64,
+    "invalid_pullbacks": 131,
+    "valid_rate": 0.00174,
+    "avg_pullback_score": 34.52481448495862,
+    "symbol": "EURUSD"
+  },
+  {
+    "total_bars": 100000,
+    "valid_pullbacks": 207,
+    "bullish_valid_pullbacks": 107,
+    "bearish_valid_pullbacks": 100,
+    "invalid_pullbacks": 123,
+    "valid_rate": 0.00207,
+    "avg_pullback_score": 34.34744959201633,
+    "symbol": "GBPUSD"
+  },
+  {
+    "total_bars": 100000,
+    "valid_pullbacks": 387,
+    "bullish_valid_pullbacks": 328,
+    "bearish_valid_pullbacks": 59,
+    "invalid_pullbacks": 157,
+    "valid_rate": 0.00387,
+    "avg_pullback_score": 34.752564124627135,
+    "symbol": "XAUUSD"
+  }
+]

@@ -1,0 +1,5 @@
+events: []
+parameters:
+  symbol: EURUSD
+  timeframe: M15
+  data_dir: data/mt5

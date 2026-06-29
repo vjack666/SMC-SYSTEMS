@@ -1,0 +1,11 @@
+name: risk governor normal
+module: risk_governor
+fixture: risk_smoke_fixture.yaml
+expected:
+  module: risk_governor
+  status: ok
+  mode: NORMAL
+  risk_multiplier: 1.0
+tags:
+  - smoke
+  - risk

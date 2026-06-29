@@ -1,0 +1,22 @@
+[
+  {
+    "module": "trend_only_lower_tf",
+    "variant": "H4->H1",
+    "n_samples": 299406,
+    "n_features": 8,
+    "positive_rate": 0.2947703118841974,
+    "cv_mean": 0.7245920523297693,
+    "cv_std": 0.010612017385304873,
+    "model_path": "modules\\trend\\models\\trend_h4_h1_v3.pkl"
+  },
+  {
+    "module": "trend_only_lower_tf",
+    "variant": "H1->M15",
+    "n_samples": 299682,
+    "n_features": 8,
+    "positive_rate": 0.28225919474643124,
+    "cv_mean": 0.7301498787524453,
+    "cv_std": 0.004989842476123514,
+    "model_path": "modules\\trend\\models\\trend_h1_m15_v3.pkl"
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "symbol":"GBPUSD",
+  "timeframe":"M15",
+  "strategy":"A_immediate",
+  "side":"SHORT",
+  "sl_atr_mult":1.5,
+  "entry_time":"2026-05-29 23:45:00+00:00",
+  "entry_price":1.34546,
+  "sl_price":1.3462260714,
+  "tp_price":1.3431617857,
+  "pnl_r":0.0,
+  "image":"results\\last_backtest_trade_visual.png"
+}

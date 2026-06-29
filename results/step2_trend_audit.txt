@@ -1,0 +1,3 @@
+D1 structure: StructureResult(structure='RANGING', last_hh=None, last_hl=None, last_lh=None, last_ll=None, swing_sequence=['LL', 'LH', 'HL', 'LH'])
+H4 structure: StructureResult(structure='BULLISH', last_hh=4580.13, last_hl=4491.63, last_lh=None, last_ll=None, swing_sequence=['HL', 'HL', 'HH', 'HH'])
+D1 rows: 516, H4 rows: 3090

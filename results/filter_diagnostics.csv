@@ -1,0 +1,2 @@
+symbol,total_bars,rejected_by_trend,rejected_by_session,rejected_by_atr,rejected_by_ob_fvg,rejected_by_bos,rejected_by_volume,passed
+EURUSD,5000,4954,2920,2392,4871,4909,2340,14

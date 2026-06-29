@@ -1,0 +1,6 @@
+category,current_state,missing_features,gap_level,priority
+SMC,FVG, OB, BOS, CHOCH, and mitigation-focused features present,Missing liquidity sweeps, inducements, displacement flags, breaker blocks, and premium discount arrays,High,High
+MICROSTRUCTURE,ATR ratio, EMA slope, RSI, tick volume and regime labels exist,Missing volatility clustering, microstructure volume/flow proxies, bid-ask pressure, order book imbalance,High,High
+TEMPORAL,session_bucket, hour, weekday, monthly breakdown available,Missing week-of-month, session transition features, macro windows, holiday/event windows,Medium,Medium
+ESTADISTICAS,correlation-based importance and rolling ATR metrics exist,Missing zscores, percentile ranks, rolling ranks, entropy, Hurst exponent,Medium,Medium
+ML,quality model, trend model, one-hot encoding, scaler, simple pipeline present,Missing target encoding, feature interactions, meta labels, regime-aware feature sets, and stacking,High,High

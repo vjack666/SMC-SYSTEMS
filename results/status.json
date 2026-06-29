@@ -1,0 +1,94 @@
+{
+  "timestamp_utc": "2026-05-29T14:50:37.496448+00:00",
+  "system": {
+    "mt5_available": true,
+    "data_refreshed": false,
+    "filter_diagnosis_file": "results\\filter_diagnosis.json",
+    "calibration_log_file": "results\\calibration_log.json",
+    "training_summary_file": "results\\training_summary.json",
+    "combined_metrics_file": "results\\combined_metrics.json",
+    "oos_metrics_file": "results\\oos_metrics.json",
+    "per_symbol_metrics_files": [
+      "results\\metrics_EURUSD.json",
+      "results\\metrics_GBPUSD.json",
+      "results\\metrics_XAUUSD.json"
+    ],
+    "prop_report_file": "results\\prop_firm_report.md",
+    "status_file": "results\\status.json"
+  },
+  "status": "NOT_READY",
+  "checks": {
+    "in_sample_pass": false,
+    "out_of_sample_pass": false,
+    "per_symbol_pass": {
+      "EURUSD": false,
+      "GBPUSD": false,
+      "XAUUSD": false
+    },
+    "overfit_detected": true
+  },
+  "enabled_symbols": [
+    "EURUSD",
+    "GBPUSD",
+    "XAUUSD"
+  ],
+  "in_sample": {
+    "total_trades": 9,
+    "win_rate": 0.2222222222222222,
+    "profit_factor": 0.2932785822346914,
+    "max_drawdown_r": -5.0,
+    "max_drawdown_pct": 5.0,
+    "max_daily_drawdown_pct": 4.0,
+    "sharpe_ratio": -9.095301850782343,
+    "expectancy_r": -0.5496722138174622
+  },
+  "out_of_sample": {
+    "total_trades": 0,
+    "win_rate": 0.0,
+    "profit_factor": 0.0,
+    "max_drawdown_r": 0.0,
+    "max_drawdown_pct": 0.0,
+    "max_daily_drawdown_pct": 0.0,
+    "sharpe_ratio": 0.0,
+    "expectancy_r": 0.0
+  },
+  "per_symbol": {
+    "EURUSD": {
+      "total_trades": 9,
+      "win_rate": 0.2222222222222222,
+      "profit_factor": 0.2932785822346914,
+      "max_drawdown_r": -5.0,
+      "max_drawdown_pct": 5.0,
+      "max_daily_drawdown_pct": 4.0,
+      "sharpe_ratio": -9.095301850782343,
+      "expectancy_r": -0.5496722138174622
+    },
+    "GBPUSD": {
+      "total_trades": 5,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_r": -4.0,
+      "max_drawdown_pct": 4.0,
+      "max_daily_drawdown_pct": 4.0,
+      "sharpe_ratio": 0.0,
+      "expectancy_r": -1.0
+    },
+    "XAUUSD": {
+      "total_trades": 10,
+      "win_rate": 0.2,
+      "profit_factor": 0.4130791981597123,
+      "max_drawdown_r": -6.0,
+      "max_drawdown_pct": 6.0,
+      "max_daily_drawdown_pct": 4.0,
+      "sharpe_ratio": -6.951355822787293,
+      "expectancy_r": -0.4695366414722302
+    }
+  },
+  "reasons": [
+    "In-sample thresholds not met.",
+    "Out-of-sample thresholds not met.",
+    "One or more symbols failed thresholds.",
+    "OOS degradation >30% on win_rate: IS=0.2222, OOS=0.0000",
+    "OOS degradation >30% on profit_factor: IS=0.2933, OOS=0.0000"
+  ]
+}

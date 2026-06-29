@@ -1,0 +1,10 @@
+validation,current_state,industry_standard,gap_level,priority
+Purged KFold,Not implemented,MLFinLab recommended method for financial time series CV with overlapping samples,High,High
+Embargo,Not implemented,Required to prevent leakage around event timestamps,High,High
+Walk Forward,Implemented via scripts,Industry standard but should be automated and combined with nested validation,Medium,High
+Nested Cross Validation,Not implemented,Professional model selection and hyperparameter validation process,High,High
+Regime Validation,Limited via regime_detector and regime diagnostics,Standard is explicit regime-aware splits and stress testing,Medium,Medium
+Outlier Validation,Not implemented,Needed to remove anomalous trade clusters and false signals,Medium,Medium
+Temporal Block Validation,Partial with 70/30 splits,Standard is multiple rolling temporal blocks and seasonality splits,Medium,High
+Stress Test Validation,Implemented in stress files,Standard should include parametric CVaR and scenario analysis,Medium,Medium
+Feature Stability Validation,Limited in feature pipeline,Standard is feature drift / rolling importance stability testing,Medium,High

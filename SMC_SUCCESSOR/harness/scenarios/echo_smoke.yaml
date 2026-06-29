@@ -1,0 +1,10 @@
+name: echo smoke
+module: echo
+fixture: echo_fixture.yaml
+expected:
+  module: echo
+  event_names:
+    - market.tick
+tags:
+  - smoke
+  - golden

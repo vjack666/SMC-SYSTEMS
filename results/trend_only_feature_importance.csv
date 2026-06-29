@@ -1,0 +1,9 @@
+feature,importance
+d1_h4_agreement,0.414387482313913
+consecutive_structure_count,0.3566386756505595
+micro_state_encoded,0.2091456667816052
+atr_ratio,0.005072698166744703
+volume_trend_slope_10,0.004796734696893273
+candle_body_ratio_10,0.0036010940388293165
+swing_amplitude_atr,0.0035268639328861562
+distance_from_last_swing_atr,0.002830784418568984

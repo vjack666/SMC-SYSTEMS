@@ -1,0 +1,11 @@
+component,current_state,industry_standard,gap_level,priority
+backtest_engine,In-house time-series backtests with static parameters and selected OOS splits,Event-driven multi-asset backtest with transaction-cost model, slippage, market impact, and tick-level simulation,High,High
+ml_pipeline,Single train/test split with simple preprocessing and no dedicated leakage controls,Automated feature selection, purged/embargo CV, nested search and model governance,High,High
+risk_model,Static dynamic thresholds and governor state for drawdown,Integrated risk budgeting, CVaR stress modeling, scenario analysis, and intraday liquidity-aware sizing,Medium,High
+monitoring,Daily/weekly performance logs and status.json,Real-time concept and feature drift monitoring with alerting,High,High
+feature_engineering,SMC and regime features present but limited to FVG/OB/ATR-based values,Comprehensive Smart Money, microstructure, regime, and cross-feature interactions,Medium,Medium
+validation,Walk-forward and forward validation scripts,Formal Purged KFold, Embargo, nested CV, and White Reality Check,High,High
+documentation,Module README files exist but no system-level audit/documentation,Formal architectural documentation and governance playbooks,Medium,Medium
+dataset_quality,Basic schema validation and NaN checks,Automated data quality gating, sampling bias, and distribution drift tests,Medium,High
+trade_execution,Paper trading logger present but no execution simulator layer,Live execution simulation with fill model and latency tracking,Medium,Medium
+reporting,Static markdown/CSV reports exist,Interactive dashboards and KPI monitoring with visualization layer,Medium,Medium

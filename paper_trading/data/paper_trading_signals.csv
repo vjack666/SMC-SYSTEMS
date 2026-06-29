@@ -1,0 +1,2 @@
+signal_id,timestamp_signal,symbol,side,session_bucket,structure_event,fvg_creation_time,fvg_mitigation_time,bos_time,entry_price,stop_price,target_price,ml_score,risk_r,spread_estimated,slippage_estimated,result,pnl_r,pnl_usd,entry_time,exit_time,holding_bars,bars_since_fvg_creation,mitigation_depth_pct,notes
+EURUSD_20260531_144728_244,2026-05-31T14:47:28.244948,EURUSD,LONG,new_york,fvg,2026-05-31 15:00:00,,,1.085,1.08,1.095,0.72,,5e-05,2e-05,PENDING,,,,,,5,0.15,

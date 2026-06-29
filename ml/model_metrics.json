@@ -1,0 +1,14 @@
+{
+  "model": "xgboost",
+  "rows": 3271,
+  "logloss": 0.009427734366980908,
+  "roc_auc": 0.5,
+  "precision": 0.0,
+  "recall": 0.0,
+  "brier_score": 0.0012210174414076988,
+  "calibration_used": true,
+  "calibration_method": "sigmoid",
+  "calibration_cv": 2,
+  "model_path": "ml\\models\\quality_filter.pkl",
+  "importance_path": "ml\\feature_importance.csv"
+}

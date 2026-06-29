@@ -1,0 +1,10 @@
+name: risk governor caution
+module: risk_governor
+fixture: risk_caution_fixture.yaml
+expected:
+  module: risk_governor
+  status: ok
+  mode: CAUTION
+  risk_multiplier: 0.75
+tags:
+  - risk

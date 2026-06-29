@@ -1,0 +1,39 @@
+{
+  "module": "fvg_only",
+  "n_samples": 299987,
+  "n_features": 5,
+  "features": [
+    "fvg_bullish",
+    "fvg_bearish",
+    "gap_size_atr",
+    "atr_ratio",
+    "body_ratio"
+  ],
+  "positive_rate": 0.08206355608743046,
+  "cv_mean": 0.9292613962476459,
+  "cv_std": 0.0008906443735653911,
+  "model_path": "modules\\fvg\\models\\fvg_v3.pkl",
+  "feature_importance": [
+    {
+      "feature": "gap_size_atr",
+      "importance": 0.653142195215715
+    },
+    {
+      "feature": "fvg_bullish",
+      "importance": 0.1883639011583901
+    },
+    {
+      "feature": "fvg_bearish",
+      "importance": 0.15533729540404362
+    },
+    {
+      "feature": "atr_ratio",
+      "importance": 0.002077531073319742
+    },
+    {
+      "feature": "body_ratio",
+      "importance": 0.001079077148531434
+    }
+  ],
+  "target_definition": "1 if directional move after FVG reaches >= 0.4*ATR within 8 bars; else 0"
+}

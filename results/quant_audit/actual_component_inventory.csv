@@ -1,0 +1,29 @@
+component_type,name,current_state,details
+metric,win_rate,implemented,Computed in backtest and paper trading logs as wins/trades.
+metric,profit_factor,implemented,Gross profit / gross loss calculated in multiple reports.
+metric,max_drawdown,implemented,Drawdown and daily drawdown calculated with cumsum and peaks.
+metric,sharpe_ratio,implemented,Annualized daily-return Sharpe available in reports.
+metric,expectancy_r,implemented,Computed as pnl_r sum / trades in several analytic scripts.
+metric,calmar_ratio,implemented,Calculated in forward validation report only.
+metric,equity_final,implemented,Final cumulative pnl included in audit outputs.
+metric,monthly_breakdown,implemented,Month-level performance reported in results/e_month_breakdown.csv.
+metric,monte_carlo,implemented,Monte Carlo stress analysis output present in results/e_montecarlo.csv.
+metric,feature_importance,implemented,Feature importance reported from permutation-like correlations.
+feature,atr_ratio,implemented,Used in trend context and signal filtering.
+feature,rsi,implemented,Computed for signal generation and trend filter.
+feature,ema_slope,implemented,Used in regime detection and trend context.
+feature,fvg_detection,implemented,FVG detection present in scalping context and setup filters.
+feature,order_block_detection,implemented,OB detection scaffolded and used in context.
+feature,bo/bos/choch,implemented,Break of structure and CHOCH detection present in module pipeline.
+model,quality_filter,implemented,ML classifier pipeline with XGBoost/LGBM/CatBoost fallback.
+model,trend_classifier,implemented,Trend ML model scaffold in modules/trend with backtest integration.
+validation,walk_forward,implemented,70/30 date split and walk-forward report exist.
+validation,forward_validation,implemented,Forward validation scripts and related outputs exist.
+log,paper_trading_signals,implemented,Paper trading signals stored in paper_trading/data.
+log,daily_performance,implemented,Paper trading daily performance log exists.
+log,weekly_performance,implemented,Paper trading weekly performance log exists.
+log,model_monitoring,implemented,Model monitoring CSV exists for paper trading.
+dashboard,static_reports,implemented,Multiple markdown and CSV reports exist but no live dashboard.
+dataset,experiment_E,implemented,Primary trade dataset for purification and robustness audit.
+dataset,ml_trade_dataset,implemented,Dataset for ML model training exists.
+

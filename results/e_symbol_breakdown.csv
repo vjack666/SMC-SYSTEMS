@@ -1,0 +1,4 @@
+symbol,trades,winrate,profit_factor,expectancy,max_drawdown,total_r
+EURUSD,396,0.4141,1.4447,0.2178,-21.082,86.267
+GBPUSD,738,0.4485,1.6399,0.2975,-20.888,219.536
+XAUUSD,642,0.4237,1.5447,0.2581,-28.062,165.714

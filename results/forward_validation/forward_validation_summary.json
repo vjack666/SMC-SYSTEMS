@@ -1,0 +1,82 @@
+{
+  "title": "Forward Validation Executive Summary",
+  "validation_type": "Walk-Forward Historical 70/30 Split",
+  "date_generated": "2026-05-31T09:02:43.162606",
+  "overview": {
+    "backtest_period": "2024-09-19 17:30:00+00:00 to 2025-12-18 14:30:00+00:00",
+    "forward_oos_period": "2025-12-19 22:45:00+00:00 to 2026-05-29 22:30:00+00:00",
+    "backtest_trades": 1245,
+    "forward_trades": 531
+  },
+  "key_findings": {
+    "expectancy_retention": "-18.8%",
+    "pf_retention": "-8.8%",
+    "classification": "EXCELENTE (81.2% expectancy retention)",
+    "confidence_level": "70% - Conditional Paper Trading"
+  },
+  "pass_fail_criteria": {
+    "PF > 1.20": true,
+    "Expectancy positive": true,
+    "Drawdown controlled": false,
+    "Expectancy retention >= 60%": true,
+    "PF retention >= 60%": true
+  },
+  "metric_details": {
+    "backtest": {
+      "trades": 1245,
+      "winrate": "43.53%",
+      "expectancy": "0.2813R",
+      "pf": "1.60"
+    },
+    "forward_oos": {
+      "trades": 531,
+      "winrate": "42.37%",
+      "expectancy": "0.2285R",
+      "pf": "1.46"
+    }
+  },
+  "symbol_breakdown": {
+    "EURUSD": {
+      "trades": 213,
+      "expectancy": "0.1532R"
+    },
+    "GBPUSD": {
+      "trades": 195,
+      "expectancy": "0.2693R"
+    },
+    "XAUUSD": {
+      "trades": 123,
+      "expectancy": "0.2944R"
+    }
+  },
+  "session_breakdown": {
+    "london": {
+      "trades": 144,
+      "expectancy": "-0.0576R"
+    },
+    "new_york": {
+      "trades": 201,
+      "expectancy": "0.3979R"
+    },
+    "overlap": {
+      "trades": 186,
+      "expectancy": "0.2671R"
+    }
+  },
+  "recommendations": [
+    "Model maintains 81.2% of backtest expectancy in OOS period \u2192 EDGE IS REAL",
+    "PF retention of 91.2% is excellent \u2192 Profit structure stable",
+    "New York session shows 0.40R expectancy \u2192 Focus trading here",
+    "XAUUSD shows 0.29R expectancy \u2192 Best performer in forward period",
+    "Monitor London session closely (negative expectancy in forward)",
+    "Proceed to paper trading with 30-day observation period",
+    "If 30-day paper metrics maintain >75% retention, promote to live trading"
+  ],
+  "next_steps": [
+    "1. Deploy to paper trading for 30 calendar days",
+    "2. Monitor daily equity curve and drawdown",
+    "3. Compare paper trading metrics vs backtest expectations",
+    "4. If retention stays >75%, prepare for live trading",
+    "5. If retention drops <60%, halt and investigate cause"
+  ]
+}

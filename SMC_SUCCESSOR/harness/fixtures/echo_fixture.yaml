@@ -1,0 +1,8 @@
+events:
+  - name: market.tick
+    payload:
+      symbol: EURUSD
+      bid: 1.1000
+      ask: 1.1002
+parameters:
+  mode: echo

@@ -1,0 +1,9 @@
+events: []
+parameters:
+  consecutive_losses: 3
+  day_drawdown_pct: 0.0
+  total_drawdown_pct: 0.0
+  config:
+    caution_after_losses: 2
+    defensive_after_losses: 3
+    lockdown_after_losses: 5

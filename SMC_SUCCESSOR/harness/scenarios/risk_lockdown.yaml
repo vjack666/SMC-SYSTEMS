@@ -1,0 +1,10 @@
+name: risk governor lockdown
+module: risk_governor
+fixture: risk_lockdown_fixture.yaml
+expected:
+  module: risk_governor
+  status: ok
+  mode: LOCKDOWN
+  risk_multiplier: 0.0
+tags:
+  - risk

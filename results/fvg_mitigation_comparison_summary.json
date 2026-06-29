@@ -1,0 +1,59 @@
+{
+  "config": {
+    "initial_capital_usd": 6000.0,
+    "risk_pct_per_trade": 0.005,
+    "risk_usd_per_trade": 30.0,
+    "atr_multipliers": [
+      1.0,
+      1.5,
+      2.0
+    ],
+    "rr_ratio": 3.0,
+    "confidence_threshold": 0.62,
+    "max_hold_bars": 16,
+    "symbols": [
+      "EURUSD",
+      "GBPUSD",
+      "XAUUSD"
+    ]
+  },
+  "files": {
+    "trade_log": "results/fvg_mitigation_trade_log.csv",
+    "metrics": "results/fvg_mitigation_metrics.csv",
+    "diagnostics": "results/fvg_mitigation_diagnostics.csv"
+  },
+  "comparison_answers": {
+    "higher_expectancy": "B_mitigation",
+    "lower_drawdown": "B_mitigation",
+    "better_profit_factor": "B_mitigation",
+    "stability_by_symbol": [
+      {
+        "symbol": "EURUSD",
+        "most_stable_strategy": "B_mitigation",
+        "expectancy_std": 0.012264515460206227
+      },
+      {
+        "symbol": "GBPUSD",
+        "most_stable_strategy": "A_immediate",
+        "expectancy_std": 0.010375082898255074
+      },
+      {
+        "symbol": "XAUUSD",
+        "most_stable_strategy": "A_immediate",
+        "expectancy_std": 0.009885760489574883
+      }
+    ],
+    "better_model_usage_proxy": [
+      {
+        "strategy": "A_immediate",
+        "avg_confidence": 0.8707954677517773,
+        "trade_count": 76095
+      },
+      {
+        "strategy": "B_mitigation",
+        "avg_confidence": 0.8707523067045194,
+        "trade_count": 74496
+      }
+    ]
+  }
+}

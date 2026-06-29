@@ -1,0 +1,4 @@
+experiment_id,session_bucket,trades,expectancy
+E,london,495,0.28954806562268204
+E,new_york,687,0.20140107863174692
+E,overlap,594,0.31957548808048014

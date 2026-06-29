@@ -1,0 +1,48 @@
+{
+  "model_type": "RandomForestClassifier",
+  "n_features": 8,
+  "features": [
+    "atr_ratio",
+    "swing_amplitude_atr",
+    "candle_body_ratio_10",
+    "distance_from_last_swing_atr",
+    "volume_trend_slope_10",
+    "d1_h4_agreement",
+    "micro_state_encoded",
+    "consecutive_structure_count"
+  ],
+  "top_importances": [
+    {
+      "feature": "d1_h4_agreement",
+      "importance": 0.414387482313913
+    },
+    {
+      "feature": "consecutive_structure_count",
+      "importance": 0.3566386756505595
+    },
+    {
+      "feature": "micro_state_encoded",
+      "importance": 0.2091456667816052
+    },
+    {
+      "feature": "atr_ratio",
+      "importance": 0.005072698166744703
+    },
+    {
+      "feature": "volume_trend_slope_10",
+      "importance": 0.004796734696893273
+    },
+    {
+      "feature": "candle_body_ratio_10",
+      "importance": 0.0036010940388293165
+    },
+    {
+      "feature": "swing_amplitude_atr",
+      "importance": 0.0035268639328861562
+    },
+    {
+      "feature": "distance_from_last_swing_atr",
+      "importance": 0.002830784418568984
+    }
+  ]
+}

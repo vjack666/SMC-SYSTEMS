@@ -1,0 +1,11 @@
+{
+  "total_trades": 14344,
+  "wins": 5712,
+  "losses": 8632,
+  "win_rate": 0.39821528165086445,
+  "expectancy_r": 0.014241992727054988,
+  "std_dev_r": 1.243036858107981,
+  "profit_factor": 1.0258339650109183,
+  "avg_stop_distance_atr": 4.023996604342689,
+  "avg_holding_bars": 49.680354155047404
+}

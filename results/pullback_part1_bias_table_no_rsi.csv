@@ -1,0 +1,18 @@
+metric,used_in_classifier,direct_or_indirect,evidence_strength
+trend_alignment,False,indirect (upstream trend engine),weak_for_validation
+trend_score,True,direct,none (circular)
+macro_direction,True,direct (from trend_score threshold),none (circular)
+trend_confidence,True,direct,none (circular)
+regime_state,True,direct,none (circular)
+rsi,False,not_used,independent
+bos_direction,True,direct,none (circular)
+choch_signal,True,direct,none (circular)
+pullback_score,False,indirect (derived from classifier inputs),weak_for_validation
+atr_ratio,False,indirect (through trend/regime features),low
+pullback_depth_up_atr,False,independent_of_ready_rule,medium
+pullback_depth_down_atr,False,independent_of_ready_rule,medium
+signed_return_h,False,independent_post_event,strong
+mfe_r_h,False,independent_post_event,strong
+mae_r_h,False,independent_post_event,strong
+continuity_h,False,independent_post_event,strong
+post_structure_break_h,False,independent_post_event,strong

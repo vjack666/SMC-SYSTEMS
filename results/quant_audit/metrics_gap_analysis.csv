@@ -1,0 +1,26 @@
+metric,current_state,industry_standard,gap_level,priority
+Sortino,Not implemented,Common performance metric for downside risk-adjusted returns,High,High
+Omega Ratio,Not implemented,Industry standard for payoff distribution asymmetry,High,Medium
+Ulcer Index,Not implemented,Drawdown severity metric used in institutional risk reports,Medium,Medium
+Recovery Factor,Not implemented,Widely used to compare returns to drawdown,Medium,Medium
+MAR Ratio,Not implemented,Standard for trend-following and managed futures evaluation,Medium,Low
+Tail Ratio,Not implemented,Used by QuantConnect and funds to assess fat-tailed risk,High,Medium
+Gain-to-Pain Ratio,Not implemented,Popular alternative to Sharpe in trading systems,Medium,Medium
+Information Ratio,Not implemented,Common for signal benchmark comparison,Medium,High
+K-Ratio,Not implemented,Used for trend stability evaluation,Low,Low
+CVaR,Not implemented,Expected shortfall standard in risk management,High,High
+Expected Shortfall,Not implemented,Equivalent to CVaR for downside risk measurement,High,High
+VaR,Not implemented,Standard risk metric in professional trading firms,High,High
+Risk of Ruin,Not implemented,Position-sizing and edge sustainability metric,High,High
+MAE/MFE,Limited (MFE/MAE produced in trade simulation but not aggregated),Industry standard aggregated MFE/MAE curves for manageability,Medium,Medium
+Time Under Water,Not implemented,Drawdown duration metric for capital allocation,Medium,Medium
+Rolling Sharpe,Not implemented,Needed for stability evaluation over time,High,High
+Rolling PF,Not implemented,Trend stability check across moving windows,High,High
+Rolling Expectancy,Not implemented,Critical for decay monitoring,High,High
+Equity Stability Score,Not implemented,Advanced stability measure in institutional monitoring,Medium,Medium
+Strategy Decay Score,Not implemented,Used to quantify edge deterioration,Medium,Medium
+Deflated Sharpe Ratio,Not implemented,MLFinLab standard for overfitting adjustment,High,High
+Probability of Backtest Overfitting,Not implemented,Industry validation metric per MLFinLab,High,High
+White Reality Check,Not implemented,Statistical backtest overfitting test,High,High
+CSCV,Not implemented,Combinatorial cross validation standard,High,High
+Bootstrap Validation,Not implemented,Stable validation method for financial time series,High,High

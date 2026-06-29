@@ -1,0 +1,10 @@
+name: risk governor defensive
+module: risk_governor
+fixture: risk_defensive_fixture.yaml
+expected:
+  module: risk_governor
+  status: ok
+  mode: DEFENSIVE
+  risk_multiplier: 0.5
+tags:
+  - risk

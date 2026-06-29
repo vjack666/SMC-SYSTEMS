@@ -1,0 +1,2 @@
+experiment_id,total_trades,winrate,profit_factor,expectancy,average_rr,max_drawdown,sharpe,calmar,equity_final,delta_pf_vs_A,delta_expectancy_vs_A,delta_dd_vs_A,pass_success_criteria
+E,1776,0.43186936936936937,1.5604925526581475,0.26549362242288455,2.0467477287797866,28.062187075715713,7.6334310726673245,16.80256325534517,471.51667342304296,,,,True

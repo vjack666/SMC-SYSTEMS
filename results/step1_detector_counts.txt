@@ -1,0 +1,6 @@
+Total bars loaded: 47204
+BOS signals: 11759
+FVG zones: (47204, 13)
+OB zones: (47204, 14)
+CHoCH signals: 1779
+Swing highs: 2878, Swing lows: 2895

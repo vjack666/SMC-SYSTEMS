@@ -1,0 +1,5 @@
+scenario,trades,winrate,profit_factor,expectancy,max_drawdown,total_r
+baseline,1776,0.4319,1.4292,0.2155,-30.655,382.717
+slippage_x2,1776,0.4217,1.3118,0.1655,-38.34,293.917
+slippage_x3,1776,0.4133,1.2063,0.1155,-47.79,205.117
+spread_x2,1776,0.4217,1.3118,0.1655,-38.34,293.917

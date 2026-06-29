@@ -1,0 +1,10 @@
+{
+  "total_trades": 5,
+  "win_rate": 0.0,
+  "profit_factor": 0.0,
+  "max_drawdown_r": -4.0,
+  "max_drawdown_pct": 4.0,
+  "max_daily_drawdown_pct": 4.0,
+  "sharpe_ratio": 0.0,
+  "expectancy_r": -1.0
+}

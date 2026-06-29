@@ -1,0 +1,11 @@
+item,impact,difficulty,priority,notes
+Purged KFold validation,High,High,High,Essential to prevent lookahead bias in time series ML.
+Embargo scheme,High,Medium,High,Prevents leakage around adjacent signal timestamps.
+Concept/feature drift monitoring,High,Medium,High,Needed to detect regime changes in production.
+CVaR / Expected Shortfall,High,Medium,High,Core risk metric for institutional risk sentencing.
+Smart Money Concept feature expansion,Medium,Medium,Medium,Improves edge specificity for SMC-driven signals.
+Nested cross validation,High,High,High,Supports robust hyperparameter tuning and model selection.
+Automated walk-forward pipeline,Medium,Medium,Medium,Reduces manual validation effort and repeatability risk.
+Target encoding and meta-labels,Medium,Medium,Medium,Enhances ML signal quality and regime adaptation.
+Interactive KPI dashboards,Medium,Medium,Medium,Improves review cadence for traders and risk managers.
+Documentation and governance,Medium,Low,Medium,Required for auditability and handover.

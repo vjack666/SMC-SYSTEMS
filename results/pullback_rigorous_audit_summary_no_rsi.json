@@ -1,0 +1,40 @@
+{
+  "dataset": {
+    "rows": 300000,
+    "valid_n": 844,
+    "invalid_n": 474,
+    "discarded_n": 299156,
+    "use_rsi": false
+  },
+  "hypothesis": "VALID pullbacks represent higher-quality pullbacks with better continuation than discarded pullbacks.",
+  "evidence_for": {
+    "valid_vs_invalid_signed_return_10_delta_mean": 0.5747291807804733,
+    "valid_vs_invalid_continuity_10_delta_mean": 0.09921111044453773,
+    "valid_vs_invalid_mfe_10_delta_mean": 0.6088740325382807
+  },
+  "evidence_against": {
+    "circular_features_used": [
+      "trend_score",
+      "macro_direction",
+      "trend_confidence",
+      "regime_state",
+      "rsi",
+      "bos_direction",
+      "choch_signal"
+    ],
+    "valid_rate_global": 0.0028133333333333335,
+    "ranging_valid_share": 0.0,
+    "valid_vs_discarded_signed_return_10_delta_mean": 0.38699608083878273
+  },
+  "confidence_level": "medium",
+  "output_files": {
+    "part1": "results\\pullback_part1_bias_table_no_rsi.csv",
+    "part3_valid_vs_invalid": "results\\pullback_part3_valid_vs_invalid_no_rsi.csv",
+    "part3_valid_vs_discarded": "results\\pullback_part3_valid_vs_discarded_no_rsi.csv",
+    "part4": "results\\pullback_part4_regime_no_rsi.csv",
+    "part5": "results\\pullback_part5_symbol_no_rsi.csv",
+    "part6": "results\\pullback_part6_score_bins_no_rsi.csv",
+    "part6_plot": "results\\pullback_part6_score_bins_no_rsi.png",
+    "part7": "results\\pullback_part7_correlations_no_rsi.csv"
+  }
+}

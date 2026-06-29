@@ -1,0 +1,16 @@
+feature,importance_mean,importance_std
+bars_since_fvg_creation,0.035923,0.015689
+distance_prev_day_low,0.029842,0.020973
+mitigation_depth_pct,0.018243,0.011755
+hour_sin,0.018131,0.010116
+bars_since_mitigation,0.017117,0.015748
+mitigation_touch_count,0.011036,0.00975
+distance_prev_day_high,0.010923,0.014138
+distance_eql,0.006081,0.012832
+hour_cos,0.001914,0.016006
+structure_event_code,0.0,0.0
+ob_overlap_with_fvg,0.0,0.0
+structure_scale_code,0.0,0.0
+ob_state_code,0.0,0.0
+session_bucket_code,-0.006982,0.008676
+distance_eqh,-0.012613,0.01498

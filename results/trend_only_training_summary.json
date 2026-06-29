@@ -1,0 +1,9 @@
+{
+  "module": "trend_only",
+  "n_samples": 299682,
+  "n_features": 8,
+  "positive_rate": 0.2731628859924854,
+  "cv_mean": 0.7659228676407184,
+  "cv_std": 0.015451884204595142,
+  "model_path": "modules\\trend\\models\\trend_v3.pkl"
+}

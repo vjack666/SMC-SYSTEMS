@@ -1,0 +1,6 @@
+Retraining swing ML model. This may take several minutes depending on dataset size.
+Module swing: 121706 training samples, 5 features, class balance: 79.76% positive
+Module swing CV: mean=0.5237 std=0.0069
+Retraining choch ML model. This may take several minutes depending on dataset size.
+Module choch: 121744 training samples, 5 features, class balance: 1.54% positive
+Module choch CV: mean=0.9882 std=0.0006

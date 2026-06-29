@@ -1,0 +1,39 @@
+{
+  "config": {
+    "confidence_threshold": 0.62,
+    "rr_ratio": 2.0,
+    "max_hold_bars": 16
+  },
+  "by_symbol": [
+    {
+      "symbol": "XAUUSD",
+      "total_trades": 8347,
+      "win_rate": 0.35569665748172996,
+      "profit_factor": 1.0024759898348037,
+      "max_drawdown_r": -245.41061807620872,
+      "expectancy_r": 0.001553835815191886,
+      "avg_ml_confidence": 0.8712498123838193,
+      "signal_count": 8347
+    },
+    {
+      "symbol": "EURUSD",
+      "total_trades": 8583,
+      "win_rate": 0.34510078061283933,
+      "profit_factor": 0.9448929133539276,
+      "max_drawdown_r": -352.69518334057125,
+      "expectancy_r": -0.03496912353253123,
+      "avg_ml_confidence": 0.8703877790891912,
+      "signal_count": 8583
+    },
+    {
+      "symbol": "GBPUSD",
+      "total_trades": 8435,
+      "win_rate": 0.3368109069353883,
+      "profit_factor": 0.9098035915858929,
+      "max_drawdown_r": -570.2895254240661,
+      "expectancy_r": -0.058110705448529164,
+      "avg_ml_confidence": 0.8707607051136415,
+      "signal_count": 8435
+    }
+  ]
+}

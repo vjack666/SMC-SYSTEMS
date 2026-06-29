@@ -1,0 +1,14 @@
+{
+  "walk_forward": {
+    "n_folds": 5,
+    "auc_mean": 0.09112934713570167,
+    "auc_std": 0.031613688178298315,
+    "samples": 9096
+  },
+  "samples_for_ml": 11565,
+  "threshold": 0.55,
+  "no_lookahead": {
+    "ok": true,
+    "violations": 0
+  }
+}

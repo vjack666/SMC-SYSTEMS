@@ -1,0 +1,27 @@
+{
+  "selected_experiments": [
+    "E"
+  ],
+  "files": {
+    "comparison_table": "results/comparison_table.csv",
+    "state_transition_log": "results/state_transition_log.csv",
+    "invalidation_log": "results/invalidation_log.csv",
+    "expectancy_report": "results/expectancy_report.csv",
+    "drawdown_report": "results/drawdown_report.csv",
+    "symbol_breakdown": "results/symbol_breakdown.csv",
+    "feature_importance": "results/feature_importance.csv",
+    "audit_summary": "results/audit_summary.md",
+    "validation_snapshot": "results/validation_snapshot.json",
+    "reproducibility_snapshot": "results/reproducibility_snapshot.json"
+  },
+  "baseline_check": {
+    "baseline_consistent": false,
+    "reference": {
+      "metrics": "results/fvg_mitigation_metrics.csv",
+      "trade_log": "results/fvg_mitigation_trade_log.csv",
+      "comparison_summary": "results/fvg_mitigation_comparison_summary.json"
+    },
+    "legacy_total_trades_sum": 76095,
+    "new_total_trades": 0
+  }
+}

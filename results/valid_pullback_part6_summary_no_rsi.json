@@ -1,0 +1,21 @@
+{
+  "dataset": {
+    "valid_n": 844,
+    "symbols": [
+      "EURUSD",
+      "GBPUSD",
+      "XAUUSD"
+    ],
+    "horizon": 10,
+    "use_rsi": false
+  },
+  "files": {
+    "part1": "results\\valid_pullback_part1_quartiles_no_rsi.csv",
+    "part2_numeric": "results\\valid_pullback_part2_numeric_top_vs_bottom_no_rsi.csv",
+    "part2_categorical": "results\\valid_pullback_part2_categorical_top_vs_bottom_no_rsi.csv",
+    "part2_categorical_dist": "results\\valid_pullback_part2_categorical_distributions_no_rsi.csv",
+    "part3": "results\\valid_pullback_part3_top_combinations_no_rsi.csv",
+    "part4": "results\\valid_pullback_part4_descriptive_ranking_no_rsi.csv",
+    "part5": "results\\valid_pullback_part5_temporal_blocks_no_rsi.csv"
+  }
+}

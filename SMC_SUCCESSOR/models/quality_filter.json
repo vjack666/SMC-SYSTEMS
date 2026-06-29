@@ -1,0 +1,408 @@
+{
+  "feature_names": [
+    "bos_detected",
+    "bos_strength",
+    "choch_detected",
+    "choch_strength",
+    "fvg_detected",
+    "fvg_size",
+    "fvg_fill_status",
+    "fvg_direction",
+    "ob_detected",
+    "ob_distance",
+    "liquidity_sweep",
+    "displacement_magnitude",
+    "displacement_bullish",
+    "displacement_bearish",
+    "premium_discount_zone",
+    "premium_distance",
+    "ote_long_min",
+    "ote_short_min",
+    "d1_bias",
+    "h4_bias",
+    "trend_alignment",
+    "trend_confidence",
+    "directional_efficiency",
+    "range_compression",
+    "ema_fast",
+    "ema_slow",
+    "ema_distance",
+    "ema_slope",
+    "atr",
+    "atr_ratio",
+    "candle_range_vs_atr",
+    "volatility_regime",
+    "rsi",
+    "rsi_slope",
+    "volume_ratio",
+    "momentum_strength",
+    "spread",
+    "market_regime",
+    "session",
+    "weekday",
+    "direction",
+    "sl_distance",
+    "tp_distance",
+    "rr_ratio",
+    "expected_hold_bars",
+    "agent_ict_bias",
+    "agent_ict_confidence",
+    "agent_ict_events",
+    "agent_wyckoff_bias",
+    "agent_wyckoff_confidence",
+    "agent_wyckoff_phase",
+    "agent_wyckoff_events",
+    "agent_wyckoff_spring",
+    "agent_wyckoff_upthrust",
+    "agent_wyckoff_sos",
+    "agent_wyckoff_sow",
+    "agent_wyckoff_effort_divergence",
+    "agent_structure_bias",
+    "agent_structure_confidence",
+    "agent_structure_events",
+    "agent_decision_bias",
+    "agent_decision_confidence",
+    "agent_decision_reasons",
+    "agent_decision_conflicts",
+    "agent_decision_conflict_penalty",
+    "agent_decision_weighted_bias_sum",
+    "agent_decision_total_weight"
+  ],
+  "schema_version": "v3",
+  "training_date": "2026-06-29T04:25:53Z",
+  "model_name": "xgboost",
+  "n_samples": 82,
+  "metrics": {
+    "model": "xgboost",
+    "accuracy": 0.8780487804878049,
+    "precision": 1.0,
+    "recall": 0.7058823529411765,
+    "roc_auc": 1.0,
+    "win_rate_all": 0.4146341463414634,
+    "win_rate_accepted": 1.0,
+    "win_rate_impact": 0.5853658536585367,
+    "profit_factor_all": 1.2683384181687751,
+    "profit_factor_accepted": Infinity,
+    "profit_factor_impact": Infinity,
+    "expectancy_all": 0.15707614722074645,
+    "expectancy_accepted": 1.906273658879541,
+    "expectancy_impact": 1.7491975116587946,
+    "n_samples": 82,
+    "n_features": 67,
+    "walk_forward_windows": 3,
+    "walk_forward_aggregate": {
+      "mean_accuracy": 0.5980392156862746,
+      "mean_precision": 0.712121212121212,
+      "mean_recall": 0.6037037037037037,
+      "mean_roc_auc": 0.7510582010582011,
+      "mean_all_trades_win_rate": 0.4816176470588236,
+      "mean_accepted_win_rate": 0.712121212121212,
+      "mean_rejected_win_rate": 0.3444444444444444,
+      "mean_win_rate_impact": 0.23050356506238856,
+      "mean_all_trades_profit_factor": 1.7482655907350335,
+      "mean_accepted_profit_factor": Infinity,
+      "mean_rejected_profit_factor": 1.0895354320525261,
+      "mean_profit_factor_impact": Infinity,
+      "mean_all_trades_expectancy": 0.296524692678597,
+      "mean_accepted_expectancy": 1.136363636363621,
+      "mean_rejected_expectancy": -0.12488346506437524,
+      "mean_expectancy_impact": 0.8398389436850238,
+      "mean_n_accepted": 7.333333333333333,
+      "mean_n_rejected": 9.333333333333334,
+      "mean_n_all": 16.666666666666668,
+      "n_windows": 3
+    },
+    "walk_forward_stability": {
+      "std_accuracy": 0.08433652222590812,
+      "std_precision": 0.2110361860179412,
+      "std_recall": 0.3692204370542697,
+      "std_roc_auc": 0.1121087737204217,
+      "std_all_trades_win_rate": 0.1329981549767526,
+      "std_accepted_win_rate": 0.2110361860179412,
+      "std_rejected_win_rate": 0.24393887111222387,
+      "std_win_rate_impact": 0.15991086064901888,
+      "std_all_trades_profit_factor": 0.8375210433394088,
+      "std_accepted_profit_factor": NaN,
+      "std_rejected_profit_factor": 0.8262565302202328,
+      "std_profit_factor_impact": NaN,
+      "std_all_trades_expectancy": 0.36223789858736793,
+      "std_accepted_expectancy": 0.6331085580538451,
+      "std_rejected_expectancy": 0.6374231676277635,
+      "std_expectancy_impact": 0.6770276217585905,
+      "std_n_accepted": 4.4969125210773475,
+      "std_n_rejected": 4.027681991198191,
+      "std_n_all": 0.4714045207910317
+    },
+    "optimal_threshold": 0.39
+  },
+  "feature_importance": [
+    {
+      "feature": "atr",
+      "importance": 0.1097560975609756
+    },
+    {
+      "feature": "rsi",
+      "importance": 0.07317073170731707
+    },
+    {
+      "feature": "directional_efficiency",
+      "importance": 0.05284552845528456
+    },
+    {
+      "feature": "sl_distance",
+      "importance": 0.04878048780487809
+    },
+    {
+      "feature": "ote_long_min",
+      "importance": 0.04471544715447159
+    },
+    {
+      "feature": "ob_distance",
+      "importance": 0.044715447154471545
+    },
+    {
+      "feature": "ote_short_min",
+      "importance": 0.044715447154471545
+    },
+    {
+      "feature": "premium_distance",
+      "importance": 0.03658536585365857
+    },
+    {
+      "feature": "ema_fast",
+      "importance": 0.03658536585365857
+    },
+    {
+      "feature": "ema_distance",
+      "importance": 0.032520325203252064
+    },
+    {
+      "feature": "trend_confidence",
+      "importance": 0.028455284552845555
+    },
+    {
+      "feature": "ema_slow",
+      "importance": 0.028455284552845555
+    },
+    {
+      "feature": "fvg_fill_status",
+      "importance": 0.024390243902439046
+    },
+    {
+      "feature": "range_compression",
+      "importance": 0.024390243902439046
+    },
+    {
+      "feature": "ema_slope",
+      "importance": 0.024390243902439046
+    },
+    {
+      "feature": "candle_range_vs_atr",
+      "importance": 0.020325203252032537
+    },
+    {
+      "feature": "volume_ratio",
+      "importance": 0.020325203252032537
+    },
+    {
+      "feature": "agent_structure_confidence",
+      "importance": 0.020325203252032537
+    },
+    {
+      "feature": "atr_ratio",
+      "importance": 0.016260162601626032
+    },
+    {
+      "feature": "agent_decision_reasons",
+      "importance": 0.012195121951219523
+    },
+    {
+      "feature": "bos_detected",
+      "importance": 0.008130081300813016
+    },
+    {
+      "feature": "agent_ict_events",
+      "importance": 0.008130081300813016
+    },
+    {
+      "feature": "fvg_detected",
+      "importance": 0.004065040650406508
+    },
+    {
+      "feature": "rsi_slope",
+      "importance": 0.004065040650406508
+    },
+    {
+      "feature": "tp_distance",
+      "importance": 0.004065040650406508
+    },
+    {
+      "feature": "bos_strength",
+      "importance": 0.0
+    },
+    {
+      "feature": "choch_detected",
+      "importance": 0.0
+    },
+    {
+      "feature": "choch_strength",
+      "importance": 0.0
+    },
+    {
+      "feature": "fvg_size",
+      "importance": 0.0
+    },
+    {
+      "feature": "fvg_direction",
+      "importance": 0.0
+    },
+    {
+      "feature": "ob_detected",
+      "importance": 0.0
+    },
+    {
+      "feature": "liquidity_sweep",
+      "importance": 0.0
+    },
+    {
+      "feature": "displacement_magnitude",
+      "importance": 0.0
+    },
+    {
+      "feature": "displacement_bullish",
+      "importance": 0.0
+    },
+    {
+      "feature": "displacement_bearish",
+      "importance": 0.0
+    },
+    {
+      "feature": "premium_discount_zone",
+      "importance": 0.0
+    },
+    {
+      "feature": "d1_bias",
+      "importance": 0.0
+    },
+    {
+      "feature": "h4_bias",
+      "importance": 0.0
+    },
+    {
+      "feature": "trend_alignment",
+      "importance": 0.0
+    },
+    {
+      "feature": "volatility_regime",
+      "importance": 0.0
+    },
+    {
+      "feature": "momentum_strength",
+      "importance": 0.0
+    },
+    {
+      "feature": "spread",
+      "importance": 0.0
+    },
+    {
+      "feature": "market_regime",
+      "importance": 0.0
+    },
+    {
+      "feature": "session",
+      "importance": 0.0
+    },
+    {
+      "feature": "weekday",
+      "importance": 0.0
+    },
+    {
+      "feature": "direction",
+      "importance": 0.0
+    },
+    {
+      "feature": "rr_ratio",
+      "importance": 0.0
+    },
+    {
+      "feature": "expected_hold_bars",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_ict_bias",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_ict_confidence",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_wyckoff_bias",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_wyckoff_confidence",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_wyckoff_phase",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_wyckoff_events",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_wyckoff_spring",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_wyckoff_upthrust",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_wyckoff_sos",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_wyckoff_sow",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_wyckoff_effort_divergence",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_structure_bias",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_structure_events",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_decision_bias",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_decision_confidence",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_decision_conflicts",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_decision_conflict_penalty",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_decision_weighted_bias_sum",
+      "importance": 0.0
+    },
+    {
+      "feature": "agent_decision_total_weight",
+      "importance": 0.0
+    }
+  ]
+}
