@@ -66,7 +66,9 @@ def _session_filter(times: pd.Series, symbol: str, allow_xau_asia: bool) -> pd.S
     london = (hours >= 7) & (hours <= 11)
     new_york = (hours >= 13) & (hours <= 17)
     asia = (hours >= 0) & (hours <= 5)
-    if allow_xau_asia and symbol == "XAUUSD":
+    if allow_xau_asia:
+        return london | new_york | asia
+    if symbol == "XAUUSD":
         return london | new_york | asia
     return london | new_york
 

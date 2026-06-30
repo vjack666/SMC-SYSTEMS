@@ -1,2 +1,4 @@
 symbol,total_bars,rejected_by_trend,rejected_by_session,rejected_by_atr,rejected_by_ob_fvg,rejected_by_bos,rejected_by_volume,passed
-EURUSD,5000,4954,2920,2392,4871,4909,2340,14
+EURUSD,100000,95866,58288,48712,92708,96099,45902,0
+GBPUSD,100000,95264,58277,50206,92262,95704,44234,0
+XAUUSD,100000,90877,56255,47945,81417,92266,44607,1

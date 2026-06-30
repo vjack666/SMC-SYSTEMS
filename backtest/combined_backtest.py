@@ -99,10 +99,13 @@ def _build_signals_from_context(
             if risk <= 0.0:
                 sl = entry - atr if direction == 1 else entry + atr
                 risk = abs(entry - sl)
-            tp = entry + (2.0 * risk) if direction == 1 else entry - (2.0 * risk)
+            if risk > 2.0 * atr:
+                sl = entry - 2.0 * atr if direction == 1 else entry + 2.0 * atr
+                risk = 2.0 * atr
+            tp = entry + (1.5 * risk) if direction == 1 else entry - (1.5 * risk)
         else:
-            sl = entry - atr if direction == 1 else entry + atr
-            tp = entry + (2.0 * atr) if direction == 1 else entry - (2.0 * atr)
+            sl = entry - 1.5 * atr if direction == 1 else entry + 1.5 * atr
+            tp = entry + (1.5 * atr) if direction == 1 else entry - (1.5 * atr)
 
         results.append(
             ScalpingSignal(

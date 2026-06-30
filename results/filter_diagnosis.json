@@ -1,12 +1,32 @@
 {
   "EURUSD": {
-    "total_bars": 5000,
-    "rejected_by_trend": 4954,
-    "rejected_by_session": 2920,
-    "rejected_by_atr": 2392,
-    "rejected_by_ob_fvg": 4871,
-    "rejected_by_bos": 4909,
-    "rejected_by_volume": 2340,
-    "passed": 14
+    "total_bars": 100000,
+    "rejected_by_trend": 95866,
+    "rejected_by_session": 58288,
+    "rejected_by_atr": 48712,
+    "rejected_by_ob_fvg": 92708,
+    "rejected_by_bos": 96099,
+    "rejected_by_volume": 45902,
+    "passed": 0
+  },
+  "GBPUSD": {
+    "total_bars": 100000,
+    "rejected_by_trend": 95264,
+    "rejected_by_session": 58277,
+    "rejected_by_atr": 50206,
+    "rejected_by_ob_fvg": 92262,
+    "rejected_by_bos": 95704,
+    "rejected_by_volume": 44234,
+    "passed": 0
+  },
+  "XAUUSD": {
+    "total_bars": 100000,
+    "rejected_by_trend": 90877,
+    "rejected_by_session": 56255,
+    "rejected_by_atr": 47945,
+    "rejected_by_ob_fvg": 81417,
+    "rejected_by_bos": 92266,
+    "rejected_by_volume": 44607,
+    "passed": 1
   }
 }
