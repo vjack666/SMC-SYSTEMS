@@ -43,3 +43,4 @@
 - [x] Execution layer abstraction (OpenCode, Claude Code, Codex, local Python)
 - [x] Telegram documentation (architecture, setup, security, commands)
 - [x] .env.example configuration template
+- [x] Autonomous startup workflow — `/agent` directory + opencode.json wiring

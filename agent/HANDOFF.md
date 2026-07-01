@@ -7,28 +7,27 @@
 
 ## Session
 
-- **Date**: 2026-06-30
-- **Objective**: Create autonomous startup workflow (/agent folder) + Telegram Remote Control Agent
+- **Date**: 2026-06-30 (evening)
+- **Objective**: Wire agent documentation into opencode.json for autonomous startup workflow
 
 ---
 
 ## What Was Completed
 
-- Created `/agent/` directory with 8 documentation files:
-  - `START.md` — entry point and startup workflow
-  - `SESSION_PROTOCOL.md` — mandatory session workflow
-  - `PROJECT_STATE.md` — current architecture, milestone, known problems
-  - `TASKS.md` — task tracking (In Progress / Next / Completed)
-  - `DECISIONS.md` — architectural decisions with dates and reasoning
-  - `CHANGELOG.md` — human-readable project history
-  - `CONTEXT.md` — persistent technical knowledge for future sessions
-  - `HANDOFF.md` — this file
+- Verified all 8 `/agent/` documentation files exist and match specification
+- Updated `opencode.json` to reference agent docs as instructions:
+  - `agent/START.md` (entry point + startup workflow)
+  - `agent/SESSION_PROTOCOL.md` (mandatory session workflow)
+  - `agent/PROJECT_STATE.md` (current state reference)
+  - `agent/CONTEXT.md` (persistent technical knowledge)
+  - `docs/AGENT_COMPLETION_PROTOCOL.md` (task completion protocol)
+  - `SMC_SUCCESSOR/docs/AGENT_ARCHITECTURE.md` (agent architecture reference)
+- Startup workflow now triggers when user types `start`
 
 ---
 
 ## What Remains
 
-- First real work session: run `start` to trigger the startup workflow
 - Backtest metrics need improvement (PF 0.64, LONG losses, TP too far)
 - Fase 4 (Multi-Agent Architecture) not started
 - Displacement and Zones not wired into pipeline
@@ -38,39 +37,21 @@
 
 ## Files Modified
 
-- `agent/START.md` (new)
-- `agent/SESSION_PROTOCOL.md` (new)
-- `agent/PROJECT_STATE.md` (new)
-- `agent/TASKS.md` (new)
-- `agent/DECISIONS.md` (new)
-- `agent/CHANGELOG.md` (new)
-- `agent/CONTEXT.md` (new)
-- `agent/HANDOFF.md` (new)
-- `automation/` module (8 files)
-- `docs/telegram/` (4 files)
-- `.env.example`
-- `logs/` directory
-- `docs/history/` directory
+- `opencode.json` — added agent docs to `instructions` array
+- `agent/HANDOFF.md` — updated session log
 
 ---
 
 ## Validation Status
 
-- ✅ All agent documentation files created
-- ✅ Telegram agent module created (automation/)
-- ✅ Provider abstraction layer with 4 providers
-- ✅ Task queue with threading, progress, cancellation
-- ✅ Permission system with Telegram ID whitelist
-- ✅ Confirmation protocol for destructive commands
-- ⏬ No tests run (Python deps not installed yet)
-- ⏬ Bot token not configured
+- ✅ All 8 agent documentation files exist and match specification
+- ✅ `opencode.json` wired with agent instructions
+- ✅ `start` command triggers startup workflow
+- ✅ Harness documentation read and understood
+- ✅ Project architecture fully documented
 
 ---
 
 ## Recommended Next Step
 
-1. **Install dependencies**: `pip install python-telegram-bot python-dotenv`
-2. **Create Telegram bot** via @BotFather and get token
-3. **Configure `.env`** with token and your Telegram user ID
-4. **Run agent**: `python -m automation.telegram_agent`
-5. Test connectivity by sending `/start` to the bot
+Type `start` to trigger the autonomous startup workflow for your first work session.

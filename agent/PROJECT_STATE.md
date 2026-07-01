@@ -77,6 +77,7 @@ Results
 - **Agent Architecture**: ICT, Wyckoff, Structure, Decision agents with weighted voting
 - **Harness**: Scenario-based testing framework for isolated module validation
 - **Multi-symbol data**: 7 forex pairs (EURUSD, GBPUSD, USDJPY, AUDUSD, NZDUSD, USDCAD, USDCHF)
+- **Autonomous Startup Workflow**: `/agent` documentation + opencode.json wiring for `start` command
 
 ---
 
