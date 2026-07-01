@@ -294,8 +294,13 @@ def build_scalping_context(
     data["filter_exhaustion"] = exhaustion_ok
 
     wyckoff_ok = pd.Series(True, index=data.index)
-    if config.use_wyckoff and "wyckoff_accumulation" in data.columns:
-        wyckoff_ok = wyckoff_ok & data["wyckoff_accumulation"]
+    if config.use_wyckoff and "wyckoff_phase" in data.columns:
+        bullish_phase = data["wyckoff_phase"].isin(["ACCUMULATION_E", "MARKUP"])
+        bearish_phase = data["wyckoff_phase"].isin(["DISTRIBUTION_E", "MARKDOWN"])
+        wyckoff_ok = (
+            ((data["macro_direction"] == "BULLISH") & bullish_phase)
+            | ((data["macro_direction"] == "BEARISH") & bearish_phase)
+        )
     data["filter_wyckoff"] = wyckoff_ok
 
     data["exhaustion_compression_ratio"] = np.where(
@@ -310,6 +315,9 @@ def build_scalping_context(
         + data["wyckoff_spring"].astype(int)
         + data["wyckoff_sos"].astype(int)
         + data["wyckoff_lps"].astype(int)
+        + data["wyckoff_upthrust"].astype(int)
+        + data["wyckoff_sow"].astype(int)
+        + data["wyckoff_lpsy"].astype(int)
     ) if "wyckoff_sc" in data.columns else 0
     data["wyckoff_event_score"] = np.minimum(wyckoff_events, 5) if isinstance(wyckoff_events, pd.Series) else 0
     data["distance_to_fvg_zone"] = np.nan

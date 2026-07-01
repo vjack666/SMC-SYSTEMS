@@ -78,8 +78,9 @@ Results
 - **Harness**: Scenario-based testing framework for isolated module validation
 - **Multi-symbol data**: 7 forex pairs (EURUSD, GBPUSD, USDJPY, AUDUSD, NZDUSD, USDCAD, USDCHF)
 - **Autonomous Startup Workflow**: `/agent` documentation + opencode.json wiring for `start` command
-- **KOS (Knowledge Operating System)**: `knowledge/` directory with architecture docs, decisions, learnings, references
+- **KOS (Knowledge Operating System)**: `knowledge/` directory with architecture, theories, research, summaries, decisions, learnings, references, index
 - **Harness README**: `SMC_SUCCESSOR/harness/README.md` with full framework documentation
+- **Wyckoff Phase-Aware Pipeline**: Wyckoff detector with full cycle detection (accumulation + distribution + markup + markdown), phase-aware filter in scalping_setup, trend confidence adjustment in context_engine
 
 ---
 

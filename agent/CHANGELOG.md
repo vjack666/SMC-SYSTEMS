@@ -57,6 +57,17 @@
 - Provider protocol allows swapping OpenCode, Claude Code, Codex, Gemini CLI, or local Python
 - Destructive commands require `CONFIRM <CMD>` reply before execution
 
+## 2026-06-30: Wyckoff detector fix + phase-aware filter + KOS knowledge
+
+- Fixed dead code in `_detect_accumulation_phase()` (ACCUMULATION_A was unreachable)
+- Added distribution detection: `_upthrust()`, `_sign_of_weakness()`, `_last_point_supply()`, `_detect_distribution_phase()`
+- Added Markup/Markdown phase detection via swing labels + macro direction
+- Enhanced `filter_wyckoff` in scalping_setup.py to use phase-aware logic (not just accumulation boolean)
+- Added `apply_wyckoff_to_trend()` in context_engine.py for trend confidence adjustment based on phase conflict
+- Created `knowledge/theories/wyckoff/` with theory.md + implementation.md
+- Created `knowledge/research/completed/2026-06-30-wyckoff-smc-integration.md`
+- Created `knowledge/summaries/wyckoff.md` + `knowledge/index.json`
+
 ## 2026-06-30: Wyckoff structured knowledge + KOS inbox/outbox
 
 - Created `knowledge/references/wyckoff-theory.md` — comprehensive Wyckoff theory reference

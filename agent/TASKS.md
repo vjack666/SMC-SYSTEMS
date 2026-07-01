@@ -53,3 +53,7 @@
 - [x] Wyckoff structured knowledge — `knowledge/references/wyckoff-theory.md`
 - [x] Wyckoff implementation audit — `knowledge/learnings/wyckoff-implementation.md`
 - [x] KOS inbox/outbox directories created
+- [x] KOS theories/research/summaries + index.json
+- [x] Wyckoff detector fix (dead code + distribution + markup/markdown)
+- [x] Phase-aware Wyckoff filter in scalping_setup.py
+- [x] apply_wyckoff_to_trend() in context_engine.py

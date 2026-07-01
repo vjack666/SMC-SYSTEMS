@@ -22,7 +22,6 @@ def _selling_climax(data: pd.DataFrame, i: int, config: WyckoffConfig, vol_ma: p
 def _automatic_rally(data: pd.DataFrame, i: int, sc_idx: int) -> bool:
     if sc_idx < 0 or i <= sc_idx:
         return False
-    sc_low = data.iloc[sc_idx]["low"]
     range_since_sc = i - sc_idx
     if range_since_sc > 10:
         return False
@@ -76,6 +75,42 @@ def _last_point_support(data: pd.DataFrame, i: int, sc_idx: int, sos_idx: int, v
     return above_sc_high and pullback_range and low_vol
 
 
+def _upthrust(data: pd.DataFrame, i: int, dist_high_idx: int, config: WyckoffConfig) -> bool:
+    if dist_high_idx < 0 or i <= dist_high_idx:
+        return False
+    range_since = i - dist_high_idx
+    if range_since > 15:
+        return False
+    resistance = data.iloc[dist_high_idx]["high"]
+    break_above = data.iloc[i]["high"] > resistance + config.spring_depth_atr * data.iloc[i]["atr"]
+    close_below = data.iloc[i]["close"] < data.iloc[i]["open"]
+    return break_above and close_below
+
+
+def _sign_of_weakness(data: pd.DataFrame, i: int, dist_low_idx: int, vol_ma: pd.Series, config: WyckoffConfig) -> bool:
+    if dist_low_idx < 0 or i <= dist_low_idx:
+        return False
+    range_since = i - dist_low_idx
+    if range_since > 20:
+        return False
+    below_dist_low = data.iloc[i]["close"] < data.iloc[dist_low_idx]["low"]
+    vol_ok = data.iloc[i]["tick_volume"] >= vol_ma.iloc[i] * config.volume_threshold
+    range_atr = (data.iloc[i]["high"] - data.iloc[i]["low"]) >= data.iloc[i]["atr"] * config.sos_min_atr
+    return below_dist_low and vol_ok and range_atr
+
+
+def _last_point_supply(data: pd.DataFrame, i: int, dist_high_idx: int, sow_idx: int, vol_ma: pd.Series, config: WyckoffConfig) -> bool:
+    if dist_high_idx < 0 or sow_idx < 0 or i <= sow_idx:
+        return False
+    range_since_sow = i - sow_idx
+    if range_since_sow > 15:
+        return False
+    below_dist_high = data.iloc[i]["high"] < data.iloc[dist_high_idx]["high"]
+    bounce_range = (data.iloc[i]["high"] - data.iloc[i]["low"]) <= data.iloc[i]["atr"] * config.lps_max_atr
+    low_vol = data.iloc[i]["tick_volume"] <= vol_ma.iloc[i] * config.volume_threshold
+    return below_dist_high and bounce_range and low_vol
+
+
 def _detect_accumulation_phase(data: pd.DataFrame, idx: int, config: WyckoffConfig) -> str:
     if idx < config.phase_lookback:
         return "NONE"
@@ -93,9 +128,50 @@ def _detect_accumulation_phase(data: pd.DataFrame, idx: int, config: WyckoffConf
         return "ACCUMULATION_C"
     if has_sc:
         return "ACCUMULATION_B"
-    if has_sc:
-        return "ACCUMULATION_A"
-    return "NONE"
+    return "ACCUMULATION_A" if has_sc else "NONE"
+
+
+def _detect_distribution_phase(data: pd.DataFrame, idx: int, config: WyckoffConfig) -> str:
+    if idx < config.phase_lookback:
+        return "NONE"
+    window = data.iloc[idx - config.phase_lookback : idx + 1]
+    has_ut = window["wyckoff_upthrust"].any()
+    has_sow = window["wyckoff_sow"].any()
+    has_lpsy = window["wyckoff_lpsy"].any()
+
+    if has_ut and has_sow and has_lpsy:
+        return "DISTRIBUTION_E"
+    if has_ut and has_sow:
+        return "DISTRIBUTION_D"
+    if has_ut:
+        return "DISTRIBUTION_C"
+    return "DISTRIBUTION_B" if (has_sow or has_lpsy) else "NONE"
+
+
+def _detect_markup_phase(data: pd.DataFrame, idx: int, config: WyckoffConfig) -> bool:
+    if idx < config.swing_lookback + 2:
+        return False
+    window = data.iloc[idx - config.swing_lookback * 2 : idx + 1]
+    if "swing_label" not in window.columns:
+        return False
+    labels = window["swing_label"].dropna()
+    has_hh = any("HH" in str(l) for l in labels)
+    has_hl = any("HL" in str(l) for l in labels)
+    bias = str(window["macro_direction"].iloc[-1]) if "macro_direction" in window.columns else "RANGING"
+    return bias == "BULLISH" and has_hh and has_hl
+
+
+def _detect_markdown_phase(data: pd.DataFrame, idx: int, config: WyckoffConfig) -> bool:
+    if idx < config.swing_lookback + 2:
+        return False
+    window = data.iloc[idx - config.swing_lookback * 2 : idx + 1]
+    if "swing_label" not in window.columns:
+        return False
+    labels = window["swing_label"].dropna()
+    has_lh = any("LH" in str(l) for l in labels)
+    has_ll = any("LL" in str(l) for l in labels)
+    bias = str(window["macro_direction"].iloc[-1]) if "macro_direction" in window.columns else "RANGING"
+    return bias == "BEARISH" and has_lh and has_ll
 
 
 def detect_wyckoff(
@@ -114,9 +190,14 @@ def detect_wyckoff(
     data["wyckoff_spring"] = False
     data["wyckoff_sos"] = False
     data["wyckoff_lps"] = False
+    data["wyckoff_upthrust"] = False
+    data["wyckoff_sow"] = False
+    data["wyckoff_lpsy"] = False
     data["wyckoff_phase"] = "NONE"
     data["wyckoff_accumulation"] = False
     data["wyckoff_distribution"] = False
+    data["wyckoff_markup"] = False
+    data["wyckoff_markdown"] = False
 
     if len(data) < max(config.swing_lookback * 2 + 2, config.phase_lookback):
         return data
@@ -128,8 +209,18 @@ def detect_wyckoff(
     last_sc_idx = -1
     last_ar_idx = -1
     last_sos_idx = -1
+    last_dist_high_idx = -1
+    last_dist_low_idx = -1
+    last_sow_idx = -1
 
     for i in range(config.swing_lookback + 2, len(data)):
+        hi = data.iloc[i]["high"]
+        lo = data.iloc[i]["low"]
+        if last_dist_high_idx < 0 or hi > data.iloc[last_dist_high_idx]["high"]:
+            last_dist_high_idx = i
+        if last_dist_low_idx < 0 or lo < data.iloc[last_dist_low_idx]["low"]:
+            last_dist_low_idx = i
+
         if _selling_climax(data, i, config, vol_ma):
             data.at[data.index[i], "wyckoff_sc"] = True
             last_sc_idx = i
@@ -157,10 +248,36 @@ def detect_wyckoff(
             data.at[data.index[i], "wyckoff_lps"] = True
             continue
 
+        if last_dist_high_idx >= 0 and _upthrust(data, i, last_dist_high_idx, config):
+            data.at[data.index[i], "wyckoff_upthrust"] = True
+            continue
+
+        if last_dist_low_idx >= 0 and _sign_of_weakness(data, i, last_dist_low_idx, vol_ma, config):
+            data.at[data.index[i], "wyckoff_sow"] = True
+            last_sow_idx = i
+            continue
+
+        if last_sow_idx >= 0 and _last_point_supply(data, i, last_dist_high_idx, last_sow_idx, vol_ma, config):
+            data.at[data.index[i], "wyckoff_lpsy"] = True
+            continue
+
     for i in range(len(data)):
         phase = _detect_accumulation_phase(data, i, config)
-        data.at[data.index[i], "wyckoff_phase"] = phase
+        dist_phase = _detect_distribution_phase(data, i, config)
+        is_markup = _detect_markup_phase(data, i, config)
+        is_markdown = _detect_markdown_phase(data, i, config)
+
         if phase != "NONE":
+            data.at[data.index[i], "wyckoff_phase"] = phase
             data.at[data.index[i], "wyckoff_accumulation"] = True
+        elif dist_phase != "NONE":
+            data.at[data.index[i], "wyckoff_phase"] = dist_phase
+            data.at[data.index[i], "wyckoff_distribution"] = True
+        elif is_markup:
+            data.at[data.index[i], "wyckoff_phase"] = "MARKUP"
+            data.at[data.index[i], "wyckoff_markup"] = True
+        elif is_markdown:
+            data.at[data.index[i], "wyckoff_phase"] = "MARKDOWN"
+            data.at[data.index[i], "wyckoff_markdown"] = True
 
     return data

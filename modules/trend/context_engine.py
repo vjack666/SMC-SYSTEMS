@@ -211,3 +211,31 @@ def build_trend_context_frame(
             "macro_trend": htf_bias,
         }
     )
+
+
+def apply_wyckoff_to_trend(
+    trend_frame: pd.DataFrame,
+    wyckoff_phase: pd.Series | None,
+) -> pd.DataFrame:
+    if wyckoff_phase is None:
+        return trend_frame
+    result = trend_frame.copy()
+    result["wyckoff_phase_aligned"] = False
+    phase = wyckoff_phase
+    bullish_phase = phase.isin(["ACCUMULATION_E", "MARKUP"])
+    bearish_phase = phase.isin(["DISTRIBUTION_E", "MARKDOWN"])
+    result["wyckoff_phase_aligned"] = (
+        (result["macro_trend"] == "BULLISH") & bullish_phase
+    ) | (
+        (result["macro_trend"] == "BEARISH") & bearish_phase
+    )
+    phase_conflict = (
+        (result["macro_trend"] == "BULLISH") & bearish_phase
+    ) | (
+        (result["macro_trend"] == "BEARISH") & bullish_phase
+    )
+    result["trend_confidence"] = result["trend_confidence"].where(
+        ~phase_conflict,
+        result["trend_confidence"] * 0.70,
+    )
+    return result

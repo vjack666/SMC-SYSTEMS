@@ -1,0 +1,29 @@
+{
+  "kos_version": "1.0",
+  "last_updated": "2026-06-30",
+  "directories": {
+    "architecture": "System architecture and component design documents",
+    "decisions": "Technical decisions with dates and reasoning",
+    "learnings": "Discoveries, patterns, and experimental results",
+    "references": "External domain knowledge and rulebooks",
+    "theories": "Trading theories adapted for SMC integration",
+    "research": "Research reports organized by status (completed, pending)",
+    "summaries": "Consolidated actionable references for the pipeline"
+  },
+  "files": {
+    "architecture/kos-architecture-v1.md": "KOS system architecture and design principles",
+    "architecture/kos-proposal.md": "Original KOS proposal and rationale",
+    "references/wyckoff-theory.md": "Wyckoff theory reference (KOS v1)",
+    "learnings/wyckoff-implementation.md": "Wyckoff implementation audit findings",
+    "theories/wyckoff/theory.md": "Complete Wyckoff theory adapted for SMC",
+    "theories/wyckoff/implementation.md": "Implementation guide across all pipeline layers",
+    "research/completed/2026-06-30-wyckoff-smc-integration.md": "Wyckoff-SMC integration research report",
+    "summaries/wyckoff.md": "Actionable Wyckoff reference for the SMC pipeline"
+  },
+  "related": {
+    "agent_docs": "/agent/",
+    "harness": "SMC_SUCCESSOR/harness/",
+    "legacy_audit": "LEGACY_AUDIT_REPORT.md",
+    "smc_successor_agents": "SMC_SUCCESSOR/docs/AGENT_ARCHITECTURE.md"
+  }
+}
