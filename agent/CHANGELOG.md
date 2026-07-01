@@ -1,0 +1,58 @@
+# CHANGELOG.md — Project Evolution
+
+> Human-readable chronological history.
+
+---
+
+## 2026-06-29: Fase 3 completed — ML Expansion + Weighted Confluence Scoring
+
+- Created `strategy/confluence_scorer.py` with regime-adaptive weighted scoring
+- Added 11 new numerical and 2 categorical features to ML pipeline
+- Implemented GridSearchCV in `train_quality_model.py` with 3-fold CV
+- Added `regime_score` column to regime detector
+- Backtest 100k EURUSD M15 shows 55 trades, 54.5% win rate, PF 0.64
+- Known issues: LONG trades lose, TP too far, confidence range too narrow
+- Pushed Fases 1-3 to GitHub
+
+## 2026-06-29: Fase 2 completed — Stochastic Exhaustion + Wyckoff
+
+- Created `modules/stochastic_exhaustion/` (detector, config, backtest)
+- Created `modules/wyckoff/` (detector, config, backtest)
+- Added PAC state EXHAUSTION_CONFIRMED
+- Integrated both modules into `strategy/scalping_setup.py`
+- Added filters `filter_exhaustion`, `filter_wyckoff`
+- Max confluence increased from 5 to 7
+
+## 2026-06-28: Fase 1 completed — PAC State Machine + Structural SL
+
+- PAC State Machine connected to main flow via `_apply_pac_to_context()`
+- Structural SL activated via `_apply_structural_sl_to_context()`
+- FVG detector extended with zone columns
+- `ScalpingConfig` amplified with 5 new parameters
+- Backtest verified: 5000 bars EURUSD → 6 signals
+- First git commit created
+
+## 2026-06-28: Fase 0 completed — Diagnosis + Audit
+
+- Project inventory completed
+- Architecture documented
+- SMC_SUCCESSOR repository analyzed
+- Known problems catalogued
+- This changelog started
+
+## 2026-06-30: Telegram Remote Control Agent created
+
+- Created `automation/` module with 8 files:
+  - `telegram_agent.py` — main bot loop and message dispatch
+  - `command_router.py` — 20 command handlers with task documentation
+  - `task_queue.py` — async task queue with progress and cancellation
+  - `notifications.py` — event-driven notification dispatch
+  - `permissions.py` — Telegram User ID whitelist
+  - `session.py` — git state and repository awareness
+  - `execution_layer.py` — provider abstraction (OpenCode, Claude, Codex, local Python)
+  - `providers/` — pluggable provider implementations
+- Created `docs/telegram/` with 4 documentation files (architecture, setup, security, commands)
+- Created `.env.example` with all configuration options
+- Created `logs/` directory for agent logging
+- Provider protocol allows swapping OpenCode, Claude Code, Codex, Gemini CLI, or local Python
+- Destructive commands require `CONFIRM <CMD>` reply before execution
