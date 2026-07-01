@@ -50,3 +50,6 @@
 - [x] Autonomous startup workflow — `/agent` directory + opencode.json wiring
 - [x] KOS (Knowledge Operating System) — `knowledge/` directory with architecture docs
 - [x] Harness README — `SMC_SUCCESSOR/harness/README.md`
+- [x] Wyckoff structured knowledge — `knowledge/references/wyckoff-theory.md`
+- [x] Wyckoff implementation audit — `knowledge/learnings/wyckoff-implementation.md`
+- [x] KOS inbox/outbox directories created

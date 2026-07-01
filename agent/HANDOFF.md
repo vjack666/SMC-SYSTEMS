@@ -8,21 +8,25 @@
 ## Session
 
 - **Date**: 2026-06-30 (night)
-- **Objective**: Implement KOS (Knowledge Operating System) + Harness README
+- **Objective**: Capture Wyckoff structured knowledge into KOS + complete knowledge infrastructure
 
 ---
 
 ## What Was Completed
 
-- Created `knowledge/` directory with KOS architecture:
-  - `knowledge/architecture/kos-architecture-v1.md` — KOS system design
-  - `knowledge/architecture/kos-proposal.md` — KOS proposal & rationale
-  - `knowledge/decisions/`, `knowledge/learnings/`, `knowledge/references/` — subdirectories
-- Created `SMC_SUCCESSOR/harness/README.md` — comprehensive Harness documentation
-- Updated `opencode.json` with:
-  - New instructions array (agent docs + KOS + Harness README + LEGACY_AUDIT_REPORT)
-  - Full Spanish system_prompt with autonomous agent rules
-- Updated agent docs (HANDOFF, TASKS, CHANGELOG, PROJECT_STATE)
+- Created `knowledge/references/wyckoff-theory.md` — comprehensive structured reference:
+  - Market cycle, accumulation phases A–E, all 6 detection events
+  - Volume/price relationships, effort vs result
+  - Implementation details with config parameters
+  - Integration points with Wyckoff Agent
+- Created `knowledge/learnings/wyckoff-implementation.md` — implementation audit:
+  - Finding 1: Accumulation-only implementation (no distribution detection)
+  - Finding 2: Dead code in phase detection (ACCUMULATION_A unreachable)
+  - Finding 3: Event independence via elif chain (one event per bar)
+  - Finding 4: Slow phase transitions (30-bar window)
+  - Finding 5: Missing functions (Upthrust, SOW, LPSY)
+- Created `knowledge/inbox/` and `knowledge/outbox/` directories
+- Updated agent docs (HANDOFF, TASKS, CHANGELOG)
 
 ---
 
@@ -39,30 +43,30 @@
 
 ## Files Modified
 
-- `opencode.json` — full rewrite with KOS + system_prompt
 - `agent/HANDOFF.md` — updated session log
-- `agent/TASKS.md` — added KOS tasks
-- `agent/CHANGELOG.md` — added KOS entry
-- `agent/PROJECT_STATE.md` — added KOS to implemented systems
+- `agent/TASKS.md` — added Wyckoff knowledge tasks
+- `agent/CHANGELOG.md` — added Wyckoff knowledge entry
 
 ## Files Created
 
-- `knowledge/architecture/kos-architecture-v1.md`
-- `knowledge/architecture/kos-proposal.md`
-- `SMC_SUCCESSOR/harness/README.md`
+- `knowledge/references/wyckoff-theory.md` — structured Wyckoff reference
+- `knowledge/learnings/wyckoff-implementation.md` — implementation audit findings
+- `knowledge/inbox/` — directory for formal agent messages
+- `knowledge/outbox/` — directory for formal responses
 
 ---
 
 ## Validation Status
 
-- ✅ KOS architecture v1 created and documented
-- ✅ KOS proposal accepted and integrated
-- ✅ Harness README created with full documentation
-- ✅ `opencode.json` configured with KOS + system_prompt
-- ✅ Agent docs updated for this session
+- ✅ Wyckoff theory captured as structured reference in KOS
+- ✅ Wyckoff implementation audited (5 findings documented)
+- ✅ KOS inbox/outbox directories created
+- ✅ Knowledge/ directory fully populated (architecture, references, learnings, decisions)
 
 ---
 
 ## Recommended Next Step
 
-Type `start` to trigger the autonomous startup workflow. The agent will read KOS architecture, Harness README, LEGACY_AUDIT_REPORT, and all agent docs before beginning work.
+1. Fix Wyckoff detector bugs (dead code, missing distribution detection)
+2. Wire distribution into Wyckoff Agent and ConfluenceScorer
+3. Run Harness scenarios to validate fixes

@@ -57,6 +57,13 @@
 - Provider protocol allows swapping OpenCode, Claude Code, Codex, Gemini CLI, or local Python
 - Destructive commands require `CONFIRM <CMD>` reply before execution
 
+## 2026-06-30: Wyckoff structured knowledge + KOS inbox/outbox
+
+- Created `knowledge/references/wyckoff-theory.md` — comprehensive Wyckoff theory reference
+- Created `knowledge/learnings/wyckoff-implementation.md` — implementation audit findings
+- Created `knowledge/inbox/` and `knowledge/outbox/` for formal agent communication
+- Found 5 issues in Wyckoff detector (dead code, missing distribution, event independence)
+
 ## 2026-06-30: KOS + Harness README
 
 - Created `knowledge/` directory with KOS architecture system:
