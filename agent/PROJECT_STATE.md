@@ -78,6 +78,8 @@ Results
 - **Harness**: Scenario-based testing framework for isolated module validation
 - **Multi-symbol data**: 7 forex pairs (EURUSD, GBPUSD, USDJPY, AUDUSD, NZDUSD, USDCAD, USDCHF)
 - **Autonomous Startup Workflow**: `/agent` documentation + opencode.json wiring for `start` command
+- **KOS (Knowledge Operating System)**: `knowledge/` directory with architecture docs, decisions, learnings, references
+- **Harness README**: `SMC_SUCCESSOR/harness/README.md` with full framework documentation
 
 ---
 

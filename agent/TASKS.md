@@ -12,6 +12,10 @@
 
 ## Next
 
+- [ ] Create `knowledge/inbox/` and `knowledge/outbox/` for formal communication
+- [ ] Migrate key learnings from `results/` into `knowledge/learnings/`
+- [ ] Cross-reference `knowledge/decisions/` with `agent/DECISIONS.md`
+
 - [ ] Install dependencies: `pip install python-telegram-bot python-dotenv`
 - [ ] Create Telegram bot via @BotFather and configure `.env`
 - [ ] Test Telegram agent connectivity
@@ -44,3 +48,5 @@
 - [x] Telegram documentation (architecture, setup, security, commands)
 - [x] .env.example configuration template
 - [x] Autonomous startup workflow — `/agent` directory + opencode.json wiring
+- [x] KOS (Knowledge Operating System) — `knowledge/` directory with architecture docs
+- [x] Harness README — `SMC_SUCCESSOR/harness/README.md`

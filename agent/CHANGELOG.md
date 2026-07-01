@@ -56,3 +56,13 @@
 - Created `logs/` directory for agent logging
 - Provider protocol allows swapping OpenCode, Claude Code, Codex, Gemini CLI, or local Python
 - Destructive commands require `CONFIRM <CMD>` reply before execution
+
+## 2026-06-30: KOS + Harness README
+
+- Created `knowledge/` directory with KOS architecture system:
+  - `knowledge/architecture/kos-architecture-v1.md` — Knowledge Operating System design
+  - `knowledge/architecture/kos-proposal.md` — Proposal and rationale
+  - Subdirectories: `decisions/`, `learnings/`, `references/`
+- Created `SMC_SUCCESSOR/harness/README.md` — comprehensive Harness documentation
+- Updated `opencode.json` with KOS instructions + Spanish system_prompt for autonomous agent behavior
+- Agent now reads KOS + Harness + LEGACY_AUDIT_REPORT before any technical decision
