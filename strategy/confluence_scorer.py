@@ -41,7 +41,6 @@ def calculate_confluence_score(
     wyckoff_acc = int(row.get("wyckoff_accumulation", 0))
     exhaustion_bull = int(row.get("exhaustion_bullish", 0))
     exhaustion_bear = int(row.get("exhaustion_bearish", 0))
-    has_structural_sl = 1 if np.isfinite(row.get("structural_stop_price", np.nan)) else 0
     ml_prob = float(row.get("ml_probability", 0.5))
 
     exhaustion_active = exhaustion_bull or exhaustion_bear
@@ -49,7 +48,6 @@ def calculate_confluence_score(
     pac_weight = weights.pac * regime_boost["pac"]
     exhaustion_weight = weights.exhaustion * regime_boost["exhaustion"]
     wyckoff_weight = weights.wyckoff * regime_boost["wyckoff"]
-    sl_weight = weights.structural_sl * regime_boost["structural_sl"]
     ml_weight = weights.ml_filter * regime_boost["ml_filter"]
 
     wyckoff_active = "wyckoff_accumulation" in row
@@ -59,11 +57,10 @@ def calculate_confluence_score(
         + exhaustion_conf * exhaustion_weight * 0.5
         + exhaustion_active * exhaustion_weight * 0.5
         + (wyckoff_acc * wyckoff_weight if wyckoff_active else 0.0)
-        + has_structural_sl * sl_weight
         + ml_prob * ml_weight
     )
 
-    total_available = pac_weight + exhaustion_weight + sl_weight + ml_weight
+    total_available = pac_weight + exhaustion_weight + ml_weight
     if wyckoff_active:
         total_available += wyckoff_weight
     if total_available > 0:

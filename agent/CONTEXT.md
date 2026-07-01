@@ -25,9 +25,13 @@
 
 - **Cycle**: Accumulation → Markup → Distribution → Markdown
 - **Accumulation phases A-E**: SC (selling climax), AR (automatic rally), ST (secondary test), Spring, SOS (sign of strength), LPS (last point of support)
+- **Distribution phases A-E**: UT (upthrust), SOW (sign of weakness), LPSY (last point of supply) — mirror of accumulation events
 - **Volume confirmation**: High volume on breakouts, low volume on pullbacks
 - **Spring**: Brief break below support, immediate reversal — final shakeout before markup
 - **Upthrust**: Brief break above resistance, immediate reversal — final lure before markdown
+- **Phase-aware filter**: AccumulationE/MARKUP + bullish macro_direction = OK; DistributionE/MARKDOWN + bearish = OK; conflict reduces trend_confidence by 30%
+- **Detector output**: 14 columns — 3 classic (SC/AR/ST), 3 accumulation (Spring/SOS/LPS), 3 distribution (UT/SOW/LPSY), 4 meta (phase, accum, distrib, markup/markdown)
+- **Dist tracking**: `last_dist_high_idx`/`last_dist_low_idx` tracked unconditionally (not gated by accumulation events)
 
 ## ML Assumptions
 
@@ -45,6 +49,16 @@
 - **BOS**: Must close beyond prior swing point (wick not sufficient)
 - **CHOCH**: Break of key swing against trend, requires follow-through bar
 - **OB detection**: Last opposing candle before displacement move within 5-10 bars
+
+## Session 2 Findings (2026-06-30)
+
+- **wyckoff_distribution = 0 on all tested data**: `_upthrust()`, `_sign_of_weakness()`, `_last_point_supply()` never fire on 10k-bar samples of EURUSD/GBPUSD/XAUUSD. Distribution phase detection is effectively dead code despite the phase priority fix. Root cause unknown — may be: (a) resistance distance threshold too tight, (b) volume threshold too high, (c) swing window too small for the trend context.
+- **Bearish PAC exhaustion has no Wyckoff signal**: Since `wyckoff_distribution` never fires, bearish PAC entries rely solely on stochastic exhaustion. Meanwhile bullish entries benefit from `wyckoff_accumulation` (fires on ~63-81% of bars). This creates an asymmetry favoring LONG entries.
+- **Signal confidence too uniform**: 11 backtest signals cluster at 2 values (0.6886, 0.7866). Scorer needs more input variance.
+- **Backtest trade sim time matching**: GBPUSD/XAUUSD produce debug signals but 0 backtest trades. Suspect string precision mismatch in `_simulate_trade_with_stats`.
+- **TP=3R needed for PF > 1.0**: At TP=2R the system had PF=0.48. Changing to TP=3R gave PF=1.258 at 27.3% WR. The breakeven WR for PF>1 is ~25% at 3:1 RR, so the system barely clears it.
+- **Single-trend dependency**: All 3 winning trades are EURUSD SHORT in March 2026. The system needs multi-symbol diversification to be robust.
+- **PAC fallback**: When both exhaustion sources fail, `_build_exhaustion_series` returns False for all bars. Currently uses `use_stochastic or use_wyckoff` gate; when both are False, falls back to all-True. But when both are True and neither fires (e.g., bearish with no distribution), PAC state machines get no exhaustion signal.
 
 ## Constraints
 

@@ -74,14 +74,57 @@ class DecisionAgent:
         self.config = config or DecisionConfig()
 
     def analyze(self, context: pd.DataFrame, index: int) -> AnalysisResult:
-        return AnalysisResult(
-            agent_name="DECISION",
-            bias="NEUTRAL",
-            confidence=0.0,
-            detected_events=[],
-            evidence={},
-            invalidation_conditions=[],
+        row = context.iloc[index] if index < len(context) else None
+        if row is None:
+            return AnalysisResult(
+                agent_name="DECISION",
+                bias="NEUTRAL",
+                confidence=0.0,
+                detected_events=[],
+                evidence={},
+                invalidation_conditions=[],
+            )
+
+        ict_bias = str(row.get("agent_ict_bias", "NEUTRAL"))
+        ict_conf = float(row.get("agent_ict_confidence", 0.0))
+        ict_events_str = str(row.get("agent_ict_events", ""))
+        ict_events = [{"type": e.strip()} for e in ict_events_str.split(",") if e.strip()] if ict_events_str else []
+        ict_result = AnalysisResult(
+            agent_name="ICT",
+            bias=ict_bias,
+            confidence=ict_conf,
+            detected_events=ict_events,
         )
+
+        wyckoff_bias = str(row.get("agent_wyckoff_bias", "NEUTRAL"))
+        wyckoff_conf = float(row.get("agent_wyckoff_confidence", 0.0))
+        wyckoff_events_str = str(row.get("agent_wyckoff_events", ""))
+        wyckoff_events = [{"type": e.strip()} for e in wyckoff_events_str.split(",") if e.strip()] if wyckoff_events_str else []
+        wyckoff_result = AnalysisResult(
+            agent_name="WYCKOFF",
+            bias=wyckoff_bias,
+            confidence=wyckoff_conf,
+            detected_events=wyckoff_events,
+        )
+
+        structure_bias = str(row.get("agent_structure_bias", "NEUTRAL"))
+        structure_conf = float(row.get("agent_structure_confidence", 0.0))
+        structure_events_str = str(row.get("agent_structure_events", ""))
+        structure_events = [{"type": e.strip()} for e in structure_events_str.split(",") if e.strip()] if structure_events_str else []
+        structure_result = AnalysisResult(
+            agent_name="STRUCTURE",
+            bias=structure_bias,
+            confidence=structure_conf,
+            detected_events=structure_events,
+        )
+
+        result, _ = self.decide(
+            ict=ict_result,
+            wyckoff=wyckoff_result,
+            structure=structure_result,
+            ml_probability=None,
+        )
+        return result
 
     def decide(
         self,

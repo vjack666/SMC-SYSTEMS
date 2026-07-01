@@ -83,6 +83,22 @@
 - Created `knowledge/inbox/` and `knowledge/outbox/` for formal agent communication
 - Found 5 issues in Wyckoff detector (dead code, missing distribution, event independence)
 
+## 2026-06-30 (Session 2): Deep pipeline debug — bearish path + distribution + PF > 1.0
+
+- **Critical bug fix**: Distribution phase overridden by accumulation in `detector.py:270` — accumulation checked FIRST, distribution NEVER fired. ✅ Fixed with tiebreaker logic and independent detection.
+- **Critical bug fix**: Event detection `continue` blocked distribution events — accumulation events used `if..continue` chain preventing distribution event checks on same bar. ✅ Fixed: accumulation uses `elif` chain, distribution uses independent `if` statements.
+- **Critical bug fix**: PAC state machine `continue` after exhaustion confirmation skipped BOS check on same bar (`state_machine.py:213`). ✅ Fixed: removed `continue`, BOS checked on exhaustion bar too.
+- **Bug fix**: `_build_exhaustion_series` used `wyckoff_accumulation` for ALL directions — bearish entries need `wyckoff_distribution`. ✅ Fixed: returns directional tuple `(bull, bear)`.
+- **Bug fix**: `filter_wyckoff` was too strict (only ACCUMULATION_E/MARKUP). ✅ Fixed: includes all ACCUMULATION_* and DISTRIBUTION_* phases.
+- **Bug fix**: `filter_exhaustion` was non-directional (all accumulation = exhaustion). ✅ Fixed: directional (accum→bearish macro, distrib→bullish macro).
+- **Structural fix**: Removed `has_structural_sl` from confluence score — was always 0 (circular dependency with signal_direction).
+- **TP change**: 2R → 3R to improve PF (winners now offset losers).
+- **Debug script**: Created `scripts/debug_signal_pipeline.py` with 10k-bar pre-truncation for fast diagnostics.
+- **Backtest result (10k bars, 3 syms, TP=3R)**: 11 trades, PF=1.258, WR=27.3%, EV=+0.168R — **first profitable run**.
+- **SHORT trades confirmed**: 9/11 trades were bearish — bearish path working.
+- **Multi-symbol confirmed**: All 3 symbols produce signals (debug pipeline).
+- **ML quality filter broken**: Pickle load fails — needs retrain.
+
 ## 2026-06-30: KOS + Harness README
 
 - Created `knowledge/` directory with KOS architecture system:

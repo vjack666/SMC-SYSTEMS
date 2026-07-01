@@ -79,16 +79,37 @@ def _last_anchor(series: pd.Series, condition: pd.Series) -> pd.Series:
     return marker.ffill()
 
 
-def _build_exhaustion_series(data: pd.DataFrame, config: ScalpingConfig) -> pd.Series:
-    series = pd.Series(False, index=data.index)
-    if config.use_stochastic_exhaustion and "exhaustion_bullish" in data.columns and "exhaustion_bearish" in data.columns:
-        series = series | data["exhaustion_bullish"] | data["exhaustion_bearish"]
-    if config.use_wyckoff and "wyckoff_accumulation" in data.columns:
-        series = series | data["wyckoff_accumulation"]
-    # Fallback when no exhaustion source is active: mark all bars as potentially exhausted
+def _build_exhaustion_series(data: pd.DataFrame, config: ScalpingConfig) -> tuple[pd.Series, pd.Series]:
+    """Return (bullish_exhaustion, bearish_exhaustion) series.
+
+    Bullish exhaustion (used for LONG entries): fires when the downtrend is
+    exhausted — signalled by Wyckoff accumulation or stochastic bullish
+    exhaustion in a bearish context.
+
+    Bearish exhaustion (used for SHORT entries): fires when the uptrend is
+    exhausted — signalled by Wyckoff distribution or stochastic bearish
+    exhaustion in a bullish context.
+    """
+    bull = pd.Series(False, index=data.index)
+    bear = pd.Series(False, index=data.index)
+
+    if config.use_stochastic_exhaustion:
+        if "exhaustion_bullish" in data.columns:
+            bull = bull | data["exhaustion_bullish"]
+        if "exhaustion_bearish" in data.columns:
+            bear = bear | data["exhaustion_bearish"]
+
+    if config.use_wyckoff:
+        if "wyckoff_accumulation" in data.columns:
+            bull = bull | data["wyckoff_accumulation"]
+        if "wyckoff_distribution" in data.columns:
+            bear = bear | data["wyckoff_distribution"]
+
     if not config.use_stochastic_exhaustion and not config.use_wyckoff:
-        series = pd.Series(True, index=data.index)
-    return series
+        bull = pd.Series(True, index=data.index)
+        bear = pd.Series(True, index=data.index)
+
+    return bull, bear
 
 
 def _apply_pac_to_context(
@@ -105,7 +126,11 @@ def _apply_pac_to_context(
     data["pac_invalidation"] = ""
     data["pac_exhaustion_confirmed"] = False
 
-    exhaustion_series = _build_exhaustion_series(data, config) if (config.use_stochastic_exhaustion or config.use_wyckoff) else None
+    has_exhaustion_source = config.use_stochastic_exhaustion or config.use_wyckoff
+    if has_exhaustion_source:
+        bull_exhaustion, bear_exhaustion = _build_exhaustion_series(data, config)
+    else:
+        bull_exhaustion = bear_exhaustion = None
 
     fvg_indices = data.index[data["fvg_bullish"] | data["fvg_bearish"]].tolist()
 
@@ -118,6 +143,8 @@ def _apply_pac_to_context(
         zone_high = float(row["fvg_zone_high"])
         if not np.isfinite(zone_low) or not np.isfinite(zone_high):
             continue
+
+        exhaustion_series = bull_exhaustion if direction == 1 else bear_exhaustion
 
         result = run_state_machine(
             scored=data,
@@ -288,18 +315,33 @@ def build_scalping_context(
     data["filter_choch"] = choch_filter
     data["filter_swing"] = swing_filter
 
-    exhaustion_ok = pd.Series(True, index=data.index)
+    exhaustion_ok = pd.Series(False, index=data.index)
     if config.use_stochastic_exhaustion and "exhaustion_bullish" in data.columns:
-        exhaustion_ok = exhaustion_ok & (
+        exhaustion_ok = exhaustion_ok | (
             (data["exhaustion_bullish"] & (data["macro_direction"] == "BEARISH"))
             | (data["exhaustion_bearish"] & (data["macro_direction"] == "BULLISH"))
         )
+    if config.use_wyckoff:
+        if "wyckoff_accumulation" in data.columns:
+            exhaustion_ok = exhaustion_ok | (
+                data["wyckoff_accumulation"] & (data["macro_direction"] == "BEARISH")
+            )
+        if "wyckoff_distribution" in data.columns:
+            exhaustion_ok = exhaustion_ok | (
+                data["wyckoff_distribution"] & (data["macro_direction"] == "BULLISH")
+            )
     data["filter_exhaustion"] = exhaustion_ok
 
     wyckoff_ok = pd.Series(True, index=data.index)
     if config.use_wyckoff and "wyckoff_phase" in data.columns:
-        bullish_phase = data["wyckoff_phase"].isin(["ACCUMULATION_E", "MARKUP"])
-        bearish_phase = data["wyckoff_phase"].isin(["DISTRIBUTION_E", "MARKDOWN"])
+        bullish_phase = (
+            data["wyckoff_phase"].str.startswith("ACCUMULATION", na=False)
+            | (data["wyckoff_phase"] == "MARKUP")
+        )
+        bearish_phase = (
+            data["wyckoff_phase"].str.startswith("DISTRIBUTION", na=False)
+            | (data["wyckoff_phase"] == "MARKDOWN")
+        )
         wyckoff_ok = (
             ((data["macro_direction"] == "BULLISH") & bullish_phase)
             | ((data["macro_direction"] == "BEARISH") & bearish_phase)
@@ -435,10 +477,10 @@ def build_scalping_signals(
             if risk <= 0.0:
                 sl = entry - atr if direction == 1 else entry + atr
                 risk = abs(entry - sl)
-            tp = entry + (2.0 * risk) if direction == 1 else entry - (2.0 * risk)
+            tp = entry + (3.0 * risk) if direction == 1 else entry - (3.0 * risk)
         else:
             sl = entry - atr if direction == 1 else entry + atr
-            tp = entry + (2.0 * atr) if direction == 1 else entry - (2.0 * atr)
+            tp = entry + (3.0 * atr) if direction == 1 else entry - (3.0 * atr)
 
         results.append(
             ScalpingSignal(

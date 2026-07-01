@@ -112,7 +112,14 @@ def chronological_train_test_split(
     test_size: float = 0.2,
     val_size: float = 0.0,
     shuffle: bool = False,
+    time_col: str = "entry_time",
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None, pd.Series, pd.Series, pd.Series | None]:
+    if time_col in X.columns:
+        sort_key = pd.to_datetime(X[time_col], errors="coerce")
+        order = sort_key.argsort()
+        X = X.iloc[order].reset_index(drop=True)
+        y = y.iloc[order].reset_index(drop=True)
+
     n = len(X)
     test_n = int(n * test_size)
     val_n = int(n * val_size)

@@ -10,6 +10,7 @@ ProgressCB = Callable[[str, int, int, str], None] | None
 import numpy as np
 import pandas as pd
 
+from smc_successor.agents.orchestrator import AGENT_COLUMNS, AgentOrchestrator
 from smc_successor.data import apply_time_window, load_frame
 from smc_successor.features import FeatureEngine
 from smc_successor.regime import detect_regimes
@@ -74,7 +75,13 @@ def _build_signals_from_context(
 
         entry = float(row["close"])
         direction = int(row["signal_direction"])
-        sl = entry - atr if direction == 1 else entry + atr
+
+        structural_sl = row.get("structural_sl")
+        if structural_sl is not None and np.isfinite(float(structural_sl)):
+            sl = float(structural_sl)
+        else:
+            sl = entry - atr if direction == 1 else entry + atr
+
         tp = entry + (2.0 * atr) if direction == 1 else entry - (2.0 * atr)
 
         results.append(
@@ -328,18 +335,16 @@ def run_combined_backtest(
         frame = apply_time_window(frame, config.start_time, config.end_time)
         if progress_cb:
             progress_cb("context", 0, 1, f"{symbol} building scalping context...")
+        orchestrator = AgentOrchestrator() if config.use_ml_quality_filter else None
         context = build_scalping_context(
             symbol=symbol,
             timeframe=config.timeframe,
             data_dir=config.data_dir,
             config=scalping_cfg,
+            orchestrator=orchestrator,
         )
         context = apply_time_window(context, config.start_time, config.end_time)
         context = detect_regimes(context)
-        if config.use_ml_quality_filter:
-            from smc_successor.agents.orchestrator import AgentOrchestrator
-            orchestrator = AgentOrchestrator()
-            context = orchestrator.analyze_context(context)
         if progress_cb:
             progress_cb("context", 1, 1, f"{symbol} context ready ({len(context)} bars)")
 
@@ -409,9 +414,8 @@ def run_combined_backtest(
                 "governor_mode": current_gov_state.mode,
                 "risk_multiplier": mode_risk_multiplier(current_gov_state.mode),
             }
-            from smc_successor.agents.orchestrator import AGENT_COLUMNS as _AC
-            for agent_col in _AC:
-                feature_row[agent_col] = row.get(agent_col, None) if isinstance(row, dict) else row.get(agent_col, None)
+            for agent_col in AGENT_COLUMNS:
+                feature_row[agent_col] = row.get(agent_col, None)
 
             ml_probability = _predict_quality_probability(ml_model, feature_row, fallback=signal.confidence)
             allow_trade = (not config.use_ml_quality_filter) or (ml_probability >= dynamic_threshold)

@@ -155,19 +155,19 @@ def run_walk_forward(
     df_full = pd.read_parquet(dataset_path)
 
     for win in windows_list:
-        if isinstance(win.train_start, int) and isinstance(win.train_end, int):
-            X_train = X.iloc[win.train_start:win.train_end + 1]
-            y_train = y.iloc[win.train_start:win.train_end + 1]
-            X_test = X.iloc[win.test_start:win.test_end + 1]
-            y_test = y.iloc[win.test_start:win.test_end + 1]
-        else:
+        if win.use_date_filter:
             ts = pd.to_datetime(df_full["timestamp"], errors="coerce")
-            train_mask = (ts.dt.year >= win.train_start) & (ts.dt.year <= win.train_end)
-            test_mask = (ts.dt.year >= win.test_start) & (ts.dt.year <= win.test_end)
+            train_mask = (ts.dt.year >= int(win.train_start)) & (ts.dt.year <= int(win.train_end))
+            test_mask = (ts.dt.year >= int(win.test_start)) & (ts.dt.year <= int(win.test_end))
             X_train = X[train_mask]
             y_train = y[train_mask]
             X_test = X[test_mask]
             y_test = y[test_mask]
+        else:
+            X_train = X.iloc[win.train_start:win.train_end + 1]
+            y_train = y.iloc[win.train_start:win.train_end + 1]
+            X_test = X.iloc[win.test_start:win.test_end + 1]
+            y_test = y.iloc[win.test_start:win.test_end + 1]
 
         if len(X_train) < 10 or len(X_test) < 5:
             continue
@@ -184,10 +184,10 @@ def run_walk_forward(
 
         pnl_series: pd.Series | None = None
         if "pnl_r" in df_full.columns:
-            if isinstance(win.train_start, int):
-                pnl_series = df_full["pnl_r"].iloc[win.test_start:win.test_end + 1].reset_index(drop=True)
-            else:
+            if win.use_date_filter:
                 pnl_series = df_full["pnl_r"][test_mask].reset_index(drop=True)
+            else:
+                pnl_series = df_full["pnl_r"].iloc[win.test_start:win.test_end + 1].reset_index(drop=True)
 
         y_test_reset = y_test.reset_index(drop=True)
         trade_metrics = evaluate_trade_metrics(

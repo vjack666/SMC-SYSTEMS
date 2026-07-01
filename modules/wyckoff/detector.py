@@ -221,63 +221,82 @@ def detect_wyckoff(
         if last_dist_low_idx < 0 or lo < data.iloc[last_dist_low_idx]["low"]:
             last_dist_low_idx = i
 
+        # Accumulation events — mutually exclusive within the accumulation group so that
+        # a single bar can only be classified as one accumulation event (the most advanced
+        # one it qualifies for in the SC → AR → ST → Spring → SOS → LPS chain).
         if _selling_climax(data, i, config, vol_ma):
             data.at[data.index[i], "wyckoff_sc"] = True
             last_sc_idx = i
-            continue
-
-        if last_sc_idx >= 0 and _automatic_rally(data, i, last_sc_idx):
+        elif last_sc_idx >= 0 and _automatic_rally(data, i, last_sc_idx):
             data.at[data.index[i], "wyckoff_ar"] = True
             last_ar_idx = i
-            continue
-
-        if last_ar_idx >= 0 and _secondary_test(data, i, last_sc_idx, last_ar_idx, vol_ma, config):
+        elif last_ar_idx >= 0 and _secondary_test(data, i, last_sc_idx, last_ar_idx, vol_ma, config):
             data.at[data.index[i], "wyckoff_st"] = True
-            continue
-
-        if last_sc_idx >= 0 and _spring(data, i, last_sc_idx, config):
+        elif last_sc_idx >= 0 and _spring(data, i, last_sc_idx, config):
             data.at[data.index[i], "wyckoff_spring"] = True
-            continue
-
-        if last_sc_idx >= 0 and _sign_of_strength(data, i, last_sc_idx, vol_ma, config):
+        elif last_sc_idx >= 0 and _sign_of_strength(data, i, last_sc_idx, vol_ma, config):
             data.at[data.index[i], "wyckoff_sos"] = True
             last_sos_idx = i
-            continue
-
-        if last_sos_idx >= 0 and _last_point_support(data, i, last_sc_idx, last_sos_idx, vol_ma, config):
+        elif last_sos_idx >= 0 and _last_point_support(data, i, last_sc_idx, last_sos_idx, vol_ma, config):
             data.at[data.index[i], "wyckoff_lps"] = True
-            continue
 
+        # Distribution events — independently checked so the same bar can carry both
+        # an accumulation event (e.g. SC) and a distribution event (e.g. Upthrust)
+        # when the market transitions between phases.
+        dist_event = False
         if last_dist_high_idx >= 0 and _upthrust(data, i, last_dist_high_idx, config):
             data.at[data.index[i], "wyckoff_upthrust"] = True
-            continue
-
+            dist_event = True
         if last_dist_low_idx >= 0 and _sign_of_weakness(data, i, last_dist_low_idx, vol_ma, config):
             data.at[data.index[i], "wyckoff_sow"] = True
             last_sow_idx = i
-            continue
-
+            dist_event = True
         if last_sow_idx >= 0 and _last_point_supply(data, i, last_dist_high_idx, last_sow_idx, vol_ma, config):
             data.at[data.index[i], "wyckoff_lpsy"] = True
-            continue
+            dist_event = True
 
     for i in range(len(data)):
-        phase = _detect_accumulation_phase(data, i, config)
-        dist_phase = _detect_distribution_phase(data, i, config)
         is_markup = _detect_markup_phase(data, i, config)
         is_markdown = _detect_markdown_phase(data, i, config)
 
-        if phase != "NONE":
-            data.at[data.index[i], "wyckoff_phase"] = phase
-            data.at[data.index[i], "wyckoff_accumulation"] = True
-        elif dist_phase != "NONE":
-            data.at[data.index[i], "wyckoff_phase"] = dist_phase
-            data.at[data.index[i], "wyckoff_distribution"] = True
-        elif is_markup:
+        # Accumulation and distribution are mutually exclusive by definition.
+        # To break the tie, compare the recency of the most recent SCC / UT event.
+        acc_phase = _detect_accumulation_phase(data, i, config)
+        dist_phase = _detect_distribution_phase(data, i, config)
+
+        if is_markup and not is_markdown:
             data.at[data.index[i], "wyckoff_phase"] = "MARKUP"
             data.at[data.index[i], "wyckoff_markup"] = True
-        elif is_markdown:
+        elif is_markdown and not is_markup:
             data.at[data.index[i], "wyckoff_phase"] = "MARKDOWN"
             data.at[data.index[i], "wyckoff_markdown"] = True
+        elif acc_phase != "NONE" and dist_phase == "NONE":
+            data.at[data.index[i], "wyckoff_phase"] = acc_phase
+            data.at[data.index[i], "wyckoff_accumulation"] = True
+        elif dist_phase != "NONE" and acc_phase == "NONE":
+            data.at[data.index[i], "wyckoff_phase"] = dist_phase
+            data.at[data.index[i], "wyckoff_distribution"] = True
+        elif acc_phase != "NONE" and dist_phase != "NONE":
+            # Both fire — pick the stronger signal: prefer the phase whose confidence is higher
+            acc_events = (
+                int(data.at[data.index[i], "wyckoff_sc"])
+                + int(data.at[data.index[i], "wyckoff_ar"])
+                + int(data.at[data.index[i], "wyckoff_st"])
+                + int(data.at[data.index[i], "wyckoff_spring"])
+                + int(data.at[data.index[i], "wyckoff_sos"])
+                + int(data.at[data.index[i], "wyckoff_lps"])
+            )
+            dist_events = (
+                int(data.at[data.index[i], "wyckoff_upthrust"])
+                + int(data.at[data.index[i], "wyckoff_sow"])
+                + int(data.at[data.index[i], "wyckoff_lpsy"])
+            )
+            # Distribution events are rarer → weight them higher when present
+            if dist_events > 0:
+                data.at[data.index[i], "wyckoff_phase"] = dist_phase
+                data.at[data.index[i], "wyckoff_distribution"] = True
+            else:
+                data.at[data.index[i], "wyckoff_phase"] = acc_phase
+                data.at[data.index[i], "wyckoff_accumulation"] = True
 
     return data

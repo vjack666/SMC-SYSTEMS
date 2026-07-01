@@ -210,7 +210,6 @@ def run_state_machine(
                         "reason": "EXHAUSTION_CONVERGENCE",
                     }
                 )
-                continue
 
         if mitigation_idx is not None and structure_idx is None:
             if (direction == 1 and bos > 0) or (direction == -1 and bos < 0):

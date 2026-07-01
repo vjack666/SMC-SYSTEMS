@@ -1,0 +1,69 @@
+{
+  "per_symbol": {
+    "EURUSD": {
+      "total_trades": 15,
+      "win_rate": 0.6666666666666666,
+      "profit_factor": 1.3199054686109497,
+      "max_drawdown_r": -2.6381216570996493,
+      "max_drawdown_pct": 2.6381216570996493,
+      "max_daily_drawdown_pct": 1.3381216570996581,
+      "sharpe_ratio": 1.9806966620869597,
+      "expectancy_r": 0.05626330299781051
+    },
+    "GBPUSD": {
+      "total_trades": 18,
+      "win_rate": 0.5,
+      "profit_factor": 1.2828784931983377,
+      "max_drawdown_r": -2.3986596119929207,
+      "max_drawdown_pct": 2.3986596119929207,
+      "max_daily_drawdown_pct": 2.3986596119929207,
+      "sharpe_ratio": 1.5821310598910314,
+      "expectancy_r": 0.05120394980361257
+    },
+    "USDCHF": {
+      "total_trades": 39,
+      "win_rate": 0.6923076923076923,
+      "profit_factor": 1.8665463065293963,
+      "max_drawdown_r": -2.901658139680653,
+      "max_drawdown_pct": 2.901658139680653,
+      "max_daily_drawdown_pct": 2.0,
+      "sharpe_ratio": 4.683166714760316,
+      "expectancy_r": 0.1562823038151656
+    },
+    "USDJPY": {
+      "total_trades": 19,
+      "win_rate": 0.631578947368421,
+      "profit_factor": 1.6252396647136738,
+      "max_drawdown_r": -4.06118750929848,
+      "max_drawdown_pct": 4.06118750929848,
+      "max_daily_drawdown_pct": 2.061187509298481,
+      "sharpe_ratio": 3.247552551078134,
+      "expectancy_r": 0.1347776581627114
+    }
+  },
+  "in_sample": {
+    "total_trades": 91,
+    "win_rate": 0.6373626373626373,
+    "profit_factor": 1.6120999836981993,
+    "max_drawdown_r": -4.962845648979133,
+    "max_drawdown_pct": 4.962845648979133,
+    "max_daily_drawdown_pct": 2.3986596119929207,
+    "sharpe_ratio": 3.3257519095065398,
+    "expectancy_r": 0.11452094500346331
+  },
+  "out_of_sample": {
+    "profit_factor": 0.0,
+    "win_rate": 0.0,
+    "note": "walk_forward_needs_more_data"
+  },
+  "thresholds": {
+    "in_sample_pass": true,
+    "per_symbol_pass": {
+      "EURUSD": true,
+      "GBPUSD": true,
+      "USDCHF": true,
+      "USDJPY": true
+    },
+    "at_least_2_symbols_pass": true
+  }
+}

@@ -203,6 +203,22 @@ def build_scalping_context(
     data.loc[signal_pass & (data["macro_direction"] == "BULLISH"), "signal_direction"] = 1
     data.loc[signal_pass & (data["macro_direction"] == "BEARISH"), "signal_direction"] = -1
 
+    swing_low_20 = data["last_swing_low"].ffill().rolling(20, min_periods=1).apply(
+        lambda s: s.dropna().iloc[-1] if not s.dropna().empty else float("nan"), raw=False
+    )
+    swing_high_20 = data["last_swing_high"].ffill().rolling(20, min_periods=1).apply(
+        lambda s: s.dropna().iloc[-1] if not s.dropna().empty else float("nan"), raw=False
+    )
+    data["structural_sl"] = float("nan")
+    long_mask = data["signal_direction"] == 1
+    short_mask = data["signal_direction"] == -1
+    data.loc[long_mask, "structural_sl"] = swing_low_20
+    data.loc[short_mask, "structural_sl"] = swing_high_20
+
+    has_swing = data["structural_sl"].notna()
+    data.loc[long_mask & ~has_swing, "structural_sl"] = data.loc[long_mask & ~has_swing, "close"] - data.loc[long_mask & ~has_swing, "atr"]
+    data.loc[short_mask & ~has_swing, "structural_sl"] = data.loc[short_mask & ~has_swing, "close"] + data.loc[short_mask & ~has_swing, "atr"]
+
     data["passed_all_filters"] = mandatory_pass & (data["confluence_score"] == max_confluence)
     return data
 

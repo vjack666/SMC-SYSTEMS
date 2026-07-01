@@ -1,6 +1,6 @@
 {
-  "total_rows": 2119,
-  "accepted_trades": 2119,
-  "rejected_by_ml": 0,
-  "win_rate_weighted": 0.3463898065125059
+  "total_rows": 6925,
+  "accepted_trades": 91,
+  "rejected_by_ml": 6834,
+  "win_rate_weighted": 0.008375451263537906
 }

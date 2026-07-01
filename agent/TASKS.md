@@ -10,21 +10,29 @@
 
 ---
 
+## In Progress
+
+- [ ] Fix trade sim time matching in `_simulate_trade_with_stats` for GBPUSD/XAUUSD
+- [ ] Diagnose why `wyckoff_distribution = 0` — standalone test of `_upthrust()`, `_sign_of_weakness()` on real data
+
 ## Next
 
-- [ ] Create `knowledge/inbox/` and `knowledge/outbox/` for formal communication
-- [ ] Migrate key learnings from `results/` into `knowledge/learnings/`
-- [ ] Cross-reference `knowledge/decisions/` with `agent/DECISIONS.md`
+- [ ] Add bearish exhaustion fallback — stochastic + EMA crossover when `wyckoff_distribution` unavailable
+- [ ] Retrain ML quality filter (sklearn version mismatch — pickle load fails)
+- [ ] Run 30k-bar backtest with all fixes + TP=3R, validate PF > 1.0 statistically
+- [ ] Performance optimize backtest to handle 30k bars under 10 min
+- [ ] Test TP at 2.5R as intermediate between 2R and 3R
+- [ ] Increase confidence scorer variance (market_regime, ATR ratio, volume as inputs)
+- [ ] Wire distribution-phase Wyckoff features into SMC_SUCCESSOR ML dataset
 
 - [ ] Install dependencies: `pip install python-telegram-bot python-dotenv`
 - [ ] Create Telegram bot via @BotFather and configure `.env`
 - [ ] Test Telegram agent connectivity
 - [ ] Switch provider from `local_python` to `opencode` when ready
 
-- [ ] Optimize TP from 2R to 1.5R to improve win rate
-- [ ] Increase `min_confidence` from 0.52 to 0.60
+- [ ] Increase `min_confidence` from 0.52 to 0.60 (if trade count adequate)
 - [ ] Restrict LONG signals (require confluencia ≥ 6 or eliminate)
-- [ ] Activate ML Quality Filter with GridSearchCV
+- [ ] Activate ML Quality Filter with GridSearchCV (after retrain)
 - [ ] Wire displacement detection into pipeline (`detectors/displacement.py`)
 - [ ] Wire premium/discount zones into pipeline (`detectors/zones.py`)
 - [ ] Integrate SMC_SUCCESSOR agents with main pipeline (Fase 4)
