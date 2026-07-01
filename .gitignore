@@ -10,3 +10,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Temp data artifacts
+data/tmp_*/
+data/tmp_*/*
+data/mt5/_temp_*
