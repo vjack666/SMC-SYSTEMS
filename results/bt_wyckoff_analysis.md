@@ -1,61 +1,66 @@
 # Wyckoff Phase-Aware Filter — Backtest Analysis
 
-**Date**: 2026-06-30
-**Data**: EURUSD, GBPUSD, XAUUSD M15 (30k bars ≈ 2 years)
-**Config**: PAC ON, Exhaustion ON, Structural SL ON, ML Quality OFF
+**Date**: 2026-06-30  
+**Data**: EURUSD, GBPUSD, XAUUSD M15 (30k bars ≈ 2 years)  
+**Config**: PAC ON, Exhaustion ON, Structural SL ON, ML Quality OFF  
 
 ---
 
 ## Results
 
-| Metric | Wyckoff ON | Wyckoff OFF |
-|--------|-----------|-------------|
-| Total Trades | 22 | 0 |
-| Win Rate | 31.82% | — |
-| Profit Factor | 0.40 | — |
-| Max DD% | 8.24% | — |
-| Sharpe | -6.87 | — |
-| Expectancy (R) | -0.40 | — |
+| Metric | Wyckoff ON | Wyckoff OFF | Delta |
+|--------|-----------|-------------|-------|
+| Total Trades | 22 | 19 | +3 |
+| Win Rate | 31.82% | 31.58% | +0.24% |
+| Profit Factor | 0.4042 | 0.4121 | -0.0079 |
+| Max DD% | 8.24% | 8.34% | -0.10% |
+| Sharpe | -6.87 | -6.80 | -0.06 |
+| Expectancy (R) | -0.397 | -0.386 | -0.011 |
 
 ## Key Findings
 
-### 1. PAC Depends on Wyckoff
-The PAC state machine uses Wyckoff accumulation as an exhaustion confirmation.  
-Without Wyckoff, `_build_exhaustion_series()` returns all-False, so PAC mitigation never triggers.  
-**Result**: 0 trades without Wyckoff. Wyckoff is mandatory.
+### 1. Wyckoff Phase-Aware Filter Effect: NEUTRAL
+The phase-aware filter has essentially no impact on performance:
+- PF difference: -0.0079 (0.79% worse with Wyckoff — noise level)
+- Trade count: 22 vs 19 (3 more with Wyckoff — negligible)
+- Win rate, Sharpe, Expectancy all within noise
 
-### 2. Severe LONG Bias (100% EURUSD Long)
-All 22 trades are:
-- EURUSD only (no GBPUSD, XAUUSD)
-- All LONG (no SHORT)
+**Conclusion**: The Wyckoff filter neither helps nor hurts performance on this data.
 
-This indicates:
-- The bearish signal path is broken or too restrictive
-- Session + PAC + Wyckoff alignment for shorts is never satisfied
-- Other symbols fail the session filter or other gates
+### 2. 100% LONG, 100% EURUSD (with or without Wyckoff)
+Both configurations:
+- Only trade EURUSD (no GBPUSD, XAUUSD)
+- Only LONG (no SHORT)
 
-### 3. Poor R:R / Win Rate
-- 7 winners (31.8%), 15 losers (68.2%)
-- Winners avg ~+1.0R, losers consistently -1.0R
-- Net negative expectancy (-0.40R)
-- Consecutive losers drain equity (Max DD 8.24%)
+The bearish signal path is completely broken regardless of Wyckoff.
 
-### 4. Short-Sample Luck
-The first 3000-bar test showed PF 3.38 (7 trades, 57% WR).  
-This was a lucky streak — the 30k-bar test shows the real performance.
+### 3. Poor R:R / Win Rate (systemic issue)
+- ~31% WR, ~-0.40R expectancy
+- Losers consistently -1R, winners variable
+- Net negative regardless of Wyckoff
 
-## Root Causes
+### 4. Bugs Fixed During Analysis
 
-1. **No SHORT trades**: `signal_direction` in `build_scalping_context` only sets -1 for bearish macro_direction when `pac_entry_ready` is True. If the bearish PAC never completes, no short signals.
+| Bug | Impact | Fix |
+|-----|--------|-----|
+| `confluence_scorer.py` line 64: Wyckoff weight always in denominator | OFF case had ~0% confidence → 0 trades | Make wyckoff weight conditional on column existence |
+| `scalping_setup.py` line 386: `pac_entry_ready` access not guarded | Crash when `use_pac=False` | Guard with `if config.use_pac` |
+| `scalping_setup.py` `_build_exhaustion_series` no fallback | 0 trades when Wyckoff OFF + stochastic OFF | Add fallback when both exhaustion sources disabled |
 
-2. **All EURUSD only**: Session filter (`_session_filter`) may be blocking GBPUSD/XAUUSD. London/NY session only, 7-17 UTC.
+## Root Causes of Low PF
 
-3. **High loss rate**: The -1R stop loss hits frequently. TP at 2R sometimes hits, but not often enough.
+1. **No SHORT trades**: Both configs produce 100% LONG. The bearish `macro_direction` paths never generate signals.
+
+2. **EURUSD only**: Session filter or detector logic prevents GBPUSD/XAUUSD from triggering.
+
+3. **Poor R:R**: 2R TP rarely hit; -1R SL frequently hit. Net negative expectancy.
+
+4. **Low trade count**: 19-22 trades in 2 years across 3 symbols is ~7 trades/symbol/year — too sparse for statistical significance.
 
 ## Recommendations
 
-1. **Fix bearish signal path**: Debug why `macro_direction == "BEARISH"` never produces PAC entries with Wyckoff distribution phase
-2. **Add symbol diversification**: Check session filter logic for GBPUSD/XAUUSD
-3. **Improve R:R**: Consider tighter stops or wider targets
-4. **Add short trades**: Without shorts, the system misses ~50% of market opportunity
-5. **Run longer backtest**: 22 trades is still low for statistical significance
+1. **Fix bearish signal path** (HIGH priority): Debug why `macro_direction == "BEARISH"` never produces PAC entries
+2. **Fix multi-symbol** (HIGH priority): Check session filter + detector logic for GBPUSD/XAUUSD
+3. **Improve R:R**: Test TP at 1.5R, tighten stops, or use ATR-based dynamic targets
+4. **Increase trade count**: Relax min_confidence from 0.52 to 0.45, or reduce filters
+5. **Run with ML quality filter**: Activate ML model in run_system.py to see if it improves PF

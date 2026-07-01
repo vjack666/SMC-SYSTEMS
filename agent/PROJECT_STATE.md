@@ -99,15 +99,15 @@ Results
 
 | # | Problem | Severity | Status |
 |---|---------|----------|--------|
-| 1 | LONG trades lose systematically (-5.97R vs -0.10R for SHORTs) | HIGH | Under investigation |
-| 2 | TP at 2R too far — 78% of trades exit by hold limit | HIGH | Needs TP adjustment |
-| 3 | Profit Factor 0.40 (30k bars, target > 1.4) | HIGH | Needs improvement |
-| 4 | 100% LONG, 100% EURUSD — no shorts, no diversification | HIGH | Signal path broken |
-| 5 | PAC depends on Wyckoff exhaustion — 0 trades without it | HIGH | Structural dependency |
-| 6 | Confidence range too narrow (0.675–0.707) — scorer doesn't discriminate | MEDIUM | Confluence tuning needed |
-| 7 | Displacement & Zones not wired into pipeline (silent columns) | MEDIUM | Scheduled for Fase 4 |
-| 8 | 2023-H1 shows 0% win rate in backtest | MEDIUM | Needs investigation |
-| 9 | `agent_decision_ml_probability` always NaN in datasets | LOW | Removed from v4 schema |
+| 1 | **Bearish signal path broken** — 100% LONG, no SHORT trades ever | CRITICAL | Needs debug |
+| 2 | **Multi-symbol dead** — EURUSD only, GBPUSD/XAUUSD 0 trades | CRITICAL | Needs debug |
+| 3 | Profit Factor 0.40 (30k bars, target > 1.4) | HIGH | Needs system improvement |
+| 4 | TP at 2R too far — winners don't offset -1R losers | HIGH | Needs TP adjustment |
+| 5 | LOW_TRADES — 22 trades / 2 years / 3 symbols | HIGH | Min confidence too high |
+| 6 | Confluence scorer range too narrow (0.675–0.707) | MEDIUM | Needs calibration |
+| 7 | Displacement & Zones not wired into pipeline | MEDIUM | Fase 4 |
+| 8 | 2023-H1 shows 0% win rate | MEDIUM | Needs investigation |
+| 9 | `agent_decision_ml_probability` always NaN | LOW | Removed from v4 |
 
 ---
 

@@ -52,16 +52,20 @@ def calculate_confluence_score(
     sl_weight = weights.structural_sl * regime_boost["structural_sl"]
     ml_weight = weights.ml_filter * regime_boost["ml_filter"]
 
+    wyckoff_active = "wyckoff_accumulation" in row
+
     score = (
         pac_ready * pac_weight
         + exhaustion_conf * exhaustion_weight * 0.5
         + exhaustion_active * exhaustion_weight * 0.5
-        + wyckoff_acc * wyckoff_weight
+        + (wyckoff_acc * wyckoff_weight if wyckoff_active else 0.0)
         + has_structural_sl * sl_weight
         + ml_prob * ml_weight
     )
 
-    total_available = pac_weight + exhaustion_weight + wyckoff_weight + sl_weight + ml_weight
+    total_available = pac_weight + exhaustion_weight + sl_weight + ml_weight
+    if wyckoff_active:
+        total_available += wyckoff_weight
     if total_available > 0:
         score = score / total_available
 

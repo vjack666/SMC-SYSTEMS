@@ -17,16 +17,17 @@
 - Fixed dead code in `_detect_accumulation_phase()` — ACCUMULATION_A was unreachable
 - Added distribution detection: `_upthrust()`, `_sign_of_weakness()`, `_last_point_supply()`, `_detect_distribution_phase()`
 - Added markup/markdown phase detection via swing labels + macro direction
-- Fixed distribution high/low tracking — moved before accumulation event chain (was blocked by `continue`)
-- Enhanced `filter_wyckoff` in `scalping_setup.py` — phase-aware (ACCUMULATION_E/MARKUP for bullish, DISTRIBUTION_E/MARKDOWN for bearish)
-- Enhanced `wyckoff_event_score` to include distribution events (upthrust, sow, lpsy)
-- Added `apply_wyckoff_to_trend()` in `context_engine.py` — penalizes trend_confidence by 30% on phase conflict
+- Fixed distribution high/low tracking — moved before accumulation event chain
+- Enhanced `filter_wyckoff` in `scalping_setup.py` — phase-aware filter
+- Enhanced `wyckoff_event_score` to include distribution events
+- Added `apply_wyckoff_to_trend()` in `context_engine.py`
 - Added 6 Wyckoff features to `ml/feature_pipeline.py`
 - Created KOS knowledge: theories, research, summaries, index
-- Ran backtest comparison (3k bars: PF 3.38 with Wyckoff vs 0 trades without; 30k bars: PF 0.40, 22 trades, 100% LONG EURUSD)
-- Fixed PAC dependency: `pac_entry_ready` multiplication now conditional on `use_pac`
-- Identified critical issues: no short trades (bearish path broken), only EURUSD fires, negative expectancy
-- Pushed to GitHub (`ce317a2`)
+- **Bug fix**: `confluence_scorer.py` — Wyckoff weight conditional on column existence (was always in denominator, killing OFF case)
+- **Bug fix**: `scalping_setup.py` — PAC guard for `pac_entry_ready` multiplication
+- **Improvement**: `scalping_setup.py` — `_build_exhaustion_series()` fallback when both sources disabled
+- Ran full A/B comparison (30k bars): Wyckoff ON (22 trades, PF 0.40) vs OFF (19 trades, PF 0.41) — **filter effect is neutral**
+- Pushed to GitHub (`ce317a2`, `7690415`)
 
 ---
 

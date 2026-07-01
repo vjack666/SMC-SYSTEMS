@@ -85,6 +85,9 @@ def _build_exhaustion_series(data: pd.DataFrame, config: ScalpingConfig) -> pd.S
         series = series | data["exhaustion_bullish"] | data["exhaustion_bearish"]
     if config.use_wyckoff and "wyckoff_accumulation" in data.columns:
         series = series | data["wyckoff_accumulation"]
+    # Fallback when no exhaustion source is active: mark all bars as potentially exhausted
+    if not config.use_stochastic_exhaustion and not config.use_wyckoff:
+        series = pd.Series(True, index=data.index)
     return series
 
 

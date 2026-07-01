@@ -1,0 +1,22 @@
+{
+  "wyckoff_on": {
+    "total_trades": 22,
+    "win_rate": 0.3181818181818182,
+    "profit_factor": 0.4041793363881914,
+    "max_drawdown_pct": 8.240430082722906,
+    "max_daily_drawdown_pct": 1.0,
+    "sharpe_ratio": -6.866088724269307,
+    "expectancy_r": -0.3972922764874036
+  },
+  "wyckoff_off_fallback": {
+    "total_trades": 19,
+    "win_rate": 0.3157894736842105,
+    "profit_factor": 0.41207382471957427,
+    "max_drawdown_pct": 8.340405713493883,
+    "max_daily_drawdown_pct": 1.0,
+    "sharpe_ratio": -6.804410501679786,
+    "expectancy_r": -0.3863371428154661
+  },
+  "pf_delta": -0.007894488331382843,
+  "note": "OFF uses volume-spread fallback for PAC exhaustion (otherwise 0 trades)"
+}
