@@ -1,0 +1,22 @@
+{
+  "wyckoff_on": {
+    "total_trades": 22,
+    "win_rate": 0.3181818181818182,
+    "profit_factor": 0.4041793363881914,
+    "max_drawdown_pct": 8.240430082722906,
+    "max_daily_drawdown_pct": 1.0,
+    "sharpe_ratio": -6.866088724269307,
+    "expectancy_r": -0.3972922764874036
+  },
+  "wyckoff_off": {
+    "total_trades": 0.0,
+    "win_rate": 0.0,
+    "profit_factor": 0.0,
+    "max_drawdown_pct": 0.0,
+    "max_daily_drawdown_pct": 0.0,
+    "sharpe_ratio": 0.0,
+    "expectancy_r": 0.0
+  },
+  "pf_delta": 0.4041793363881914,
+  "n_bars": 30000
+}

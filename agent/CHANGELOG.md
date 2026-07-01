@@ -57,6 +57,14 @@
 - Provider protocol allows swapping OpenCode, Claude Code, Codex, Gemini CLI, or local Python
 - Destructive commands require `CONFIRM <CMD>` reply before execution
 
+## 2026-06-30: Backtest comparison — Wyckoff vs baseline + bearish/bias findings
+
+- Ran backtest comparison (3k bars: PF 3.38 with Wyckoff, 0 trades without Wyckoff)
+- Ran long backtest (30k bars: PF 0.40, 22 trades, 100% LONG EURUSD, 31.8% WR)
+- Fixed PAC guard bug: `pac_entry_ready` multiplication now conditional on `use_pac`
+- Identified critical issues: bearish signal path broken, multi-symbol dispatch broken
+- Documented findings in `results/bt_wyckoff_analysis.md`
+
 ## 2026-06-30: Wyckoff detector fix + phase-aware filter + KOS knowledge
 
 - Fixed dead code in `_detect_accumulation_phase()` (ACCUMULATION_A was unreachable)

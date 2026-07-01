@@ -1,0 +1,54 @@
+{
+  "test1_full_pipeline": {
+    "wyckoff_on": {
+      "label": "1A_Wyckoff_ON",
+      "use_wyckoff": true,
+      "use_pac": true,
+      "total_trades": 7,
+      "win_rate": 0.5714285714285714,
+      "profit_factor": 3.375222406325168,
+      "max_drawdown_pct": 1.7776606331944644,
+      "max_daily_drawdown_pct": 0.0,
+      "sharpe_ratio": 8.950772847303316,
+      "expectancy_r": 0.6031913381150967
+    },
+    "wyckoff_off": {
+      "label": "1B_Wyckoff_OFF",
+      "use_wyckoff": false,
+      "use_pac": true,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "max_daily_drawdown_pct": 0.0,
+      "sharpe_ratio": 0.0,
+      "expectancy_r": 0.0
+    }
+  },
+  "test2_no_pac": {
+    "wyckoff_on": {
+      "label": "2A_Wyckoff_ON",
+      "use_wyckoff": true,
+      "use_pac": false,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "max_daily_drawdown_pct": 0.0,
+      "sharpe_ratio": 0.0,
+      "expectancy_r": 0.0
+    },
+    "wyckoff_off": {
+      "label": "2B_Wyckoff_OFF",
+      "use_wyckoff": false,
+      "use_pac": false,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "max_daily_drawdown_pct": 0.0,
+      "sharpe_ratio": 0.0,
+      "expectancy_r": 0.0
+    }
+  }
+}

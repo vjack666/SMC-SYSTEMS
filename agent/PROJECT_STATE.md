@@ -90,6 +90,8 @@ Results
 - **Premium/Discount Zones**: Functions exist in `detectors/zones.py` but NOT wired into pipeline
 - **Orchestrator in backtest**: AgentOrchestrator not passed to `build_scalping_context()` in backtest loop
 - **Multi-Agent integration**: SMC_SUCCESSOR agents not yet integrated with main SMC-SYSTEMS pipeline
+- **Bearish signal path**: PAC + Wyckoff distribution never triggers short entries (100% LONG bias)
+- **Multi-symbol signals**: EURUSD only — GBPUSD/XAUUSD produce 0 trades via PAC
 
 ---
 
@@ -99,11 +101,13 @@ Results
 |---|---------|----------|--------|
 | 1 | LONG trades lose systematically (-5.97R vs -0.10R for SHORTs) | HIGH | Under investigation |
 | 2 | TP at 2R too far — 78% of trades exit by hold limit | HIGH | Needs TP adjustment |
-| 3 | Profit Factor 0.64 (target > 1.4) | HIGH | Needs improvement |
-| 4 | Confidence range too narrow (0.675–0.707) — scorer doesn't discriminate | MEDIUM | Confluence tuning needed |
-| 5 | Displacement & Zones not wired into pipeline (silent columns) | MEDIUM | Scheduled for Fase 4 |
-| 6 | 2023-H1 shows 0% win rate in backtest | MEDIUM | Needs investigation |
-| 7 | `agent_decision_ml_probability` always NaN in datasets | LOW | Removed from v4 schema |
+| 3 | Profit Factor 0.40 (30k bars, target > 1.4) | HIGH | Needs improvement |
+| 4 | 100% LONG, 100% EURUSD — no shorts, no diversification | HIGH | Signal path broken |
+| 5 | PAC depends on Wyckoff exhaustion — 0 trades without it | HIGH | Structural dependency |
+| 6 | Confidence range too narrow (0.675–0.707) — scorer doesn't discriminate | MEDIUM | Confluence tuning needed |
+| 7 | Displacement & Zones not wired into pipeline (silent columns) | MEDIUM | Scheduled for Fase 4 |
+| 8 | 2023-H1 shows 0% win rate in backtest | MEDIUM | Needs investigation |
+| 9 | `agent_decision_ml_probability` always NaN in datasets | LOW | Removed from v4 schema |
 
 ---
 
@@ -111,16 +115,17 @@ Results
 
 ### Short term
 
-1. Reduce TP from 2R to 1.5R to increase win rate
-2. Increase `min_confidence` from 0.52 to 0.60
-3. Eliminate or restrict LONG signals (require confluencia ≥ 6)
-4. Activate ML Quality Filter with GridSearchCV
+1. Debug bearish signal path — why `macro_direction == "BEARISH"` never produces PAC entries
+2. Debug multi-symbol signals — why only EURUSD fires (check session filter + detector coverage)
+3. Reduce TP from 2R to 1.5R to increase win rate
+4. Increase `min_confidence` from 0.52 to 0.60
+5. Activate ML Quality Filter with GridSearchCV
 
 ### Medium term
 
-5. **Fase 4**: Wire displacement + zones into pipeline
-6. **Fase 4**: Integrate SMC_SUCCESSOR multi-agent system with main pipeline
-7. Retrain ML model on v4 dataset
-8. Performance benchmark on 500k bars O(n × lookback)
-9. **Telegram Agent**: Install deps, create bot, configure .env, test connectivity
-10. **Telegram Agent**: Switch provider from `local_python` to `opencode`
+6. **Fase 4**: Wire displacement + zones into pipeline
+7. **Fase 4**: Integrate SMC_SUCCESSOR multi-agent system with main pipeline
+8. Retrain ML model on v4 dataset
+9. Performance benchmark on 500k bars O(n × lookback)
+10. **Telegram Agent**: Install deps, create bot, configure .env, test connectivity
+11. **Telegram Agent**: Switch provider from `local_python` to `opencode`

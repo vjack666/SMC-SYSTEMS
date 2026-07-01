@@ -7,66 +7,77 @@
 
 ## Session
 
-- **Date**: 2026-06-30 (night)
-- **Objective**: Capture Wyckoff structured knowledge into KOS + complete knowledge infrastructure
+- **Date**: 2026-06-30 (late night)
+- **Objective**: Fix Wyckoff detector (dead code + distribution), wire phase-aware filters, add ML features, validate
 
 ---
 
 ## What Was Completed
 
-- Created `knowledge/references/wyckoff-theory.md` — comprehensive structured reference:
-  - Market cycle, accumulation phases A–E, all 6 detection events
-  - Volume/price relationships, effort vs result
-  - Implementation details with config parameters
-  - Integration points with Wyckoff Agent
-- Created `knowledge/learnings/wyckoff-implementation.md` — implementation audit:
-  - Finding 1: Accumulation-only implementation (no distribution detection)
-  - Finding 2: Dead code in phase detection (ACCUMULATION_A unreachable)
-  - Finding 3: Event independence via elif chain (one event per bar)
-  - Finding 4: Slow phase transitions (30-bar window)
-  - Finding 5: Missing functions (Upthrust, SOW, LPSY)
-- Created `knowledge/inbox/` and `knowledge/outbox/` directories
-- Updated agent docs (HANDOFF, TASKS, CHANGELOG)
+- Fixed dead code in `_detect_accumulation_phase()` — ACCUMULATION_A was unreachable
+- Added distribution detection: `_upthrust()`, `_sign_of_weakness()`, `_last_point_supply()`, `_detect_distribution_phase()`
+- Added markup/markdown phase detection via swing labels + macro direction
+- Fixed distribution high/low tracking — moved before accumulation event chain (was blocked by `continue`)
+- Enhanced `filter_wyckoff` in `scalping_setup.py` — phase-aware (ACCUMULATION_E/MARKUP for bullish, DISTRIBUTION_E/MARKDOWN for bearish)
+- Enhanced `wyckoff_event_score` to include distribution events (upthrust, sow, lpsy)
+- Added `apply_wyckoff_to_trend()` in `context_engine.py` — penalizes trend_confidence by 30% on phase conflict
+- Added 6 Wyckoff features to `ml/feature_pipeline.py`
+- Created KOS knowledge: theories, research, summaries, index
+- Ran backtest comparison (3k bars: PF 3.38 with Wyckoff vs 0 trades without; 30k bars: PF 0.40, 22 trades, 100% LONG EURUSD)
+- Fixed PAC dependency: `pac_entry_ready` multiplication now conditional on `use_pac`
+- Identified critical issues: no short trades (bearish path broken), only EURUSD fires, negative expectancy
+- Pushed to GitHub (`ce317a2`)
 
 ---
 
 ## What Remains
 
-- Backtest metrics need improvement (PF 0.64, LONG losses, TP too far)
-- Fase 4 (Multi-Agent Architecture) not started
-- Displacement and Zones not wired into pipeline
-- ML Quality Filter not activated
-- Create `knowledge/inbox/` and `knowledge/outbox/` when needed
-- Migrate key learnings from `results/` into `knowledge/learnings/`
+- **Fix bearish signal path**: PAC + Wyckoff distribution never triggers short entries (100% LONG bias)
+- **Fix multi-symbol signals**: GBPUSD/XAUUSD produce 0 PAC entries (session filter or detector issue)
+- **Improve PF from 0.40 to >1.4**: Reduce TP to 1.5R, tighten stops, improve win rate
+- **Fase 4**: Wire SMC_SUCCESSOR multi-agent system into main pipeline
+- **ML Quality Filter**: Activate in run_system.py with GridSearchCV
+- Add distribution-phase Wyckoff features to SMC_SUCCESSOR ML dataset builder
 
 ---
 
 ## Files Modified
 
-- `agent/HANDOFF.md` — updated session log
-- `agent/TASKS.md` — added Wyckoff knowledge tasks
-- `agent/CHANGELOG.md` — added Wyckoff knowledge entry
+- `modules/wyckoff/detector.py` — dead code fix, distribution + markup/markdown detection, dist tracking fix
+- `strategy/scalping_setup.py` — phase-aware Wyckoff filter, distribution events, PAC guard fix
+- `modules/trend/context_engine.py` — added `apply_wyckoff_to_trend()`
+- `ml/feature_pipeline.py` — added 6 new Wyckoff numeric features
+- `agent/HANDOFF.md`, `agent/TASKS.md`, `agent/PROJECT_STATE.md`, `agent/CHANGELOG.md`, `agent/CONTEXT.md`
 
 ## Files Created
 
-- `knowledge/references/wyckoff-theory.md` — structured Wyckoff reference
-- `knowledge/learnings/wyckoff-implementation.md` — implementation audit findings
-- `knowledge/inbox/` — directory for formal agent messages
-- `knowledge/outbox/` — directory for formal responses
+- `knowledge/theories/wyckoff/theory.md` + `implementation.md`
+- `knowledge/research/completed/2026-06-30-wyckoff-smc-integration.md`
+- `knowledge/summaries/wyckoff.md` + `knowledge/index.json`
+- `scripts/validate_wyckoff.py` — regression validation (7 tests)
+- `scripts/test_distribution_detection.py` — distribution-specific tests (4 tests)
+- `scripts/bt_wyckoff_comparison.py` — A/B backtest comparison runner
+- `scripts/bt_truncated.py` — truncated-data backtest runner
+- `scripts/bt_long.py` — long 30k-bar backtest runner
+- `results/bt_wyckoff_analysis.md` — findings and root cause analysis
 
 ---
 
 ## Validation Status
 
-- ✅ Wyckoff theory captured as structured reference in KOS
-- ✅ Wyckoff implementation audited (5 findings documented)
-- ✅ KOS inbox/outbox directories created
-- ✅ Knowledge/ directory fully populated (architecture, references, learnings, decisions)
+- ✅ Wyckoff detector runs without crash on synthetic data
+- ✅ All 14 required columns present, mutual exclusivity verified
+- ✅ Distribution phase classification confirmed (DISTRIBUTION_B)
+- ✅ Backtest comparison completed: 3k bars (PF 3.38, 7 trades) and 30k bars (PF 0.40, 22 trades)
+- ❌ PF 0.40 below target — bearish path broken, 100% EURUSD LONG only
+- ❌ PAC depends on Wyckoff — 0 trades without it, structural dependency
 
 ---
 
 ## Recommended Next Step
 
-1. Fix Wyckoff detector bugs (dead code, missing distribution detection)
-2. Wire distribution into Wyckoff Agent and ConfluenceScorer
-3. Run Harness scenarios to validate fixes
+1. Debug bearish signal path — fix short trade generation
+2. Debug multi-symbol dispatch — why only EURUSD fires
+3. Adjust TP from 2R to 1.5R to improve win rate
+4. Run Harness scenarios for Wyckoff module (need YAML fixtures)
+5. Wire SMC_SUCCESSOR agents as optional orchestrator in main pipeline

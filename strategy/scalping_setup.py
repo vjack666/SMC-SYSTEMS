@@ -383,7 +383,8 @@ def build_scalping_context(
     data.loc[signal_pass & (data["macro_direction"] == "BULLISH"), "signal_direction"] = 1
     data.loc[signal_pass & (data["macro_direction"] == "BEARISH"), "signal_direction"] = -1
 
-    data["signal_direction"] = data["signal_direction"] * data["pac_entry_ready"].astype(int)
+    if config.use_pac:
+        data["signal_direction"] = data["signal_direction"] * data["pac_entry_ready"].astype(int)
 
     if config.use_structural_sl:
         data = _apply_structural_sl_to_context(data, config)
