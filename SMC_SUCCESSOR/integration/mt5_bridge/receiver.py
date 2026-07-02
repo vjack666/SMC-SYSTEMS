@@ -5,8 +5,11 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import zmq
+
 from integration.mt5_bridge.config import MT5BridgeConfig
 from integration.mt5_bridge.schema import AccountStatus, Heartbeat, TradeResult, TradeResultCode
+from integration.mt5_bridge.zeromq_transport import ZeroMQTransport
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,7 @@ class MT5Receiver:
         self.config = config
         self._context: Any = None
         self._socket: Any = None
+        self._transport: ZeroMQTransport | None = None
         self._inbox: list[TradeResult | AccountStatus | Heartbeat] = []
 
     # ------------------------------------------------------------------
@@ -41,11 +45,9 @@ class MT5Receiver:
         logger.info("MT5Receiver started (protocol=%s)", protocol)
 
     def stop(self) -> None:
-        if protocol := self.config.protocol == "zeromq":
-            if self._socket:
-                self._socket.close()
-            if self._context:
-                self._context.term()
+        if self.config.protocol == "zeromq" and self._transport:
+            self._transport.close_pull_socket()
+            self._transport.close_context()
         logger.info("MT5Receiver stopped")
 
     # ------------------------------------------------------------------
@@ -67,11 +69,14 @@ class MT5Receiver:
         return items
 
     # ------------------------------------------------------------------
-    # Protocol implementations (stubs)
+    # Protocol implementations
     # ------------------------------------------------------------------
 
     def _start_zeromq(self) -> None:
-        pass
+        self._transport = ZeroMQTransport(self.config)
+        self._transport.create_pull_socket()
+        self._socket = self._transport._pull_socket
+        self._context = self._transport._context
 
     def _start_file(self) -> None:
         Path(self.config.signal_log_path).mkdir(parents=True, exist_ok=True)
@@ -80,7 +85,27 @@ class MT5Receiver:
         pass
 
     def _poll_zeromq(self) -> list[TradeResult | AccountStatus | Heartbeat]:
-        raise NotImplementedError("ZeroMQ receiver not yet implemented")
+        if self._transport is None:
+            self._start_zeromq()
+        items: list[TradeResult | AccountStatus | Heartbeat] = []
+        try:
+            for _ in range(100):
+                data = self._transport.pull(
+                    self.config.pull_address,
+                    timeout_ms=self.config.command_timeout_ms,
+                )
+                if data is None:
+                    break
+                msg_type = data.get("_type", "TradeResult")
+                if msg_type == "TradeResult":
+                    items.append(TradeResult(**data))
+                elif msg_type == "AccountStatus":
+                    items.append(AccountStatus(**data))
+                elif msg_type == "Heartbeat":
+                    items.append(Heartbeat(**data))
+        except zmq.ZMQError as exc:
+            logger.warning("ZeroMQ poll error: %s", exc)
+        return items
 
     def _poll_file(self) -> list[TradeResult | AccountStatus | Heartbeat]:
         result_dir = Path(self.config.signal_log_path)

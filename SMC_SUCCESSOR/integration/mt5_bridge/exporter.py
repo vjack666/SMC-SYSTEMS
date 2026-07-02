@@ -6,8 +6,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import zmq
+
 from integration.mt5_bridge.config import MT5BridgeConfig
 from integration.mt5_bridge.schema import SignalMessage, TradeResult, TradeResultCode
+from integration.mt5_bridge.zeromq_transport import ZeroMQTransport
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,7 @@ class SignalExporter:
         self.config = config
         self._context: Any = None
         self._socket: Any = None
+        self._transport: ZeroMQTransport | None = None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -43,11 +47,9 @@ class SignalExporter:
         logger.info("SignalExporter started (protocol=%s)", protocol)
 
     def stop(self) -> None:
-        if protocol := self.config.protocol == "zeromq":
-            if self._socket:
-                self._socket.close()
-            if self._context:
-                self._context.term()
+        if self.config.protocol == "zeromq" and self._transport:
+            self._transport.close_push_socket()
+            self._transport.close_context()
         logger.info("SignalExporter stopped")
 
     # ------------------------------------------------------------------
@@ -66,11 +68,14 @@ class SignalExporter:
         raise ValueError(f"Unknown protocol: {self.config.protocol}")
 
     # ------------------------------------------------------------------
-    # Protocol implementations (stubs — real logic added in later phases)
+    # Protocol implementations
     # ------------------------------------------------------------------
 
     def _start_zeromq(self) -> None:
-        pass
+        self._transport = ZeroMQTransport(self.config)
+        self._transport.create_push_socket()
+        self._socket = self._transport._push_socket
+        self._context = self._transport._context
 
     def _start_file(self) -> None:
         Path(self.config.signal_log_path).mkdir(parents=True, exist_ok=True)
@@ -79,7 +84,32 @@ class SignalExporter:
         pass
 
     def _send_zeromq(self, signal: SignalMessage) -> TradeResult:
-        raise NotImplementedError("ZeroMQ transport not yet implemented")
+        if self._transport is None:
+            self._start_zeromq()
+        try:
+            data = signal.to_dict()
+            self._transport.push(self.config.push_address, data)
+            return TradeResult(
+                signal_id=signal.signal_id,
+                ticket=None,
+                message="Signal pushed via ZeroMQ",
+            )
+        except zmq.ZMQError as exc:
+            logger.error("ZeroMQ push failed: %s", exc)
+            return TradeResult(
+                signal_id=signal.signal_id,
+                ticket=None,
+                code=TradeResultCode.ERROR,
+                message=f"ZeroMQ error: {exc}",
+            )
+        except json.JSONDecodeError as exc:
+            logger.error("JSON serialization error: %s", exc)
+            return TradeResult(
+                signal_id=signal.signal_id,
+                ticket=None,
+                code=TradeResultCode.ERROR,
+                message=f"JSON error: {exc}",
+            )
 
     def _send_file(self, signal: SignalMessage) -> TradeResult:
         path = self.config.signal_log_path / f"signal_{signal.signal_id}.json"
