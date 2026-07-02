@@ -44,12 +44,12 @@ public:
       sig.valid = false;
 
       string pattern = m_signals_dir + "\\signal_*.json";
-      long search_handle = FileFindFirst(pattern, NULL, FILE_COMMON);
+      string filename;
+      long search_handle = FileFindFirst(pattern, filename, FILE_COMMON);
       if (search_handle == INVALID_HANDLE)
          return sig;
 
-      string filename;
-      while (FileFindNext(search_handle, filename, FILE_COMMON))
+      while (FileFindNext(search_handle, filename))
       {
          string fullpath = m_signals_dir + "\\" + filename;
          sig = ParseFile(fullpath);

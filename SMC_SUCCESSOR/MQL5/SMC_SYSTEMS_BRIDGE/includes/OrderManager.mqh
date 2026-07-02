@@ -115,14 +115,12 @@ private:
          return res;
       }
 
-      res.ticket = result.order;
+      res.ticket = (int)result.order;
       res.code = TRADE_OK;
       res.message = "OK";
       res.filled_volume = result.volume;
       res.fill_price = result.price;
-      res.commission = result.commission;
-      res.profit = result.profit;
-      if (m_logger != NULL) m_logger.Info("BUY executed ticket=" + IntegerToString(result.order) + " price=" + DoubleToString(result.price, 5));
+      if (m_logger != NULL) m_logger.Info("BUY executed ticket=" + IntegerToString((int)result.order) + " price=" + DoubleToString(result.price, 5));
       return res;
    }
 
@@ -154,14 +152,12 @@ private:
          return res;
       }
 
-      res.ticket = result.order;
+      res.ticket = (int)result.order;
       res.code = TRADE_OK;
       res.message = "OK";
       res.filled_volume = result.volume;
       res.fill_price = result.price;
-      res.commission = result.commission;
-      res.profit = result.profit;
-      if (m_logger != NULL) m_logger.Info("SELL executed ticket=" + IntegerToString(result.order) + " price=" + DoubleToString(result.price, 5));
+      if (m_logger != NULL) m_logger.Info("SELL executed ticket=" + IntegerToString((int)result.order) + " price=" + DoubleToString(result.price, 5));
       return res;
    }
 
@@ -194,10 +190,10 @@ private:
                request.magic    = m_magic;
 
                if (OrderSend(request, result))
-               {
-                  res.code = TRADE_OK;
-                  res.message = "Closed";
-                  res.ticket = result.order;
+                  {
+                     res.code = TRADE_OK;
+                     res.message = "Closed";
+                     res.ticket = (int)result.order;
                   if (m_logger != NULL) m_logger.Info("Closed position ticket=" + IntegerToString(PositionGetTicket(i)));
                }
                else
