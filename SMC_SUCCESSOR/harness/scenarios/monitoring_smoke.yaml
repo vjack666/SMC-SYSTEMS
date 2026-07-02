@@ -4,6 +4,7 @@ fixture: monitoring_smoke.yaml
 expected:
   module: monitoring
   status: completed
+  drift_detected: false
 tags:
   - smoke
   - monitoring

@@ -1,8 +1,8 @@
 events: []
 parameters:
   drift_features:
-    feature_1: [0.1, 0.2, 0.3, 0.4, 0.5]
-    feature_2: [0.5, 0.4, 0.3, 0.2, 0.1]
+    feature_1: [0.15, 0.25, 0.35, 0.45, 0.55]
+    feature_2: [0.45, 0.35, 0.25, 0.15, 0.05]
   drift_reference:
     feature_1: [0.15, 0.25, 0.35, 0.45, 0.55]
     feature_2: [0.45, 0.35, 0.25, 0.15, 0.05]
@@ -15,3 +15,16 @@ parameters:
       balance: 10000
     - equity: 10100
       balance: 10000
+  trades:
+    - entry_price: 1.1050
+      exit_price: 1.1080
+      volume: 0.01
+      direction: BUY
+    - entry_price: 1.1080
+      exit_price: 1.1040
+      volume: 0.01
+      direction: SELL
+    - entry_price: 1.1040
+      exit_price: 1.1090
+      volume: 0.02
+      direction: BUY

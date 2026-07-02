@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -58,4 +59,74 @@ class EquityTelemetry:
             "max_drawdown": round(max_dd, 6),
             "current_drawdown": round(current_dd, 6),
             "drawdown_duration": duration,
+        }
+
+    def compute_performance(self) -> dict[str, Any]:
+        series = self.get_series()
+        n = len(series)
+        if n < 2:
+            return {
+                "win_rate": 0.0,
+                "profit_factor": 0.0,
+                "sharpe_ratio": 0.0,
+                "sortino_ratio": 0.0,
+                "calmar_ratio": 0.0,
+                "total_return_pct": 0.0,
+                "total_trades": 0,
+                "avg_win_pct": 0.0,
+                "avg_loss_pct": 0.0,
+            }
+
+        returns = []
+        for i in range(1, n):
+            prev_eq = series[i - 1]["equity"]
+            curr_eq = series[i]["equity"]
+            if prev_eq != 0:
+                returns.append((curr_eq - prev_eq) / prev_eq)
+            else:
+                returns.append(0.0)
+
+        total_return_pct = (series[-1]["equity"] - series[0]["equity"]) / series[0]["equity"] * 100.0 if series[0]["equity"] != 0 else 0.0
+
+        wins = [r for r in returns if r > 0]
+        losses = [r for r in returns if r < 0]
+        total_trades = len(returns)
+        win_rate = len(wins) / total_trades if total_trades > 0 else 0.0
+
+        total_gain = sum(wins) if wins else 0.0
+        total_loss = abs(sum(losses)) if losses else 0.0
+        profit_factor = total_gain / total_loss if total_loss > 0 else (total_gain if total_gain > 0 else 0.0)
+
+        avg_win_pct = (sum(wins) / len(wins) * 100.0) if wins else 0.0
+        avg_loss_pct = (sum(losses) / len(losses) * 100.0) if losses else 0.0
+
+        mean_ret = sum(returns) / len(returns)
+        variance = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
+        std_ret = math.sqrt(variance) if variance > 0 else 0.0
+
+        sharpe = (mean_ret / std_ret * math.sqrt(252)) if std_ret > 0 else 0.0
+
+        downside_returns = [r for r in returns if r < 0]
+        if downside_returns:
+            downside_var = sum((r - mean_ret) ** 2 for r in downside_returns) / len(returns)
+            downside_std = math.sqrt(downside_var) if downside_var > 0 else 0.0
+        else:
+            downside_std = 0.0
+        sortino = (mean_ret / downside_std * math.sqrt(252)) if downside_std > 0 else 0.0
+
+        dd_info = self.compute_drawdown()
+        max_dd = dd_info["max_drawdown"]
+        annualized_return = (1 + mean_ret) ** 252 - 1
+        calmar = annualized_return / max_dd if max_dd > 0 else 0.0
+
+        return {
+            "win_rate": round(win_rate, 6),
+            "profit_factor": round(profit_factor, 6),
+            "sharpe_ratio": round(sharpe, 6),
+            "sortino_ratio": round(sortino, 6),
+            "calmar_ratio": round(calmar, 6),
+            "total_return_pct": round(total_return_pct, 6),
+            "total_trades": total_trades,
+            "avg_win_pct": round(avg_win_pct, 6),
+            "avg_loss_pct": round(avg_loss_pct, 6),
         }
