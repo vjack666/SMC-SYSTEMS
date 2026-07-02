@@ -22,6 +22,7 @@ from backtest.combined_backtest import (
 )
 from data.mt5.downloader import DownloadConfig, run_download
 from ml.feature_pipeline import build_feature_pipeline
+from ml.robust_validation import generate_validation_report
 from ml.train_quality_model import TrainingConfig, train_quality_model
 
 
@@ -507,6 +508,19 @@ def main() -> None:
 
     wf = _run_walk_forward(chosen_config)
     mc = _run_monte_carlo(in_sample, combined_trades_df)
+
+    print("\nRunning robust validation (FASE 13)...")
+    if not combined_trades_df.empty:
+        try:
+            generate_validation_report(
+                combined_trades_df,
+                output_dir=Path("results/robust_validation"),
+                symbol="ALL",
+            )
+        except Exception as e:
+            print(f"  Robust validation skipped ({e})")
+    else:
+        print("  No trades available for robust validation.")
 
     print("\n=== IN-SAMPLE ===")
     _print_console_matrix(in_sample)
