@@ -1,0 +1,142 @@
+{
+  "trades": [
+    {
+      "entry_price": 1.105,
+      "exit_price": 1.108,
+      "volume": 0.01,
+      "direction": "BUY",
+      "timestamp": "2026-07-02T20:36:57.471962+00:00",
+      "pnl": 3e-05,
+      "return_pct": 0.271493
+    },
+    {
+      "entry_price": 1.108,
+      "exit_price": 1.104,
+      "volume": 0.01,
+      "direction": "SELL",
+      "timestamp": "2026-07-02T20:36:57.475381+00:00",
+      "pnl": 4e-05,
+      "return_pct": 0.361011
+    },
+    {
+      "entry_price": 1.104,
+      "exit_price": 1.109,
+      "volume": 0.02,
+      "direction": "BUY",
+      "timestamp": "2026-07-02T20:36:57.477477+00:00",
+      "pnl": 0.0001,
+      "return_pct": 0.452899
+    },
+    {
+      "entry_price": 1.105,
+      "exit_price": 1.108,
+      "volume": 0.01,
+      "direction": "BUY",
+      "timestamp": "2026-07-02T20:37:56.281230+00:00",
+      "pnl": 3e-05,
+      "return_pct": 0.271493
+    },
+    {
+      "entry_price": 1.108,
+      "exit_price": 1.104,
+      "volume": 0.01,
+      "direction": "SELL",
+      "timestamp": "2026-07-02T20:37:56.282459+00:00",
+      "pnl": 4e-05,
+      "return_pct": 0.361011
+    },
+    {
+      "entry_price": 1.104,
+      "exit_price": 1.109,
+      "volume": 0.02,
+      "direction": "BUY",
+      "timestamp": "2026-07-02T20:37:56.283592+00:00",
+      "pnl": 0.0001,
+      "return_pct": 0.452899
+    },
+    {
+      "entry_price": 1.105,
+      "exit_price": 1.108,
+      "volume": 0.01,
+      "direction": "BUY",
+      "timestamp": "2026-07-02T20:38:48.967450+00:00",
+      "pnl": 3e-05,
+      "return_pct": 0.271493
+    },
+    {
+      "entry_price": 1.108,
+      "exit_price": 1.104,
+      "volume": 0.01,
+      "direction": "SELL",
+      "timestamp": "2026-07-02T20:38:48.969902+00:00",
+      "pnl": 4e-05,
+      "return_pct": 0.361011
+    },
+    {
+      "entry_price": 1.104,
+      "exit_price": 1.109,
+      "volume": 0.02,
+      "direction": "BUY",
+      "timestamp": "2026-07-02T20:38:48.971966+00:00",
+      "pnl": 0.0001,
+      "return_pct": 0.452899
+    }
+  ],
+  "equity_curve": [
+    {
+      "timestamp": "2026-07-02T20:36:57.471962+00:00",
+      "pnl": 3e-05,
+      "cumulative_pnl": 3e-05
+    },
+    {
+      "timestamp": "2026-07-02T20:36:57.475381+00:00",
+      "pnl": 4e-05,
+      "cumulative_pnl": 7e-05
+    },
+    {
+      "timestamp": "2026-07-02T20:36:57.477477+00:00",
+      "pnl": 0.0001,
+      "cumulative_pnl": 0.00017
+    },
+    {
+      "timestamp": "2026-07-02T20:37:56.281230+00:00",
+      "pnl": 3e-05,
+      "cumulative_pnl": 0.0002
+    },
+    {
+      "timestamp": "2026-07-02T20:37:56.282459+00:00",
+      "pnl": 4e-05,
+      "cumulative_pnl": 0.00024
+    },
+    {
+      "timestamp": "2026-07-02T20:37:56.283592+00:00",
+      "pnl": 0.0001,
+      "cumulative_pnl": 0.00034
+    },
+    {
+      "timestamp": "2026-07-02T20:38:48.967450+00:00",
+      "pnl": 3e-05,
+      "cumulative_pnl": 0.00037
+    },
+    {
+      "timestamp": "2026-07-02T20:38:48.969902+00:00",
+      "pnl": 4e-05,
+      "cumulative_pnl": 0.00041
+    },
+    {
+      "timestamp": "2026-07-02T20:38:48.971966+00:00",
+      "pnl": 0.0001,
+      "cumulative_pnl": 0.00051
+    }
+  ],
+  "metrics": {
+    "total_trades": 9,
+    "win_rate": 1.0,
+    "profit_factor": 0.032562,
+    "sharpe_ratio": 77.549974,
+    "sortino_ratio": 0.0,
+    "calmar_ratio": 0.0,
+    "avg_return_pct": 0.361801,
+    "total_return_pct": 3.256209
+  }
+}

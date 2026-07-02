@@ -1,0 +1,9 @@
+[
+  {
+    "alert_id": "e93b5c37-bce0-44dd-8eb5-b5634b9d2940",
+    "timestamp": "2026-07-02T20:36:57.399029+00:00",
+    "level": "WARN",
+    "message": "Drift detected on feature_2: PSI=1.6581",
+    "source": "monitoring"
+  }
+]

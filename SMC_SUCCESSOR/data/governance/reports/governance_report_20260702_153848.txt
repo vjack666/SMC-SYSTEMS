@@ -1,0 +1,39 @@
+========================================================================
+GOVERNANCE AUTO-REPORT — 2026-07-02 15:38:48
+========================================================================
+
+1. EXECUTIVE SUMMARY
+----------------------------------------
+  Overall Status:       DEGRADED
+  Active Alerts:        0
+  Drift Detected:       False
+  Retraining Needed:    True
+
+2. PERFORMANCE
+----------------------------------------
+  Sharpe Ratio:         1.3
+  Sortino Ratio:        1.6
+  Max Drawdown:         N/A
+  Win Rate:             0.56
+  Profit Factor:        1.9
+
+3. DRIFT ANALYSIS
+----------------------------------------
+  No drift features reported.
+
+4. MODEL REGISTRY
+----------------------------------------
+  smc_v1 v1.0.0  sharpe=1.2       created=2026-07-02T15:37:03
+  smc_v1 v1.1.0  sharpe=1.5       created=2026-07-02T15:37:03
+  smc_v1 v1.0.0  sharpe=1.2       created=2026-07-02T15:38:48
+  smc_v1 v1.1.0  sharpe=1.5       created=2026-07-02T15:38:48
+
+5. RECENT ALERTS (last 10)
+----------------------------------------
+  No recent alerts.
+
+6. RECOMMENDATIONS
+----------------------------------------
+  - Trigger model retraining based on degradation or trade volume.
+
+========================================================================

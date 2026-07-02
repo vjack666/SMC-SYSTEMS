@@ -43,8 +43,9 @@
 | **FASE 5** | Bridge Module — `integration/mt5_bridge/` (file + ZeroMQ, schema, config, exporter, receiver, orchestrator) | 2-3 d | F4 | ✅ |
 | **FASE 6** | MQL5 EA — `SMC_SYSTEMS_BRIDGE.ex5` (señal, orden, monitoreo, salidas, resultado) | 2-3 d | F5 | ✅ |
 | **FASE 7** | Backtest Validation — LangGraph como orquestador del flujo de validación | 1-2 d | F5+F6 | ✅ |
-| **FASE 8** | Deployment Guide — semana x semana, go-live, troubleshooting | 1 d | F7 | ⬜ |
-| **FASE 15** | Production Monitoring — scaffolding (drift detector, alerter, equity telemetry, harness) | – | F14 | 🟡 |
+| **FASE 8** | Deployment Guide — semana x semana, go-live, troubleshooting | 1 d | F7 | ✅ |
+| **FASE 15** | Production Monitoring — performance metrics, alert persistence, dashboard, tracker, harness | 3-5 sem | F14 | ✅ |
+| **FASE 16** | Governance & Automation — model registry, retraining scheduler, auto-report generator, harness | 4-6 sem | F15 | ✅ |
 
 ### FASES de Validación Cuantitativa (Quant Audit)
 
@@ -76,7 +77,7 @@ F6 (MQL5 EA) ✅                        F14 (Features) ✅
     ↓                                     ↓
 F7 (Backtest Val) ✅
     ↓
-F8 (Deployment) ⬜                    F16 (Governance) ⬜
+F8 (Deployment) ✅                    F16 (Governance) ✅
 ```
 
 **Nota:** Ambos streams son mayormente independientes. F5-F8 requieren F4; F14-F16 requieren F13.
@@ -88,11 +89,9 @@ F15 (Production Monitoring) está en la intersección de ambos streams y ya tien
 
 | Período | Fases | Prioridad |
 |---------|-------|-----------|
-| **Julio 2026** (Sem 1-2) | F14 — Feature Enrichment ✅; F5, F6, F7 — scaffolding | Alta |
-| **Julio 2026** (Sem 2-3) | F5 [ZeroMQ] ✅, F6 [compilar EA] ✅, F7 [grafo funcional] ✅ | Alta |
-| **Julio-Agosto 2026** (Sem 3-4) | F8 — Deployment Guide, F15 — completar monitoring | Alta |
-| **Agosto 2026** (Sem 5-6) | F16 — Governance & Automation | Alta |
-| **Agosto-Sept 2026** (Sem 6-8) | Deployment, documentación final | Media |
+| **Julio 2026** (Sem 1-2) | F14 — Feature Enrichment, F5-F7 scaffolding | Alta |
+| **Julio 2026** (Sem 2-3) | F5 [ZeroMQ] ✅, F6 [EA compilado] ✅, F7 [grafo funcional] ✅ | Alta |
+| **Julio-Agosto 2026** (Sem 3-4) | F8 [Deployment Guide] ✅, F15 [Monitoring completo] ✅, F16 [Governance] ✅ | Alta |
 
 ---
 
@@ -114,6 +113,10 @@ F15 (Production Monitoring) está en la intersección de ambos streams y ya tien
 | — | 02/Jul/2026 | F5 — ZeroMQ transport implementado en exporter/receiver + pyzmq | Actual |
 | — | 02/Jul/2026 | F15 — scaffolding: drift detector, alerter, equity telemetry, harness adapter + smoke | Actual |
 | — | 02/Jul/2026 | F6 — EA compilado (0 errors, 0 warnings): fix SignalReceiver + OrderManager, EX5 generado | Actual |
+| — | 02/Jul/2026 | F15 — Monitoring completo: performance metrics, alert persistence, dashboard, tracker, harness + smoke | Actual |
+| — | 02/Jul/2026 | F16 — Governance & Automation: model registry, retraining scheduler, auto-report generator, harness + smoke | Actual |
+| — | 02/Jul/2026 | F8 — Deployment Guide: semana x semana, troubleshooting, rollback | Actual |
+| — | 02/Jul/2026 | **CIERRE DE FASE** — Todas las fases F1-F16 completadas ✅ | Actual |
 
 **Nota:** Las sesiones se registran como archivos `session-{id}.md` en la raíz del proyecto.
 
