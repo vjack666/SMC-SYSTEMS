@@ -16,12 +16,170 @@
       ]
     },
     "status": "passed",
-    "elapsed_ms": 0.8827999699860811,
+    "elapsed_ms": 1.1561999563127756,
     "metrics": {
       "event_count": 1,
       "error_count": 0
     },
     "errors": []
+  },
+  {
+    "scenario": {
+      "name": "feature enrichment smoke",
+      "module": "feature_enrichment",
+      "fixture": "feature_enrichment_smoke.yaml",
+      "expected": {
+        "module": "feature_enrichment",
+        "status": "ok",
+        "features": {
+          "liquidity_sweeps": {
+            "implementation": "active"
+          },
+          "inducements": {
+            "implementation": "active"
+          },
+          "displacement": {
+            "implementation": "active"
+          },
+          "premium_discount_arrays": {
+            "implementation": "active"
+          },
+          "regime_labels": {
+            "implementation": "active"
+          },
+          "interaction_features": {
+            "implementation": "active"
+          }
+        }
+      },
+      "tags": [
+        "smoke",
+        "feature_enrichment"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 11726.176400203258,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  },
+  {
+    "scenario": {
+      "name": "governance smoke",
+      "module": "governance",
+      "fixture": "governance_smoke.yaml",
+      "expected": {
+        "module": "governance",
+        "status": "completed",
+        "models_count": 2
+      },
+      "tags": [
+        "smoke",
+        "governance",
+        "f16"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 79.26059979945421,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  },
+  {
+    "scenario": {
+      "name": "langgraph validation smoke",
+      "module": "langgraph_validation",
+      "fixture": "langgraph_validation_smoke.yaml",
+      "expected": {
+        "module": "langgraph_validation",
+        "status": "report_generated"
+      },
+      "tags": [
+        "smoke",
+        "langgraph",
+        "f7"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 189.39970014616847,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  },
+  {
+    "scenario": {
+      "name": "monitoring smoke",
+      "module": "monitoring",
+      "fixture": "monitoring_smoke.yaml",
+      "expected": {
+        "module": "monitoring",
+        "status": "completed",
+        "drift_detected": false
+      },
+      "tags": [
+        "smoke",
+        "monitoring",
+        "f15"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 90.90909990482032,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  },
+  {
+    "scenario": {
+      "name": "mt5 bridge smoke",
+      "module": "mt5_bridge",
+      "fixture": "mt5_bridge_smoke.yaml",
+      "expected": {
+        "module": "mt5_bridge",
+        "status": "ok",
+        "signal_sent": "harness_test",
+        "heartbeat_status": "ALIVE"
+      },
+      "tags": [
+        "smoke",
+        "mt5_bridge"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.005700159817934036,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: mt5_bridge"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "mt5 ea smoke",
+      "module": "mt5_ea",
+      "fixture": "mt5_ea_smoke.yaml",
+      "expected": {
+        "module": "mt5_ea",
+        "status": "ok",
+        "signal_id": "harness_ea_test"
+      },
+      "tags": [
+        "smoke",
+        "mt5_ea"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.0014998950064182281,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: mt5_ea"
+    ]
   },
   {
     "scenario": {
@@ -39,7 +197,7 @@
       ]
     },
     "status": "passed",
-    "elapsed_ms": 0.8557999972254038,
+    "elapsed_ms": 0.794899882748723,
     "metrics": {
       "event_count": 0,
       "error_count": 0
@@ -62,7 +220,7 @@
       ]
     },
     "status": "passed",
-    "elapsed_ms": 1.2916000559926033,
+    "elapsed_ms": 0.7923999801278114,
     "metrics": {
       "event_count": 0,
       "error_count": 0
@@ -85,7 +243,7 @@
       ]
     },
     "status": "passed",
-    "elapsed_ms": 0.873900018632412,
+    "elapsed_ms": 1.03859999217093,
     "metrics": {
       "event_count": 0,
       "error_count": 0
@@ -109,7 +267,7 @@
       ]
     },
     "status": "passed",
-    "elapsed_ms": 0.7736999541521072,
+    "elapsed_ms": 0.7251999340951443,
     "metrics": {
       "event_count": 0,
       "error_count": 0
@@ -131,7 +289,7 @@
       ]
     },
     "status": "passed",
-    "elapsed_ms": 0.6204000674188137,
+    "elapsed_ms": 0.5759000778198242,
     "metrics": {
       "event_count": 0,
       "error_count": 0

@@ -106,7 +106,7 @@ def main() -> int:
     # --- 4. Run Validation Graph for signals ---
     print("\n[4] Signal Generation (EMA crossover on 50k bars):")
     try:
-        from orchestration.backtest_validation_graph import run_validation
+        from smc_successor.orchestration.backtest_validation_graph import run_validation
 
         vresult = run_validation(symbol="EURUSD", timeframe="M15", data_dir="data/raw")
         signals = vresult.get("signals", [])

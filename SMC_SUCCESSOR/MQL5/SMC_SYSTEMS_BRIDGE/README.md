@@ -4,7 +4,7 @@
 
 This Expert Advisor (EA) connects the Python trading engine (`SMC_SUCCESSOR`) to
 MetaTrader 5. It polls for JSON signal files written by the Python bridge module
-(`integration/mt5_bridge/exporter.py`), executes the corresponding orders, and
+(`smc_successor/integration/mt5_bridge/exporter.py`), executes the corresponding orders, and
 writes result JSON files back for the Python receiver to consume.
 
 ## Communication Protocol
@@ -16,7 +16,7 @@ writes result JSON files back for the Python receiver to consume.
 | EA → Python | Heartbeat | `signals/heartbeat_mt5.json` | Python (Receiver) |
 | EA → Python | Account status | `signals/account_status.json` | Python (Receiver) |
 
-The JSON schema matches the Python contracts in `integration/mt5_bridge/schema.py`:
+The JSON schema matches the Python contracts in `smc_successor/integration/mt5_bridge/schema.py`:
 - **SignalMessage**: signal_id, symbol, action, order_type, volume, price, stop_loss, take_profit, comment, magic_number
 - **TradeResult**: signal_id, ticket, code (0=OK), message, filled_volume, fill_price, commission, swap, profit
 - **AccountStatus**: account_id, balance, equity, margin, margin_free, margin_level, floating_pnl, open_positions
@@ -74,7 +74,7 @@ Verify no errors in the compilation log.
 
 From `SMC_SUCCESSOR/`:
 ```bash
-python -c "from integration.mt5_bridge.orchestrator import MT5BridgeAdapter; b=MT5BridgeAdapter(); b.start()"
+python -c "from smc_successor.integration.mt5_bridge.orchestrator import MT5BridgeAdapter; b=MT5BridgeAdapter(); b.start()"
 ```
 
 ## Configuration Notes

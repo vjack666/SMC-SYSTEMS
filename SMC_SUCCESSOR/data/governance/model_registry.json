@@ -50,5 +50,57 @@
     },
     "path": "models/smc_v1/1.1.0",
     "created_at": "2026-07-02T15:38:48"
+  },
+  {
+    "model_id": "smc_v1__v1.0.0__1783030279753",
+    "name": "smc_v1",
+    "version": "1.0.0",
+    "metrics": {
+      "sharpe": 1.2,
+      "sortino": 1.5,
+      "win_rate": 0.55,
+      "profit_factor": 1.8
+    },
+    "path": "models/smc_v1/1.0.0",
+    "created_at": "2026-07-02T17:11:19"
+  },
+  {
+    "model_id": "smc_v1__v1.1.0__1783030279754",
+    "name": "smc_v1",
+    "version": "1.1.0",
+    "metrics": {
+      "sharpe": 1.5,
+      "sortino": 1.8,
+      "win_rate": 0.58,
+      "profit_factor": 2.1
+    },
+    "path": "models/smc_v1/1.1.0",
+    "created_at": "2026-07-02T17:11:19"
+  },
+  {
+    "model_id": "smc_v1__v1.0.0__1783031049028",
+    "name": "smc_v1",
+    "version": "1.0.0",
+    "metrics": {
+      "sharpe": 1.2,
+      "sortino": 1.5,
+      "win_rate": 0.55,
+      "profit_factor": 1.8
+    },
+    "path": "models/smc_v1/1.0.0",
+    "created_at": "2026-07-02T17:24:09"
+  },
+  {
+    "model_id": "smc_v1__v1.1.0__1783031049030",
+    "name": "smc_v1",
+    "version": "1.1.0",
+    "metrics": {
+      "sharpe": 1.5,
+      "sortino": 1.8,
+      "win_rate": 0.58,
+      "profit_factor": 2.1
+    },
+    "path": "models/smc_v1/1.1.0",
+    "created_at": "2026-07-02T17:24:09"
   }
 ]
