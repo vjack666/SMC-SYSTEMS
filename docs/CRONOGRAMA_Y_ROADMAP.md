@@ -29,6 +29,7 @@
 | ✅ | Completada |
 | 🔄 | En progreso |
 | ⬜ | Pendiente |
+| 🟡 | Scaffolding completo |
 | ⏸️ | En pausa/bloqueada |
 
 ### FASES de Integración MT5
@@ -39,10 +40,11 @@
 | **FASE 2** | Research — métodos de comunicación MT5 | – | F1 | ✅ |
 | **FASE 3** | Target Architecture — diseño end-to-end | – | F2 | ✅ |
 | **FASE 4** | Data Contracts — esquemas señal/resultado | – | F3 | ✅ |
-| **FASE 5** | Bridge Module — `integration/mt5_bridge/` (orchestrator, exporter, receiver, schema, config) | 2-3 d | F4 | 🔄 |
-| **FASE 6** | MQL5 EA — `SMC_SYSTEMS_BRIDGE.mq5` (señal, orden, monitoreo, salidas, resultado) | 2-3 d | F5 | 🔄 |
+| **FASE 5** | Bridge Module — `integration/mt5_bridge/` (file + ZeroMQ, schema, config, exporter, receiver, orchestrator) | 2-3 d | F4 | ✅ |
+| **FASE 6** | MQL5 EA — `SMC_SYSTEMS_BRIDGE.ex5` (señal, orden, monitoreo, salidas, resultado) | 2-3 d | F5 | ✅ |
 | **FASE 7** | Backtest Validation — LangGraph como orquestador del flujo de validación | 1-2 d | F5+F6 | ✅ |
 | **FASE 8** | Deployment Guide — semana x semana, go-live, troubleshooting | 1 d | F7 | ⬜ |
+| **FASE 15** | Production Monitoring — scaffolding (drift detector, alerter, equity telemetry, harness) | – | F14 | 🟡 |
 
 ### FASES de Validación Cuantitativa (Quant Audit)
 
@@ -69,11 +71,11 @@ F2 (Research) ✅                     F10 (Wyckoff) ✅
 F3 (Architecture) ✅                 F11 (ML Expansion) ✅
 F4 (Data Contracts) ✅               F12 (Parameter Tuning) ✅
     ↓                                     ↓
-F5 (Bridge) 🔄 ──→ ←── F13 (Robust Validation) ✅
+F5 (Bridge) ✅ ──→ ←── F13 (Robust Validation) ✅
     ↓                                     ↓
-F6 (MQL5 EA) 🔄                       F14 (Features) ✅
+F6 (MQL5 EA) ✅                        F14 (Features) ✅
     ↓                                     ↓
-F7 (Backtest Val) ✅                  F15 (Monitoring) ⬜
+F7 (Backtest Val) ✅                  F15 (Monitoring) 🟡
     ↓                                     ↓
 F8 (Deployment) ⬜                    F16 (Governance) ⬜
 ```
@@ -87,12 +89,11 @@ No hay dependencia cruzada fuerte entre MT5 y Quant Audit, pero F15 (monitoreo) 
 
 | Período | Fases | Prioridad |
 |---------|-------|-----------|
-| **Julio 2026** (Sem 1-2) | F14 — Feature Enrichment ✅; F5, F6, F7 — arranque scaffolding | Alta |
-| **Julio 2026** (Sem 2-3) | F5 — Bridge Module 🔄, F6 — MQL5 EA 🔄, F7 — Backtest Val 🔄 | Alta |
-| **Julio-Agosto 2026** (Sem 3-4) | Completar F5+F6+F7 + arrancar F15 | Alta |
-| **Agosto 2026** (Sem 5-6) | F15 — Production Monitoring | Alta |
-| **Agosto-Sept 2026** (Sem 6-8) | F16 — Governance & Automation | Media |
-| **Sept 2026** (Sem 8) | F8 — Deployment Guide | Media |
+| **Julio 2026** (Sem 1-2) | F14 — Feature Enrichment ✅; F5, F6, F7 — scaffolding | Alta |
+| **Julio 2026** (Sem 2-3) | F5 [ZeroMQ] ✅, F6 [compilar EA] ✅, F7 [grafo funcional] ✅ | Alta |
+| **Julio-Agosto 2026** (Sem 3-4) | F8 — Deployment Guide, F15 — completar monitoring | Alta |
+| **Agosto 2026** (Sem 5-6) | F16 — Governance & Automation | Alta |
+| **Agosto-Sept 2026** (Sem 6-8) | Deployment, documentación final | Media |
 
 ---
 
@@ -111,6 +112,9 @@ No hay dependencia cruzada fuerte entre MT5 y Quant Audit, pero F15 (monitoreo) 
 | — | 02/Jul/2026 | Cierre de semana — informe semanal + cierre + actualización roadmap | Actual |
 | — | 02/Jul/2026 | F7 — LangGraph integration: validation graph (6 nodos), harness adapter, 10/10 smoke | Actual |
 | — | 02/Jul/2026 | F7 — Grafo funcional: EMA crossover, bridge I/O real, OHLC P&L, error routing condicional, test script | Actual |
+| — | 02/Jul/2026 | F5 — ZeroMQ transport implementado en exporter/receiver + pyzmq | Actual |
+| — | 02/Jul/2026 | F15 — scaffolding: drift detector, alerter, equity telemetry, harness adapter + smoke | Actual |
+| — | 02/Jul/2026 | F6 — EA compilado (0 errors, 0 warnings): fix SignalReceiver + OrderManager, EX5 generado | Actual |
 
 **Nota:** Las sesiones se registran como archivos `session-{id}.md` en la raíz del proyecto.
 
