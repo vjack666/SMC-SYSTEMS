@@ -45,7 +45,7 @@ public:
 
       string pattern = m_signals_dir + "\\signal_*.json";
       string filename;
-      long search_handle = FileFindFirst(pattern, filename, FILE_COMMON);
+      long search_handle = FileFindFirst(pattern, filename);
       if (search_handle == INVALID_HANDLE)
          return sig;
 

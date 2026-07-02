@@ -100,7 +100,7 @@ public:
    bool WriteFile(string path)
    {
       string data = Build();
-      int h = FileOpen(path, FILE_WRITE|FILE_TXT|FILE_COMMON, ',');
+      int h = FileOpen(path, FILE_WRITE|FILE_TXT, ',');
       if (h == INVALID_HANDLE)
          return false;
       FileWrite(h, data);
