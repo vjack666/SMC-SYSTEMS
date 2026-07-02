@@ -53,7 +53,7 @@
 | **FASE 11** | ML Expansion + Confluence Scoring | – | F10 | ✅ |
 | **FASE 12** | Parameter Tuning + Documentación | – | F11 | ✅ |
 | **FASE 13** | Validación Robusta (Purged KFold, bootstrap, CVaR, Drawdown Duration, rolling metrics, DSR, PBO) | 4-6 sem | F12 | ✅ |
-| **FASE 14** | Feature Enrichment (liquidity sweeps, inducements, displacement, premium/discount arrays, regime labels, interaction features) | 4-6 sem | F13 | ⬜ |
+| **FASE 14** | Feature Enrichment (liquidity sweeps, inducements, displacement, premium/discount arrays, regime labels, interaction features) — scaffolding vía harness completado | 4-6 sem | F13 | 🔄 |
 | **FASE 15** | Production Monitoring (drift detection, alerts, equity telemetry, governance dashboards) | 3-5 sem | F14 | ⬜ |
 | **FASE 16** | Governance & Automation (auto-retraining, model selection, reports, deployment) | 4-6 sem | F15 | ⬜ |
 
@@ -71,7 +71,7 @@ F4 (Data Contracts) ✅               F12 (Parameter Tuning) ✅
     ↓                                     ↓
 F5 (Bridge) ⬜ ──→ ←── F13 (Robust Validation) ✅
     ↓                                     ↓
-F6 (MQL5 EA) ⬜                       F14 (Features) ⬜
+F6 (MQL5 EA) ⬜                       F14 (Features) 🔄
     ↓                                     ↓
 F7 (Backtest Val) ⬜                  F15 (Monitoring) ⬜
     ↓                                     ↓
@@ -103,6 +103,7 @@ No hay dependencia cruzada fuerte entre MT5 y Quant Audit, pero F15 (monitoreo) 
 |--------|-------|---------------|---------|
 | ses_0ef2 | 28-29/Jun/2026 | ML Dataset v4, multi-symbol, SMC_SUCCESSOR | `session-ses_0ef2.md` |
 | — | 29/Jun/2026 | F13 validación robusta, cronograma | Actual |
+| — | 02/Jul/2026 | F14 scaffolding — adapter + fixture + scenario feature_enrichment | Actual |
 
 **Nota:** Las sesiones se registran como archivos `session-{id}.md` en la raíz del proyecto.
 

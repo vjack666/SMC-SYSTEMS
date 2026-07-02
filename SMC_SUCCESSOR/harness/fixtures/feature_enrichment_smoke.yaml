@@ -1,0 +1,4 @@
+events: []
+parameters:
+  symbol: EURUSD
+  data_dir: data/mt5

@@ -7,7 +7,7 @@ from harness.contracts import HarnessEvent
 from harness.reports.json_report import write_json_report
 from harness.runners.scenario_runner import ScenarioRunner
 from harness.scenarios.loader import load_scenarios
-from smc_successor.adapters import BacktestAdapter, RiskGovernorAdapter, SignalAdapter
+from smc_successor.adapters import BacktestAdapter, FeatureEnrichmentAdapter, RiskGovernorAdapter, SignalAdapter
 
 
 class EchoAdapter:
@@ -28,6 +28,7 @@ ADAPTERS: dict[str, Any] = {
     "signal_pipeline": SignalAdapter(),
     "risk_governor": RiskGovernorAdapter(),
     "backtest": BacktestAdapter(),
+    "feature_enrichment": FeatureEnrichmentAdapter(),
 }
 
 
@@ -45,7 +46,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--adapters",
-        default="echo,signal_pipeline,risk_governor,backtest",
+        default="echo,signal_pipeline,risk_governor,backtest,feature_enrichment",
         help="Comma-separated list of adapters to enable.",
     )
     args = parser.parse_args()

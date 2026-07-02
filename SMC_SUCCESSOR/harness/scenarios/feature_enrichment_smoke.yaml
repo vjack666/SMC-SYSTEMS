@@ -1,0 +1,9 @@
+name: feature enrichment smoke
+module: feature_enrichment
+fixture: feature_enrichment_smoke.yaml
+expected:
+  module: feature_enrichment
+  status: ok
+tags:
+  - smoke
+  - feature_enrichment
