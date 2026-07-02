@@ -4,6 +4,11 @@ fixture: feature_enrichment_smoke.yaml
 expected:
   module: feature_enrichment
   status: ok
+  features:
+    liquidity_sweeps:
+      implementation: active
+    inducements:
+      implementation: active
 tags:
   - smoke
   - feature_enrichment

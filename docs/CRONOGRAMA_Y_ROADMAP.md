@@ -104,6 +104,7 @@ No hay dependencia cruzada fuerte entre MT5 y Quant Audit, pero F15 (monitoreo) 
 | ses_0ef2 | 28-29/Jun/2026 | ML Dataset v4, multi-symbol, SMC_SUCCESSOR | `session-ses_0ef2.md` |
 | — | 29/Jun/2026 | F13 validación robusta, cronograma | Actual |
 | — | 02/Jul/2026 | F14 scaffolding — adapter + fixture + scenario feature_enrichment | Actual |
+| — | 02/Jul/2026 | F14 liquidity sweeps + inducements (real logic), fixed inducement oversensitivity | Actual |
 
 **Nota:** Las sesiones se registran como archivos `session-{id}.md` en la raíz del proyecto.
 
