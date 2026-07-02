@@ -41,14 +41,21 @@ class LangGraphBacktestAdapter:
         except Exception as exc:
             return {"module": self.name, "status": "error", "error": f"Graph execution failed: {exc}"}
 
+        signals = result.get("signals", [])
+        comparison = result.get("comparison")
+
         return {
             "module": self.name,
             "status": result.get("status", "unknown"),
             "symbol": symbol,
             "timeframe": timeframe,
             "total_bars": result.get("total_bars", 0),
-            "signals_count": len(result.get("signals", [])),
+            "signals_count": len(signals),
             "ea_results_count": len(result.get("ea_results", [])),
-            "report_preview": result.get("report", "")[:200],
+            "matched_trades": comparison.get("matched_trades", 0) if comparison else 0,
+            "python_total_net": comparison.get("python_total_net", 0.0) if comparison else 0.0,
+            "ea_total_net": comparison.get("ea_total_net", 0.0) if comparison else 0.0,
+            "delta_total_net": comparison.get("delta_total_net", 0.0) if comparison else 0.0,
+            "report_preview": result.get("report", "")[:300],
             "errors": result.get("errors", []),
         }
