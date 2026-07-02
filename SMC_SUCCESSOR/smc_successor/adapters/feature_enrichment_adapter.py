@@ -7,7 +7,10 @@ import numpy as np
 import pandas as pd
 
 from smc_successor._data_legacy import load_frame
+from smc_successor.detectors.displacement import detect_displacement, DisplacementConfig
+from smc_successor.detectors.zones import compute_zones, ZoneConfig
 from smc_successor.indicators import add_atr
+from smc_successor.regime import detect_regimes, RegimeConfig
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -17,6 +20,9 @@ SWING_LOOKBACK = 5
 ATR_PERIOD = 14
 INDUCEMENT_LOOKBACK = 8
 STRENGTH_ATR_CAP = 3.0
+EMA_FAST_SPAN = 20
+EMA_SLOW_SPAN = 50
+ZONE_SWING_LOOKBACK = 20
 
 
 # ---------------------------------------------------------------------------
@@ -248,9 +254,7 @@ class FeatureEnrichmentAdapter:
         sweep_df = _detect_liquidity_sweeps(frame, swing_high, swing_low, atr)
         sweep_detected = bool(sweep_df["liquidity_sweep_detected"].any())
         last_sweep = _last_non_null(sweep_df, "sweep_type")
-        recent_sweeps = sweep_df.tail(INDUCEMENT_LOOKBACK)
-        recent_sweep_count = int(recent_sweeps["liquidity_sweep_detected"].sum())
-
+        recent_sweep_count = int(sweep_df.tail(INDUCEMENT_LOOKBACK)["liquidity_sweep_detected"].sum())
         sweep_strength_mean = float(
             sweep_df.loc[sweep_df["liquidity_sweep_detected"], "sweep_strength"].mean()
         ) if sweep_detected else 0.0
@@ -259,12 +263,49 @@ class FeatureEnrichmentAdapter:
         induce_df = _detect_inducements(frame, swing_high, swing_low, atr)
         induce_detected = bool(induce_df["inducement_detected"].any())
         last_induce = _last_non_null(induce_df, "inducement_type")
-        recent_induce = induce_df.tail(INDUCEMENT_LOOKBACK)
-        recent_induce_count = int(recent_induce["inducement_detected"].sum())
-
+        recent_induce_count = int(induce_df.tail(INDUCEMENT_LOOKBACK)["inducement_detected"].sum())
         induce_prob_mean = float(
             induce_df.loc[induce_df["inducement_detected"], "inducement_probability"].mean()
         ) if induce_detected else 0.0
+
+        # --- Displacement (strong impulsive bars) ---
+        disp_frame = detect_displacement(frame, DisplacementConfig())
+        disp_bullish = bool(disp_frame["displacement_bullish"].any())
+        disp_bearish = bool(disp_frame["displacement_bearish"].any())
+        disp_magnitude_mean = float(disp_frame.loc[
+            disp_frame["displacement_bullish"] | disp_frame["displacement_bearish"],
+            "displacement_magnitude"
+        ].mean()) if (disp_bullish or disp_bearish) else 0.0
+        recent_disp_bullish = int(disp_frame.tail(INDUCEMENT_LOOKBACK)["displacement_bullish"].sum())
+        recent_disp_bearish = int(disp_frame.tail(INDUCEMENT_LOOKBACK)["displacement_bearish"].sum())
+
+        # --- Premium / Discount Arrays (OTE zones) ---
+        zones_frame = compute_zones(frame, ZoneConfig(swing_lookback=ZONE_SWING_LOOKBACK))
+        last_zone_type = str(zones_frame["premium_discount_zone"].iloc[-1])
+        last_premium_distance = float(zones_frame["premium_distance"].iloc[-1])
+        zone_distribution = zones_frame["premium_discount_zone"].value_counts().to_dict()
+        zone_distribution = {str(k): int(v) for k, v in zone_distribution.items()}
+
+        # --- Regime Labels (market state classification) ---
+        frame_with_indicators = frame.copy()
+        atr_sma_20 = atr.rolling(20).mean().replace(0.0, np.nan)
+        frame_with_indicators["atr_ratio"] = (atr / atr_sma_20).replace([np.inf, -np.inf], np.nan).fillna(1.0)
+        frame_with_indicators["ema_fast"] = frame_with_indicators["close"].ewm(span=EMA_FAST_SPAN).mean()
+        frame_with_indicators["ema_slow"] = frame_with_indicators["close"].ewm(span=EMA_SLOW_SPAN).mean()
+        frame_with_indicators["atr"] = atr
+        regime_frame = detect_regimes(frame_with_indicators, RegimeConfig())
+        regime_list = regime_frame["market_regime"].tolist()
+        regime_distribution = regime_frame["market_regime"].value_counts().to_dict()
+        regime_distribution = {str(k): int(v) for k, v in regime_distribution.items()}
+        current_regime = str(regime_list[-1]) if regime_list else "NONE"
+        regime_recent = regime_list[-INDUCEMENT_LOOKBACK:] if len(regime_list) >= INDUCEMENT_LOOKBACK else regime_list
+        dominant_recent_regime = max(set(regime_recent), key=regime_recent.count) if regime_recent else "NONE"
+
+        # --- Interaction Features ---
+        both_same = (sweep_df["liquidity_sweep_detected"] & induce_df["inducement_detected"])
+        co_occurrence_count = int(both_same.sum())
+        co_occurrence_pct = round(float(both_same.mean()), 4) if total_bars > 0 else 0.0
+        last_both = bool(both_same.iloc[-1])
 
         return {
             "module": self.name,
@@ -300,47 +341,41 @@ class FeatureEnrichmentAdapter:
                         induce_df["inducement_probability"].where(induce_df["inducement_detected"])
                     ),
                 },
-                # TODO F14: displacement — pending implementation
+                # --- F14: Displacement (strong impulsive bars) ---
                 "displacement": {
-                    "implementation": "not_implemented",
-                    "proposed": [
-                        "displacement_magnitude",
-                        "displacement_bullish",
-                        "displacement_bearish",
-                        "displacement_continuation",
-                    ],
+                    "implementation": "active",
+                    "displacement_detected": bool(disp_bullish or disp_bearish),
+                    "displacement_bullish": disp_bullish,
+                    "displacement_bearish": disp_bearish,
+                    "displacement_magnitude_mean": round(disp_magnitude_mean, 4),
+                    "recent_bullish_count_8_bars": recent_disp_bullish,
+                    "recent_bearish_count_8_bars": recent_disp_bearish,
+                    "last_magnitude": round(float(disp_frame["displacement_magnitude"].iloc[-1]), 4),
+                    "aggregate_bullish": _aggregate_column(disp_frame["displacement_bullish"]),
+                    "aggregate_bearish": _aggregate_column(disp_frame["displacement_bearish"]),
                 },
-                # TODO F14: premium / discount arrays — pending implementation
+                # --- F14: Premium / Discount Arrays ---
                 "premium_discount_arrays": {
-                    "implementation": "not_implemented",
-                    "proposed": [
-                        "premium_array_zones",
-                        "discount_array_zones",
-                        "current_zone_type",
-                        "distance_to_nearest_pd_boundary",
-                    ],
+                    "implementation": "active",
+                    "current_zone_type": last_zone_type,
+                    "current_premium_distance": round(last_premium_distance, 4),
+                    "zone_distribution": zone_distribution,
+                    "bars_analyzed": total_bars,
                 },
-                # TODO F14: regime labels — pending implementation
+                # --- F14: Regime Labels ---
                 "regime_labels": {
-                    "implementation": "not_implemented",
-                    "proposed": [
-                        "regime_trending_bullish",
-                        "regime_trending_bearish",
-                        "regime_ranging",
-                        "regime_high_volatility",
-                        "regime_low_volatility",
-                        "regime_chaotic",
-                    ],
+                    "implementation": "active",
+                    "current_regime": current_regime,
+                    "dominant_recent_regime_8_bars": dominant_recent_regime,
+                    "distribution": regime_distribution,
+                    "bars_analyzed": total_bars,
                 },
-                # TODO F14: interaction features — pending implementation
+                # --- F14: Interaction Features ---
                 "interaction_features": {
-                    "implementation": "not_implemented",
-                    "proposed": [
-                        "fvg_size_x_bos_strength",
-                        "ob_distance_x_trend_confidence",
-                        "displacement_x_volume",
-                        "sweep_x_inducement",
-                    ],
+                    "implementation": "active",
+                    "sweep_x_inducement_co_occurrence_count": co_occurrence_count,
+                    "sweep_x_inducement_co_occurrence_pct": co_occurrence_pct,
+                    "sweep_x_inducement_last_bar": last_both,
                 },
             },
         }

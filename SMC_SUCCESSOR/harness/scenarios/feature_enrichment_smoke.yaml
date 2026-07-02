@@ -9,6 +9,14 @@ expected:
       implementation: active
     inducements:
       implementation: active
+    displacement:
+      implementation: active
+    premium_discount_arrays:
+      implementation: active
+    regime_labels:
+      implementation: active
+    interaction_features:
+      implementation: active
 tags:
   - smoke
   - feature_enrichment
