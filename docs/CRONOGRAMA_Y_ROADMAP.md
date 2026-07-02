@@ -39,7 +39,7 @@
 | **FASE 2** | Research — métodos de comunicación MT5 | – | F1 | ✅ |
 | **FASE 3** | Target Architecture — diseño end-to-end | – | F2 | ✅ |
 | **FASE 4** | Data Contracts — esquemas señal/resultado | – | F3 | ✅ |
-| **FASE 5** | Bridge Module — `integration/mt5_bridge/` (orchestrator, exporter, receiver, schema, config) | 2-3 d | F4 | ⬜ |
+| **FASE 5** | Bridge Module — `integration/mt5_bridge/` (orchestrator, exporter, receiver, schema, config) | 2-3 d | F4 | 🔄 |
 | **FASE 6** | MQL5 EA — `SMC_SYSTEMS_BRIDGE.mq5` (señal, orden, monitoreo, salidas, resultado) | 2-3 d | F5 | ⬜ |
 | **FASE 7** | Backtest Validation — 14,344 trades vs Python | 1-2 d | F5+F6 | ⬜ |
 | **FASE 8** | Deployment Guide — semana x semana, go-live, troubleshooting | 1 d | F7 | ⬜ |
@@ -69,7 +69,7 @@ F2 (Research) ✅                     F10 (Wyckoff) ✅
 F3 (Architecture) ✅                 F11 (ML Expansion) ✅
 F4 (Data Contracts) ✅               F12 (Parameter Tuning) ✅
     ↓                                     ↓
-F5 (Bridge) ⬜ ──→ ←── F13 (Robust Validation) ✅
+F5 (Bridge) 🔄 ──→ ←── F13 (Robust Validation) ✅
     ↓                                     ↓
 F6 (MQL5 EA) ⬜                       F14 (Features) ✅
     ↓                                     ↓
@@ -88,7 +88,7 @@ No hay dependencia cruzada fuerte entre MT5 y Quant Audit, pero F15 (monitoreo) 
 | Período | Fases | Prioridad |
 |---------|-------|-----------|
 | **Julio 2026** (Sem 1-2) | F14 — Feature Enrichment ✅ | Alta |
-| **Julio 2026** (Sem 2-3) | F5 — Bridge Module | Alta |
+| **Julio 2026** (Sem 2-3) | F5 — Bridge Module 🔄 | Alta |
 | **Julio-Agosto 2026** (Sem 3-4) | F6 — MQL5 EA | Alta |
 | **Agosto 2026** (Sem 4-5) | F7 — Backtest Validation | Alta |
 | **Agosto 2026** (Sem 5-6) | F15 — Production Monitoring | Alta |
@@ -106,6 +106,7 @@ No hay dependencia cruzada fuerte entre MT5 y Quant Audit, pero F15 (monitoreo) 
 | — | 02/Jul/2026 | F14 scaffolding — adapter + fixture + scenario feature_enrichment | Actual |
 | — | 02/Jul/2026 | F14 liquidity sweeps + inducements (real logic), fixed inducement oversensitivity | Actual |
 | — | 02/Jul/2026 | F14 wired displacement, zones, regime, sweep_x_inducement interaction — all 6 groups active | Actual |
+| — | 02/Jul/2026 | F5 scaffolding — mt5_bridge/ (schema, config, exporter, receiver, orchestrator, harness adapter, README) | Actual |
 
 **Nota:** Las sesiones se registran como archivos `session-{id}.md` en la raíz del proyecto.
 

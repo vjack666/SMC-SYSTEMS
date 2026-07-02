@@ -1,0 +1,11 @@
+name: mt5 bridge smoke
+module: mt5_bridge
+fixture: mt5_bridge_smoke.yaml
+expected:
+  module: mt5_bridge
+  status: ok
+  signal_sent: harness_test
+  heartbeat_status: ALIVE
+tags:
+  - smoke
+  - mt5_bridge
