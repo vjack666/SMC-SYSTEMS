@@ -1,0 +1,11 @@
+name: langgraph validation smoke
+module: langgraph_validation
+fixture: langgraph_validation_smoke.yaml
+expected:
+  module: langgraph_validation
+  status: report_generated
+  signals_count: 50
+tags:
+  - smoke
+  - langgraph
+  - f7

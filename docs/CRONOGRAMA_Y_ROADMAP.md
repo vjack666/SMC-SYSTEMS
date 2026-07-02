@@ -41,7 +41,7 @@
 | **FASE 4** | Data Contracts — esquemas señal/resultado | – | F3 | ✅ |
 | **FASE 5** | Bridge Module — `integration/mt5_bridge/` (orchestrator, exporter, receiver, schema, config) | 2-3 d | F4 | 🔄 |
 | **FASE 6** | MQL5 EA — `SMC_SYSTEMS_BRIDGE.mq5` (señal, orden, monitoreo, salidas, resultado) | 2-3 d | F5 | 🔄 |
-| **FASE 7** | Backtest Validation — 14,344 trades vs Python | 1-2 d | F5+F6 | 🔄 |
+| **FASE 7** | Backtest Validation — LangGraph como orquestador del flujo de validación | 1-2 d | F5+F6 | 🔄 |
 | **FASE 8** | Deployment Guide — semana x semana, go-live, troubleshooting | 1 d | F7 | ⬜ |
 
 ### FASES de Validación Cuantitativa (Quant Audit)
@@ -109,6 +109,7 @@ No hay dependencia cruzada fuerte entre MT5 y Quant Audit, pero F15 (monitoreo) 
 | — | 02/Jul/2026 | F6 scaffolding — MQL5 EA (SMC_SYSTEMS_BRIDGE.mq5 + includes: JSONParser, SignalReceiver, OrderManager, AccountMonitor, Logger, README) | Actual |
 | — | 02/Jul/2026 | F7 scaffolding — backtest/mt5_validation/ (runner, comparator, report generator, README) | Actual |
 | — | 02/Jul/2026 | Cierre de semana — informe semanal + cierre + actualización roadmap | Actual |
+| — | 02/Jul/2026 | F7 — LangGraph integration: validation graph (6 nodos), harness adapter, 10/10 smoke | Actual |
 
 **Nota:** Las sesiones se registran como archivos `session-{id}.md` en la raíz del proyecto.
 
