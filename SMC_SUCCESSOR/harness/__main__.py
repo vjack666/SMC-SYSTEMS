@@ -9,6 +9,7 @@ from harness.runners.scenario_runner import ScenarioRunner
 from harness.scenarios.loader import load_scenarios
 from integration.mt5_bridge.harness_adapter import MT5BridgeHarnessAdapter
 from integration.mt5_bridge_ea_harness import MQL5EAHarnessAdapter
+from governance.harness_adapter import GovernanceHarnessAdapter
 from monitoring.harness_adapter import MonitoringHarnessAdapter
 from orchestration.harness_adapter import LangGraphBacktestAdapter
 from smc_successor.adapters import BacktestAdapter, FeatureEnrichmentAdapter, RiskGovernorAdapter, SignalAdapter
@@ -37,6 +38,7 @@ ADAPTERS: dict[str, Any] = {
     "mt5_ea": MQL5EAHarnessAdapter(),
     "langgraph_validation": LangGraphBacktestAdapter(),
     "monitoring": MonitoringHarnessAdapter(),
+    "governance": GovernanceHarnessAdapter(),
 }
 
 
@@ -54,7 +56,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--adapters",
-        default="echo,signal_pipeline,risk_governor,backtest,feature_enrichment,mt5_bridge,mt5_ea,langgraph_validation,monitoring",
+        default="echo,signal_pipeline,risk_governor,backtest,feature_enrichment,mt5_bridge,mt5_ea,langgraph_validation,monitoring,governance",
         help="Comma-separated list of adapters to enable.",
     )
     args = parser.parse_args()
