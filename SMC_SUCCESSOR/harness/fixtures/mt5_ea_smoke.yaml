@@ -1,0 +1,7 @@
+events: []
+parameters:
+  symbol: EURUSD
+  action: BUY
+  volume: 0.01
+  stop_loss: 1.0800
+  take_profit: 1.1000
