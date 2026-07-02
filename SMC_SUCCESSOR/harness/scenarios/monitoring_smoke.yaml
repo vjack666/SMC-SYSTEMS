@@ -1,0 +1,10 @@
+name: monitoring smoke
+module: monitoring
+fixture: monitoring_smoke.yaml
+expected:
+  module: monitoring
+  status: completed
+tags:
+  - smoke
+  - monitoring
+  - f15

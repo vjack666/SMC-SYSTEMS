@@ -1,0 +1,17 @@
+events: []
+parameters:
+  drift_features:
+    feature_1: [0.1, 0.2, 0.3, 0.4, 0.5]
+    feature_2: [0.5, 0.4, 0.3, 0.2, 0.1]
+  drift_reference:
+    feature_1: [0.15, 0.25, 0.35, 0.45, 0.55]
+    feature_2: [0.45, 0.35, 0.25, 0.15, 0.05]
+  equity_entries:
+    - equity: 10000
+      balance: 10000
+    - equity: 9950
+      balance: 10000
+    - equity: 9800
+      balance: 10000
+    - equity: 10100
+      balance: 10000
