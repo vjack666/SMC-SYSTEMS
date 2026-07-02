@@ -87,10 +87,9 @@ No hay dependencia cruzada fuerte entre MT5 y Quant Audit, pero F15 (monitoreo) 
 
 | Período | Fases | Prioridad |
 |---------|-------|-----------|
-| **Julio 2026** (Sem 1-2) | F14 — Feature Enrichment ✅ | Alta |
-| **Julio 2026** (Sem 2-3) | F5 — Bridge Module 🔄 | Alta |
-| **Julio-Agosto 2026** (Sem 3-4) | F6 — MQL5 EA | Alta |
-| **Agosto 2026** (Sem 4-5) | F7 — Backtest Validation | Alta |
+| **Julio 2026** (Sem 1-2) | F14 — Feature Enrichment ✅; F5, F6, F7 — arranque scaffolding | Alta |
+| **Julio 2026** (Sem 2-3) | F5 — Bridge Module 🔄, F6 — MQL5 EA 🔄, F7 — Backtest Val 🔄 | Alta |
+| **Julio-Agosto 2026** (Sem 3-4) | Completar F5+F6+F7 + arrancar F15 | Alta |
 | **Agosto 2026** (Sem 5-6) | F15 — Production Monitoring | Alta |
 | **Agosto-Sept 2026** (Sem 6-8) | F16 — Governance & Automation | Media |
 | **Sept 2026** (Sem 8) | F8 — Deployment Guide | Media |
@@ -109,6 +108,7 @@ No hay dependencia cruzada fuerte entre MT5 y Quant Audit, pero F15 (monitoreo) 
 | — | 02/Jul/2026 | F5 scaffolding — mt5_bridge/ (schema, config, exporter, receiver, orchestrator, harness adapter, README) | Actual |
 | — | 02/Jul/2026 | F6 scaffolding — MQL5 EA (SMC_SYSTEMS_BRIDGE.mq5 + includes: JSONParser, SignalReceiver, OrderManager, AccountMonitor, Logger, README) | Actual |
 | — | 02/Jul/2026 | F7 scaffolding — backtest/mt5_validation/ (runner, comparator, report generator, README) | Actual |
+| — | 02/Jul/2026 | Cierre de semana — informe semanal + cierre + actualización roadmap | Actual |
 
 **Nota:** Las sesiones se registran como archivos `session-{id}.md` en la raíz del proyecto.
 
