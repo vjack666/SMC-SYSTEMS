@@ -7,7 +7,7 @@ import pytest
 from harness.contracts import HarnessEvent, Scenario
 from harness.runners.scenario_runner import ScenarioRunner
 from harness.scenarios.loader import load_scenarios
-from smc_successor.adapters import RiskGovernorAdapter, SignalAdapter
+from adapters import RiskGovernorAdapter, SignalAdapter
 
 
 class TestRiskGovernorHarness:

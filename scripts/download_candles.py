@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from smc_successor.data.mt5.connector import MT5Connector
+from data.mt5.connector import MT5Connector
 
 
 def main() -> None:

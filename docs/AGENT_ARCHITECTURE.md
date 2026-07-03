@@ -32,6 +32,8 @@
                 Backtest Execution
 ```
 
+---
+
 ## Agent Responsibilities
 
 ### ICT Agent (`agents/ict_agent.py`)
@@ -49,12 +51,12 @@
 
 | Aspect | Detail |
 |--------|--------|
-| **Input** | Context DataFrame row + 40-bar lookback window |
-| **Columns read** | `high`, `low`, `close`, `open`, `atr`, `swing_label`, `macro_direction`, `tick_volume` |
-| **Analysis** | Phase classification (ACCUMULATION/MARKUP/DISTRIBUTION/MARKDOWN), Spring, Upthrust, SOS, SOW, LPS, LPSY, effort vs result divergence, volume regime |
+| **Input** | Context DataFrame row + 30-bar lookback window |
+| **Columns read** | `swing_label`, `swing_high/low`, `volume_ratio`, `atr`, `range`, `close` |
+| **Analysis** | Phase classification (ACCUMULATION, DISTRIBUTION, MARKUP, MARKDOWN), pattern detection (Spring, Upthrust, SOS, SOW, LPS, LPSY), effort vs result divergence, volume regime |
 | **Source of truth** | `docs/WYCKOFF_RULEBOOK.md` |
-| **Output** | `AnalysisResult` with bias, confidence, detected events (SPRING, UPTHRUST, SOS, SOW, LPS, LPSY, EFFORT_RESULT_DIVERGENCE), evidence dict (phase, volume_regime, etc.) |
-| **Forbidden** | Trade execution, hardcoded entries, conflicting phase interpretation |
+| **Output** | `AnalysisResult` with bias, confidence, detected events (ACCUMULATION_EARLY, ACCUMULATION_LATE, DISTRIBUTION_EARLY, DISTRIBUTION_LATE, SPRING, UPTHRUST, SOS, SOW, LPS, LPSY, EFFORT_DIVERGENCE), evidence dict |
+| **Forbidden** | Trade execution, position sizing, market structure analysis (delegates to ICT agent) |
 
 ### Structure Agent (`agents/structure_agent.py`)
 
@@ -91,7 +93,7 @@
 
 ```
 MT5 Terminal
-    │ mt5.copy_rates_from_pos()  (via MT5Connector)
+    │ mt5.copy_rates_from_pos()  (via MT5Connector — _data_legacy.py)
     ▼
 data/raw/{symbol}_{tf}.parquet
     │ load_frame()
@@ -101,8 +103,8 @@ build_scalping_context()
     │ detect_choch()       → choch_signal
     │ detect_fvg()         → fvg_bullish, fvg_bearish, fvg_size, fvg_mid, fvg_fill_status
     │ detect_order_blocks()→ ob_bullish, ob_bearish, ob_top, ob_bottom, ob_distance
-    │ detect_displacement()→ displacement_bullish, displacement_bearish, displacement_magnitude  ❌ NOT WIRED
-    │ compute_zones()      → premium_discount_zone, premium_distance  ❌ NOT WIRED
+    │ detect_displacement()→ displacement_bullish, displacement_bearish, displacement_magnitude
+    │ compute_zones()      → premium_discount_zone, premium_distance
     │ add_atr/ema/rsi      → atr, ema_fast/ema_slow, rsi
     │ build_trend_context  → macro_direction, d1_direction, h4_trend, trend_confidence, etc.
     ▼
@@ -119,14 +121,16 @@ Confluence scoring + signal_confidence
     ▼
 ScalpingSignal list (entry, SL, TP, direction, confidence)
     ▼
-run_combined_backtest()
+Backtest / Live Execution
     │ GovernorPool (per-symbol risk)
-    │ FeatureEngine.extract_features()
-    │ ML quality filter
-    │ Trade simulation
+    │ FeatureEngine (30+ features)
+    │ ML quality filter (optional)
+    │ Trade simulation or order execution
     ▼
-results/{trades,metrics,equity,dataset}.{csv,json}
+results/{trades,metrics,equity}.{csv,json}
 ```
+
+All detectors are wired and exported. Previous wiring gaps (displacement, zones) were fixed in Phase 1.4.
 
 ---
 
@@ -170,23 +174,27 @@ class AnalysisResult:
 
 | Agent | Depends On | Missing |
 |-------|-----------|---------|
-| ICT | `bos.py`, `choch.py`, `fvg.py`, `ob.py` | `displacement.py` (columns not in pipeline), `zones.py` (columns not in pipeline) |
+| ICT | `bos.py`, `choch.py`, `fvg.py`, `ob.py`, `displacement.py`, `zones.py` | None |
 | Wyckoff | `bos.py` (swing_label), indicators | None |
 | Structure | `bos.py` (swing_label), trend_context | None |
 | Decision | All agents | None |
 
-### Detector Export Gap
+### Harness Adapters
 
-`detectors/__init__.py` does **not** export `detect_displacement` or `compute_zones`. These functions exist at `detectors/displacement.py` and `detectors/zones.py` but are not importable from the package.
+All modules are validated through the harness:
 
-### Pipeline Wiring Gap
-
-`pipeline.py:build_scalping_context()` does **not** call `detect_displacement()` or `compute_zones()`. The columns `displacement_bullish`, `displacement_bearish`, `displacement_magnitude`, `premium_discount_zone`, `premium_distance` are not present in the context DataFrame that agents receive.
-
-This means:
-- **ICT Agent's displacement detection always returns `None`** (column defaults to `False` via `.get()`)
-- **ICT Agent's premium/discount zone always returns `"UNKNOWN"`** (column defaults via `.get()`)
-- **These features are completely silent** — no error, but no signal either.
+| Adapter | Module | Scenarios | Status |
+|---------|--------|-----------|--------|
+| `echo` | Echo test | 1 | ✅ |
+| `signal_pipeline` | Signal generation | 1 | ✅ |
+| `risk_governor` | Risk state machine | 4 (normal/caution/defensive/lockdown) | ✅ |
+| `backtest` | Backtest engine | 0 | ⚠️ Pending |
+| `feature_enrichment` | Feature pipeline | 1 | ✅ |
+| `mt5_bridge` | ZeroMQ bridge | 1 | ✅ |
+| `mt5_ea` | MQL5 EA simulation | 1 | ✅ |
+| `langgraph_validation` | LangGraph orchestration | 1 | ✅ |
+| `monitoring` | Production monitoring | 1 | ✅ |
+| `governance` | Model governance | 1 | ✅ |
 
 ---
 
@@ -214,26 +222,23 @@ Agents must never:
 
 ---
 
-## Audit Findings (2026-06-28)
+## Completed Milestones
 
-### Problems Discovered
+| Phase | Description | Status |
+|-------|-------------|--------|
+| **F1-F4** | Pipeline wiring, agents, contracts | ✅ |
+| **F5** | ZeroMQ Bridge Module | ✅ |
+| **F6** | MQL5 EA compiled | ✅ |
+| **F7** | LangGraph backtest validation | ✅ |
+| **F8** | Deployment Guide | ⬜ Pending |
+| **F9-F13** | Quant audit (robustness, Wyckoff, ML, tuning, validation) | ✅ |
+| **F14** | Feature enrichment (liquidity sweeps, displacement, zones, regime) | ✅ |
+| **F15** | Production monitoring (drift, alerts, equity telemetry) | ✅ |
+| **F16** | Governance & automation (model registry, retraining, reports) | ✅ |
 
-| # | Severity | Issue | Location |
-|---|----------|-------|----------|
-| 1 | **HIGH** | `detect_displacement()` not called in pipeline — ICT Agent's displacement analysis always returns `None` | `pipeline.py:66-69` |
-| 2 | **HIGH** | `compute_zones()` not called in pipeline — ICT Agent's zone analysis always returns `"UNKNOWN"` | `pipeline.py:66-69` |
-| 3 | **HIGH** | `detectors/__init__.py` doesn't export displacement or zones — pipeline can't import them | `detectors/__init__.py` |
-| 4 | **MEDIUM** | Backtest loop never passes orchestrator to `build_scalping_context` | `engine.py:333-338` |
-| 5 | **MEDIUM** | `DecisionAgent.analyze()` is a no-op stub — actual logic is in `decide()` | `decision_agent.py:36-42` |
-| 6 | **LOW** | Agents don't explicitly inherit `AgentProtocol` (duck-typing works, but no static enforcement) | All agent files |
-| 7 | **LOW** | `structure_agent.py` reads `volatility_regime` which duplicates `market_regime` in the feature engine | `structure_agent.py:42` |
-| 8 | **LOW** | No integration test running full pipeline with orchestrator | `tests/test_agents.py` |
+### Known Gaps
 
-### Recommended Next Phase
-
-1. **Wire displacement and zones into pipeline** — add `detect_displacement()` and `compute_zones()` calls in `build_scalping_context()`, export from `detectors/__init__.py`
-2. **Wire orchestrator into backtest** — pass `AgentOrchestrator` through `build_scalping_context()` in `run_combined_backtest()`
-3. **Add deployment-test** — end-to-end test that runs `build_scalping_context` with orchestrator on real/synthetic data
-4. **Fix `DetectorAgent.analyze()`** — make it either a real per-bar analyze method or raise `NotImplementedError`
-5. **Add agent confidence to feature matrix** — expose `agent_*` columns to ML training
-6. **Performance benchmark** — agent analysis on 500k bars (O(n × lookback))
+- **Parameter tuning**: All hyperparameters are hardcoded — no Optuna/Hyperopt sweeps yet
+- **Stochastic exhaustion**: Claimed in roadmap but not implemented; Wyckoff uses volume/range-based detection instead
+- **Robust validation methods**: PurgedKFold, CVaR, DSR, PBO not yet implemented
+- **Deployment guide**: No VPS/deployment documentation exists

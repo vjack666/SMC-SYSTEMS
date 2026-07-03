@@ -3,16 +3,16 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from smc_successor.agents import (
+from agents import (
     AgentOrchestrator,
     DecisionAgent,
     ICTAgent,
     StructureAgent,
     WyckoffAgent,
 )
-from smc_successor.detectors import detect_bos, detect_choch, detect_displacement, detect_fvg, detect_order_blocks, compute_zones
-from smc_successor.fixtures.synthetic_ohlcv import generate_synthetic_ohlcv
-from smc_successor.indicators import add_atr, add_ema, add_rsi
+from detectors import detect_bos, detect_choch, detect_displacement, detect_fvg, detect_order_blocks, compute_zones
+from fixtures.synthetic_ohlcv import generate_synthetic_ohlcv
+from indicators import add_atr, add_ema, add_rsi
 
 
 def _synthetic_context() -> pd.DataFrame:

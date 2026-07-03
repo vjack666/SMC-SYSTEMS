@@ -1,6 +1,6 @@
 from pathlib import Path
-from smc_successor.ml.validator import validate_dataset
-from smc_successor.ml.trainer import load_dataset
+from ml.validator import validate_dataset
+from ml.trainer import load_dataset
 
 # Validate combined dataset
 combined_path = Path("data/ml/multi_symbol/v4_dataset.parquet")

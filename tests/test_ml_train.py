@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 from sklearn.model_selection import TimeSeriesSplit
 
-from smc_successor.ml import WalkForwardConfig, train_walk_forward
+from ml import WalkForwardConfig, train_walk_forward
 
 
 @pytest.fixture

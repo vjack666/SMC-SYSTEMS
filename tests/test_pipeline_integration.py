@@ -3,9 +3,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from smc_successor.agents.orchestrator import AgentOrchestrator
-from smc_successor.fixtures.synthetic_ohlcv import generate_synthetic_ohlcv
-from smc_successor.signals.pipeline import ScalpingConfig, build_scalping_context
+from agents.orchestrator import AgentOrchestrator
+from fixtures.synthetic_ohlcv import generate_synthetic_ohlcv
+from signals.pipeline import ScalpingConfig, build_scalping_context
 
 
 def _save_synthetic(data_dir: Path, symbol: str, timeframe: str, n_bars: int) -> None:

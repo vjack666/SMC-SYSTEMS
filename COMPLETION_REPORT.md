@@ -3,13 +3,14 @@
 ## Phase 1 — Pipeline Wiring
 
 ### 1.1 Displacement & Zones
-- `detect_displacement(data)` and `compute_zones(data, ZoneConfig(swing_lookback=20))` already wired in `build_scalping_context()`.
+- `detect_displacement(data)` and `compute_zones(data, ZoneConfig(swing_lookback=20))` wired in `build_scalping_context()`.
+- `detectors/__init__.py` exports both functions — previous export gap fixed.
 
 ### 1.2 Agent Orchestrator Integration
-- Moved `AgentOrchestrator` import to top of `engine.py`.
+- `AgentOrchestrator` import moved to top of `engine.py`.
 - Created orchestrator before `build_scalping_context()` call and passed as keyword argument.
 - Removed redundant `if config.use_ml_quality_filter:` block (now handled inside `build_scalping_context`).
-- Agent columns (`AGENT_COLUMNS`) are now mapped to feature matrix for ML quality filter.
+- Agent columns (`AGENT_COLUMNS`) mapped to feature matrix for ML quality filter.
 
 ### 1.3 Decision Agent `analyze()` Fix
 - Replaced NEUTRAL stub in `decision_agent.py:analyze()`.
@@ -25,8 +26,8 @@
 ## Phase 2 — ML & Structural SL
 
 ### 2.1 Chronological Train/Test Split
-- `chronological_train_test_split()` now sorts by `entry_time` column when present.
-- No `train_test_split` (sklearn) calls existed — all splits already chronological.
+- `chronological_train_test_split()` sorts by `entry_time` column when present.
+- No `train_test_split` (sklearn) calls existed — all splits chronological.
 
 ### 2.2 Agent Columns in Feature Matrix
 - Agent columns from `AGENT_COLUMNS` mapped to feature_row dict in signal loop.
@@ -112,3 +113,37 @@ ScalpingConfig(
 | `in_sample.max_drawdown_pct ≤ 10.0` | ✅ 4.96 |
 | `out_of_sample.profit_factor ≥ 1.10` | ⚠ Insufficient data (only 2 years, 1348 ML samples) |
 | At least 2 symbols pass | ✅ All 4 pass |
+
+## Phases F4-F16
+
+### F4 — Data Contracts ✅
+- `integration/mt5_bridge/schema.py` — 7 contracts (SignalAction, OrderType, SignalMessage, TradeResultCode, TradeResult, AccountStatus, Heartbeat)
+
+### F5 — Bridge Module ✅
+- ZeroMQ transport (PUSH/PULL/PUB) in `integration/mt5_bridge/`
+- Exporter, receiver, orchestrator, config, harness adapter — all real implementations
+
+### F6 — MQL5 EA ✅
+- `MQL5/SMC_SYSTEMS_BRIDGE/` — SignalReceiver, OrderManager, JSONParser, AccountMonitor, Logger
+- Compiled .ex5 binary
+
+### F7 — Backtest Validation ✅
+- `backtest/validation/` — MT5BacktestRunner, TradeComparator, ReportGenerator
+- `orchestration/backtest_validation_graph.py` — LangGraph (7 nodes, conditional routing)
+
+### F8 — Deployment Guide ⬜
+- Not yet created. Missing: VPS setup, environment config, systemd, recovery procedures
+
+### F9-F13 — Quant Audit ✅
+- Wyckoff agent, ML pipeline, confluence scoring, walk-forward validation
+- Stretch: stochastic exhaustion, PurgedKFold, CVaR, DSR, PBO not implemented
+
+### F14 — Feature Enrichment ✅
+- Liquidity sweeps, displacement, premium/discount zones, regime labels
+- 7 detectors wired and exported
+
+### F15 — Production Monitoring ✅
+- Drift detection (PSI), alerts, equity telemetry, dashboard, performance tracker
+
+### F16 — Governance & Automation ✅
+- Model registry (versioning + delta), retraining scheduler, auto-report generator

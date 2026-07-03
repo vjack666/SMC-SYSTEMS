@@ -15,13 +15,12 @@
         "golden"
       ]
     },
-    "status": "passed",
-    "elapsed_ms": 1.1561999563127756,
-    "metrics": {
-      "event_count": 1,
-      "error_count": 0
-    },
-    "errors": []
+    "status": "error",
+    "elapsed_ms": 0.004499917849898338,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: echo"
+    ]
   },
   {
     "scenario": {
@@ -58,7 +57,7 @@
       ]
     },
     "status": "passed",
-    "elapsed_ms": 11726.176400203258,
+    "elapsed_ms": 19462.64240005985,
     "metrics": {
       "event_count": 0,
       "error_count": 0
@@ -81,13 +80,12 @@
         "f16"
       ]
     },
-    "status": "passed",
-    "elapsed_ms": 79.26059979945421,
-    "metrics": {
-      "event_count": 0,
-      "error_count": 0
-    },
-    "errors": []
+    "status": "error",
+    "elapsed_ms": 0.010999850928783417,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: governance"
+    ]
   },
   {
     "scenario": {
@@ -104,13 +102,12 @@
         "f7"
       ]
     },
-    "status": "passed",
-    "elapsed_ms": 189.39970014616847,
-    "metrics": {
-      "event_count": 0,
-      "error_count": 0
-    },
-    "errors": []
+    "status": "error",
+    "elapsed_ms": 0.002600019797682762,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: langgraph_validation"
+    ]
   },
   {
     "scenario": {
@@ -128,13 +125,12 @@
         "f15"
       ]
     },
-    "status": "passed",
-    "elapsed_ms": 90.90909990482032,
-    "metrics": {
-      "event_count": 0,
-      "error_count": 0
-    },
-    "errors": []
+    "status": "error",
+    "elapsed_ms": 0.001800013706088066,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: monitoring"
+    ]
   },
   {
     "scenario": {
@@ -153,7 +149,7 @@
       ]
     },
     "status": "error",
-    "elapsed_ms": 0.005700159817934036,
+    "elapsed_ms": 0.001600012183189392,
     "metrics": {},
     "errors": [
       "Missing adapter for module: mt5_bridge"
@@ -175,7 +171,7 @@
       ]
     },
     "status": "error",
-    "elapsed_ms": 0.0014998950064182281,
+    "elapsed_ms": 0.001600012183189392,
     "metrics": {},
     "errors": [
       "Missing adapter for module: mt5_ea"
@@ -196,13 +192,12 @@
         "risk"
       ]
     },
-    "status": "passed",
-    "elapsed_ms": 0.794899882748723,
-    "metrics": {
-      "event_count": 0,
-      "error_count": 0
-    },
-    "errors": []
+    "status": "error",
+    "elapsed_ms": 0.001600012183189392,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: risk_governor"
+    ]
   },
   {
     "scenario": {
@@ -219,13 +214,12 @@
         "risk"
       ]
     },
-    "status": "passed",
-    "elapsed_ms": 0.7923999801278114,
-    "metrics": {
-      "event_count": 0,
-      "error_count": 0
-    },
-    "errors": []
+    "status": "error",
+    "elapsed_ms": 0.001100124791264534,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: risk_governor"
+    ]
   },
   {
     "scenario": {
@@ -242,13 +236,12 @@
         "risk"
       ]
     },
-    "status": "passed",
-    "elapsed_ms": 1.03859999217093,
-    "metrics": {
-      "event_count": 0,
-      "error_count": 0
-    },
-    "errors": []
+    "status": "error",
+    "elapsed_ms": 0.001100124791264534,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: risk_governor"
+    ]
   },
   {
     "scenario": {
@@ -266,13 +259,12 @@
         "risk"
       ]
     },
-    "status": "passed",
-    "elapsed_ms": 0.7251999340951443,
-    "metrics": {
-      "event_count": 0,
-      "error_count": 0
-    },
-    "errors": []
+    "status": "error",
+    "elapsed_ms": 0.00100000761449337,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: risk_governor"
+    ]
   },
   {
     "scenario": {
@@ -288,12 +280,11 @@
         "signal"
       ]
     },
-    "status": "passed",
-    "elapsed_ms": 0.5759000778198242,
-    "metrics": {
-      "event_count": 0,
-      "error_count": 0
-    },
-    "errors": []
+    "status": "error",
+    "elapsed_ms": 0.00100000761449337,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: signal_pipeline"
+    ]
   }
 ]

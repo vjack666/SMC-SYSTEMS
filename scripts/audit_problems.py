@@ -27,14 +27,14 @@ def log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
 
 
 def main() -> None:
-    from smc_successor.agents.orchestrator import AgentOrchestrator
-    from smc_successor.fixtures.synthetic_ohlcv import generate_synthetic_ohlcv
-    from smc_successor.risk import GovernorPool
-    from smc_successor.signals.pipeline import ScalpingConfig, build_scalping_context
+    from agents.orchestrator import AgentOrchestrator
+    from fixtures.synthetic_ohlcv import generate_synthetic_ohlcv
+    from risk import GovernorPool
+    from signals.pipeline import ScalpingConfig, build_scalping_context
 
     # Hypothesis A: backtest path never passes orchestrator
     import inspect
-    from smc_successor.backtest.engine import run_combined_backtest
+    from backtest.engine import run_combined_backtest
     src = inspect.getsource(run_combined_backtest)
     log("A", "audit:backtest", "backtest orchestrator wiring", {
         "build_scalping_context_has_orchestrator_arg": "orchestrator" in src,
@@ -42,12 +42,12 @@ def main() -> None:
     })
 
     # Hypothesis B: ML dataset signals built before agent analysis
-    from smc_successor.ml.dataset_builder import _build_context_truncated
+    from ml.dataset_builder import _build_context_truncated
     trunc_src = inspect.getsource(_build_context_truncated)
     log("B", "audit:ml_dataset", "ML dataset agent ordering", {
         "context_truncated_uses_orchestrator_none": "orchestrator=None" in trunc_src,
         "analyze_context_called_after": "analyze_context" in inspect.getsource(
-            __import__("smc_successor.ml.dataset_builder", fromlist=["build_ml_dataset"]).build_ml_dataset
+            __import__("ml.dataset_builder", fromlist=["build_ml_dataset"]).build_ml_dataset
         ),
     })
 
@@ -66,8 +66,8 @@ def main() -> None:
 
     # Hypothesis D: volume/micro filters unused in confluence
     synth = generate_synthetic_ohlcv(n_bars=200, seed=7)
-    from smc_successor.detectors import detect_bos, detect_choch, detect_fvg, detect_order_blocks
-    from smc_successor.indicators import add_atr, add_ema, add_rsi
+    from detectors import detect_bos, detect_choch, detect_fvg, detect_order_blocks
+    from indicators import add_atr, add_ema, add_rsi
     frame = detect_bos(synth)
     frame = detect_choch(frame)
     frame = detect_fvg(frame)
@@ -81,7 +81,7 @@ def main() -> None:
     frame["macro_direction"] = "BULLISH"
     frame["trend_confidence"] = 0.8
     frame["regime_state"] = "RANGING"
-    from smc_successor.signals.pipeline import _session_filter, _last_anchor
+    from signals.pipeline import _session_filter, _last_anchor
     frame["filter_trend"] = True
     frame["filter_session"] = _session_filter(frame["time"], "EURUSD", False)
     frame["filter_atr"] = True
@@ -108,7 +108,7 @@ def main() -> None:
     })
 
     # Hypothesis E: ICT agent never returns BEARISH bias
-    from smc_successor.agents.ict_agent import ICTAgent
+    from agents.ict_agent import ICTAgent
     ict = ICTAgent()
     bearish_biases = []
     for i in range(50, 150):
@@ -131,7 +131,7 @@ def main() -> None:
     })
 
     # Hypothesis F: agent filter not applied when orchestrator runs post-hoc (synthetic)
-    from smc_successor.detectors import detect_displacement, compute_zones, ZoneConfig
+    from detectors import detect_displacement, compute_zones, ZoneConfig
     synth2 = generate_synthetic_ohlcv(n_bars=400, seed=11)
     synth2 = detect_bos(synth2)
     synth2 = detect_choch(synth2)

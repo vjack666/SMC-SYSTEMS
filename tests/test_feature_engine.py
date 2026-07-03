@@ -3,8 +3,8 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from smc_successor.features import DEFAULT_FEATURES, LABEL_COLS, LEAKAGE_COLS, FeatureEngine
-from smc_successor.fixtures.synthetic_ohlcv import generate_synthetic_ohlcv as synthetic_ohlcv
+from features import DEFAULT_FEATURES, LABEL_COLS, LEAKAGE_COLS, FeatureEngine
+from fixtures.synthetic_ohlcv import generate_synthetic_ohlcv as synthetic_ohlcv
 
 
 @pytest.fixture
@@ -193,14 +193,14 @@ class TestFeatureEngine:
         assert feats["symbol"] == "UNKNOWN"
 
     def test_config_custom_features(self, sample_context):
-        from smc_successor.features.engine import FeatureConfig
+        from features.engine import FeatureConfig
         cfg = FeatureConfig(features=("rsi", "atr", "symbol"))
         engine = FeatureEngine(cfg)
         feats = engine.extract_features(sample_context, 10)
         assert set(feats.keys()) == {"rsi", "atr", "symbol"}
 
     def test_config_disable_one_hot(self, sample_context):
-        from smc_successor.features.engine import FeatureConfig
+        from features.engine import FeatureConfig
         cfg = FeatureConfig(one_hot_encode=())
         engine = FeatureEngine(cfg)
         df = engine.build_training_dataset(sample_context)
@@ -280,7 +280,7 @@ class TestFeatureEngine:
         assert feats["ote_short_min"] == pytest.approx(1.0900)
 
     def test_build_training_dataset_label_horizon(self, sample_context):
-        from smc_successor.features.engine import FeatureConfig
+        from features.engine import FeatureConfig
         cfg = FeatureConfig(label_horizon=3)
         engine = FeatureEngine(cfg)
         df = engine.build_training_dataset(sample_context)

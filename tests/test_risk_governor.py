@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from smc_successor.risk import GovernorConfig, GovernorPool, GovernorState, mode_risk_multiplier, mode_threshold_add, next_state
+from risk import GovernorConfig, GovernorPool, GovernorState, mode_risk_multiplier, mode_threshold_add, next_state
 
 
 class TestGovernorPool:

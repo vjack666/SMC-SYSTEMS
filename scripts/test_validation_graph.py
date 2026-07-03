@@ -22,7 +22,7 @@ def main() -> int:
 
     sys.path.insert(0, ".")
 
-    from smc_successor.orchestration.backtest_validation_graph import run_validation
+    from orchestration.backtest_validation_graph import run_validation
 
     print(f"\n{'='*70}")
     print(f"  F7 LangGraph Validation Pipeline")

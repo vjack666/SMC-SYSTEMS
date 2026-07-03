@@ -21,8 +21,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import MetaTrader5 as mt5
-from smc_successor.adapters import FeatureEnrichmentAdapter
-from smc_successor.risk.sizer import SizingResult, close_position, compute_lot, send_market_order
+from adapters import FeatureEnrichmentAdapter
+from risk.sizer import SizingResult, close_position, compute_lot, send_market_order
 
 
 def get_signal_from_features(features: dict) -> dict | None:

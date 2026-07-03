@@ -1,5 +1,5 @@
 from pathlib import Path
-from smc_successor.ml.dataset_builder import DatasetBuildConfig, build_ml_dataset
+from ml.dataset_builder import DatasetBuildConfig, build_ml_dataset
 
 SYMBOLS = ("EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF")
 

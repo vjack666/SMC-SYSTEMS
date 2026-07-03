@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from smc_successor.ml.trainer import (
+from ml.trainer import (
     FEATURES_ML_V3,
     chronological_train_test_split,
     compute_feature_importance,
@@ -17,7 +17,7 @@ from smc_successor.ml.trainer import (
     save_model,
     train_model,
 )
-from smc_successor.ml.trainer import ModelMetadata
+from ml.trainer import ModelMetadata
 
 DATA_DIR = Path("data/ml")
 EURUSD_V3 = DATA_DIR / "EURUSD" / "v3_EURUSD.parquet"

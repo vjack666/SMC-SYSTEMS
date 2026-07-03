@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from smc_successor.agents.orchestrator import AGENT_COLUMNS
-from smc_successor.ml.dataset_builder import DatasetBuildConfig, build_ml_dataset
+from agents.orchestrator import AGENT_COLUMNS
+from ml.dataset_builder import DatasetBuildConfig, build_ml_dataset
 
 DATA_DIR = Path("data/raw")
 EURUSD_M15 = DATA_DIR / "EURUSD_M15.parquet"

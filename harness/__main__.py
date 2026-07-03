@@ -7,12 +7,12 @@ from harness.contracts import HarnessEvent
 from harness.reports.json_report import write_json_report
 from harness.runners.scenario_runner import ScenarioRunner
 from harness.scenarios.loader import load_scenarios
-from smc_successor.integration.mt5_bridge.harness_adapter import MT5BridgeHarnessAdapter
-from smc_successor.adapters.mt5_ea_harness import MQL5EAHarnessAdapter
-from smc_successor.governance.harness_adapter import GovernanceHarnessAdapter
-from smc_successor.monitoring.harness_adapter import MonitoringHarnessAdapter
-from smc_successor.orchestration.harness_adapter import LangGraphBacktestAdapter
-from smc_successor.adapters import BacktestAdapter, FeatureEnrichmentAdapter, RiskGovernorAdapter, SignalAdapter
+from integration.mt5_bridge.harness_adapter import MT5BridgeHarnessAdapter
+from adapters.mt5_ea_harness import MQL5EAHarnessAdapter
+from governance.harness_adapter import GovernanceHarnessAdapter
+from monitoring.harness_adapter import MonitoringHarnessAdapter
+from orchestration.harness_adapter import LangGraphBacktestAdapter
+from adapters import BacktestAdapter, FeatureEnrichmentAdapter, RiskGovernorAdapter, SignalAdapter
 
 
 class EchoAdapter:

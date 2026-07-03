@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from smc_successor.backtest import CombinedBacktestConfig, CombinedTrade, metrics_pass_thresholds
-from smc_successor.signals import ScalpingSignal
+from backtest import CombinedBacktestConfig, CombinedTrade, metrics_pass_thresholds
+from signals import ScalpingSignal
 
 
 def test_combined_trade_dataclass():
@@ -70,7 +70,7 @@ class TestSimulateTrade:
         })
 
     def test_simulate_long_hit_tp(self):
-        from smc_successor.backtest.engine import _simulate_trade_with_stats
+        from backtest.engine import _simulate_trade_with_stats
 
         frame = self._make_frame(
             highs=[1.1010, 1.1050, 1.1010],
@@ -93,7 +93,7 @@ class TestSimulateTrade:
         assert trade.pnl_r > 0
 
     def test_simulate_long_hit_sl(self):
-        from smc_successor.backtest.engine import _simulate_trade_with_stats
+        from backtest.engine import _simulate_trade_with_stats
 
         frame = self._make_frame(
             highs=[1.1010, 1.1010, 1.1010],
@@ -116,7 +116,7 @@ class TestSimulateTrade:
         assert trade.pnl_r < 0
 
     def test_simulate_short_hit_tp(self):
-        from smc_successor.backtest.engine import _simulate_trade_with_stats
+        from backtest.engine import _simulate_trade_with_stats
 
         frame = self._make_frame(
             highs=[1.1005, 1.1005, 1.1005],
@@ -139,7 +139,7 @@ class TestSimulateTrade:
         assert trade.pnl_r > 0
 
     def test_signal_not_found(self):
-        from smc_successor.backtest.engine import _simulate_trade_with_stats
+        from backtest.engine import _simulate_trade_with_stats
 
         times = pd.date_range("2024-01-01", periods=10, freq="15min", tz="UTC")
         frame = pd.DataFrame({
@@ -167,7 +167,7 @@ class TestSimulateTrade:
 
 
 def test_safe_float():
-    from smc_successor.backtest.engine import _safe_float
+    from backtest.engine import _safe_float
 
     assert _safe_float(1.5) == 1.5
     assert _safe_float("abc", default=0.0) == 0.0
@@ -177,7 +177,7 @@ def test_safe_float():
 
 
 def test_compute_metrics():
-    from smc_successor.backtest.engine import _compute_metrics
+    from backtest.engine import _compute_metrics
 
     trades = pd.DataFrame({
         "symbol": ["EURUSD"] * 5,

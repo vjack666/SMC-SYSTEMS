@@ -13,8 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import MetaTrader5 as mt5
-from smc_successor._data_legacy import load_frame
-from smc_successor.adapters import FeatureEnrichmentAdapter
+from _data_legacy import load_frame
+from adapters import FeatureEnrichmentAdapter
 
 
 def _print_feature_group(name: str, data: dict, indent: str = "    ") -> None:
@@ -106,7 +106,7 @@ def main() -> int:
     # --- 4. Run Validation Graph for signals ---
     print("\n[4] Signal Generation (EMA crossover on 50k bars):")
     try:
-        from smc_successor.orchestration.backtest_validation_graph import run_validation
+        from orchestration.backtest_validation_graph import run_validation
 
         vresult = run_validation(symbol="EURUSD", timeframe="M15", data_dir="data/raw")
         signals = vresult.get("signals", [])

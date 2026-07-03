@@ -3,12 +3,12 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from smc_successor.backtest.engine import _build_signals_from_context, _simulate_trade_with_stats
-from smc_successor.detectors import detect_bos, detect_choch, detect_fvg, detect_order_blocks
-from smc_successor.fixtures.synthetic_ohlcv import generate_synthetic_ohlcv
-from smc_successor.indicators import add_atr, add_ema, add_rsi
-from smc_successor.regime import detect_regimes
-from smc_successor.signals import ScalpingConfig, summarize_filter_diagnosis
+from backtest.engine import _build_signals_from_context, _simulate_trade_with_stats
+from detectors import detect_bos, detect_choch, detect_fvg, detect_order_blocks
+from fixtures.synthetic_ohlcv import generate_synthetic_ohlcv
+from indicators import add_atr, add_ema, add_rsi
+from regime import detect_regimes
+from signals import ScalpingConfig, summarize_filter_diagnosis
 
 
 @pytest.fixture
@@ -136,7 +136,7 @@ class TestE2EBacktestPipeline:
         assert len(set(times)) == len(times), "All signals should have unique timestamps"
 
     def test_trade_simulation_time_not_found(self, e2e_context):
-        from smc_successor.backtest.engine import CombinedTrade, ScalpingSignal
+        from backtest.engine import CombinedTrade, ScalpingSignal
         ghost = ScalpingSignal(
             symbol="EURUSD",
             time="2099-01-01 00:00:00+00:00",
@@ -152,8 +152,8 @@ class TestE2EBacktestPipeline:
 
     def test_full_pipeline_no_crashes(self, e2e_context):
         from pathlib import Path
-        from smc_successor.backtest.engine import CombinedBacktestConfig, run_combined_backtest
-        from smc_successor.signals import ScalpingConfig
+        from backtest.engine import CombinedBacktestConfig, run_combined_backtest
+        from signals import ScalpingConfig
 
         config = CombinedBacktestConfig(
             data_dir=Path("nonexistent"),
@@ -173,7 +173,7 @@ class TestE2EBacktestPipeline:
 
     def test_backtest_with_empty_symbols_raises(self):
         from pathlib import Path
-        from smc_successor.backtest.engine import CombinedBacktestConfig, run_combined_backtest
+        from backtest.engine import CombinedBacktestConfig, run_combined_backtest
         config = CombinedBacktestConfig(
             data_dir=Path("nonexistent"),
             symbols=(),
