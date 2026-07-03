@@ -1,0 +1,10 @@
+events:
+  - name: configure
+    payload: {}
+parameters:
+  symbols:
+    - EURUSD
+  timeframe: M15
+  min_confidence: 0.65
+  max_hold: 16
+  risk_percent: 1.0

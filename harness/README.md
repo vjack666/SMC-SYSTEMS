@@ -33,7 +33,8 @@ harness/
 │   ├── mt5_ea_smoke.yaml
 │   ├── langgraph_validation_smoke.yaml
 │   ├── monitoring_smoke.yaml
-│   └── governance_smoke.yaml
+│   ├── governance_smoke.yaml
+│   └── paper_trading_smoke.yaml
 ├── metrics/
 │   ├── __init__.py
 │   └── collector.py         # Runtime metric collection
@@ -58,7 +59,8 @@ harness/
 │   ├── mt5_ea_smoke.yaml
 │   ├── langgraph_validation_smoke.yaml
 │   ├── monitoring_smoke.yaml
-│   └── governance_smoke.yaml
+│   ├── governance_smoke.yaml
+│   └── paper_trading_smoke.yaml
 └── validators/
     ├── __init__.py
     └── scenario_validator.py # Pre-run scenario validation
@@ -134,6 +136,7 @@ python -m harness --report results/harness_report.json
 | `langgraph_validation` | LangGraph 7-node validation graph | 1 | ✅ Built |
 | `monitoring` | Production monitoring (drift, alerts, equity) | 1 | ✅ Built |
 | `governance` | Governance (model registry, retraining, reports) | 1 | ✅ Built |
+| `paper_trading` | Real-time paper trading loop | 1 | ✅ Smoke |
 
 ---
 
