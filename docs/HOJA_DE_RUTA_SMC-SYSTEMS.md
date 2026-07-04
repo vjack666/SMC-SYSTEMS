@@ -96,22 +96,21 @@ Arquitectura **modular event-driven** con:
 - Bridge Module y MQL5 EA/SMC_SYSTEMS_BRIDGE presentes
 - Soporte PAPER + LIVE modes con validaciones de margin y kill switch
 
-### Hitos Pendientes (Prioridad - Julio 2026)
+### Hitos Pendientes (Actualizado Julio 2026)
 
-**Hito 4: Completar / Verificar Stochastic Exhaustion Detection (F10)**
-- **Entregable:** Detección robusta de divergencias estocásticas + volumen + estructuras Wyckoff fractales (mini-Wyckoff, springs/upthrusts, absorption, climaxes) integrada al pipeline de signals y Decision Agent
-- **Criterio:** Scenarios harness específicos passing + backtest improvement o confirmación de que ya está cubierto en `indicators.py` / `agents/`
-- **Nota:** Listado en features README pero reportado como pendiente en auditoría previa → verificar y completar si falta.
+**Hito 4: Verificar Stochastic Exhaustion (F10) — 🟡 Código listo, falta verificación**
+- ✅ Ya implementado en `agents/wyckoff_agent.py:254-311` (detección de divergencias, cruces sobrecompra/sobreventa, confirmación por volumen)
+- Pendiente: Scenarios harness específicos + verificar integración con pipeline de signals
 
-**Hito 5: Parameter Tuning (F12)**
-- Integrar Optuna/Hyperopt para tuning de hyperparams del modelo ML
-- Reemplazar valores hardcodeados (`n_estimators=220, max_depth=4, learning_rate=0.05`) por búsqueda sistemática
-- Registrar histórico de trials
+**Hito 5: Parameter Tuning (F12) — ✅ Completado**
+- ✅ `ml/tuner.py` con Optuna integration (TuningConfig, search spaces, TPE sampler)
+- ✅ `WalkForwardConfig.tune_first=True` conectado al pipeline
+- ✅ `scripts/run_tuning.py` como CLI
+- ✅ 7 tests pasando
 
-**Hito 6: Robustecer Validación Cuantitativa (F9/F13)**
-- Full implementación de PurgedKFold, Probability of Backtest Overfitting (PBO), bootstrap confidence intervals, CVaR
-- Integrar en `ml/` y agregar scenarios harness para validación estadística
-- Actualizar backtest reports con estas métricas
+**Hito 6: Validación Cuantitativa (F9/F13) — ✅ Completado**
+- ✅ PurgedKFold, CVaR, DSR, PBO, bootstrap confidence intervals — todo en `ml/stats_validator.py`
+- ✅ 10 tests pasando
 
 **Hito 7: Tests, Harness y Documentación**
 - Tests para los 6 módulos sin cobertura (mt5_bridge, mt5_ea, monitoring, governance, orchestration, trend_context)

@@ -135,8 +135,12 @@ ScalpingConfig(
 - Not yet created. Missing: VPS setup, environment config, systemd, recovery procedures
 
 ### F9-F13 — Quant Audit ✅
-- Wyckoff agent, ML pipeline, confluence scoring, walk-forward validation
-- Stretch: stochastic exhaustion, PurgedKFold, CVaR, DSR, PBO not implemented
+- Wyckoff agent (377 lines, 12 fases, stochastic exhaustion incluido)
+- ML pipeline, confluence scoring, walk-forward validation
+- **F9**: bootstrap_confidence_interval() con scipy — implementado
+- **F10**: Stochastic exhaustion detection en wyckoff_agent.py (divergencias, cruces, volumen) — implementado
+- **F12**: Optuna tuning con TuningConfig, search spaces, TPE sampler, CLI — implementado y conectado al pipeline
+- **F13**: PurgedKFold, CVaR, DSR, PBO — todos implementados en stats_validator.py
 
 ### F14 — Feature Enrichment ✅
 - Liquidity sweeps, displacement, premium/discount zones, regime labels

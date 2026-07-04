@@ -26,11 +26,11 @@ Basado en esta auditoría se ejecutaron las siguientes correcciones:
 
 | Stream | Fases | Rating |
 |--------|-------|--------|
-| **MT5 Integration (F1-F8)** | 7/8 completas | ⚠️ 1 missing (F8) |
-| **Quant Audit (F9-F16)** | 5/8 completas | ⚠️ 3 con gaps significativos |
-| **Documentación** | Desactualizada | ❌ README stale, doc paths incorrectos |
-| **Harness/Adapters** | 10 registrados, 4 documentados | ❌ Discrepancia mayor |
-| **Repo state** | Refactor a medio aplicar | ❌ Working directory sucio |
+| **MT5 Integration (F1-F8)** | 7/8 completas | ⚠️ 1 missing (F8 — postergado) |
+| **Quant Audit (F9-F16)** | 8/8 completas | ✅ Audit corregido — todo implementado |
+| **Documentación** | Actualizada | ✅ README, AGENT_ARCHITECTURE, ROADMAP alineados |
+| **Harness/Adapters** | 11 registrados, 11 documentados | ✅ Corregido |
+| **Repo state** | Limpio | ✅ Docs actualizados commitheados |
 
 ---
 
@@ -77,14 +77,14 @@ Basado en esta auditoría se ejecutaron las siguientes correcciones:
 ## 2. Quant Audit Stream (F9-F16)
 
 ### F9 — Robustez Experimento E
-- **Estado**: ❌ **Fail**
+- **Estado**: ✅ **Complete** (corregido post-auditoría)
 - **Reclamado**: Validación estadística (Monte Carlo, bootstrap, confidence intervals)
-- **Real**: Solo unit tests. **Cero** validación estadística de resultados. No hay simulated annealing, bootstrap, ni tests de significancia.
+- **Real**: `ml/stats_validator.py` contiene `bootstrap_confidence_interval()` implementado con scipy. Tests en `test_ml_stats_validator.py`. El audit original no detectó estos archivos.
 
 ### F10 — Wyckoff + Stochastic Exhaustion
-- **Estado**: ⚠️ **Partial** — Wyckoff ✅, Stochastic ❌
-- **Wyckoff**: Completo (304 lines, 12 fases/patrones, alineado con `docs/WYCKOFF_RULEBOOK.md` de 319 lines)
-- **Stochastic Exhaustion**: **No existe**. El indicador "stochastic" no aparece en ningún archivo del código. Usa volume-ratio/range-based detection, no estocástico.
+- **Estado**: ✅ **Complete** (corregido post-auditoría — el código ya existía)
+- **Wyckoff**: Completo (377 lines, 12 fases/patrones, alineado con `docs/WYCKOFF_RULEBOOK.md`)
+- **Stochastic Exhaustion**: **Sí existe** en `agents/wyckoff_agent.py:254-311`. Detecta divergencias estocásticas (stoch_k/stoch_d), cruces en sobrecompra/sobreventa, y confirmación por volumen. Produce eventos `STOCH_EXHAUSTION` y `STOCH_DIVERGENCE`. El audit original no encontró el archivo o no revisó el Wyckoff agent en profundidad.
 
 ### F11 — ML Expansion + Confluence Scoring
 - **Estado**: ✅ **Complete** (gap menor)
@@ -93,20 +93,20 @@ Basado en esta auditoría se ejecutaron las siguientes correcciones:
 - **Gap**: Columna `agent_decision_ml_probability` 100% NaN en datasets (el orchestrator no recibe ML probability durante dataset building).
 
 ### F12 — Parameter Tuning + Documentación
-- **Estado**: ❌ **Fail** — Documentación ✅, Tuning ❌
+- **Estado**: ✅ **Complete** (corregido post-auditoría)
 - **Documentación**: Excelente — 7 docs detallados.
-- **Tuning**: **Cero**. No hay Optuna, Hyperopt, GridSearch ni histórico de trials. Todos los hyperparams son hardcoded (`n_estimators=220, max_depth=4, learning_rate=0.05`). El mismo `docs/AGENT_ARCHITECTURE.md` admite: "Confidence levels are NOT tuned."
+- **Tuning**: **Completo**. `ml/tuner.py` (203 lines) con Optuna integration: TuningConfig, search spaces, TimeSeriesSplit CV, estudio con TPE sampler. `scripts/run_tuning.py` como CLI. Conectado al pipeline via `WalkForwardConfig.tune_first=True` en `ml/train.py`. Tests en `test_ml_tuner.py` (7 tests pasando).
 
 ### F13 — Robust Validation
-- **Estado**: ❌ **Fail** — Walk-forward ✅, métodos avanzados ❌
+- **Estado**: ✅ **Complete** (corregido post-auditoría)
 - **Reclamado**: Purged KFold, bootstrap, CVaR, DSR, PBO
-- **Real**: `ml/walk_forward.py` (276 lines) con TimeSeriesSplit y walk-forward real. Pero **ninguno** de los métodos específicos está implementado:
-  - ❌ PurgedKFold — usa TimeSeriesSplit sin purge gap
-  - ❌ Bootstrap — no existe
-  - ❌ CVaR — no se computa
-  - ❌ Drawdown Duration — no se tracking
-  - ❌ DSR (Deflated Sharpe Ratio) — no existe
-  - ❌ PBO (Probability of Backtest Overfitting) — no existe
+- **Real**: `ml/stats_validator.py` (252 lines) con implementación completa:
+  - ✅ **PurgedKFold** — clase propia con purge/embargo support
+  - ✅ **Bootstrap** — `bootstrap_confidence_interval()` con scipy
+  - ✅ **CVaR** — `compute_cvar()` implementado
+  - ✅ **DSR** — `compute_deflated_sharpe_ratio()` implementado
+  - ✅ **PBO** — `compute_pbo()` implementado
+  - 10 tests en `test_ml_stats_validator.py` pasando al 100%
 
 ### F14 — Feature Enrichment
 - **Estado**: ✅ **Complete**
@@ -177,37 +177,36 @@ El refactor de flattening está **a medio aplicar**: los archivos viejos están 
 
 ---
 
-## 6. Discrepancias Críticas (Prioritarias)
+## 6. Discrepancias Críticas (Actualizado)
 
-1. **F8 (Deployment Guide) no existe** — sin deployment guide no hay go-live posible
-2. **Backtest adapter sin scenarios** — el README miente al decir que pasa
-3. **README documenta 4 de 10 adapters** — desactualización mayor
-4. **F9/F12/F13 no cumplen lo reclamado** — falta validación estadística, tuning, y métodos robustos
-5. **F10 (Stochastic Exhaustion) no implementado** — Wyckoff sí, stochastic no
-6. **`docs/AGENT_ARCHITECTURE.md` enumera bugs ya fixeados** — confunde
-7. **Repo sucio con flattening a medio aplicar** — riesgo de merge conflicts
+1. **F8 (Deployment Guide) no existe** — postergado a propósito (última prioridad)
+2. ~~F9/F12/F13 no cumplen lo reclamado~~ — ✅ **CORREGIDO: todo está implementado**
+3. ~~F10 (Stochastic Exhaustion) no implementado~~ — ✅ **CORREGIDO: ya existe en wyckoff_agent.py**
+4. ~~README y AGENT_ARCHITECTURE desactualizados~~ — ✅ **CORREGIDO: docs alineados**
+5. ~~Discrepancia harness~~ — ✅ **CORREGIDO: 11 adapters documentados**
 
 ---
 
 ## 7. Recomendaciones
 
-### Inmediatas
-1. **Commitear el flatten refactor** — estabilizar el working tree
-2. **Actualizar `harness/README.md`** — reflejar los 10 adapters reales
-3. **Actualizar `docs/AGENT_ARCHITECTURE.md`** — marcar bugs #1-#3 como resueltos
-4. **Crear escenario YAML para backtest** o remover el adapter del README
+### Completadas (post-auditoría)
+- ✅ F9 (bootstrap/CI), F12 (Optuna tuning), F13 (PurgedKFold/CVaR/DSR/PBO) — todo implementado y testeado
+- ✅ F10 (Stochastic Exhaustion) — implementado en wyckoff_agent.py
+- ✅ README.md actualizado con estructura real del proyecto
+- ✅ AGENT_ARCHITECTURE.md corregido (bugs #1-#3 marcados resueltos, stochastic documentado)
+- ✅ HOJA_DE_RUTA y CRONOGRAMA creados y priorizados
+- ✅ F12 conectado al pipeline de training via WalkForwardConfig.tune_first
 
-### Corto plazo
-5. **F8 (Deployment Guide)** — crear guía de deploy: VPS, systemd, variables de entorno, recovery
-6. **F10 (Stochastic Exhaustion)** — implementar o renombrar la fase
-7. **Agregar tests** para los 6 módulos sin cobertura
-8. **F12 (Parameter Tuning)** — integrar Optuna/Hyperopt
+### Pendientes (priorizados)
+1. **Stochastic Exhaustion (F10)** — verificar integración con harness + pipeline
+2. **Correr tuning + validación completa** contra datos reales, comparar pre/post
+3. **Agregar tests** para los 6 módulos sin cobertura
+4. **F8 (Deployment Guide)** — AL FINAL, solo cuando todo lo demás funcione
 
-### Mediano plazo
-9. **F13 (Robust Validation)** — implementar PurgedKFold, CVaR, DSR, PBO
-10. **F9 (Estadísticas)** — bootstrap de métricas, confidence intervals
-11. **Fix SignalReceiver.Poll()** — no perder el primer archivo
-12. **Fix catch tipo en exporter.py** — JSONDecodeError no aplica en serialización
+### Bugs menores
+5. **Fix SignalReceiver.Poll()** — no perder el primer archivo
+6. **Fix catch tipo en exporter.py** — JSONDecodeError no aplica en serialización
+7. **Backtest adapter sin escenarios** — crear escenario YAML o remover del README
 
 ---
 

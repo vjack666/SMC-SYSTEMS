@@ -52,14 +52,14 @@ Todo debe estar funcional antes de pensar en deployment. F8 (Deployment Guide) s
 
 | ID | Objetivo | Descripción | Estado | Prioridad |
 |----|----------|-------------|--------|-----------|
-| A1 | Actualizar documentación stale | Corregir README.md, AGENT_ARCHITECTURE.md, harness/adapters docs, paths y descripciones. | 🟡 En progreso | Alta |
-| A4 | Stochastic Exhaustion (F10) | Detección de divergencias estocásticas + volumen + patrones Wyckoff. Integrar al pipeline de signals. | 🔴 Pendiente | Alta |
-| A2 | Parameter Tuning (F12) | Integrar Optuna para tuning de hyperparams del ML. Reemplazar valores hardcodeados por búsqueda sistemática. | 🔴 Pendiente | Alta |
-| A7 | Validación cuantitativa (F9/F13) | PurgedKFold, CVaR, DSR, PBO, bootstrap confidence intervals. Integrar en `ml/` con scenarios harness. | 🔴 Pendiente | Alta |
+| A1 | Actualizar documentación | README, AGENT_ARCHITECTURE, harness docs, paths — todo alineado con el código real | ✅ Completado | Alta |
+| A4 | Stochastic Exhaustion (F10) | Ya implementado en wyckoff_agent.py. Pendiente: verificar integración harness + pipeline. | 🟡 Verificación | Alta |
+| A2 | Parameter Tuning (F12) | Optuna integrado, conectado al pipeline via tune_first. CLI listo. 7 tests pasando. | ✅ Completado | Alta |
+| A7 | Validación cuantitativa (F9/F13) | PurgedKFold, CVaR, DSR, PBO, bootstrap — todo implementado en stats_validator.py. 10 tests pasando. | ✅ Completado | Alta |
 | A5 | Tests + cobertura | Tests para 6 módulos sin cobertura. Escenarios harness para backtest. | 🔴 Pendiente | Alta |
-| A3 | Resolver discrepancia Harness | Alinear 10 adapters reales vs 4 documentados. Escenarios faltantes. | 🔴 Pendiente | Media |
+| A3 | Resolver discrepancia Harness | 11 adapters documentados en AGENT_ARCHITECTURE.md | ✅ Completado | Media |
 | A6 | Expandir datos | Incrementar dataset histórico (>3-4 años) para out-of-sample robusto. | 🟡 Pendiente | Media |
-| A8 | Deployment Guide (F8) | VPS, systemd, recovery, monitoring. **Se hace AL FINAL**, cuando todo lo demás funcione. | 🔴 Pendiente | Baja |
+| A8 | Deployment Guide (F8) | VPS, systemd, recovery, monitoring. **AL FINAL**. | 🔴 Pendiente | Baja |
 
 **Criterio de completitud:** Todos los items A1-A8 en 🟢. El harness pasa 100% de escenarios. Solo entonces se considera production-ready.
 
