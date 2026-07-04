@@ -1,6 +1,6 @@
-# SMC Successor
+# SMC-SYSTEMS
 
-**Smart Money Concepts trading system** — modular, event-driven, with a full PySide6 desktop UI and MT5 integration.
+**Smart Money Concepts trading system** — modular, event-driven, with a full PySide6 desktop UI, MT5 integration, and ML-powered validation.
 
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PySide6](https://img.shields.io/badge/PySide6-6.6%2B-green)
@@ -10,39 +10,48 @@
 
 ## Features
 
-- **Desktop UI** — real-time candlestick charts with EMA/Stochastic overlays, OB/FVG zones, signal markers, dark theme
-- **Live Trading** — PAPER and LIVE modes via MT5, including margin validation, position sync, and kill switch
-- **Multi-Agent Analysis** — ICT, Wyckoff, and Structure agents producing structured evidence for each bar
+- **Desktop UI** — real-time candlestick charts with EMA/Stochastic overlays, OB/FVG zones, signal markers, dark theme (6 tabs)
+- **Live Trading** — PAPER and LIVE modes via MT5 + ZeroMQ bridge + MQL5 EA, margin validation, position sync, kill switch
+- **Multi-Agent Analysis** — ICT, Wyckoff, and Structure agents + Decision Agent with weighted voting
+- **Stochastic Exhaustion Detection** — divergence + volume confirmation, integrated in Wyckoff agent
 - **Risk Governor** — dynamic state machine (NORMAL → CAUTION → DEFENSIVE → LOCKDOWN) based on drawdown and consecutive losses
-- **ML Tuning** — Optuna hyperparameter optimization with PurgedKFold cross-validation
-- **Statistical Validation** — CVaR, Deflated Sharpe Ratio, Probability of Backtest Overfitting, bootstrap confidence intervals
-- **Stochastic Exhaustion Detection** — divergence + volume confirmation for trend reversal signals
-- **Concepts** — Order Blocks (OB) and Fair Value Gaps (FVG) with automatic zone detection and chart rendering
-- **Harness-First Testing** — every module is introduced through its harness before production use
+- **ML Pipeline** — XGBoost quality filter, walk-forward validation, dataset builder
+- **Statistical Validation** — CVaR, Deflated Sharpe Ratio, Probability of Backtest Overfitting, bootstrap confidence intervals (planned)
+- **Concepts** — Order Blocks (OB), Fair Value Gaps (FVG), displacement, zones, BOS, CHOCH, liquidity sweeps
+- **Production Monitoring** — drift detection (PSI), equity telemetry, alerting, performance dashboard
+- **Model Governance** — model registry with versioning, retraining scheduler, auto-report generation
+- **Harness-First Testing** — every module is introduced through its harness before production use (11 adapters, 14 scenarios)
+- **LangGraph Orchestration** — backtest validation graph with 7 nodes and conditional routing
 
 ## Architecture
 
 ```
-MT5 Data (live/parquet)
-    |
-    v
-FeatureEngine / Context
-    |
-    +---> ICT Agent ──┐
-    +---> Wyckoff Agent ──┤
-    +---> Structure Agent ─┘
-    |                   |
-    v                   v
-Decision Agent ───> Signal Confidence
-    |
-    v
-Risk Governor ───> Trade Execution
-    |
-    v
-PaperTradingRunner (PAPER / LIVE)
-    |
-    v
+MT5 Terminal (live) / Parquet (historical)
+    │
+    ▼
+build_scalping_context()
+    │ detectors: BOS, CHOCH, FVG, OB, displacement, zones, trend
+    │ indicators: EMA, RSI, Stochastic, ATR
+    │ trend_context: multi-timeframe D1/H4/LTF
+    │
+    ▼
+AgentOrchestrator
+    │ ICTAgent ────┐
+    │ WyckoffAgent ─┤ (+ stochastic exhaustion)
+    │ StructureAgent─┘
+    │ DecisionAgent → weighted voting
+    │
+    ▼
+Confluence scoring → Signal confidence → GovernorPool
+    │
+    ▼
+PaperTradingRunner (PAPER / LIVE via MT5 Bridge + MQL5 EA)
+    │
+    ▼
 Desktop UI (PySide6) ←→ Worker QThread
+    │
+    ▼
+Monitoring (drift, alerts, telemetry) + Governance (registry, retraining)
 ```
 
 ## Quick Start
@@ -57,7 +66,7 @@ Desktop UI (PySide6) ←→ Worker QThread
 
 ```bash
 git clone <repo-url>
-cd smc-successor
+cd SMC-SYSTEMS
 pip install -e .
 ```
 
@@ -128,36 +137,43 @@ Output: `dist/SMC_Trading.exe` (~480 MB). Requires MT5 terminal on the target ma
 ## Project Structure
 
 ```
-smc-successor/
-├── desktop/              # PySide6 UI panels
-│   ├── main_window.py    # QMainWindow with tabs, tray, menu
-│   ├── worker.py         # QThread worker bridging UI ↔ runner
-│   ├── chart_widget.py   # Candlestick chart with indicators
-│   ├── control_panel.py  # Start/Stop/Config
-│   ├── dashboard_panel.py# Account info, prices, status
-│   ├── position_panel.py # Open positions table
-│   ├── trade_log_panel.py# Trade history with filter
-│   ├── log_panel.py      # Real-time log viewer
-│   ├── settings_dialog.py# 4-tab configuration dialog
-│   └── models.py         # Qt table models
-├── agents/               # ICT, Wyckoff, Structure, Decision
-├── paper_trading/        # Runner, models, persistence
-├── risk/                 # Governor state machine
-├── signals/              # Signal pipeline
-├── data/                 # MT5 connector, parquet data
-├── ml/                   # Optuna tuner, stats validator
-├── detectors/            # Displacement, zone detection
-├── scripts/              # CLI entry points
-├── tests/                # Pytest test suite
-├── docs/                 # Documentation
-│   ├── DEPLOYMENT_GUIDE.md
+SMC-SYSTEMS/
+├── agents/             # ICT, Wyckoff, Structure, Decision agents + orchestrator
+├── adapters/           # Harness adapters (signal, risk, backtest, MT5, etc.)
+├── backtest/           # Backtest engine + validation (MT5 comparison, report generator)
+├── data/               # MT5 connector, parquet raw data, ML datasets
+├── desktop/            # PySide6 UI (main_window, chart, control, dashboard, positions, etc.)
+├── detectors/          # BOS, CHOCH, FVG, OB, displacement, zones, trend
+├── features/           # Feature engineering engine (30+ features)
+├── fixtures/           # Test fixtures (synthetic OHLCV)
+├── governance/         # Model registry, retraining scheduler, auto-report generator
+├── harness/            # Harness-first testing (runners, scenarios, validators, fixtures, reports)
+├── integration/        # MT5 ZeroMQ bridge (exporter, receiver, orchestrator, schema)
+├── ml/                 # ML pipeline (trainer, validator, walk_forward, tuner, stats_validator)
+├── models/             # Production model artifacts
+├── monitoring/         # Drift detection (PSI), alerting, equity telemetry, dashboard
+├── MQL5/               # MQL5 EA bridge (compiled .ex5 + source)
+├── orchestration/      # LangGraph backtest validation graph + harness adapter
+├── paper_trading/      # Runner, models, persistence
+├── results/            # Backtest metrics, equity curves, trade CSVs
+├── risk/               # Risk governor state machine, sizer, thresholds
+├── scripts/            # CLI entry points (run_desktop, run_paper_trading, run_live, etc.)
+├── signals/            # Signal pipeline (confluence scoring, filters)
+├── tests/              # 19 pytest test files
+├── docs/               # Documentation
 │   ├── AGENT_ARCHITECTURE.md
+│   ├── CRONOGRAMA_Y_ROADMAP.md
+│   ├── DEPLOYMENT_GUIDE.md
+│   ├── DESKTOP_UI.md
+│   ├── HOJA_DE_RUTA_SMC-SYSTEMS.md
 │   ├── ICT_RULEBOOK.md
-│   ├── WYCKOFF_RULEBOOK.md
-│   └── DESKTOP_UI.md
-├── indicators.py         # Technical indicators
-├── _data_legacy.py       # Parquet load with staleness check
-└── smc_trading.spec      # PyInstaller spec
+│   └── WYCKOFF_RULEBOOK.md
+├── indicators.py       # Technical indicators
+├── regime.py           # Market regime classifier
+├── trend_context.py    # Multi-timeframe trend context
+├── _data_legacy.py     # Parquet load with staleness check
+├── _progress.py        # Progress tracker
+└── smc_trading.spec    # PyInstaller spec
 ```
 
 ## Running Tests
@@ -166,16 +182,35 @@ smc-successor/
 pytest tests/ -v
 ```
 
+## Harness
+
+```bash
+python -m harness
+```
+
+11 registered adapters with 14 scenarios across all modules.
+
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Desktop UI](docs/DESKTOP_UI.md) | Full desktop UI reference |
-| [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | VPS, systemd, NSSM, monitoring |
+| [Roadmap y Cronograma](docs/CRONOGRAMA_Y_ROADMAP.md) | Plan de trabajo priorizado |
+| [Hoja de Ruta](docs/HOJA_DE_RUTA_SMC-SYSTEMS.md) | Visión, principios, hitos |
 | [Agent Architecture](docs/AGENT_ARCHITECTURE.md) | Agent system design |
+| [Desktop UI](docs/DESKTOP_UI.md) | Full desktop UI reference |
 | [ICT Rulebook](docs/ICT_RULEBOOK.md) | ICT concept specifications |
 | [Wyckoff Rulebook](docs/WYCKOFF_RULEBOOK.md) | Wyckoff concept specifications |
+| [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | VPS, systemd, NSSM, monitoring (pending) |
 
 ## Status
 
-Phase 1 complete. Active development on the desktop UI and live trading pipeline.
+- **Core pipeline & UI**: ✅ Complete
+- **ML, backtest, entry protocol**: ✅ Complete (WR 63.74%, PF 1.61, Sharpe 3.33, DD 4.96%)
+- **MT5 bridge & MQL5 EA**: ✅ Complete
+- **Production monitoring & governance**: ✅ Complete
+- **Stochastic exhaustion detection**: ✅ Implemented in Wyckoff agent
+- **Parameter tuning (Optuna)**: ⬜ Pending
+- **Robust validation (PurgedKFold, CVaR, DSR, PBO)**: ⬜ Pending
+- **Deployment guide (F8)**: ⬜ Postponed — last priority
+
+Overall: ~75% toward production-ready.

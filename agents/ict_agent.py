@@ -191,8 +191,8 @@ class ICTAgent:
         trend_bonus = 0.05 if trend in ("BULLISH", "BEARISH") else -0.05
         confidence = min(max(raw + zone_bonus + trend_bonus, 0.0), 0.95)
 
-        if confidence >= 0.5:
-            bias = "BULLISH" if trend != "BEARISH" else "NEUTRAL"
+        if confidence >= 0.5 and trend in ("BULLISH", "BEARISH"):
+            bias = trend
         else:
             bias = "NEUTRAL"
 

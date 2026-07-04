@@ -1,6 +1,6 @@
 # Agent Architecture
 
-> The intelligence layer for SMC_SUCCESSOR. Agents analyse market context and return structured evidence. They do **not** execute trades.
+> The intelligence layer for SMC-SYSTEMS. Agents analyse market context and return structured evidence. They do **not** execute trades.
 
 ---
 
@@ -51,11 +51,11 @@
 
 | Aspect | Detail |
 |--------|--------|
-| **Input** | Context DataFrame row + 30-bar lookback window |
-| **Columns read** | `swing_label`, `swing_high/low`, `volume_ratio`, `atr`, `range`, `close` |
-| **Analysis** | Phase classification (ACCUMULATION, DISTRIBUTION, MARKUP, MARKDOWN), pattern detection (Spring, Upthrust, SOS, SOW, LPS, LPSY), effort vs result divergence, volume regime |
+| **Input** | Context DataFrame row + 40-bar lookback window |
+| **Columns read** | `swing_label`, `high`, `low`, `open`, `close`, `atr`, `tick_volume`, `macro_direction`, `stoch_k`, `stoch_d` |
+| **Analysis** | Phase classification (ACCUMULATION, DISTRIBUTION, MARKUP, MARKDOWN), pattern detection (Spring, Upthrust, SOS, SOW, LPS, LPSY), effort vs result divergence, volume regime, **stochastic exhaustion detection** |
 | **Source of truth** | `docs/WYCKOFF_RULEBOOK.md` |
-| **Output** | `AnalysisResult` with bias, confidence, detected events (ACCUMULATION_EARLY, ACCUMULATION_LATE, DISTRIBUTION_EARLY, DISTRIBUTION_LATE, SPRING, UPTHRUST, SOS, SOW, LPS, LPSY, EFFORT_DIVERGENCE), evidence dict |
+| **Output** | `AnalysisResult` with bias, confidence, detected events (ACCUMULATION_EARLY, ACCUMULATION_LATE, DISTRIBUTION_EARLY, DISTRIBUTION_LATE, SPRING, UPTHRUST, SOS, SOW, LPS, LPSY, EFFORT_DIVERGENCE, **STOCH_EXHAUSTION**, **STOCH_DIVERGENCE**), evidence dict |
 | **Forbidden** | Trade execution, position sizing, market structure analysis (delegates to ICT agent) |
 
 ### Structure Agent (`agents/structure_agent.py`)
@@ -83,7 +83,7 @@
 |--------|--------|
 | **Input** | Full context DataFrame (all columns from detectors + indicators + trend context) |
 | **Processing** | Iterates each bar → runs ICT → Wyckoff → Structure → Decision agents |
-| **Output** | Context DataFrame with 14 new `agent_*` columns appended |
+| **Output** | Context DataFrame with 25 new `agent_*` columns appended |
 | **ML integration** | Optional `ml_probabilities` array fed to Decision Agent |
 | **Integration point** | Called from `pipeline.build_scalping_context()` when `orchestrator` parameter is provided |
 
@@ -130,7 +130,7 @@ Backtest / Live Execution
 results/{trades,metrics,equity}.{csv,json}
 ```
 
-All detectors are wired and exported. Previous wiring gaps (displacement, zones) were fixed in Phase 1.4.
+All detectors are wired and exported. Previous wiring gaps (displacement, zones) were fixed in Phase 1.4. `docs/AGENT_ARCHITECTURE.md` now reflects current code state (stochastic exhaustion implemented, 25 agent columns, 40-bar Wyckoff lookback).
 
 ---
 
@@ -195,6 +195,7 @@ All modules are validated through the harness:
 | `langgraph_validation` | LangGraph orchestration | 1 | ✅ |
 | `monitoring` | Production monitoring | 1 | ✅ |
 | `governance` | Model governance | 1 | ✅ |
+| `paper_trading` | Paper trading runner | 1 | ✅ |
 
 ---
 
@@ -239,6 +240,5 @@ Agents must never:
 ### Known Gaps
 
 - **Parameter tuning**: All hyperparameters are hardcoded — no Optuna/Hyperopt sweeps yet
-- **Stochastic exhaustion**: Claimed in roadmap but not implemented; Wyckoff uses volume/range-based detection instead
 - **Robust validation methods**: PurgedKFold, CVaR, DSR, PBO not yet implemented
-- **Deployment guide**: No VPS/deployment documentation exists
+- **Deployment guide**: No VPS/deployment documentation exists (postponed — last priority)
