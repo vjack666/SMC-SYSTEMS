@@ -1,0 +1,8 @@
+name: ml tuning smoke
+module: ml_tuning
+fixture: ml_tuning_fixture.yaml
+expected:
+  module: ml_tuning
+  status: tuned
+tags:
+  - smoke

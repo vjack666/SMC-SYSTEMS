@@ -196,6 +196,7 @@ All modules are validated through the harness:
 | `monitoring` | Production monitoring | 1 | ✅ |
 | `governance` | Model governance | 1 | ✅ |
 | `paper_trading` | Paper trading runner | 1 | ✅ |
+| `ml_tuning` | Optuna hyperparameter tuning | 1 | ✅ |
 
 ---
 
@@ -239,6 +240,5 @@ Agents must never:
 
 ### Known Gaps
 
-- **Parameter tuning**: All hyperparameters are hardcoded — no Optuna/Hyperopt sweeps yet
 - **Robust validation methods**: PurgedKFold, CVaR, DSR, PBO not yet implemented
 - **Deployment guide**: No VPS/deployment documentation exists (postponed — last priority)

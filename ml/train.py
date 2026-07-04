@@ -57,9 +57,19 @@ class WalkForwardConfig:
     metrics_path: Path = Path("ml/model_metrics.json")
     importance_path: Path = Path("ml/feature_importance.csv")
     random_state: int = 42
+    tune_first: bool = False
+    tune_n_trials: int = 50
 
 
-def _pick_estimator() -> tuple[str, Any]:
+def _pick_estimator(tuned_params: dict | None = None) -> tuple[str, Any]:
+    if tuned_params is not None:
+        try:
+            from xgboost import XGBClassifier
+
+            return ("xgboost_tuned", XGBClassifier(**tuned_params))
+        except Exception:
+            pass
+
     try:
         from xgboost import XGBClassifier
 
@@ -170,8 +180,16 @@ def train_walk_forward(
     if cfg is None:
         cfg = WalkForwardConfig()
 
+    tuned_params: dict | None = None
+    tuning_value: float | None = None
+    if cfg.tune_first and len(X) >= 100:
+        from ml.tuner import TuningConfig, tune_hyperparameters
+
+        tuning_cfg = TuningConfig(n_trials=cfg.tune_n_trials, n_splits=min(3, cfg.n_splits), random_state=cfg.random_state)
+        tuned_params, tuning_value = tune_hyperparameters(X, y, tuning_cfg)
+
     tscv = TimeSeriesSplit(n_splits=cfg.n_splits, gap=cfg.gap, test_size=cfg.test_size)
-    model_name, estimator = _pick_estimator()
+    model_name, estimator = _pick_estimator(tuned_params)
     preprocess = _build_feature_pipeline(X)
 
     fold_metrics: list[dict[str, Any]] = []
@@ -251,7 +269,13 @@ def train_walk_forward(
         "avg_brier_wf": avg_brier,
         "calibration_used": calibration_used,
         "calibration_method": calibration_method,
+        "tune_first": cfg.tune_first,
     }
+
+    if cfg.tune_first:
+        metrics["tune_n_trials"] = cfg.tune_n_trials
+        if tuning_value is not None:
+            metrics["tune_best_value"] = tuning_value
 
     return model_for_inference, metrics, avg_roc_auc
 
