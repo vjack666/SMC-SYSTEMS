@@ -9,10 +9,16 @@ from typing import Any
 import numpy as np
 
 from data.mt5.connector import MT5Connector, _mt5_timeframe
-from paper_trading.models import PaperPosition, PositionSide, PositionStatus, TradeRecord
-from paper_trading.persistence import load_positions, save_positions, save_trade_log
+from paper_trading.models import PaperPosition, PositionSide, PositionStatus, TradeMode, TradeRecord
+from paper_trading.persistence import (
+    load_governor_state,
+    load_positions,
+    save_governor_state,
+    save_positions,
+    save_trade_log,
+)
 from risk.governor import GovernorConfig, GovernorState, next_state
-from risk.sizer import compute_lot
+from risk.sizer import close_position, compute_lot, send_market_order
 from signals.pipeline import ScalpingConfig, build_scalping_context
 
 POLL_INTERVAL = 5
@@ -32,6 +38,10 @@ class PaperTradingRunner:
         risk_percent: float = 1.0,
         commission_per_lot: float = 0.0,
         bars_for_pipeline: int = 500,
+        mode: TradeMode = TradeMode.PAPER,
+        magic: int = 20260701,
+        deviation: int = 10,
+        kill_switch_path: Path = Path("data/KILL_SWITCH"),
     ):
         self.symbols = symbols
         self.timeframe = timeframe
@@ -44,9 +54,14 @@ class PaperTradingRunner:
         self.risk_percent = risk_percent
         self.commission_per_lot = commission_per_lot
         self.bars_for_pipeline = bars_for_pipeline
+        self.mode = mode
+        self.magic = magic
+        self.deviation = deviation
+        self.kill_switch_path = kill_switch_path
 
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.state_path = state_dir / "positions.json"
+        self.governor_path = state_dir / "governor.json"
         self.trades_path = state_dir / "trades.json"
         self.trades_csv_path = state_dir / "trades.csv"
         self.log_path = state_dir / "runner.log"
@@ -57,6 +72,7 @@ class PaperTradingRunner:
         self.governor = GovernorState()
         self.trade_log: list[dict[str, Any]] = []
         self.running = False
+        self.live_positions_tickets: dict[str, int] = {}
 
     def _log(self, msg: str) -> None:
         ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
@@ -74,6 +90,197 @@ class PaperTradingRunner:
             mapping = {16385: 3600, 16388: 14400, 16408: 86400}
             return mapping.get(mt5_val, 3600)
         return mt5_val * 60
+
+    def _check_kill_switch(self) -> bool:
+        if self.kill_switch_path.exists():
+            self._log("KILL SWITCH triggered — shutting down")
+            if self.mode == TradeMode.LIVE:
+                self._close_all_live_positions()
+            self.running = False
+            try:
+                self.kill_switch_path.unlink()
+            except Exception:
+                pass
+            return True
+        return False
+
+    def _close_all_live_positions(self) -> None:
+        import MetaTrader5 as mt5
+
+        positions = mt5.positions_get(magic=self.magic)
+        if positions:
+            for pos in positions:
+                close_result = close_position(
+                    ticket=pos.ticket,
+                    symbol=pos.symbol,
+                    volume=pos.volume,
+                    position_type=pos.type,
+                    magic=self.magic,
+                )
+                self._log(f"KILL SWITCH closed {pos.symbol}: {close_result}")
+
+    def _reconnect_if_needed(self) -> None:
+        import MetaTrader5 as mt5
+
+        if not mt5.terminal_info():
+            self._log("MT5 disconnected — reconnecting...")
+            self.connector.reconnect()
+
+    def _validate_margin(self, symbol: str, volume: float, price: float) -> bool:
+        import MetaTrader5 as mt5
+
+        account = mt5.account_info()
+        if account is None:
+            return False
+        margin = mt5.order_calc_margin(mt5.ORDER_TYPE_BUY, symbol, volume, price)
+        if margin is None:
+            return False
+        free_margin = account.margin_free
+        return margin <= free_margin * 0.8
+
+    def _sync_live_position(self, symbol: str) -> None:
+        import MetaTrader5 as mt5
+
+        positions = mt5.positions_get(symbol=symbol, magic=self.magic)
+        if positions is None or len(positions) == 0:
+            paper = self.positions.get(symbol)
+            if paper and paper.status == PositionStatus.OPEN:
+                self._log(f"{symbol} position closed externally — recording")
+                paper.status = PositionStatus.CLOSED_MANUAL
+                tick = mt5.symbol_info_tick(symbol)
+                paper.close_price = tick.bid if paper.side == PositionSide.LONG else tick.ask
+                paper.close_time = datetime.now(timezone.utc)
+                paper.reason = "closed externally"
+                direction = 1 if paper.side == PositionSide.LONG else -1
+                paper.pips = (paper.close_price - paper.entry_price) * direction
+                paper.pnl = paper.pips * paper.volume * 100000
+                self._log(f"{symbol} {paper.side.value} CLOSED (externally) entry={paper.entry_price:.5f} exit={paper.close_price:.5f} pnl={paper.pnl:.2f}")
+                self.trade_log.append({
+                    "symbol": paper.symbol,
+                    "side": paper.side.value,
+                    "entry_price": paper.entry_price,
+                    "exit_price": paper.close_price,
+                    "stop_loss": paper.stop_loss,
+                    "take_profit": paper.take_profit,
+                    "volume": paper.volume,
+                    "open_time": paper.open_time.isoformat(),
+                    "close_time": paper.close_time.isoformat(),
+                    "status": paper.status.value,
+                    "pnl": paper.pnl,
+                    "pips": paper.pips,
+                    "signal_confidence": paper.signal_confidence,
+                    "reason": "closed externally",
+                })
+                if paper.pnl < 0:
+                    self.governor.consecutive_losses += 1
+                    dd_pct = abs(paper.pnl) / (paper.entry_price * paper.volume * 100000) * 100
+                    self.governor.day_drawdown_pct += dd_pct
+                else:
+                    self.governor.consecutive_losses = 0
+                self.governor = next_state(self.governor, self.governor_config)
+                save_positions(self.positions, self.state_path)
+                save_trade_log(self.trade_log, self.trades_path)
+                self._append_trade_csv(paper)
+                del self.positions[symbol]
+                self.live_positions_tickets.pop(symbol, None)
+            return
+
+        mt5_pos = positions[0]
+        paper = self.positions.get(symbol)
+        if paper:
+            paper.ticket = mt5_pos.ticket
+            self.live_positions_tickets[symbol] = mt5_pos.ticket
+            if mt5_pos.comment in ("sl", "tp") or mt5_pos.volume <= 0:
+                paper.status = PositionStatus.CLOSED_SL if mt5_pos.comment == "sl" else PositionStatus.CLOSED_TP
+                paper.close_price = float(mt5_pos.price_current)
+                paper.close_time = datetime.now(timezone.utc)
+                paper.pnl = float(mt5_pos.profit)
+                direction = 1 if paper.side == PositionSide.LONG else -1
+                paper.pips = (paper.close_price - paper.entry_price) * direction
+                paper.reason = mt5_pos.comment if mt5_pos.comment in ("sl", "tp") else "closed live"
+                self._log(f"{symbol} {paper.side.value} CLOSED ({paper.reason}) entry={paper.entry_price:.5f} exit={paper.close_price:.5f} pnl={paper.pnl:.2f}")
+                self.trade_log.append({
+                    "symbol": paper.symbol,
+                    "side": paper.side.value,
+                    "entry_price": paper.entry_price,
+                    "exit_price": paper.close_price,
+                    "stop_loss": paper.stop_loss,
+                    "take_profit": paper.take_profit,
+                    "volume": paper.volume,
+                    "open_time": paper.open_time.isoformat(),
+                    "close_time": paper.close_time.isoformat(),
+                    "status": paper.status.value,
+                    "pnl": paper.pnl,
+                    "pips": paper.pips,
+                    "signal_confidence": paper.signal_confidence,
+                    "reason": paper.reason,
+                })
+                if paper.pnl < 0:
+                    self.governor.consecutive_losses += 1
+                    dd_pct = abs(paper.pnl) / (paper.entry_price * paper.volume * 100000) * 100
+                    self.governor.day_drawdown_pct += dd_pct
+                else:
+                    self.governor.consecutive_losses = 0
+                self.governor = next_state(self.governor, self.governor_config)
+                save_positions(self.positions, self.state_path)
+                save_trade_log(self.trade_log, self.trades_path)
+                self._append_trade_csv(paper)
+                del self.positions[symbol]
+                self.live_positions_tickets.pop(symbol, None)
+
+    def _open_live_position(self, symbol: str, direction: int, confidence: float, entry: float, sl: float, tp: float) -> None:
+        if self.governor.mode == "LOCKDOWN":
+            return
+
+        try:
+            sizing = compute_lot(
+                symbol=symbol,
+                entry=entry,
+                stop_loss=sl,
+                risk_percent=self.risk_percent,
+                commission_per_lot=self.commission_per_lot,
+            )
+        except Exception as e:
+            self._log(f"{symbol} sizing failed: {e}")
+            sizing = None
+
+        volume = sizing.lot if sizing else 0.01
+
+        if not self._validate_margin(symbol, volume, entry):
+            self._log(f"{symbol} INSUFFICIENT MARGIN — skip")
+            return
+
+        action = "BUY" if direction == 1 else "SELL"
+        result = send_market_order(
+            symbol=symbol,
+            action=action,
+            volume=volume,
+            stop_loss=sl,
+            take_profit=tp,
+            comment="SMC_LIVE",
+            magic=self.magic,
+            deviation=self.deviation,
+        )
+
+        if result["retcode"] == 10009:
+            ticket = result["ticket"]
+            side = PositionSide.LONG if direction == 1 else PositionSide.SHORT
+            pos = PaperPosition(
+                symbol=symbol,
+                side=side,
+                entry_price=result["price"],
+                stop_loss=sl,
+                take_profit=tp,
+                volume=volume,
+                open_time=datetime.now(timezone.utc),
+                signal_confidence=confidence,
+                ticket=ticket,
+            )
+            self.positions[symbol] = pos
+            self.live_positions_tickets[symbol] = ticket
+            self._log(f"{symbol} {side.value} LIVE OPEN ticket={ticket} entry={result['price']:.5f} vol={volume:.2f}")
+        else:
+            self._log(f"{symbol} ORDER FAILED: retcode={result['retcode']} {result['comment']}")
 
     def _detect_new_candle(self, symbol: str) -> bool:
         import MetaTrader5 as mt5
@@ -200,6 +407,10 @@ class PaperTradingRunner:
             self._log(f"{symbol} SKIP — governor LOCKDOWN")
             return
 
+        if self.mode == TradeMode.LIVE:
+            self._open_live_position(symbol, direction, confidence, entry, sl, tp)
+            return
+
         try:
             sizing = compute_lot(
                 symbol=symbol,
@@ -229,6 +440,11 @@ class PaperTradingRunner:
         self._log(f"{symbol} {side.value} OPEN entry={entry:.5f} sl={sl:.5f} tp={tp:.5f} vol={volume:.2f} conf={confidence:.2f}")
 
     def _process_symbol(self, symbol: str) -> None:
+        self._reconnect_if_needed()
+
+        if self.mode == TradeMode.LIVE:
+            self._sync_live_position(symbol)
+
         if not self._detect_new_candle(symbol):
             self._check_position(symbol)
             return
@@ -308,12 +524,16 @@ class PaperTradingRunner:
     def _save_state(self) -> None:
         save_positions(self.positions, self.state_path)
         save_trade_log(self.trade_log, self.trades_path)
+        save_governor_state(self.governor, self.governor_path)
 
     def run(self) -> None:
         self.running = True
-        self._log(f"PaperTradingRunner started — symbols={self.symbols} timeframe={self.timeframe}")
+        mode_label = self.mode.value
+        self._log(f"PaperTradingRunner started — symbols={self.symbols} timeframe={self.timeframe} mode={mode_label}")
         self._log(f"Polling MT5 every {POLL_INTERVAL}s, checking for new {self.timeframe} candles")
         self._log(f"State dir: {self.state_dir.resolve()}")
+        if self.mode == TradeMode.LIVE:
+            self._log(f"LIVE mode active — magic={self.magic} deviation={self.deviation} kill_switch={self.kill_switch_path}")
 
         with MT5Connector() as connector:
             self.connector = connector
@@ -325,6 +545,11 @@ class PaperTradingRunner:
             if self.positions:
                 self._log(f"Restored {len(self.positions)} open positions")
 
+            persisted_governor = load_governor_state(self.governor_path)
+            if persisted_governor:
+                self.governor = persisted_governor
+                self._log(f"Restored governor state: {self.governor.mode}")
+
             for symbol in self.symbols:
                 self._log(f"Initializing {symbol}...")
                 try:
@@ -335,6 +560,8 @@ class PaperTradingRunner:
 
             try:
                 while self.running:
+                    if self._check_kill_switch():
+                        break
                     for symbol in self.symbols:
                         try:
                             self._process_symbol(symbol)

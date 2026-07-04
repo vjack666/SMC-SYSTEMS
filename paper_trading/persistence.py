@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from paper_trading.models import PaperPosition, PositionSide, PositionStatus
+from risk.governor import GovernorState
 
 
 def encode_position(pos: PaperPosition) -> dict[str, Any]:
@@ -25,6 +26,7 @@ def encode_position(pos: PaperPosition) -> dict[str, Any]:
         "pips": pos.pips,
         "reason": pos.reason,
         "signal_confidence": pos.signal_confidence,
+        "ticket": pos.ticket,
     }
 
 
@@ -45,6 +47,7 @@ def decode_position(data: dict[str, Any]) -> PaperPosition:
         pips=data.get("pips", 0.0),
         reason=data.get("reason", ""),
         signal_confidence=data.get("signal_confidence", 0.0),
+        ticket=data.get("ticket"),
     )
 
 
@@ -66,3 +69,26 @@ def save_trade_log(trades: list[dict[str, Any]], path: Path) -> None:
     if not trades:
         return
     path.write_text(json.dumps(trades, indent=2, default=str), encoding="utf-8")
+
+
+def save_governor_state(governor: GovernorState, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "mode": governor.mode,
+        "consecutive_losses": governor.consecutive_losses,
+        "day_drawdown_pct": governor.day_drawdown_pct,
+        "total_drawdown_pct": governor.total_drawdown_pct,
+    }
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def load_governor_state(path: Path) -> GovernorState | None:
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return GovernorState(
+        mode=data.get("mode", "NORMAL"),
+        consecutive_losses=data.get("consecutive_losses", 0),
+        day_drawdown_pct=data.get("day_drawdown_pct", 0.0),
+        total_drawdown_pct=data.get("total_drawdown_pct", 0.0),
+    )

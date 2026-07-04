@@ -6,6 +6,11 @@ from enum import Enum
 from typing import Optional
 
 
+class TradeMode(Enum):
+    PAPER = "PAPER"
+    LIVE = "LIVE"
+
+
 class PositionSide(Enum):
     LONG = "LONG"
     SHORT = "SHORT"
@@ -36,6 +41,7 @@ class PaperPosition:
     pips: float = 0.0
     reason: str = ""
     signal_confidence: float = 0.0
+    ticket: Optional[int] = None
 
 
 @dataclass

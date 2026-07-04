@@ -70,7 +70,14 @@ class WyckoffAgent:
         evidence["volume_regime"] = vol_regime
         evidence["volume_confirmation"] = vol_regime in ("HIGH", "CLIMAX")
 
-        confidence, bias = self._compute_confidence(phase, events, vol_regime)
+        stoch_exhaustion = self._detect_stochastic_exhaustion(window)
+        if stoch_exhaustion:
+            events.append({"type": stoch_exhaustion["type"], "detail": stoch_exhaustion})
+            evidence["stoch_exhaustion"] = stoch_exhaustion
+            if stoch_exhaustion.get("divergence"):
+                events.append({"type": "STOCH_DIVERGENCE", "detail": stoch_exhaustion})
+
+        confidence, bias = self._compute_confidence(phase, events, vol_regime, stoch_exhaustion)
 
         return AnalysisResult(
             agent_name="WYCKOFF",
@@ -244,6 +251,65 @@ class WyckoffAgent:
             return 0.0
         return float((window["high"] - window["low"]).iloc[-5:].mean())
 
+    def _detect_stochastic_exhaustion(self, window: pd.DataFrame) -> dict[str, Any] | None:
+        if "stoch_k" not in window.columns or "stoch_d" not in window.columns:
+            return None
+        n = len(window)
+        if n < 10:
+            return None
+
+        last_k = float(window["stoch_k"].iloc[-1])
+        last_d = float(window["stoch_d"].iloc[-1])
+
+        exhaustion_type = None
+        bars_since_cross = None
+
+        for i in range(1, min(6, n)):
+            prev_k = float(window["stoch_k"].iloc[-i - 1])
+            curr_k = float(window["stoch_k"].iloc[-i])
+            if prev_k > 80.0 and curr_k <= 80.0:
+                exhaustion_type = "BEARISH_EXHAUSTION"
+                bars_since_cross = i
+                break
+            if prev_k < 20.0 and curr_k >= 20.0:
+                exhaustion_type = "BULLISH_EXHAUSTION"
+                bars_since_cross = i
+                break
+
+        if exhaustion_type is None:
+            return None
+
+        divergence = False
+        div_lookback = min(14, n // 2)
+        if n >= div_lookback * 2:
+            recent = window.iloc[-div_lookback:]
+            prior = window.iloc[-div_lookback * 2 : -div_lookback]
+
+            recent_high = float(recent["high"].max())
+            prior_high = float(prior["high"].max())
+            recent_k_at_high = float(recent.loc[recent["high"].idxmax(), "stoch_k"])
+            prior_k_at_high = float(prior.loc[prior["high"].idxmax(), "stoch_k"])
+
+            recent_low = float(recent["low"].min())
+            prior_low = float(prior["low"].min())
+            recent_k_at_low = float(recent.loc[recent["low"].idxmin(), "stoch_k"])
+            prior_k_at_low = float(prior.loc[prior["low"].idxmin(), "stoch_k"])
+
+            bearish_div = recent_high > prior_high and recent_k_at_high < prior_k_at_high
+            bullish_div = recent_low < prior_low and recent_k_at_low > prior_k_at_low
+            divergence = bearish_div or bullish_div
+
+        volume_confirmed = self._volume_ratio(window) > 1.5
+
+        return {
+            "type": exhaustion_type,
+            "divergence": divergence,
+            "volume_confirmed": volume_confirmed,
+            "stoch_k": round(last_k, 4),
+            "stoch_d": round(last_d, 4),
+            "bars_since_cross": bars_since_cross,
+        }
+
     def _detect_effort_result(self, window: pd.DataFrame) -> dict[str, Any] | None:
         n = len(window)
         if n < 5 or "tick_volume" not in window.columns:
@@ -278,7 +344,13 @@ class WyckoffAgent:
             return "DRYING"
         return "NORMAL"
 
-    def _compute_confidence(self, phase: str, events: list[dict[str, Any]], vol_regime: str) -> tuple[float, str]:
+    def _compute_confidence(
+        self,
+        phase: str,
+        events: list[dict[str, Any]],
+        vol_regime: str,
+        exhaustion: dict[str, Any] | None = None,
+    ) -> tuple[float, str]:
         phase_scores = {
             "ACCUMULATION": 0.35,
             "ACCUMULATION_EARLY": 0.25,
@@ -292,7 +364,8 @@ class WyckoffAgent:
         base = phase_scores.get(phase, 0.15)
         event_bonus = min(len(events) * 0.08, 0.25)
         vol_bonus = 0.05 if vol_regime in ("HIGH", "CLIMAX") else -0.05 if vol_regime == "DRYING" else 0.0
-        confidence = min(max(base + event_bonus + vol_bonus, 0.0), 0.95)
+        exhaustion_bonus = 0.10 if (exhaustion and exhaustion.get("volume_confirmed")) else 0.05 if exhaustion else 0.0
+        confidence = min(max(base + event_bonus + vol_bonus + exhaustion_bonus, 0.0), 0.95)
 
         if phase in ("MARKUP", "ACCUMULATION", "ACCUMULATION_LATE"):
             bias = "BULLISH"

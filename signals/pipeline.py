@@ -20,7 +20,7 @@ from detectors import (
     detect_order_blocks,
     ZoneConfig,
 )
-from indicators import add_atr, add_ema, add_rsi
+from indicators import add_atr, add_ema, add_rsi, add_stochastic
 from trend_context import build_trend_context_frame
 
 
@@ -87,6 +87,10 @@ def build_scalping_context(
     data["ema_slow"] = add_ema(data, 50)
     data["rsi"] = add_rsi(data, 14)
     data["atr_ratio"] = data["atr"] / data["atr"].rolling(20).mean().replace(0.0, np.nan)
+
+    stoch = add_stochastic(data)
+    data["stoch_k"] = stoch["stoch_k"]
+    data["stoch_d"] = stoch["stoch_d"]
 
     macro = build_trend_context_frame(symbol=symbol, ltf_frame=data, data_dir=data_dir)
     data = pd.merge_asof(data.sort_values("time"), macro.sort_values("time"), on="time", direction="backward")
@@ -182,6 +186,17 @@ def build_scalping_context(
         )
     else:
         data["filter_agents"] = True
+
+    if "stoch_k" in data.columns:
+        bearish_exhaust = (data["stoch_k"] > 80) & (data["stoch_k"].shift(1) <= 80)
+        bullish_exhaust = (data["stoch_k"] < 20) & (data["stoch_k"].shift(1) >= 20)
+        data["filter_stoch_exhaust"] = (
+            ((data["macro_direction"] == "BULLISH") & ~bearish_exhaust.rolling(5, min_periods=1).max().astype(bool))
+            | ((data["macro_direction"] == "BEARISH") & ~bullish_exhaust.rolling(5, min_periods=1).max().astype(bool))
+            | (data["macro_direction"] == "RANGING")
+        )
+    else:
+        data["filter_stoch_exhaust"] = True
 
     max_confluence = 6.0 if orchestrator is not None else 5.0
     confluence_score = (

@@ -12,6 +12,16 @@ from ml.trainer import (
     save_model,
     train_model,
 )
+from ml.stats_validator import (
+    PurgedKFold,
+    StatsValidationResult,
+    bootstrap_confidence_interval,
+    compute_cvar,
+    compute_deflated_sharpe_ratio,
+    compute_full_validation,
+    compute_pbo,
+)
+from ml.tuner import TuningConfig, train_with_best_params, tune_from_dataset, tune_hyperparameters
 from ml.validator import ValidationResult, validate_dataset
 from ml.walk_forward import WalkForwardResult, run_walk_forward
 
@@ -28,6 +38,10 @@ __all__ = [
     "predict_proba",
     "save_model",
     "train_model",
+    "TuningConfig",
+    "tune_hyperparameters",
+    "train_with_best_params",
+    "tune_from_dataset",
     "ValidationResult",
     "validate_dataset",
     "WalkForwardConfig",
@@ -35,4 +49,11 @@ __all__ = [
     "run_walk_forward",
     "train_walk_forward",
     "DEFAULT_FEATURES_ML",
+    "PurgedKFold",
+    "StatsValidationResult",
+    "compute_cvar",
+    "compute_deflated_sharpe_ratio",
+    "compute_full_validation",
+    "compute_pbo",
+    "bootstrap_confidence_interval",
 ]

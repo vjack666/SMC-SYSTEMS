@@ -24,6 +24,8 @@ AGENT_COLUMNS = [
     "agent_wyckoff_sos",
     "agent_wyckoff_sow",
     "agent_wyckoff_effort_divergence",
+    "agent_wyckoff_stoch_exhaustion",
+    "agent_wyckoff_stoch_divergence",
     "agent_structure_bias",
     "agent_structure_confidence",
     "agent_structure_events",
@@ -82,6 +84,14 @@ class AgentOrchestrator:
             "agent_wyckoff_effort_divergence": int(
                 bool(
                     (wyckoff_result.evidence.get("effort_vs_result") or {}).get("divergence", False)
+                )
+            ),
+            "agent_wyckoff_stoch_exhaustion": str(
+                (wyckoff_result.evidence.get("stoch_exhaustion") or {}).get("type", "")
+            ),
+            "agent_wyckoff_stoch_divergence": int(
+                bool(
+                    (wyckoff_result.evidence.get("stoch_exhaustion") or {}).get("divergence", False)
                 )
             ),
             "agent_structure_bias": structure_result.bias,

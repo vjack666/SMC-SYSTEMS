@@ -174,6 +174,10 @@ class MT5Connector:
         self.ensure_connected()
         import MetaTrader5 as mt5
 
+        info = mt5.symbol_info(symbol)
+        if info is None or not info.visible:
+            mt5.symbol_select(symbol, True)
+
         tf = _mt5_timeframe(timeframe)
         max_retries = retries if retries is not None else self.config.max_retries
         chunk = min(count, 10_000)
