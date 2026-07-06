@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 
+from ml.stats_validator import PurgedKFold
 from ml.trainer import (
     FEATURES_ML_V3,
     TARGET_COLUMN,
@@ -136,6 +137,9 @@ def run_walk_forward(
     target_column: str = TARGET_COLUMN,
     n_windows: int = 3,
     calibrate: bool = True,
+    cv_strategy: Literal["timeseries", "purged_kfold"] = "timeseries",
+    purge: int = 5,
+    embargo: int = 5,
 ) -> WalkForwardResult:
     X, y, feature_names, schema_version = load_dataset(dataset_path, feature_list, target_column)
     timestamps = _extract_timestamps(dataset_path)
@@ -159,21 +163,57 @@ def run_walk_forward(
             ts = pd.to_datetime(df_full["timestamp"], errors="coerce")
             train_mask = (ts.dt.year >= int(win.train_start)) & (ts.dt.year <= int(win.train_end))
             test_mask = (ts.dt.year >= int(win.test_start)) & (ts.dt.year <= int(win.test_end))
-            X_train = X[train_mask]
-            y_train = y[train_mask]
+            X_win = X[train_mask]
+            y_win = y[train_mask]
             X_test = X[test_mask]
             y_test = y[test_mask]
+            win_timestamps = ts[train_mask].values
         else:
-            X_train = X.iloc[win.train_start:win.train_end + 1]
-            y_train = y.iloc[win.train_start:win.train_end + 1]
+            X_win = X.iloc[win.train_start:win.train_end + 1]
+            y_win = y.iloc[win.train_start:win.train_end + 1]
             X_test = X.iloc[win.test_start:win.test_end + 1]
             y_test = y.iloc[win.test_start:win.test_end + 1]
+            win_timestamps = df_full["timestamp"].iloc[win.train_start:win.train_end + 1].values if "timestamp" in df_full.columns else None
 
-        if len(X_train) < 10 or len(X_test) < 5:
+        if len(X_win) < 10 or len(X_test) < 5:
             continue
 
+        # --- PurgedKFold cross-validation within training window ---
+        fold_metrics_list: list[dict[str, Any]] = []
+        if cv_strategy == "purged_kfold" and len(X_win) >= 20:
+            pkf = PurgedKFold(n_splits=min(3, n_windows), purge=purge, embargo=embargo)
+            for fold_idx, (train_idx, val_idx) in enumerate(pkf.split(X_win, y_win, times=win_timestamps)):
+                if len(train_idx) < 5 or len(val_idx) < 3:
+                    continue
+                X_train_fold = X_win.iloc[train_idx]
+                y_train_fold = y_win.iloc[train_idx]
+                X_val_fold = X_win.iloc[val_idx]
+                y_val_fold = y_win.iloc[val_idx]
+
+                if y_train_fold.nunique() < 2:
+                    continue
+
+                model_fold, fold_train_metrics = train_model(
+                    X_train_fold, y_train_fold,
+                    X_val=X_val_fold, y_val=y_val_fold,
+                    calibrate=calibrate,
+                )
+
+                proba_fold = np.asarray(model_fold.predict_proba(X_val_fold))
+                proba_class1_fold = proba_fold[:, 1] if proba_fold.ndim == 2 and proba_fold.shape[1] >= 2 else np.full(len(y_val_fold), 0.5)
+
+                fold_trade_metrics = evaluate_trade_metrics(
+                    y_true=y_val_fold.reset_index(drop=True),
+                    y_pred_proba=proba_class1_fold,
+                    pnl_r=None,
+                    threshold=0.5,
+                )
+                fold_trade_metrics["fold"] = fold_idx
+                fold_metrics_list.append(fold_trade_metrics)
+
+        # Train final model on full training window
         model, train_metrics = train_model(
-            X_train, y_train,
+            X_win, y_win,
             X_val=X_test, y_val=y_test,
             calibrate=calibrate,
         )
@@ -198,10 +238,15 @@ def run_walk_forward(
         )
 
         trade_metrics["window"] = win.name
-        trade_metrics["n_train"] = win.n_train if win.n_train > 0 else int(len(X_train))
+        trade_metrics["n_train"] = win.n_train if win.n_train > 0 else int(len(X_win))
         trade_metrics["n_test"] = win.n_test if win.n_test > 0 else int(len(X_test))
         trade_metrics["model"] = train_metrics.get("model", "unknown")
         trade_metrics["calibration"] = train_metrics.get("calibration_method", "none")
+        trade_metrics["cv_strategy"] = cv_strategy
+        if fold_metrics_list:
+            trade_metrics["cv_folds"] = len(fold_metrics_list)
+            trade_metrics["cv_roc_auc_mean"] = float(np.mean([f["roc_auc"] for f in fold_metrics_list]))
+            trade_metrics["cv_roc_auc_std"] = float(np.std([f["roc_auc"] for f in fold_metrics_list]))
         result.windows.append(trade_metrics)
 
     if not result.windows:
@@ -211,7 +256,7 @@ def run_walk_forward(
     agg: dict[str, list[float]] = {}
     for w in result.windows:
         for k, v in w.items():
-            if isinstance(v, (int, float)) and k not in ("window", "threshold", "n_train", "n_test", "model", "calibration"):
+            if isinstance(v, (int, float)) and k not in ("window", "threshold", "n_train", "n_test", "model", "calibration", "cv_strategy", "cv_folds", "cv_roc_auc_mean", "cv_roc_auc_std"):
                 agg.setdefault(k, []).append(float(v))
 
     result.aggregate_metrics = {

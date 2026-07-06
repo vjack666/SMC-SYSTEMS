@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPen, QPainter
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QLabel
 
-from indicators import add_fvg, add_order_blocks
+from desktop.crash_log import log_error
 
 
 class ChartWidget(QWidget):
@@ -25,8 +25,11 @@ class ChartWidget(QWidget):
 
         self.chart = QChart()
         self.chart.setTitle("SMC Market Chart")
-        self.chart.setAnimationOptions(QChart.SeriesAnimations)
+        self.chart.setAnimationOptions(QChart.NoAnimation)
         self.chart.setTheme(QChart.ChartThemeDark)
+
+        self._updating = False
+        self._pending_df: pd.DataFrame | None = None
 
         self.chart_view = QChartView(self.chart)
         self.chart_view.setRenderHint(QPainter.Antialiasing)
@@ -37,9 +40,28 @@ class ChartWidget(QWidget):
         self._axis_stoch: QValueAxis | None = None
 
     def connect_worker(self, worker_signals) -> None:
-        worker_signals.chart_data_updated.connect(self._on_chart_data)
+        worker_signals.chart_data_updated.connect(
+            self._on_chart_data,
+            Qt.ConnectionType.QueuedConnection,
+        )
 
     def _on_chart_data(self, df: pd.DataFrame) -> None:
+        if self._updating:
+            self._pending_df = df.copy()
+            return
+        self._updating = True
+        try:
+            self._render_chart(df)
+        except Exception as exc:
+            log_error("chart_widget._on_chart_data", exc)
+        finally:
+            self._updating = False
+            if self._pending_df is not None:
+                pending = self._pending_df
+                self._pending_df = None
+                self._on_chart_data(pending)
+
+    def _render_chart(self, df: pd.DataFrame) -> None:
         self.chart.removeAllSeries()
         if self._axis_x:
             self.chart.removeAxis(self._axis_x)
@@ -123,51 +145,6 @@ class ChartWidget(QWidget):
                 marker.append(ts, price + (price * 0.001 if dir_ == 1 else -price * 0.001))
                 marker.append(ts + 180000, price)
                 self.chart.addSeries(marker)
-
-        obs = add_order_blocks(df)
-        fvgs = add_fvg(df)
-
-        data_start_idx = len(df) - n_bars
-        data_times = data["time"].values
-        chart_end_ms = float(pd.Timestamp(data_times[-1]).timestamp()) * 1000
-
-        visible_obs = obs[obs["ob_index"].between(data_start_idx - 5, len(df) - 1)] if not obs.empty and "ob_index" in obs.columns else pd.DataFrame()
-        for _, ob in visible_obs.iterrows():
-            ob_idx = int(ob["ob_index"])
-            ob_time = float(pd.Timestamp(df.iloc[max(ob_idx, data_start_idx)]["time"]).timestamp()) * 1000
-            upper = QLineSeries()
-            lower = QLineSeries()
-            upper.append(ob_time, float(ob["ob_high"]))
-            upper.append(chart_end_ms, float(ob["ob_high"]))
-            lower.append(ob_time, float(ob["ob_low"]))
-            lower.append(chart_end_ms, float(ob["ob_low"]))
-            zone = QAreaSeries(upper, lower)
-            zone.setName(f"{'Bullish' if ob['ob_type'] == 'bullish' else 'Bearish'} OB")
-            if ob["ob_type"] == "bullish":
-                zone.setColor(QColor(0, 200, 83, 35))
-            else:
-                zone.setColor(QColor(255, 82, 82, 35))
-            self.chart.addSeries(zone)
-
-        visible_fvgs = fvgs[fvgs["fvg_index"].between(data_start_idx - 5, len(df) - 1)] if not fvgs.empty and "fvg_index" in fvgs.columns else pd.DataFrame()
-        for _, fvg in visible_fvgs.iterrows():
-            fvg_idx = int(fvg["fvg_index"])
-            fvg_time = float(pd.Timestamp(df.iloc[max(fvg_idx, data_start_idx)]["time"]).timestamp()) * 1000
-            upper = QLineSeries()
-            lower = QLineSeries()
-            upper.append(fvg_time, float(fvg["fvg_top"]))
-            upper.append(chart_end_ms, float(fvg["fvg_top"]))
-            lower.append(fvg_time, float(fvg["fvg_bottom"]))
-            lower.append(chart_end_ms, float(fvg["fvg_bottom"]))
-            zone = QAreaSeries(upper, lower)
-            zone.setName(f"{'Bullish' if fvg['fvg_type'] == 'bullish' else 'Bearish'} FVG")
-            if fvg["fvg_type"] == "bullish":
-                alpha = 20 if fvg["fvg_filled"] else 50
-                zone.setColor(QColor(100, 181, 246, alpha))
-            else:
-                alpha = 20 if fvg["fvg_filled"] else 50
-                zone.setColor(QColor(255, 167, 38, alpha))
-            self.chart.addSeries(zone)
 
         self._axis_x = QDateTimeAxis()
         self._axis_x.setFormat("dd HH:mm")

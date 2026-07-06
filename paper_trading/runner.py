@@ -17,6 +17,9 @@ from paper_trading.persistence import (
     save_positions,
     save_trade_log,
 )
+from agents.orchestrator import AgentOrchestrator
+from ml.inference import QualityFilter, QualityFilterConfig
+from regime import detect_regimes
 from risk.governor import GovernorConfig, GovernorState, next_state
 from risk.sizer import close_position, compute_lot, send_market_order
 from signals.pipeline import ScalpingConfig, build_scalping_context
@@ -73,6 +76,22 @@ class PaperTradingRunner:
         self.trade_log: list[dict[str, Any]] = []
         self.running = False
         self.live_positions_tickets: dict[str, int] = {}
+
+        self._orchestrator: AgentOrchestrator | None = None
+        self._quality_filter: QualityFilter | None = None
+        if self.scalping_config.use_ml_quality_filter:
+            self._orchestrator = AgentOrchestrator()
+            self._quality_filter = QualityFilter(
+                QualityFilterConfig(
+                    enabled=True,
+                    model_path=Path(self.scalping_config.ml_model_path),
+                    max_hold_bars=max_hold_bars,
+                )
+            )
+            if not self._quality_filter.is_active:
+                self._log(
+                    f"ML filter enabled but model missing at {self.scalping_config.ml_model_path}"
+                )
 
     def _log(self, msg: str) -> None:
         ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
@@ -465,7 +484,10 @@ class PaperTradingRunner:
                 timeframe=self.timeframe,
                 data_dir=self.data_dir,
                 config=self.scalping_config,
+                orchestrator=self._orchestrator,
             )
+            if self.scalping_config.use_ml_quality_filter:
+                context = detect_regimes(context)
         except Exception as e:
             self._log(f"{symbol} pipeline error: {e}")
             self._check_position(symbol)
@@ -491,8 +513,32 @@ class PaperTradingRunner:
         entry = float(latest["close"])
         confidence = float(latest["signal_confidence"])
 
-        sl = entry - atr if direction == 1 else entry + atr
+        structural_sl = latest.get("structural_sl")
+        if structural_sl is not None and np.isfinite(float(structural_sl)):
+            sl = float(structural_sl)
+        else:
+            sl = entry - atr if direction == 1 else entry + atr
         tp = entry + (2.0 * atr) if direction == 1 else entry - (2.0 * atr)
+
+        if self._quality_filter is not None and self._quality_filter.is_active:
+            bar_idx = int(latest.name)
+            timestamp = str(latest.get("time", ""))
+            allow, ml_prob, ml_threshold = self._quality_filter.evaluate_signal(
+                context=context,
+                bar_idx=bar_idx,
+                timestamp=timestamp,
+                entry=entry,
+                stop_loss=sl,
+                take_profit=tp,
+                signal_confidence=confidence,
+                governor_mode=self.governor.mode,
+            )
+            if not allow:
+                self._log(
+                    f"{symbol} SKIP — ML filter ({ml_prob:.2f} < {ml_threshold:.2f})"
+                )
+                self._check_position(symbol)
+                return
 
         self._open_position(symbol, direction, confidence, entry, sl, tp)
         self._check_position(symbol)

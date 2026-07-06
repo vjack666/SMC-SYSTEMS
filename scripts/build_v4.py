@@ -5,7 +5,7 @@ SYMBOLS = ("EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF")
 
 config = DatasetBuildConfig(
     symbols=SYMBOLS,
-    timeframe="M15",
+    timeframes=("M15",),
     data_dir=Path("data/raw"),
     output_dir=Path("data/ml"),
     max_bars=5000,

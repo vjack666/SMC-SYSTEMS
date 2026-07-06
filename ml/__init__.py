@@ -1,4 +1,5 @@
 from ml.dataset_builder import DatasetBuildConfig, build_ml_dataset
+from ml.inference import QualityFilter, QualityFilterConfig
 from ml.train import DEFAULT_FEATURES_ML, WalkForwardConfig, train_walk_forward
 from ml.trainer import (
     FEATURES_ML_V3,
@@ -28,6 +29,8 @@ from ml.walk_forward import WalkForwardResult, run_walk_forward
 __all__ = [
     "DatasetBuildConfig",
     "build_ml_dataset",
+    "QualityFilter",
+    "QualityFilterConfig",
     "FEATURES_ML_V3",
     "ModelMetadata",
     "chronological_train_test_split",

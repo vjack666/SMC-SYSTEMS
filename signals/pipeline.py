@@ -45,6 +45,8 @@ class ScalpingConfig:
     use_confluence_mode: bool = True
     min_confluence_score: int = 2
     min_atr_ratio: float = 1.0
+    use_ml_quality_filter: bool = True
+    ml_model_path: str = "ml/models/quality_filter.pkl"
 
 
 def _session_filter(times: pd.Series, symbol: str, allow_xau_asia: bool) -> pd.Series:

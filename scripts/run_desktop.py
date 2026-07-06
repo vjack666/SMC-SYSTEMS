@@ -11,19 +11,41 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from desktop import MainWindow
+from desktop.crash_log import install_crash_logging
+from desktop.single_instance import SingleInstanceGuard
 
 
-def main() -> None:
-    if not mt5.initialize():
-        print("ERROR: MetaTrader 5 not installed or not running.", file=sys.stderr)
-        input("Press Enter to exit...")
-        sys.exit(1)
+def main() -> int:
+    install_crash_logging()
+
+    def _qt_message_handler(mode, context, message):
+        from desktop.crash_log import LOG_PATH
+        from datetime import datetime, timezone
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(f"[{datetime.now(timezone.utc).isoformat()}] QT: {message}\n")
+
+    from PySide6.QtCore import qInstallMessageHandler
+    qInstallMessageHandler(_qt_message_handler)
 
     QApplication.setStyle("Fusion")
 
     app = QApplication(sys.argv)
     app.setApplicationName("SMC Trading System")
     app.setOrganizationName("SMC-Systems")
+    app.setQuitOnLastWindowClosed(True)
+
+    guard = SingleInstanceGuard()
+    if not guard.try_acquire():
+        print("SMC Trading System is already running.", file=sys.stderr)
+        sys.exit(0)
+
+    if not mt5.initialize():
+        print("ERROR: MetaTrader 5 not installed or not running.", file=sys.stderr)
+        input("Press Enter to exit...")
+        sys.exit(1)
+
+    app.aboutToQuit.connect(guard.release)
 
     from PySide6.QtGui import QPalette, QColor
     palette = QPalette()
@@ -44,10 +66,8 @@ def main() -> None:
 
     window = MainWindow()
     window.show()
-    exit_code = app.exec()
-    mt5.shutdown()
-    sys.exit(exit_code)
+    return int(app.exec())
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

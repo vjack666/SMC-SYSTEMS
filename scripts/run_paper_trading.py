@@ -47,6 +47,10 @@ def main() -> None:
                         help="Minimum ATR ratio")
     parser.add_argument("--ob-fvg-proximity", type=float, default=1.5,
                         help="OB/FVG proximity in ATR units")
+    parser.add_argument("--no-ml", action="store_true",
+                        help="Disable ML quality filter")
+    parser.add_argument("--ml-model", type=str, default="ml/models/quality_filter.pkl",
+                        help="Path to ML quality filter model")
     parser.add_argument("--no-agents", action="store_true",
                         help="Disable AI agents (ICT/Wyckoff/Structure)")
     parser.add_argument("--relaxed-bos", action="store_true",
@@ -64,6 +68,8 @@ def main() -> None:
         min_atr_ratio=args.min_atr,
         ob_fvg_proximity_atr=args.ob_fvg_proximity,
         relaxed_bos=args.relaxed_bos,
+        use_ml_quality_filter=not args.no_ml and not args.no_agents,
+        ml_model_path=args.ml_model,
     )
 
     runner = PaperTradingRunner(

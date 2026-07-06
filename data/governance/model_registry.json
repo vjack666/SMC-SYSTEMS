@@ -102,5 +102,112 @@
     },
     "path": "models/smc_v1/1.1.0",
     "created_at": "2026-07-02T17:24:09"
+  },
+  {
+    "model_id": "quality_filter__v2026-07-04T21-18-08-468228+00-00__1783199888527",
+    "name": "quality_filter",
+    "version": "2026-07-04T21-18-08-468228+00-00",
+    "metrics": {
+      "model": "xgboost",
+      "calibration_used": true,
+      "calibration_method": "isotonic",
+      "n_train": 855,
+      "training": {
+        "accuracy": 0.9941520467836257,
+        "precision": 0.9955156950672646,
+        "recall": 0.9932885906040269,
+        "roc_auc": 0.9998793700925561,
+        "n_samples": 855
+      }
+    },
+    "path": "ml\\models\\quality_filter.pkl",
+    "created_at": "2026-07-04T21:18:08.468228+00:00"
+  },
+  {
+    "model_id": "quality_filter__v2026-07-04T21-21-50-917508+00-00__1783200110959",
+    "name": "quality_filter",
+    "version": "2026-07-04T21-21-50-917508+00-00",
+    "metrics": {
+      "model": "xgboost",
+      "calibration_used": true,
+      "calibration_method": "isotonic",
+      "n_train": 855,
+      "training": {
+        "accuracy": 0.9941520467836257,
+        "precision": 0.9955156950672646,
+        "recall": 0.9932885906040269,
+        "roc_auc": 0.9998793700925561,
+        "n_samples": 855
+      }
+    },
+    "path": "ml\\models\\quality_filter.pkl",
+    "created_at": "2026-07-04T21:21:50.917508+00:00"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1783343807889",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-147\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1783343909361",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-148\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1783344069011",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-149\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1783352751897",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-150\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "quality_filter__v2026-07-06T16-06-40-985000+00-00__1783354001021",
+    "name": "quality_filter",
+    "version": "2026-07-06T16-06-40-985000+00-00",
+    "metrics": {
+      "model": "xgboost",
+      "calibration_used": true,
+      "calibration_method": "isotonic",
+      "n_train": 1320,
+      "validation": {
+        "accuracy": 0.574468085106383,
+        "precision": 0.5758513931888545,
+        "recall": 0.9841269841269841,
+        "roc_auc": 0.551360544217687,
+        "n_samples": 329
+      },
+      "holdout": {
+        "accuracy": 0.574468085106383,
+        "precision": 0.5758513931888545,
+        "recall": 0.9841269841269841,
+        "roc_auc": 0.551360544217687,
+        "n_samples": 329
+      }
+    },
+    "path": "C:\\Users\\v_jac\\Desktop\\SMC-SYSTEMS\\ml\\models\\quality_filter.pkl",
+    "created_at": "2026-07-06T16:06:40.985000+00:00"
   }
 ]

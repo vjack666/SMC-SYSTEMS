@@ -21,6 +21,17 @@ from sklearn.pipeline import Pipeline
 
 from ml.train import _build_feature_pipeline, _pick_estimator
 
+# Optional governance/monitoring imports (graceful fallback if not available)
+try:
+    from governance.model_registry import ModelRegistry
+except ImportError:
+    ModelRegistry = None
+
+try:
+    from monitoring.drift_detector import DriftDetector
+except ImportError:
+    DriftDetector = None
+
 FEATURES_ML_V3: tuple[str, ...] = (
     # ICT detector features
     "bos_detected", "bos_strength",
@@ -307,10 +318,18 @@ def compute_feature_importance(
 ) -> list[dict[str, float]]:
     try:
         inner = model
+        # Handle CalibratedClassifierCV
+        if hasattr(inner, "base_estimator"):
+            inner = inner.base_estimator
+        # Handle Pipeline
+        if hasattr(inner, "named_steps") and "clf" in inner.named_steps:
+            inner = inner.named_steps["clf"]
+        # Handle CalibratedClassifierCV inside Pipeline
         if hasattr(inner, "base_estimator"):
             inner = inner.base_estimator
         if hasattr(inner, "named_steps") and "clf" in inner.named_steps:
             inner = inner.named_steps["clf"]
+
         importances = inner.feature_importances_
 
         n_imp = len(importances)
@@ -323,7 +342,12 @@ def compute_feature_importance(
             from sklearn.compose import ColumnTransformer
 
             try:
-                preprocess = model.named_steps["preprocess"]
+                preprocess = model
+                # Navigate through CalibratedClassifierCV -> Pipeline -> preprocess
+                if hasattr(preprocess, "base_estimator"):
+                    preprocess = preprocess.base_estimator
+                if hasattr(preprocess, "named_steps") and "preprocess" in preprocess.named_steps:
+                    preprocess = preprocess.named_steps["preprocess"]
                 if isinstance(preprocess, ColumnTransformer):
                     transformer_names: list[str] = []
                     for name, transformer, columns in preprocess.transformers_:
@@ -434,6 +458,9 @@ def save_model(
     model: Any,
     metadata: ModelMetadata,
     path: Path,
+    X_train: pd.DataFrame | None = None,
+    register: bool = True,
+    drift_baseline: bool = True,
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -451,6 +478,37 @@ def save_model(
     joblib.dump(payload, path)
     metrics_path = path.with_suffix(".json")
     metrics_path.write_text(json.dumps(payload["metadata"], indent=2, default=str), encoding="utf-8")
+
+    # --- Governance: register model ---
+    if register and ModelRegistry is not None:
+        try:
+            registry = ModelRegistry()
+            version = metadata.training_date.replace(":", "-").replace(".", "-")
+            registry.register(
+                name=metadata.model_name,
+                version=version,
+                metrics=metadata.metrics,
+                path=str(path),
+                timestamp=metadata.training_date,
+            )
+            print(f"[Governance] Model registered: {metadata.model_name} v{version}")
+        except Exception as e:
+            print(f"[Governance] Warning: failed to register model: {e}")
+
+    # --- Monitoring: compute PSI baseline for drift detection ---
+    if drift_baseline and DriftDetector is not None and X_train is not None:
+        try:
+            detector = DriftDetector()
+            # Compute reference distributions for each numeric feature
+            numeric_cols = X_train.select_dtypes(include=[np.number]).columns.tolist()
+            reference = {col: X_train[col].dropna().tolist() for col in numeric_cols}
+            baseline_path = path.with_suffix(".drift_baseline.json")
+            import json as _json
+            baseline_path.write_text(_json.dumps(reference, indent=2), encoding="utf-8")
+            print(f"[Monitoring] PSI baseline saved: {baseline_path}")
+        except Exception as e:
+            print(f"[Monitoring] Warning: failed to compute drift baseline: {e}")
+
     return path
 
 

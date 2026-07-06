@@ -6,6 +6,9 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.feature_selection import mutual_info_classif
+from sklearn.inspection import permutation_importance
+from sklearn.ensemble import RandomForestClassifier
 
 from agents.orchestrator import AGENT_COLUMNS, AgentOrchestrator
 from backtest.engine import _build_signals_from_context, _simulate_trade_with_stats
@@ -18,7 +21,7 @@ from signals.pipeline import ScalpingConfig, build_scalping_context
 @dataclass
 class DatasetBuildConfig:
     symbols: tuple[str, ...] = ("EURUSD",)
-    timeframe: str = "M15"
+    timeframes: tuple[str, ...] = ("M15", "H1", "H4")
     data_dir: Path = Path("data/raw")
     output_dir: Path = Path("data/ml")
     max_bars: int | None = None
@@ -30,9 +33,13 @@ class DatasetBuildConfig:
     auto_download: bool = True
     combined_output: bool = True
     download_count: int = 100_000
+    feature_selection: bool = True
+    min_trades_per_symbol: int = 50
+    top_n_features: int = 50
 
     def __post_init__(self) -> None:
         self.symbols = tuple(self.symbols) if not isinstance(self.symbols, tuple) else self.symbols
+        self.timeframes = tuple(self.timeframes) if not isinstance(self.timeframes, tuple) else self.timeframes
 
 
 TRADE_CONTEXT_FEATURES = (
@@ -43,6 +50,41 @@ DATASET_LABELS = (
     "pnl_r", "win", "max_favorable_excursion", "max_adverse_excursion",
     "holding_time", "exit_reason",
 )
+
+
+def _apply_feature_selection(
+    df: pd.DataFrame,
+    feature_cols: list[str],
+    label_col: str = "win",
+    top_n: int = 50,
+    method: str = "mutual_info",
+) -> list[str]:
+    """Select top N features using mutual information or permutation importance."""
+    if len(feature_cols) <= top_n:
+        return feature_cols
+
+    # Only use rows with valid labels
+    valid_mask = df[label_col].notna()
+    if valid_mask.sum() < 10:
+        return feature_cols[:top_n]
+
+    X = df.loc[valid_mask, feature_cols].fillna(0.0)
+    y = df.loc[valid_mask, label_col].astype(int)
+
+    try:
+        if method == "mutual_info":
+            scores = mutual_info_classif(X, y, random_state=42, discrete_features=False)
+        else:  # permutation importance
+            clf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
+            clf.fit(X, y)
+            result = permutation_importance(clf, X, y, n_repeats=5, random_state=42, n_jobs=-1)
+            scores = result.importances_mean
+    except Exception:
+        return feature_cols[:top_n]
+
+    feature_scores = list(zip(feature_cols, scores))
+    feature_scores.sort(key=lambda x: x[1], reverse=True)
+    return [f for f, _ in feature_scores[:top_n]]
 
 
 def _coerce_utc_timestamp(value: Any) -> pd.Timestamp | None:
@@ -153,15 +195,17 @@ def build_ml_dataset(
         if progress_cb:
             progress_cb("symbol", sym_idx, len(config.symbols), symbol)
 
-        print(f"[{sym_idx + 1}/{len(config.symbols)}] {symbol} {config.timeframe}")
+        timeframe = config.timeframes[0] if config.timeframes else "M15"
+
+        print(f"[{sym_idx + 1}/{len(config.symbols)}] {symbol} {timeframe}")
 
         if config.auto_download:
-            _download_if_missing(symbol, config.timeframe, config.data_dir, config.download_count)
+            _download_if_missing(symbol, timeframe, config.data_dir, config.download_count)
 
         try:
             context = _build_context_truncated(
                 symbol=symbol,
-                timeframe=config.timeframe,
+                timeframe=timeframe,
                 data_dir=config.data_dir,
                 scalping_cfg=scalping_cfg,
                 max_bars=config.max_bars,
@@ -175,7 +219,7 @@ def build_ml_dataset(
             continue
 
         try:
-            frame = load_frame(config.data_dir, symbol, config.timeframe)
+            frame = load_frame(config.data_dir, symbol, timeframe)
         except Exception as e:
             print(f"  WARNING: Could not load frame for {symbol}: {e}")
             continue

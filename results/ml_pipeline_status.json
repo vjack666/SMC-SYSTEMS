@@ -1,0 +1,33 @@
+{
+  "phase": "complete",
+  "message": "ML_PIPELINE_COMPLETE",
+  "updated_at": "2026-07-06T16:06:41.132527+00:00",
+  "complete": true,
+  "marker": "ML_PIPELINE_COMPLETE",
+  "checks": {
+    "model_loaded": true,
+    "paper_runner_import": true,
+    "scalping_config_ml_flag": true,
+    "all_passed": true
+  },
+  "metrics": {
+    "model": "xgboost",
+    "calibration_used": true,
+    "calibration_method": "isotonic",
+    "n_train": 1320,
+    "validation": {
+      "accuracy": 0.574468085106383,
+      "precision": 0.5758513931888545,
+      "recall": 0.9841269841269841,
+      "roc_auc": 0.551360544217687,
+      "n_samples": 329
+    },
+    "holdout": {
+      "accuracy": 0.574468085106383,
+      "precision": 0.5758513931888545,
+      "recall": 0.9841269841269841,
+      "roc_auc": 0.551360544217687,
+      "n_samples": 329
+    }
+  }
+}

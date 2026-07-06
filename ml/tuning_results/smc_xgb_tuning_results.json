@@ -1,0 +1,21 @@
+{
+  "dataset_path": "data\\ml\\synthetic\\v4_synthetic.parquet",
+  "schema_version": "unknown",
+  "n_features": 39,
+  "n_samples": 10000,
+  "n_trials": 50,
+  "best_value": 1.0,
+  "best_params": {
+    "n_estimators": 240,
+    "max_depth": 10,
+    "learning_rate": 0.1205712628744377,
+    "subsample": 0.85,
+    "colsample_bytree": 0.65,
+    "min_child_weight": 2,
+    "gamma": 0.2,
+    "reg_alpha": 9.0,
+    "reg_lambda": 6.0
+  },
+  "model": "xgboost_tuned",
+  "calibration_used": true
+}

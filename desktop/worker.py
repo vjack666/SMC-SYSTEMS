@@ -43,13 +43,12 @@ class DataStreamer(QObject):
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
-        self.signals = TradingWorkerSignals()
+        self.signals = TradingWorkerSignals(self)
         self.symbols = symbols or ["EURUSD", "GBPUSD", "USDJPY", "USDCHF"]
         self.timeframe = timeframe
         self._thread: QThread | None = None
         self._running = False
         self._mt5_ok = False
-
     def start(self) -> None:
         if self._running:
             return
@@ -88,7 +87,6 @@ class DataStreamer(QObject):
             self.signals.log_message.emit("MT5 connected but no account info")
 
         self.signals.status_changed.emit("LIVE DATA")
-        self._emit_chart_data()
         self.signals.log_message.emit(f"Streaming {len(self.symbols)} symbols on {self.timeframe}")
 
         while self._running:
@@ -99,18 +97,7 @@ class DataStreamer(QObject):
                         self.signals.tick_updated.emit(symbol, float(tick.bid), float(tick.ask))
                 except Exception:
                     pass
-            self._emit_chart_data()
-            self.signals.log_message.emit(f"Tick poll cycle done, sleeping 5s")
             time.sleep(5)
-
-    def _emit_chart_data(self) -> None:
-        try:
-            from data import load_frame
-            df = load_frame(Path("data/raw"), self.symbols[0], self.timeframe)
-            if df is not None and not df.empty:
-                self.signals.chart_data_updated.emit(df)
-        except Exception as e:
-            self.signals.log_message.emit(f"Chart data unavailable: {e}")
 
 
 class TradingWorker(QObject):
@@ -124,7 +111,7 @@ class TradingWorker(QObject):
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
-        self.signals = TradingWorkerSignals()
+        self.signals = TradingWorkerSignals(self)
         self.symbols = symbols or ["EURUSD", "GBPUSD", "USDJPY", "USDCHF"]
         self.timeframe = timeframe
         self.mode = mode
@@ -177,7 +164,11 @@ class TradingWorker(QObject):
     def _run_loop(self) -> None:
         import MetaTrader5 as mt5
 
-        config = ScalpingConfig(min_confluence_score=2, min_atr_ratio=0.8)
+        config = ScalpingConfig(
+            min_confluence_score=2,
+            min_atr_ratio=0.8,
+            use_ml_quality_filter=True,
+        )
         governor_cfg = GovernorConfig()
 
         self._runner = PaperTradingRunner(
