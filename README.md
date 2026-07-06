@@ -1,6 +1,6 @@
 # SMC-SYSTEMS
 
-**Smart Money Concepts trading system** — modular, event-driven, with a full PySide6 desktop UI, MT5 integration, and ML-powered validation.
+**Smart Money Concepts trading system** — modular, event-driven, with a PySide6 desktop UI, MetaTrader 5 integration, multi-agent analysis, and an ML quality filter wired into paper and live trading.
 
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PySide6](https://img.shields.io/badge/PySide6-6.6%2B-green)
@@ -10,18 +10,25 @@
 
 ## Features
 
-- **Desktop UI** — real-time candlestick charts with EMA/Stochastic overlays, OB/FVG zones, signal markers, dark theme (6 tabs)
-- **Live Trading** — PAPER and LIVE modes via MT5 + ZeroMQ bridge + MQL5 EA, margin validation, position sync, kill switch
-- **Multi-Agent Analysis** — ICT, Wyckoff, and Structure agents + Decision Agent with weighted voting
-- **Stochastic Exhaustion Detection** — divergence + volume confirmation, integrated in Wyckoff agent
-- **Risk Governor** — dynamic state machine (NORMAL → CAUTION → DEFENSIVE → LOCKDOWN) based on drawdown and consecutive losses
-- **ML Pipeline** — XGBoost quality filter, walk-forward validation, dataset builder
-- **Statistical Validation** — CVaR, Deflated Sharpe Ratio, Probability of Backtest Overfitting, bootstrap confidence intervals (planned)
-- **Concepts** — Order Blocks (OB), Fair Value Gaps (FVG), displacement, zones, BOS, CHOCH, liquidity sweeps
-- **Production Monitoring** — drift detection (PSI), equity telemetry, alerting, performance dashboard
-- **Model Governance** — model registry with versioning, retraining scheduler, auto-report generation
-- **Harness-First Testing** — every module is introduced through its harness before production use (11 adapters, 14 scenarios)
-- **LangGraph Orchestration** — backtest validation graph with 7 nodes and conditional routing
+| Area | Status | Description |
+|------|--------|-------------|
+| **Desktop UI** | ✅ Production | 6-tab PySide6 app, MT5 live data, single-instance guard, stable chart refresh |
+| **Paper / Live trading** | ✅ Production | `PaperTradingRunner` with agents, structural SL, ML gate, risk governor, kill switch |
+| **Multi-agent analysis** | ✅ Production | ICT, Wyckoff (+ stochastic exhaustion), Structure, Decision Agent (weighted voting) |
+| **ML quality filter** | ✅ Wired | XGBoost model gates trades in backtest, paper, live, and desktop UI |
+| **ML training pipeline** | ✅ Offline | Dataset builder, chronological training, walk-forward, Optuna tuning, stats validation |
+| **Backtest engine** | ✅ Production | Combined multi-symbol backtest with ML filter and governor |
+| **Risk governor** | ✅ Production | NORMAL → CAUTION → DEFENSIVE → LOCKDOWN |
+| **MT5 bridge + MQL5 EA** | ✅ Implemented | ZeroMQ bridge for live execution |
+| **Monitoring & governance** | ⚠️ Harness-level | Drift baseline (PSI), model registry; scheduler runs via harness adapters |
+| **Harness-first testing** | ✅ Production | 11 adapters, 14 scenarios |
+| **LangGraph orchestration** | ✅ Implemented | Backtest validation graph |
+
+### SMC concepts
+
+Order Blocks (OB), Fair Value Gaps (FVG), displacement, premium/discount zones, BOS, CHOCH, liquidity sweeps, multi-timeframe trend (D1/H4/LTF).
+
+---
 
 ## Architecture
 
@@ -30,151 +37,212 @@ MT5 Terminal (live) / Parquet (historical)
     │
     ▼
 build_scalping_context()
-    │ detectors: BOS, CHOCH, FVG, OB, displacement, zones, trend
+    │ detectors: BOS, CHOCH, FVG, OB, displacement, zones
     │ indicators: EMA, RSI, Stochastic, ATR
-    │ trend_context: multi-timeframe D1/H4/LTF
+    │ trend_context: D1 / H4 / LTF alignment
     │
     ▼
-AgentOrchestrator
+AgentOrchestrator (when ML or agents enabled)
     │ ICTAgent ────┐
     │ WyckoffAgent ─┤ (+ stochastic exhaustion)
-    │ StructureAgent─┘
+    │ StructureAgent┘
     │ DecisionAgent → weighted voting
     │
     ▼
-Confluence scoring → Signal confidence → GovernorPool
+Confluence scoring → signal confidence → regime-based threshold
     │
     ▼
-PaperTradingRunner (PAPER / LIVE via MT5 Bridge + MQL5 EA)
+QualityFilter (ml/inference.py) — XGBoost predict_proba gate
     │
     ▼
-Desktop UI (PySide6) ←→ Worker QThread
+PaperTradingRunner (PAPER / LIVE) + Risk Governor
     │
     ▼
-Monitoring (drift, alerts, telemetry) + Governance (registry, retraining)
+Desktop UI (PySide6) ← DataStreamer + TradingWorker
 ```
+
+---
 
 ## Quick Start
 
 ### Prerequisites
 
 - Python 3.11+
-- [MetaTrader 5](https://www.metatrader5.com/) terminal (build 4000+)
+- [MetaTrader 5](https://www.metatrader5.com/) terminal (build 4000+), logged in
 - MT5 demo or live account
 
 ### Install
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/vjack666/SMC-SYSTEMS.git
 cd SMC-SYSTEMS
 pip install -e .
 ```
 
+Dependencies include `PySide6`, `MetaTrader5`, `xgboost`, `pyarrow`, `scipy`, `optuna`, `langgraph`.
+
 ### Run Desktop UI
 
 ```bash
+# Recommended — detached process, no extra console
+scripts\start_desktop.bat
+
+# Or directly
 python scripts/run_desktop.py
 ```
+
+MT5 must be open. The app enforces a **single instance**. Closing the window stops the process cleanly.
 
 ### Run Paper Trading (headless)
 
 ```bash
 python scripts/run_paper_trading.py --symbols EURUSD,GBPUSD --timeframe M15
+python scripts/run_paper_trading.py --no-ml          # disable ML filter
+python scripts/run_paper_trading.py --ml-model path/to/model.pkl
 ```
 
 ### Run Live Trading
 
 ```bash
 python scripts/run_live_trading.py --symbols EURUSD,GBPUSD --risk 1.0 --min-confidence 0.7
+python scripts/run_live_trading.py --no-ml
 ```
+
+### Train / refresh ML model
+
+```bash
+python scripts/run_ml_pipeline.py
+```
+
+Pipeline steps: build v4 dataset from `data/raw` → chronological holdout training → save `ml/models/quality_filter.pkl` → integration checks. Progress is written to `results/ml_pipeline_status.json`. On completion prints `ML_PIPELINE_COMPLETE`.
+
+---
 
 ## Desktop UI
 
 6-tab interface with dark Fusion theme:
 
-| Tab       | Content |
-|-----------|---------|
-| Dashboard | Account info, live prices with RSI/Stoch status, system status with governor color coding |
-| Chart     | Candlestick chart with EMA20/50, Stoch %K/%D, signal markers, OB/FVG zones, symbol selector |
-| Positions | Open positions table with P&L and pips |
-| Trade Log | Historical trades with filter by symbol |
-| Log       | Real-time log output (auto-scroll, 10k line cap) |
-| Control   | Start/Stop/Emergency Stop, risk % and min confidence spinboxes, symbol input |
+| Tab | Content |
+|-----|---------|
+| **Dashboard** | Account info, live prices, system status, governor state |
+| **Chart** | Candlesticks, EMA20/50, Stochastic, signal markers (refreshed on main thread every 30s) |
+| **Positions** | Open positions with P&L |
+| **Trade Log** | Historical trades |
+| **Log** | Real-time output — ML filter messages appear here (`SKIP — ML filter`, `LONG OPEN`, etc.) |
+| **Control** | Start / Stop / Emergency Stop, risk %, min confidence, symbols |
+
+**Workflow:** app auto-starts MT5 data streaming → go to **Control** → **Start** to enable the trading loop with ML.
+
+Diagnostic logs:
+
+- `results/desktop_crash.log` — unhandled errors and Qt messages
+- `data/paper_trading/runner.log` — trading loop log
 
 See [docs/DESKTOP_UI.md](docs/DESKTOP_UI.md) for details.
 
-## Indicators
+---
 
-All in `indicators.py`:
+## ML Pipeline
 
-| Function | Description |
-|----------|-------------|
-| `add_ema()` | Exponential Moving Average |
-| `add_rsi()` | Relative Strength Index |
-| `add_stochastic()` | Stochastic Oscillator with %K/%D/smoothed |
-| `add_atr()` | Average True Range |
-| `add_order_blocks()` | Detects bullish/bearish OBs (last candle before 3+ consecutive moves) |
-| `add_fvg()` | Detects Fair Value Gaps with filled/unfilled state tracking |
+### Modules (`ml/`)
+
+| Module | Role |
+|--------|------|
+| `dataset_builder.py` | Builds labeled v4 parquets from real OHLCV via signal simulation |
+| `trainer.py` | Train, save, load, `predict_proba`, chronological split |
+| `inference.py` | `QualityFilter` — shared gate for backtest and live/paper |
+| `walk_forward.py` | Date/index walk-forward with optional purged K-fold |
+| `stats_validator.py` | CVaR, Deflated Sharpe, PBO, bootstrap CI |
+| `tuner.py` | Optuna hyperparameter search |
+| `validator.py` | Dataset schema and leakage checks |
+
+### Production model
+
+| Field | Value |
+|-------|-------|
+| Path | `ml/models/quality_filter.pkl` |
+| Schema | v4 (67 features incl. agent columns) |
+| Training samples | 1,649 (7 symbols, real data) |
+| Holdout ROC-AUC | ~0.55 (chronological 80/20 split) |
+| Backtest WR / PF / Sharpe | 63.7% / 1.61 / 3.33 (4-symbol combined) |
+
+The ML filter is **conservative** — it rejects most candidate signals. Treat holdout AUC as modest; retrain with `run_ml_pipeline.py` as data grows.
+
+### Where ML runs
+
+| Context | Wired |
+|---------|-------|
+| `backtest/engine.py` | ✅ `use_ml_quality_filter` on `CombinedBacktestConfig` |
+| `paper_trading/runner.py` | ✅ via `ScalpingConfig.use_ml_quality_filter` |
+| `scripts/run_live_trading.py` | ✅ `--no-ml` flag |
+| `desktop/worker.py` | ✅ ML enabled by default on Start |
+
+---
+
+## Entry Protocol (summary)
+
+1. Session — London or New York (Asia optional for XAUUSD)
+2. ATR filter — `atr_ratio ≥ min_atr_ratio`
+3. Trend — macro direction + confidence threshold
+4. BOS, OB/FVG proximity, CHOCH, swing, micro structure (EMA/RSI)
+5. Confluence score ≥ 2
+6. Signal confidence ≥ configured minimum
+7. **ML quality filter** — `predict_proba ≥ dynamic regime threshold`
+8. Risk governor — LOCKDOWN blocks all entries
+
+**Execution:** structural SL (20-bar swing) with ATR fallback; TP at 2× ATR; max hold 16 bars.
+
+Full checklist in [COMPLETION_REPORT.md](COMPLETION_REPORT.md).
+
+---
 
 ## Data
 
-- Parquet files in `data/raw/` for each symbol+timeframe
+- Parquet in `data/raw/` per symbol + timeframe (M15, H4, D1)
+- ML datasets in `data/ml/` — per-symbol and `multi_symbol/v4_dataset.parquet`
 - Auto-download from MT5 when files are missing or stale
-- Staleness thresholds: M1=30m, M5=1h, M15=2h, M30=4h, H1=6h, H4=12h, D1=48h
-- Supported symbols: EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, NZDUSD, USDCHF, XAUUSD
+- Symbols: EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, NZDUSD, USDCHF, XAUUSD
 
-## Packaging
-
-Build a standalone Windows executable with PyInstaller:
-
-```bash
-pip install pyinstaller
-pyinstaller smc_trading.spec
-```
-
-Output: `dist/SMC_Trading.exe` (~480 MB). Requires MT5 terminal on the target machine.
+---
 
 ## Project Structure
 
 ```
 SMC-SYSTEMS/
-├── agents/             # ICT, Wyckoff, Structure, Decision agents + orchestrator
-├── adapters/           # Harness adapters (signal, risk, backtest, MT5, etc.)
-├── backtest/           # Backtest engine + validation (MT5 comparison, report generator)
-├── data/               # MT5 connector, parquet raw data, ML datasets
-├── desktop/            # PySide6 UI (main_window, chart, control, dashboard, positions, etc.)
-├── detectors/          # BOS, CHOCH, FVG, OB, displacement, zones, trend
-├── features/           # Feature engineering engine (30+ features)
-├── fixtures/           # Test fixtures (synthetic OHLCV)
-├── governance/         # Model registry, retraining scheduler, auto-report generator
-├── harness/            # Harness-first testing (runners, scenarios, validators, fixtures, reports)
-├── integration/        # MT5 ZeroMQ bridge (exporter, receiver, orchestrator, schema)
-├── ml/                 # ML pipeline (trainer, validator, walk_forward, tuner, stats_validator)
-├── models/             # Production model artifacts
-├── monitoring/         # Drift detection (PSI), alerting, equity telemetry, dashboard
-├── MQL5/               # MQL5 EA bridge (compiled .ex5 + source)
-├── orchestration/      # LangGraph backtest validation graph + harness adapter
-├── paper_trading/      # Runner, models, persistence
-├── results/            # Backtest metrics, equity curves, trade CSVs
-├── risk/               # Risk governor state machine, sizer, thresholds
-├── scripts/            # CLI entry points (run_desktop, run_paper_trading, run_live, etc.)
-├── signals/            # Signal pipeline (confluence scoring, filters)
-├── tests/              # 19 pytest test files
-├── docs/               # Documentation
-│   ├── AGENT_ARCHITECTURE.md
-│   ├── CRONOGRAMA_Y_ROADMAP.md
-│   ├── DEPLOYMENT_GUIDE.md
-│   ├── DESKTOP_UI.md
-│   ├── HOJA_DE_RUTA_SMC-SYSTEMS.md
-│   ├── ICT_RULEBOOK.md
-│   └── WYCKOFF_RULEBOOK.md
-├── indicators.py       # Technical indicators
-├── regime.py           # Market regime classifier
-├── trend_context.py    # Multi-timeframe trend context
-├── _data_legacy.py     # Parquet load with staleness check
-├── _progress.py        # Progress tracker
-└── smc_trading.spec    # PyInstaller spec
+├── agents/             # ICT, Wyckoff, Structure, Decision + orchestrator
+├── backtest/           # Combined backtest engine with ML gate
+├── data/               # MT5 connector, raw parquets, ML datasets
+├── desktop/            # PySide6 UI, workers, single-instance, crash logging
+├── detectors/          # BOS, CHOCH, FVG, OB, displacement, zones
+├── features/           # FeatureEngine (30+ features for ML)
+├── governance/         # Model registry, retraining scheduler
+├── harness/            # Harness-first testing framework
+├── integration/        # MT5 ZeroMQ bridge
+├── ml/                 # Dataset, trainer, inference, walk-forward, tuner, stats
+├── monitoring/         # Drift detection (PSI), alerts, telemetry
+├── MQL5/               # MQL5 EA bridge
+├── paper_trading/      # Runner (PAPER/LIVE), models, persistence
+├── risk/               # Governor, sizer, dynamic thresholds
+├── scripts/            # CLI entry points (see table below)
+├── signals/            # Scalping pipeline + ScalpingConfig
+├── tests/              # 21 pytest modules
+└── docs/               # Architecture, rulebooks, deployment guide
 ```
+
+### Key scripts
+
+| Script | Purpose |
+|--------|---------|
+| `run_desktop.py` | Desktop UI entry point |
+| `start_desktop.bat` | Launch UI via `pythonw` (no console) |
+| `run_paper_trading.py` | Headless paper loop |
+| `run_live_trading.py` | Live / paper CLI runner |
+| `run_ml_pipeline.py` | Full ML train + verify pipeline |
+| `build_v4.py` | Build v4 ML dataset only |
+| `walk_forward_quick.py` | Walk-forward report |
+| `stats_validate.py` | Standalone statistical validation |
+
+---
 
 ## Running Tests
 
@@ -182,35 +250,62 @@ SMC-SYSTEMS/
 pytest tests/ -v
 ```
 
+ML-focused subset:
+
+```bash
+pytest tests/test_ml_inference.py tests/test_ml_stats_validator.py tests/test_ml_train.py -q
+```
+
+---
+
 ## Harness
 
 ```bash
 python -m harness
 ```
 
-11 registered adapters with 14 scenarios across all modules.
+11 registered adapters with 14 scenarios.
+
+---
+
+## Packaging
+
+```bash
+pip install pyinstaller
+pyinstaller smc_trading.spec
+```
+
+Output: `dist/SMC_Trading.exe`. Requires MT5 on the target machine.
+
+---
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Roadmap y Cronograma](docs/CRONOGRAMA_Y_ROADMAP.md) | Plan de trabajo priorizado |
-| [Hoja de Ruta](docs/HOJA_DE_RUTA_SMC-SYSTEMS.md) | Visión, principios, hitos |
+| [COMPLETION_REPORT.md](COMPLETION_REPORT.md) | Pipeline wiring, backtest metrics, entry protocol |
 | [Agent Architecture](docs/AGENT_ARCHITECTURE.md) | Agent system design |
-| [Desktop UI](docs/DESKTOP_UI.md) | Full desktop UI reference |
-| [ICT Rulebook](docs/ICT_RULEBOOK.md) | ICT concept specifications |
-| [Wyckoff Rulebook](docs/WYCKOFF_RULEBOOK.md) | Wyckoff concept specifications |
-| [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | VPS, systemd, NSSM, monitoring (pending) |
+| [Desktop UI](docs/DESKTOP_UI.md) | UI reference |
+| [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | VPS, systemd, NSSM |
+| [ICT Rulebook](docs/ICT_RULEBOOK.md) | ICT specifications |
+| [Wyckoff Rulebook](docs/WYCKOFF_RULEBOOK.md) | Wyckoff specifications |
+| [Roadmap](docs/CRONOGRAMA_Y_ROADMAP.md) | Prioritized work plan |
 
-## Status
+---
 
-- **Core pipeline & UI**: ✅ Complete
-- **ML, backtest, entry protocol**: ✅ Complete (WR 63.74%, PF 1.61, Sharpe 3.33, DD 4.96%)
-- **MT5 bridge & MQL5 EA**: ✅ Complete
-- **Production monitoring & governance**: ✅ Complete
-- **Stochastic exhaustion detection**: ✅ Implemented in Wyckoff agent
-- **Parameter tuning (Optuna)**: ⬜ Pending
-- **Robust validation (PurgedKFold, CVaR, DSR, PBO)**: ⬜ Pending
-- **Deployment guide (F8)**: ⬜ Postponed — last priority
+## Current Status (2026-07)
 
-Overall: ~75% toward production-ready.
+| Component | State |
+|-----------|-------|
+| Signal pipeline + agents | ✅ Complete |
+| Backtest (4 symbols, ML) | ✅ WR 63.7%, PF 1.61, Sharpe 3.33, DD 4.96% |
+| ML inference in trading loop | ✅ Complete |
+| ML training pipeline | ✅ Complete (modest holdout AUC — retrain as data grows) |
+| Desktop UI | ✅ Stable (main-thread chart, single instance) |
+| Statistical validation (CVaR, DSR, PBO, bootstrap) | ✅ Implemented |
+| Optuna tuning | ✅ Implemented |
+| MT5 bridge + MQL5 EA | ✅ Implemented |
+| Production monitoring in live loop | ⚠️ Drift baseline saved on train; live drift check not in runner yet |
+| Deployment automation | ⚠️ Documented; not fully automated |
+
+**Bottom line:** research, backtest, paper, and desktop trading paths are functional end-to-end with ML. Live deployment still requires operational hardening (monitoring in loop, VPS setup, model refresh cadence).
