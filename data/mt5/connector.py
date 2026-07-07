@@ -84,6 +84,10 @@ class MT5Connector:
             mt5.shutdown()
             self._initialized = False
 
+    def reconnect(self) -> None:
+        self.disconnect()
+        self.connect()
+
     def __enter__(self):
         self.connect()
         return self
