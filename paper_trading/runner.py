@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -8,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from data.mt5.connector import MT5Connector, _mt5_timeframe
+from data.mt5.connector import ConnectionConfig, MT5Connector, _mt5_timeframe
 from paper_trading.models import PaperPosition, PositionSide, PositionStatus, TradeMode, TradeRecord
 from paper_trading.persistence import (
     load_governor_state,
@@ -32,6 +33,7 @@ class PaperTradingRunner:
         self,
         symbols: list[str],
         timeframe: str = "M15",
+        connector_config: ConnectionConfig | None = None,
         data_dir: Path = Path("data/raw"),
         state_dir: Path = Path("data/paper_trading"),
         min_confidence: float = 0.65,
@@ -45,6 +47,10 @@ class PaperTradingRunner:
         magic: int = 20260701,
         deviation: int = 10,
         kill_switch_path: Path = Path("data/KILL_SWITCH"),
+        drift_check_enabled: bool = False,
+        drift_baseline_path: Path = Path("ml/models/quality_filter.drift_baseline.json"),
+        drift_threshold: float = 0.2,
+        drift_check_every: int = 60,
     ):
         self.symbols = symbols
         self.timeframe = timeframe
@@ -61,6 +67,7 @@ class PaperTradingRunner:
         self.magic = magic
         self.deviation = deviation
         self.kill_switch_path = kill_switch_path
+        self.connector_config = connector_config or ConnectionConfig()
 
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.state_path = state_dir / "positions.json"
@@ -68,6 +75,34 @@ class PaperTradingRunner:
         self.trades_path = state_dir / "trades.json"
         self.trades_csv_path = state_dir / "trades.csv"
         self.log_path = state_dir / "runner.log"
+
+        # Optional production monitoring: live drift check (PSI) vs the
+        # training baseline. When drift exceeds the threshold the governor is
+        # forced into LOCKDOWN so no new entries are taken on a shifted regime.
+        self.drift_check_enabled = drift_check_enabled
+        self.drift_baseline_path = drift_baseline_path
+        self.drift_threshold = drift_threshold
+        self.drift_check_every = max(1, drift_check_every)
+        self._drift_detector = None
+        self._drift_baseline: dict[str, list[float]] | None = None
+        if self.drift_check_enabled:
+            try:
+                from monitoring.drift_detector import DriftDetector
+
+                self._drift_detector = DriftDetector(threshold=self.drift_threshold)
+                with open(self.drift_baseline_path, "r", encoding="utf-8") as f:
+                    self._drift_baseline = json.load(f)
+                self._log(
+                    f"Drift check ENABLED (threshold={self.drift_threshold}, "
+                    f"every {self.drift_check_every} cycles, "
+                    f"baseline={self.drift_baseline_path.name})"
+                )
+            except Exception as e:
+                self._drift_detector = None
+                self._drift_baseline = None
+                self._log(f"Drift check DISABLED (could not init: {e})")
+        self._drift_cycle = 0
+        self._last_context: dict[str, Any] = {}
 
         self.connector: MT5Connector | None = None
         self.positions: dict[str, PaperPosition] = {}
@@ -141,9 +176,20 @@ class PaperTradingRunner:
     def _reconnect_if_needed(self) -> None:
         import MetaTrader5 as mt5
 
-        if not mt5.terminal_info():
-            self._log("MT5 disconnected — reconnecting...")
-            self.connector.reconnect()
+        if mt5.terminal_info() is not None:
+            return
+
+        self._log("MT5 disconnected — reconnecting...")
+        for attempt in range(1, 4):
+            try:
+                self.connector.reconnect()
+                if mt5.terminal_info() is not None:
+                    self._log("Reconnected successfully")
+                    return
+            except Exception as e:
+                self._log(f"Reconnect attempt {attempt}/3 failed: {e}")
+            time.sleep(3)
+        self._log("WARNING: Could not reconnect to MT5 — data may stall")
 
     def _validate_margin(self, symbol: str, volume: float, price: float) -> bool:
         import MetaTrader5 as mt5
@@ -470,6 +516,8 @@ class PaperTradingRunner:
 
         self._log(f"{symbol} new {self.timeframe} candle")
 
+        self._last_context[symbol] = None
+
         governor_mode = self.governor.mode
         if governor_mode == "LOCKDOWN":
             self._log(f"{symbol} SKIP pipeline — governor LOCKDOWN")
@@ -486,6 +534,7 @@ class PaperTradingRunner:
                 config=self.scalping_config,
                 orchestrator=self._orchestrator,
             )
+            self._last_context[symbol] = context
             if self.scalping_config.use_ml_quality_filter:
                 context = detect_regimes(context)
         except Exception as e:
@@ -572,6 +621,78 @@ class PaperTradingRunner:
         save_trade_log(self.trade_log, self.trades_path)
         save_governor_state(self.governor, self.governor_path)
 
+    def _ensure_mt5_running(self) -> bool:
+        import MetaTrader5 as mt5
+
+        self._log("Connecting to MetaTrader 5...")
+        cfg = self.connector_config
+        init_kwargs: dict[str, Any] = {"timeout": cfg.timeout}
+        if cfg.path:
+            init_kwargs["path"] = cfg.path
+            self._log(f"Terminal path: {cfg.path}")
+
+        for attempt in range(1, 5):
+            if mt5.initialize(**init_kwargs):
+                info = mt5.terminal_info()
+                if info is not None:
+                    terminal = info._asdict() if hasattr(info, '_asdict') else {}
+                    name = terminal.get('name', 'unknown')
+                    self._log(f"MT5 initialized: {name}")
+                    return True
+            code, desc = mt5.last_error()
+            self._log(f"MT5 init attempt {attempt}/4 failed: [{code}] {desc}")
+            if attempt < 4:
+                self._log("Retrying in 3s...")
+                time.sleep(3)
+
+        self._log("ERROR: Could not connect to MetaTrader 5.")
+        self._log("Make sure your Funded Next terminal is open and logged in.")
+        self._log("If the terminal path is custom, pass --mt5-path <path> to the script.")
+        self._log("Common paths:")
+        self._log("  C:\\Program Files\\Funded Next\\terminal64.exe")
+        self._log("  C:\\Program Files\\MetaTrader 5\\terminal64.exe")
+        return False
+
+    def _check_drift(self) -> bool:
+        """Return True if drift forced a LOCKDOWN this cycle.
+
+        Compares the most recent feature distributions of the live context
+        against the training baseline using Population Stability Index.
+        Safe to call when drift check is disabled or baseline unavailable —
+        returns False and does nothing in those cases.
+        """
+        if not self.drift_check_enabled or self._drift_detector is None or self._drift_baseline is None:
+            return False
+
+        self._drift_cycle += 1
+        if self._drift_cycle % self.drift_check_every != 0:
+            return False
+
+        try:
+            recent: dict[str, list[float]] = {}
+            for symbol in self.symbols:
+                ctx = self._last_context.get(symbol) if hasattr(self, "_last_context") else None
+                if ctx is None or len(ctx) == 0:
+                    continue
+                for col, ref in self._drift_baseline.items():
+                    if col in ctx.columns:
+                        series = ctx[col].dropna().astype(float).tolist()
+                        if series:
+                            recent.setdefault(col, []).extend(series)
+            if not recent:
+                return False
+
+            psi = self._drift_detector.check(recent, self._drift_baseline)
+            max_psi = max(psi.values()) if psi else 0.0
+            self._log(f"Drift check: max PSI={max_psi:.4f} (threshold={self.drift_threshold})")
+            if self._drift_detector.is_drift(psi):
+                self._log("DRIFT detected — forcing governor LOCKDOWN")
+                self.governor.mode = "LOCKDOWN"
+                return True
+        except Exception as e:
+            self._log(f"Drift check error (skipped): {e}")
+        return False
+
     def run(self) -> None:
         self.running = True
         mode_label = self.mode.value
@@ -581,7 +702,11 @@ class PaperTradingRunner:
         if self.mode == TradeMode.LIVE:
             self._log(f"LIVE mode active — magic={self.magic} deviation={self.deviation} kill_switch={self.kill_switch_path}")
 
-        with MT5Connector() as connector:
+        if not self._ensure_mt5_running():
+            self.running = False
+            return
+
+        with MT5Connector(self.connector_config) as connector:
             self.connector = connector
 
             info = connector.terminal_info()
@@ -608,6 +733,7 @@ class PaperTradingRunner:
                 while self.running:
                     if self._check_kill_switch():
                         break
+                    self._check_drift()
                     for symbol in self.symbols:
                         try:
                             self._process_symbol(symbol)

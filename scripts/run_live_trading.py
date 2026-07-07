@@ -22,6 +22,13 @@ def main() -> None:
     parser.add_argument("--kill-switch", type=str, default="data/KILL_SWITCH")
     parser.add_argument("--no-ml", action="store_true", help="Disable ML quality filter")
     parser.add_argument("--ml-model", type=str, default="ml/models/quality_filter.pkl")
+    parser.add_argument(
+        "--drift-check",
+        action="store_true",
+        help="Enable live PSI drift monitoring vs training baseline (forces LOCKDOWN on drift)",
+    )
+    parser.add_argument("--drift-threshold", type=float, default=0.2)
+    parser.add_argument("--drift-every", type=int, default=60, help="Check drift every N poll cycles")
     args = parser.parse_args()
 
     scalping = ScalpingConfig(
@@ -39,6 +46,9 @@ def main() -> None:
         deviation=args.deviation,
         kill_switch_path=Path(args.kill_switch),
         scalping_config=scalping,
+        drift_check_enabled=args.drift_check,
+        drift_threshold=args.drift_threshold,
+        drift_check_every=args.drift_every,
     )
     try:
         runner.run()

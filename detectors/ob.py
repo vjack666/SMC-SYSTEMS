@@ -28,8 +28,8 @@ def detect_order_blocks(frame: pd.DataFrame) -> pd.DataFrame:
     data.loc[data["ob_bullish"] | data["ob_bearish"], "ob_top"] = data["high"]
     data.loc[data["ob_bullish"] | data["ob_bearish"], "ob_bottom"] = data["low"]
 
-    ob_highs = data["ob_top"].where(data["ob_bullish"] | data["ob_bearish"]).ffill().infer_objects(copy=False)
-    ob_lows = data["ob_bottom"].where(data["ob_bullish"] | data["ob_bearish"]).ffill().infer_objects(copy=False)
+    ob_highs = data["ob_top"].where(data["ob_bullish"] | data["ob_bearish"]).ffill().infer_objects()
+    ob_lows = data["ob_bottom"].where(data["ob_bullish"] | data["ob_bearish"]).ffill().infer_objects()
     mask = ob_highs.notna()
     high_dist = (data["close"] - ob_highs).abs()
     low_dist = (data["close"] - ob_lows).abs()
