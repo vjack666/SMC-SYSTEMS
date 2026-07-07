@@ -46,6 +46,11 @@ class CombinedBacktestConfig:
     risk_governor: GovernorConfig = GovernorConfig()
     quality_dataset_path: Path = Path("results/ml_trade_dataset.csv")
     dataset_quality_log_path: Path = Path("results/ml_dataset_quality_log.json")
+    # --- Item B: desglose por simbolo + walk-forward OOS ---
+    walk_forward: bool = False
+    n_splits: int = 5
+    purge: int = 48
+    embargo: int = 48
 
 
 @dataclass(frozen=True)
@@ -281,7 +286,7 @@ def _sharpe(pnl_r: pd.Series) -> float:
     return float((pnl_r.mean() / std) * np.sqrt(252.0))
 
 
-def _compute_metrics(trades_df: pd.DataFrame) -> dict[str, float | int]:
+def _compute_metrics(trades_df: pd.DataFrame) -> dict[str, Any]:
     pnl = trades_df["pnl_r"].astype(float)
     equity = pnl.cumsum()
     wins = pnl[pnl > 0.0]
@@ -301,6 +306,41 @@ def _compute_metrics(trades_df: pd.DataFrame) -> dict[str, float | int]:
         "sharpe_ratio": float(_sharpe(pnl)),
         "expectancy_r": float(pnl.mean()),
     }
+
+
+def _compute_metrics_by_symbol(
+    trades_df: pd.DataFrame,
+) -> dict[str, dict[str, float | int]]:
+    """WR / PF / Sharpe / DD POR SIMBOLO, reusando _compute_metrics (Item B)."""
+    out: dict[str, dict[str, float | int]] = {}
+    if "symbol" not in trades_df.columns or trades_df.empty:
+        return out
+    for symbol, grp in trades_df.groupby("symbol", sort=True):
+        out[str(symbol)] = _compute_metrics(grp.reset_index(drop=True))
+    return out
+
+
+def _walkforward_by_symbol(
+    trades_df: pd.DataFrame,
+    n_splits: int = 5,
+    purge: int = 48,
+    embargo: int = 48,
+) -> dict[str, dict[str, float | int]]:
+    """Divide POR TIEMPO (PurgedKFold sobre entry_time) y reporta metricas
+    del fold out-of-sample, luego corta por simbolo (Item B)."""
+    from ml.stats_validator import PurgedKFold
+
+    df = trades_df.sort_values("entry_time").reset_index(drop=True)
+    if df.empty:
+        return {}
+    times = df["entry_time"].values
+    splitter = PurgedKFold(n_splits=n_splits, purge=purge, embargo=embargo)
+    oos_parts: list[pd.DataFrame] = []
+    for _train_idx, val_idx in splitter.split(df, y=None, times=times):
+        oos_parts.append(df.iloc[val_idx])
+    if not oos_parts:
+        return {}
+    return _compute_metrics_by_symbol(pd.concat(oos_parts))
 
 
 def run_combined_backtest(
@@ -490,6 +530,17 @@ def run_combined_backtest(
     trades_df = trades_df.sort_values("entry_time").reset_index(drop=True)
 
     metrics = _compute_metrics(trades_df)
+
+    # --- Item B: desglose por simbolo (inyeccion, engine.py:492) ---
+    metrics["by_symbol"] = _compute_metrics_by_symbol(trades_df)
+    if getattr(config, "walk_forward", False):
+        metrics["by_symbol_oos"] = _walkforward_by_symbol(
+            trades_df,
+            n_splits=int(getattr(config, "n_splits", 5)),
+            purge=int(getattr(config, "purge", 48)),
+            embargo=int(getattr(config, "embargo", 48)),
+        )
+    # --------------------------------------------------------------------
 
     if dataset_rows:
         dataset_df = pd.DataFrame(dataset_rows)

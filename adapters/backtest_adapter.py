@@ -28,6 +28,8 @@ class BacktestAdapter:
                     "status": "ok",
                     "mode": "backtest",
                     "metrics": {k: float(v) if isinstance(v, (int, float)) else v for k, v in metrics.items()},
+                    "metrics_by_symbol": metrics.get("by_symbol", {}),
+                    "metrics_by_symbol_oos": metrics.get("by_symbol_oos", {}),
                     "total_trades": int(len(trades)),
                 }
         except (FileNotFoundError, RuntimeError) as exc:
