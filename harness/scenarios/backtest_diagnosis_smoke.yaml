@@ -1,0 +1,11 @@
+name: backtest diagnosis smoke
+module: backtest
+fixture: backtest_diagnosis_smoke.yaml
+expected:
+  module: backtest
+  status: ok
+  mode: diagnosis
+tags:
+  - smoke
+  - backtest
+  - diagnosis

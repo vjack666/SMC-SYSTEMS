@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import logging
+import os
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
+# Terminal path for mt5.initialize(). Set via env var or before calling load_frame.
+MT5_TERMINAL_PATH: str | None = os.environ.get(
+    "SMC_MT5_TERMINAL",
+    r"C:\Program Files\FundedNext MT5 Terminal\terminal64.exe",
+)
 
 TF_MAP: dict[str, int] = {"M1": 1, "M5": 5, "M15": 15, "M30": 30, "H1": 16385, "H4": 16388, "D1": 16408}
 
@@ -32,13 +39,17 @@ def _ensure_symbol_in_market_watch(symbol: str) -> None:
 def _download_frame(data_dir: Path, symbol: str, timeframe: str) -> pd.DataFrame:
     import MetaTrader5 as mt5
 
+    if not mt5.initialize(path=MT5_TERMINAL_PATH):
+        raise RuntimeError(f"MT5 initialize failed for {MT5_TERMINAL_PATH}")
+
     tf_val = TF_MAP.get(timeframe.upper())
     if tf_val is None:
         raise ValueError(f"Unsupported timeframe: {timeframe}")
 
     _ensure_symbol_in_market_watch(symbol)
-    count = 500 if timeframe.upper() in ("D1", "H4") else 1500
-    rates = mt5.copy_rates_from_pos(symbol, tf_val, 0, count)
+    rates = mt5.copy_rates_range(symbol, tf_val, datetime(2020, 1, 1), datetime(2026, 7, 7))
+    if rates is None or len(rates) == 0:
+        rates = mt5.copy_rates_from_pos(symbol, tf_val, 0, 50_000)
     if rates is None or len(rates) == 0:
         raise RuntimeError(f"No data for {symbol} {timeframe}")
 
@@ -59,7 +70,8 @@ def _is_stale(frame: pd.DataFrame, timeframe: str, max_stale_hours: float | None
     return hours_since > threshold
 
 
-def load_frame(data_dir: Path, symbol: str, timeframe: str, auto_download: bool = True, max_stale_hours: float | None = None) -> pd.DataFrame:
+def load_frame(data_dir: Path | str, symbol: str, timeframe: str, auto_download: bool = True, max_stale_hours: float | None = None) -> pd.DataFrame:
+    data_dir = Path(data_dir)
     path = data_dir / f"{symbol}_{timeframe}.parquet"
     if not path.exists():
         if auto_download:

@@ -102,8 +102,10 @@ def build_trend_context_frame(
         }
     )
 
+    ltf_frame = ltf_frame.reset_index(drop=True)
     ltf = _build_tf_state(ltf_frame, slope_bars=6, structure_bars=12)
     atr_safe = ltf["atr"].replace(0.0, np.nan)
+
     momentum = _clip((ltf_frame["close"] - ltf_frame["close"].shift(3)) / (atr_safe * 3.0))
     acceleration = _clip(momentum.diff(3).fillna(0.0))
 
@@ -125,6 +127,7 @@ def build_trend_context_frame(
         + 0.15 * micro_structure.fillna(0.0)
         + 0.10 * (pullback_quality * np.sign(ltf["direction_score"]).fillna(0.0))
     )
+    # ltf_score already shares RangeIndex with ltf_frame and ltf
 
     base = pd.DataFrame({"time": pd.to_datetime(ltf_frame["time"], utc=True)})
     base = pd.merge_asof(base.sort_values("time"), d1_state.sort_values("time"), on="time", direction="backward")
@@ -133,17 +136,16 @@ def build_trend_context_frame(
     htf_score = _clip((base["d1_score"].fillna(0.0) * 0.60) + (base["h4_score"].fillna(0.0) * 0.40))
     htf_strength = ((base["d1_strength"].fillna(0.0) * 0.60) + (base["h4_strength"].fillna(0.0) * 0.40)).clip(0.0, 100.0)
     htf_bias = _to_bias(htf_score)
-
     ltf_bias = _to_bias(ltf_score)
+
+    htf_arr = htf_bias.to_numpy()
+    ltf_arr = ltf_bias.to_numpy()
+    both_directional = np.isin(htf_arr, ["BULLISH", "BEARISH"]) & np.isin(ltf_arr, ["BULLISH", "BEARISH"])
     trend_alignment = pd.Series(
         np.where(
-            (htf_bias == ltf_bias) & htf_bias.isin(["BULLISH", "BEARISH"]),
+            (htf_arr == ltf_arr) & np.isin(htf_arr, ["BULLISH", "BEARISH"]),
             "ALIGNED",
-            np.where(
-                htf_bias.isin(["BULLISH", "BEARISH"]) & ltf_bias.isin(["BULLISH", "BEARISH"]),
-                "DIVERGENT",
-                "NEUTRAL",
-            ),
+            np.where(both_directional, "DIVERGENT", "NEUTRAL"),
         ),
         index=base.index,
         dtype=object,
