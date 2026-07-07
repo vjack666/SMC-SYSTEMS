@@ -1,0 +1,34 @@
+[
+  {
+    "scenario": {
+      "name": "feature enrichment sweep + OTE baseline (prevalencia data/raw H4)",
+      "module": "feature_enrichment",
+      "fixture": "feature_enrichment_sweep_ote_baseline_fixture.yaml",
+      "expected": {
+        "module": "feature_enrichment",
+        "status": "ok",
+        "features": {
+          "liquidity_sweeps": {
+            "implementation": "active"
+          },
+          "premium_discount_arrays": {
+            "implementation": "active"
+          }
+        }
+      },
+      "tags": [
+        "smoke",
+        "feature_enrichment",
+        "item-d",
+        "baseline"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 10898.45580002293,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  }
+]

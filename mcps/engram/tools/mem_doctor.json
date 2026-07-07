@@ -1,0 +1,18 @@
+{
+  "name": "mem_doctor",
+  "description": "Run read-only operational diagnostics. Returns the same structured envelope as `engram doctor --json`.",
+  "inputSchema": {
+    "properties": {
+      "check": {
+        "description": "Optional diagnostic check code to run",
+        "type": "string"
+      },
+      "project": {
+        "description": "Project to diagnose (omit for auto-detect)",
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
+}

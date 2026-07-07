@@ -1,0 +1,16 @@
+name: backtest detector invalidation (data/raw H4, sin MT5) — Ítem E
+module: backtest
+fixture: backtest_detector_invalidation_fixture.yaml
+expected:
+  module: backtest
+  status: ok
+  # NOTA: el adapter 'backtest' actual IGNORA detector_invalidation (no cableado).
+  # Este escenario es ejecutable SOLO tras aplicar el Ítem E a detectors/* y signals/pipeline.py.
+  # La aserción 'ok' verifica que el barrido corre; el análisis de PF/WR/trade-count por
+  # variante vive en el reporte JSON del adapter, no en 'expected'.
+tags:
+  - backtest
+  - item-e
+  - detector-invalidation
+  - raw-dataset
+  - no-mt5

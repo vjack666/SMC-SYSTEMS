@@ -1,0 +1,37 @@
+{
+  "name": "mem_judge",
+  "description": "Record a verdict on a pending memory conflict surfaced by mem_save.\n\nWHEN TO CALL: After mem_save returns judgment_required=true, iterate candidates[] and call mem_judge once per entry using that entry's judgment_id.\n\nPARAMS:\n  judgment_id (required) — from candidates[].judgment_id in the mem_save response\n  relation    (required) — one of: related, compatible, scoped, conflicts_with, supersedes, not_conflict\n  reason      (optional) — free-text explanation of the verdict\n  evidence    (optional) — JSON or text supporting the verdict\n  confidence  (optional) — float 0..1; default 1.0\n\nWHEN TO ASK USER:\n  - confidence < 0.7: surface to user before judging\n  - relation in {supersedes, conflicts_with} AND type in {architecture, policy, decision}: ask user\n  - otherwise: resolve silently\n\nSUCCESS: Returns the updated relation row with judgment_status=\"judged\".\nERROR: Returns IsError=true if judgment_id is unknown or relation verb is invalid. Row is NOT mutated on error.\n\nRe-judging an already-judged ID overwrites the verdict (deliberate revision).",
+  "inputSchema": {
+    "properties": {
+      "confidence": {
+        "description": "Confidence score 0.0..1.0 (default: 1.0)",
+        "type": "number"
+      },
+      "evidence": {
+        "description": "Supporting evidence (JSON or free text)",
+        "type": "string"
+      },
+      "judgment_id": {
+        "description": "The judgment_id from candidates[] in the mem_save response (format: rel-<hex>)",
+        "type": "string"
+      },
+      "reason": {
+        "description": "Free-text explanation of the verdict",
+        "type": "string"
+      },
+      "relation": {
+        "description": "Verdict: related | compatible | scoped | conflicts_with | supersedes | not_conflict",
+        "type": "string"
+      },
+      "session_id": {
+        "description": "Session ID for provenance (default: auto)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "judgment_id",
+      "relation"
+    ],
+    "type": "object"
+  }
+}

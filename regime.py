@@ -39,15 +39,15 @@ def detect_regimes(frame: pd.DataFrame, cfg: RegimeConfig | None = None) -> pd.D
         cfg = RegimeConfig()
 
     out = frame.copy()
-    atr_ratio = pd.to_numeric(out.get("atr_ratio", 0.0), errors="coerce").fillna(0.0)
-    ema_fast = pd.to_numeric(out.get("ema_fast", out.get("close", 0.0)), errors="coerce").fillna(0.0)
-    ema_slow = pd.to_numeric(out.get("ema_slow", out.get("close", 0.0)), errors="coerce").fillna(0.0)
-    close = pd.to_numeric(out.get("close", 0.0), errors="coerce").fillna(0.0)
+    atr_ratio = pd.to_numeric(out.get("atr_ratio", pd.Series(0.0, index=out.index)), errors="coerce").fillna(0.0)
+    ema_fast = pd.to_numeric(out.get("ema_fast", out.get("close", pd.Series(0.0, index=out.index))), errors="coerce").fillna(0.0)
+    ema_slow = pd.to_numeric(out.get("ema_slow", out.get("close", pd.Series(0.0, index=out.index))), errors="coerce").fillna(0.0)
+    close = pd.to_numeric(out.get("close", pd.Series(0.0, index=out.index)), errors="coerce").fillna(0.0)
 
     ema_distance = (ema_fast - ema_slow).abs()
     ema_slope = ema_fast.diff(5).fillna(0.0)
     directional_eff = _directional_efficiency(close, window=20)
-    range_vs_atr = ((pd.to_numeric(out.get("high", 0.0), errors="coerce") - pd.to_numeric(out.get("low", 0.0), errors="coerce")) / pd.to_numeric(out.get("atr", 1.0), errors="coerce").replace(0.0, np.nan)).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    range_vs_atr = ((pd.to_numeric(out.get("high", pd.Series(0.0, index=out.index)), errors="coerce") - pd.to_numeric(out.get("low", pd.Series(0.0, index=out.index)), errors="coerce")) / pd.to_numeric(out.get("atr", pd.Series(1.0, index=out.index)), errors="coerce").replace(0.0, np.nan)).replace([np.inf, -np.inf], np.nan).fillna(0.0)
     compression = range_vs_atr.rolling(10).mean().fillna(range_vs_atr)
 
     regime = pd.Series("RANGING", index=out.index, dtype=object)

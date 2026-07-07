@@ -1,0 +1,11 @@
+name: backtest ml quality filter OFF (dataset grande data/raw H4)
+module: backtest
+fixture: backtest_ml_off_raw_fixture.yaml
+expected:
+  module: backtest
+  status: ok
+tags:
+  - backtest
+  - ml-isolation
+  - item-a
+  - raw-dataset

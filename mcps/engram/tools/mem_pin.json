@@ -1,0 +1,16 @@
+{
+  "name": "mem_pin",
+  "description": "Pin a local observation so it appears before recent observations in memory context. Pinned state is local to this device and is not synced.",
+  "inputSchema": {
+    "properties": {
+      "id": {
+        "description": "Observation ID to pin",
+        "type": "number"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "type": "object"
+  }
+}

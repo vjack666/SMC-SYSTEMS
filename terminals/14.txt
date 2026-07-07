@@ -1,0 +1,8 @@
+---
+pid: 5860
+cwd: "C:\Users\v_jac\Desktop\SMC-SYSTEMS"
+command: "pip install xgboost pyarrow scipy -q"
+started_at: 2026-07-06T15:51:55.452Z
+running_for_ms: 13070007 
+---
+WARNING: Cache entry deserialization failed, entry ignored

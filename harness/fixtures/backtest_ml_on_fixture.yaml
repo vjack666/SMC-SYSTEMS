@@ -1,0 +1,8 @@
+events: []
+parameters:
+  mode: backtest
+  config:
+    symbols: [EURUSD]
+    timeframe: M15
+    use_ml_quality_filter: true
+    max_bars: 5000

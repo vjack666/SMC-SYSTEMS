@@ -95,6 +95,8 @@ def build_scalping_context(
     data["stoch_d"] = stoch["stoch_d"]
 
     macro = build_trend_context_frame(symbol=symbol, ltf_frame=data, data_dir=data_dir)
+    data["time"] = pd.to_datetime(data["time"].values.astype("datetime64[ns]"), utc=True)
+    macro["time"] = pd.to_datetime(macro["time"].values.astype("datetime64[ns]"), utc=True)
     data = pd.merge_asof(data.sort_values("time"), macro.sort_values("time"), on="time", direction="backward")
 
     macro_direction = np.where(

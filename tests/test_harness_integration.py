@@ -7,7 +7,7 @@ import pytest
 from harness.contracts import HarnessEvent, Scenario
 from harness.runners.scenario_runner import ScenarioRunner
 from harness.scenarios.loader import load_scenarios
-from adapters import RiskGovernorAdapter, SignalAdapter
+from adapters import BacktestAdapter, RiskGovernorAdapter, SignalAdapter
 
 
 class TestRiskGovernorHarness:
@@ -84,5 +84,11 @@ class TestScenarioRunner:
     def test_risk_lockdown_scenario(self):
         scenarios = load_scenarios(HARNESS_SCENARIOS / "risk_lockdown.yaml")
         runner = ScenarioRunner({"risk_governor": RiskGovernorAdapter()})
+        result = runner.run(scenarios[0])
+        assert result.status == "passed"
+
+    def test_backtest_diagnosis_scenario(self):
+        scenarios = load_scenarios(HARNESS_SCENARIOS / "backtest_diagnosis_smoke.yaml")
+        runner = ScenarioRunner({"backtest": BacktestAdapter()})
         result = runner.run(scenarios[0])
         assert result.status == "passed"

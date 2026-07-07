@@ -1,0 +1,24 @@
+name: backtest symbol breakdown + OOS walk-forward (Item B) — data/raw H4, sin MT5
+module: backtest
+fixture: backtest_symbol_breakdown_fixture.yaml
+expected:
+  module: backtest
+  status: ok
+  mode: backtest
+  metrics_by_symbol:
+    EURUSD: {}
+    GBPUSD: {}
+    NZDUSD: {}
+    USDCHF: {}
+  metrics_by_symbol_oos:
+    EURUSD: {}
+    GBPUSD: {}
+    NZDUSD: {}
+    USDCHF: {}
+tags:
+  - backtest
+  - item-b
+  - symbol-breakdown
+  - walk-forward
+  - oos
+  - raw-dataset

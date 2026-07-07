@@ -1,0 +1,40 @@
+{
+  "name": "mem_compare",
+  "description": "Persist a semantic verdict you have already judged externally (with your LLM) into Engram.\n\nWHEN TO CALL: After you have evaluated two memories and reached a verdict, call mem_compare to PERSIST that verdict into the relation store. You do the judgment; mem_compare records it.\n\nPARAMS:\n  memory_id_a  (required) — integer id of the first observation (from mem_search or mem_get_observation)\n  memory_id_b  (required) — integer id of the second observation\n  relation     (required) — one of: related, compatible, scoped, conflicts_with, supersedes, not_conflict\n  confidence   (required) — float 0..1; your self-reported confidence in the verdict\n  reasoning    (required) — explanation of the verdict, max 200 chars\n  model        (optional) — your model identifier, stored for provenance (e.g. \"claude-haiku-4-5\")\n\nBEHAVIOR:\n  - Persists the verdict via JudgeBySemantic with system provenance (marked_by_actor=\"engram\").\n  - not_conflict: no row is inserted; tool returns success with empty sync_id (the verdict is recorded but not stored — it means \"we evaluated these and they do not conflict\").\n  - Idempotent: calling again for the same pair updates the existing row.\n  - Cross-project pairs are rejected.\n\nSUCCESS: Returns { \"sync_id\": \"rel-...\" } on persist, { \"sync_id\": \"\" } on not_conflict.\nERROR: Returns IsError=true if IDs are unknown, relation is invalid, or cross-project pair.",
+  "inputSchema": {
+    "properties": {
+      "confidence": {
+        "description": "Confidence score 0.0..1.0",
+        "type": "number"
+      },
+      "memory_id_a": {
+        "description": "Integer id of the first observation (from mem_search #id)",
+        "type": "number"
+      },
+      "memory_id_b": {
+        "description": "Integer id of the second observation (from mem_search #id)",
+        "type": "number"
+      },
+      "model": {
+        "description": "Your model identifier for provenance (e.g. \"claude-haiku-4-5\")",
+        "type": "string"
+      },
+      "reasoning": {
+        "description": "Brief explanation of the verdict (max 200 chars)",
+        "type": "string"
+      },
+      "relation": {
+        "description": "Verdict: related | compatible | scoped | conflicts_with | supersedes | not_conflict",
+        "type": "string"
+      }
+    },
+    "required": [
+      "memory_id_a",
+      "memory_id_b",
+      "relation",
+      "confidence",
+      "reasoning"
+    ],
+    "type": "object"
+  }
+}

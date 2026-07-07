@@ -1,0 +1,35 @@
+{
+  "raw_signals": 2814,
+  "pass_ml": 2713,
+  "ml_off_trades": 261,
+  "per_symbol": {
+    "EURUSD": [
+      354,
+      343
+    ],
+    "GBPUSD": [
+      325,
+      316
+    ],
+    "XAUUSD": [
+      648,
+      618
+    ],
+    "NZDUSD": [
+      309,
+      296
+    ],
+    "USDCAD": [
+      334,
+      328
+    ],
+    "USDCHF": [
+      323,
+      312
+    ],
+    "USDJPY": [
+      521,
+      500
+    ]
+  }
+}

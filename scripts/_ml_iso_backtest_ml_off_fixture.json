@@ -1,0 +1,15 @@
+{
+  "fixture": "backtest_ml_off_fixture.yaml",
+  "use_ml_quality_filter": false,
+  "metrics": {
+    "total_trades": 60.0,
+    "win_rate": 0.65,
+    "profit_factor": 1.20811499774016,
+    "max_drawdown_r": -4.0,
+    "max_drawdown_pct": 4.0,
+    "max_daily_drawdown_pct": 4.0,
+    "sharpe_ratio": 1.3436675690947015,
+    "expectancy_r": 0.058057033825769856
+  },
+  "total_trades": 60
+}

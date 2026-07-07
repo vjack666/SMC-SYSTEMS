@@ -1,0 +1,10 @@
+name: backtest ml quality filter ON
+module: backtest
+fixture: backtest_ml_on_fixture.yaml
+expected:
+  module: backtest
+  status: ok
+tags:
+  - backtest
+  - ml-isolation
+  - item-a

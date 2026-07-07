@@ -1,0 +1,52 @@
+========================================================================
+GOVERNANCE AUTO-REPORT — 2026-07-06 19:38:49
+========================================================================
+
+1. EXECUTIVE SUMMARY
+----------------------------------------
+  Overall Status:       DEGRADED
+  Active Alerts:        0
+  Drift Detected:       False
+  Retraining Needed:    True
+
+2. PERFORMANCE
+----------------------------------------
+  Sharpe Ratio:         1.3
+  Sortino Ratio:        1.6
+  Max Drawdown:         N/A
+  Win Rate:             0.56
+  Profit Factor:        1.9
+
+3. DRIFT ANALYSIS
+----------------------------------------
+  No drift features reported.
+
+4. MODEL REGISTRY
+----------------------------------------
+  smc_v1 v1.0.0  sharpe=1.2       created=2026-07-02T15:37:03
+  smc_v1 v1.1.0  sharpe=1.5       created=2026-07-02T15:37:03
+  smc_v1 v1.0.0  sharpe=1.2       created=2026-07-02T15:38:48
+  smc_v1 v1.1.0  sharpe=1.5       created=2026-07-02T15:38:48
+  smc_v1 v1.0.0  sharpe=1.2       created=2026-07-02T17:11:19
+  smc_v1 v1.1.0  sharpe=1.5       created=2026-07-02T17:11:19
+  smc_v1 v1.0.0  sharpe=1.2       created=2026-07-02T17:24:09
+  smc_v1 v1.1.0  sharpe=1.5       created=2026-07-02T17:24:09
+  quality_filter v2026-07-04T21-18-08-468228+00-00  sharpe=?         created=2026-07-04T21:18:08.468228+00:00
+  quality_filter v2026-07-04T21-21-50-917508+00-00  sharpe=?         created=2026-07-04T21:21:50.917508+00:00
+  xgboost v2025-01-01T00-00-00Z  sharpe=?         created=2025-01-01T00:00:00Z
+  xgboost v2025-01-01T00-00-00Z  sharpe=?         created=2025-01-01T00:00:00Z
+  xgboost v2025-01-01T00-00-00Z  sharpe=?         created=2025-01-01T00:00:00Z
+  xgboost v2025-01-01T00-00-00Z  sharpe=?         created=2025-01-01T00:00:00Z
+  quality_filter v2026-07-06T16-06-40-985000+00-00  sharpe=?         created=2026-07-06T16:06:40.985000+00:00
+  smc_v1 v1.0.0  sharpe=1.2       created=2026-07-06T19:38:49
+  smc_v1 v1.1.0  sharpe=1.5       created=2026-07-06T19:38:49
+
+5. RECENT ALERTS (last 10)
+----------------------------------------
+  No recent alerts.
+
+6. RECOMMENDATIONS
+----------------------------------------
+  - Trigger model retraining based on degradation or trade volume.
+
+========================================================================

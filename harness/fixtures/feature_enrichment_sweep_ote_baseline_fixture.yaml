@@ -1,0 +1,8 @@
+# Fixture de prevalencia REAL (ejecutable HOY vía adapter feature_enrichment).
+# Mide sobre data/raw H4 cuánto sweep y qué distribución de zonas OTE/premium-discount
+# existen, para interpretar el efecto de la ablación backtest del Ítem D.
+events: []
+parameters:
+  symbol: EURUSD
+  timeframe: H4
+  data_dir: data/raw

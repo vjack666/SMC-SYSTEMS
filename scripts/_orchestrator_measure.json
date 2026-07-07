@@ -1,0 +1,42 @@
+{
+  "min_confidence": 0.52,
+  "total_no_orch": 2749,
+  "total_with_orch": 2814,
+  "per_symbol": {
+    "EURUSD": {
+      "signals_no_orch": 348,
+      "signals_with_orch": 354,
+      "ratio": 1.017
+    },
+    "GBPUSD": {
+      "signals_no_orch": 321,
+      "signals_with_orch": 325,
+      "ratio": 1.012
+    },
+    "XAUUSD": {
+      "signals_no_orch": 626,
+      "signals_with_orch": 648,
+      "ratio": 1.035
+    },
+    "NZDUSD": {
+      "signals_no_orch": 301,
+      "signals_with_orch": 309,
+      "ratio": 1.027
+    },
+    "USDCAD": {
+      "signals_no_orch": 330,
+      "signals_with_orch": 334,
+      "ratio": 1.012
+    },
+    "USDCHF": {
+      "signals_no_orch": 316,
+      "signals_with_orch": 323,
+      "ratio": 1.022
+    },
+    "USDJPY": {
+      "signals_no_orch": 507,
+      "signals_with_orch": 521,
+      "ratio": 1.028
+    }
+  }
+}

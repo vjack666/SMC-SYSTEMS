@@ -1,0 +1,311 @@
+[
+  {
+    "scenario": {
+      "name": "echo smoke",
+      "module": "echo",
+      "fixture": "echo_fixture.yaml",
+      "expected": {
+        "module": "echo",
+        "event_names": [
+          "market.tick"
+        ]
+      },
+      "tags": [
+        "smoke",
+        "golden"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.013499986380338669,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: echo"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "feature enrichment smoke",
+      "module": "feature_enrichment",
+      "fixture": "feature_enrichment_smoke.yaml",
+      "expected": {
+        "module": "feature_enrichment",
+        "status": "ok",
+        "features": {
+          "liquidity_sweeps": {
+            "implementation": "active"
+          },
+          "inducements": {
+            "implementation": "active"
+          },
+          "displacement": {
+            "implementation": "active"
+          },
+          "premium_discount_arrays": {
+            "implementation": "active"
+          },
+          "regime_labels": {
+            "implementation": "active"
+          },
+          "interaction_features": {
+            "implementation": "active"
+          }
+        }
+      },
+      "tags": [
+        "smoke",
+        "feature_enrichment"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.0018998980522155762,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: feature_enrichment"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "governance smoke",
+      "module": "governance",
+      "fixture": "governance_smoke.yaml",
+      "expected": {
+        "module": "governance",
+        "status": "completed",
+        "models_count": 2
+      },
+      "tags": [
+        "smoke",
+        "governance",
+        "f16"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.00090012326836586,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: governance"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "langgraph validation smoke",
+      "module": "langgraph_validation",
+      "fixture": "langgraph_validation_smoke.yaml",
+      "expected": {
+        "module": "langgraph_validation",
+        "status": "report_generated"
+      },
+      "tags": [
+        "smoke",
+        "langgraph",
+        "f7"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.000600004568696022,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: langgraph_validation"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "monitoring smoke",
+      "module": "monitoring",
+      "fixture": "monitoring_smoke.yaml",
+      "expected": {
+        "module": "monitoring",
+        "status": "completed",
+        "drift_detected": false
+      },
+      "tags": [
+        "smoke",
+        "monitoring",
+        "f15"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.000600004568696022,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: monitoring"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "mt5 bridge smoke",
+      "module": "mt5_bridge",
+      "fixture": "mt5_bridge_smoke.yaml",
+      "expected": {
+        "module": "mt5_bridge",
+        "status": "ok",
+        "signal_sent": "harness_test",
+        "heartbeat_status": "ALIVE"
+      },
+      "tags": [
+        "smoke",
+        "mt5_bridge"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.000600004568696022,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: mt5_bridge"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "mt5 ea smoke",
+      "module": "mt5_ea",
+      "fixture": "mt5_ea_smoke.yaml",
+      "expected": {
+        "module": "mt5_ea",
+        "status": "ok",
+        "signal_id": "harness_ea_test"
+      },
+      "tags": [
+        "smoke",
+        "mt5_ea"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.000500120222568512,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: mt5_ea"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "paper_trading_smoke",
+      "module": "paper_trading",
+      "fixture": "paper_trading_smoke.yaml",
+      "expected": {
+        "module": "paper_trading",
+        "status": "configured"
+      },
+      "tags": [
+        "smoke",
+        "paper_trading"
+      ]
+    },
+    "status": "passed",
+    "elapsed_ms": 0.6713001057505608,
+    "metrics": {
+      "event_count": 0,
+      "error_count": 0
+    },
+    "errors": []
+  },
+  {
+    "scenario": {
+      "name": "risk governor caution",
+      "module": "risk_governor",
+      "fixture": "risk_caution_fixture.yaml",
+      "expected": {
+        "module": "risk_governor",
+        "status": "ok",
+        "mode": "CAUTION",
+        "risk_multiplier": 0.75
+      },
+      "tags": [
+        "risk"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.0016998965293169022,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: risk_governor"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "risk governor defensive",
+      "module": "risk_governor",
+      "fixture": "risk_defensive_fixture.yaml",
+      "expected": {
+        "module": "risk_governor",
+        "status": "ok",
+        "mode": "DEFENSIVE",
+        "risk_multiplier": 0.5
+      },
+      "tags": [
+        "risk"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.000700121745467186,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: risk_governor"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "risk governor lockdown",
+      "module": "risk_governor",
+      "fixture": "risk_lockdown_fixture.yaml",
+      "expected": {
+        "module": "risk_governor",
+        "status": "ok",
+        "mode": "LOCKDOWN",
+        "risk_multiplier": 0.0
+      },
+      "tags": [
+        "risk"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.0004998873919248581,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: risk_governor"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "risk governor normal",
+      "module": "risk_governor",
+      "fixture": "risk_smoke_fixture.yaml",
+      "expected": {
+        "module": "risk_governor",
+        "status": "ok",
+        "mode": "NORMAL",
+        "risk_multiplier": 1.0
+      },
+      "tags": [
+        "smoke",
+        "risk"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.0004998873919248581,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: risk_governor"
+    ]
+  },
+  {
+    "scenario": {
+      "name": "signal pipeline smoke",
+      "module": "signal_pipeline",
+      "fixture": "signal_smoke_fixture.yaml",
+      "expected": {
+        "module": "signal_pipeline",
+        "event_names": []
+      },
+      "tags": [
+        "smoke",
+        "signal"
+      ]
+    },
+    "status": "error",
+    "elapsed_ms": 0.0006998889148235321,
+    "metrics": {},
+    "errors": [
+      "Missing adapter for module: signal_pipeline"
+    ]
+  }
+]

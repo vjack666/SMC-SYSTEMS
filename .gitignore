@@ -23,3 +23,9 @@ dist/
 data/tmp_*/
 data/tmp_*/*
 data/mt5/_temp_*
+
+# Binary market data / telemetry (not source — keep repo lean)
+*.parquet
+data/monitoring/
+data/mt5/
+data/paper_trading/

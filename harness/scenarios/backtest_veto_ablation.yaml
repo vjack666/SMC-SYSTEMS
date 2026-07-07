@@ -1,0 +1,12 @@
+name: backtest veto ablation (soft vs hard, data/raw H4, sin MT5)
+module: backtest
+fixture: backtest_veto_ablation_fixture.yaml
+expected:
+  module: backtest
+  status: ok
+tags:
+  - backtest
+  - item-f
+  - veto-ablation
+  - raw-dataset
+  - conflict-resolution

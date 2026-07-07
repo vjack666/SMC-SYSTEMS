@@ -1,0 +1,12 @@
+name: wyckoff bearish exhaustion
+module: wyckoff
+fixture: wyckoff_bearish_fixture.yaml
+expected:
+  module: wyckoff
+  status: ok
+  stoch_exhaustion_type: BEARISH_EXHAUSTION
+  volume_confirmed: true
+tags:
+  - smoke
+  - wyckoff
+  - stochastic

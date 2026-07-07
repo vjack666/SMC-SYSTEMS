@@ -1,0 +1,32 @@
+{
+  "name": "mem_save_prompt",
+  "description": "Save a user prompt to persistent memory. Use this to record what the user asked — their intent, questions, and requests — so future sessions have context about the user's goals.",
+  "inputSchema": {
+    "properties": {
+      "content": {
+        "description": "The user's prompt text",
+        "type": "string"
+      },
+      "project": {
+        "description": "Optional recovery target only after ambiguous_project. Ignored unless project_choice_reason is user_selected_after_ambiguous_project.",
+        "type": "string"
+      },
+      "project_choice_reason": {
+        "description": "Must be user_selected_after_ambiguous_project, and only after the user explicitly chose one of available_projects from an ambiguous_project error.",
+        "type": "string"
+      },
+      "recovery_token": {
+        "description": "Short-lived token returned by an ambiguous_project error. Required with project_choice_reason=user_selected_after_ambiguous_project.",
+        "type": "string"
+      },
+      "session_id": {
+        "description": "Session ID to associate with (default: manual-save-{project})",
+        "type": "string"
+      }
+    },
+    "required": [
+      "content"
+    ],
+    "type": "object"
+  }
+}

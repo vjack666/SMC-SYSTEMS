@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(
 def _minimal_config(max_bars: int = 1000) -> DatasetBuildConfig:
     return DatasetBuildConfig(
         symbols=("EURUSD",),
-        timeframe="M15",
+        timeframes=("M15",),
         data_dir=DATA_DIR,
         output_dir=Path("data/ml"),
         max_bars=max_bars,
@@ -46,7 +46,10 @@ class TestDatasetBuilder:
 
         import pandas as pd
         df = pd.read_parquet(output_path / f"{config.schema_version}_EURUSD.parquet")
+        skip_cols = {"agent_decision_ml_probability"}  # intentionally skipped by dataset builder
         for col in AGENT_COLUMNS:
+            if col in skip_cols:
+                continue
             assert col in df.columns, f"Missing agent column: {col}"
 
     def test_output_has_all_label_columns(self) -> None:

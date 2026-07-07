@@ -1,0 +1,68 @@
+---
+pid: 19328
+cwd: "C:\Users\v_jac\Desktop\SMC-SYSTEMS"
+command: "pip install MetaTrader5 PySide6 pandas numpy pyyaml joblib scikit-learn pyzmq"
+started_at: 2026-07-06T15:18:22.427Z
+running_for_ms: 15085007 
+---
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+WARNING: Cache entry deserialization failed, entry ignored
+  WARNING: The scripts f2py.exe and numpy-config.exe are installed in 'C:\Users\v_jac\AppData\Roaming\Python\Python314\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+  WARNING: The scripts pyside6-assistant.exe, pyside6-balsam.exe, pyside6-balsamui.exe, pyside6-deploy.exe, pyside6-designer.exe, pyside6-genpyi.exe, pyside6-linguist.exe, pyside6-lrelease.exe, pyside6-lupdate.exe, pyside6-metaobjectdump.exe, pyside6-project.exe, pyside6-qml.exe, pyside6-qmlcachegen.exe, pyside6-qmlformat.exe, pyside6-qmlimportscanner.exe, pyside6-qmllint.exe, pyside6-qmlls.exe, pyside6-qmltyperegistrar.exe, pyside6-qsb.exe, pyside6-qtpy2cpp.exe, pyside6-rcc.exe, pyside6-svgtoqml.exe and pyside6-uic.exe are installed in 'C:\Users\v_jac\AppData\Roaming\Python\Python314\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+Defaulting to user installation because normal site-packages is not writeable
+Collecting MetaTrader5
+  Using cached metatrader5-5.0.5735-cp314-cp314-win_amd64.whl.metadata (2.8 kB)
+Collecting PySide6
+  Using cached pyside6-6.11.1-cp310-abi3-win_amd64.whl.metadata (5.5 kB)
+Collecting pandas
+  Using cached pandas-3.0.3-cp314-cp314-win_amd64.whl.metadata (19 kB)
+Collecting numpy
+  Downloading numpy-2.5.1-cp314-cp314-win_amd64.whl.metadata (6.6 kB)
+Requirement already satisfied: pyyaml in C:\Users\v_jac\AppData\Roaming\Python\Python314\site-packages (6.0.3)
+Collecting joblib
+  Using cached joblib-1.5.3-py3-none-any.whl.metadata (5.5 kB)
+Collecting scikit-learn
+  Downloading scikit_learn-1.9.0-cp314-cp314-win_amd64.whl.metadata (11 kB)
+Collecting pyzmq
+  Downloading pyzmq-27.1.0-cp312-abi3-win_amd64.whl.metadata (6.0 kB)
+Collecting shiboken6==6.11.1 (from PySide6)
+  Using cached shiboken6-6.11.1-cp310-abi3-win_amd64.whl.metadata (2.5 kB)
+Collecting PySide6_Essentials==6.11.1 (from PySide6)
+  Using cached pyside6_essentials-6.11.1-cp310-abi3-win_amd64.whl.metadata (3.8 kB)
+Collecting PySide6_Addons==6.11.1 (from PySide6)
+  Using cached pyside6_addons-6.11.1-cp310-abi3-win_amd64.whl.metadata (4.2 kB)
+Collecting python-dateutil>=2.8.2 (from pandas)
+  Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting tzdata (from pandas)
+  Using cached tzdata-2026.2-py2.py3-none-any.whl.metadata (1.4 kB)
+Collecting scipy>=1.10.0 (from scikit-learn)
+  Downloading scipy-1.18.0-cp314-cp314-win_amd64.whl.metadata (61 kB)
+Collecting narwhals>=2.0.1 (from scikit-learn)
+  Downloading narwhals-2.23.0-py3-none-any.whl.metadata (15 kB)
+Collecting threadpoolctl>=3.5.0 (from scikit-learn)
+  Using cached threadpoolctl-3.6.0-py3-none-any.whl.metadata (13 kB)
+Collecting six>=1.5 (from python-dateutil>=2.8.2->pandas)
+  Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Using cached metatrader5-5.0.5735-cp314-cp314-win_amd64.whl (49 kB)
+Using cached pyside6-6.11.1-cp310-abi3-win_amd64.whl (578 kB)
+Using cached pyside6_addons-6.11.1-cp310-abi3-win_amd64.whl (168.8 MB)
+Using cached pyside6_essentials-6.11.1-cp310-abi3-win_amd64.whl (77.5 MB)
+Using cached shiboken6-6.11.1-cp310-abi3-win_amd64.whl (1.2 MB)
+Using cached pandas-3.0.3-cp314-cp314-win_amd64.whl (9.9 MB)
+Downloading numpy-2.5.1-cp314-cp314-win_amd64.whl (12.6 MB)
+Using cached joblib-1.5.3-py3-none-any.whl (309 kB)
+Downloading scikit_learn-1.9.0-cp314-cp314-win_amd64.whl (8.3 MB)
+Downloading pyzmq-27.1.0-cp312-abi3-win_amd64.whl (619 kB)
+Downloading narwhals-2.23.0-py3-none-any.whl (458 kB)
+Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Downloading scipy-1.18.0-cp314-cp314-win_amd64.whl (37.3 MB)
+Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+Using cached threadpoolctl-3.6.0-py3-none-any.whl (18 kB)
+Using cached tzdata-2026.2-py2.py3-none-any.whl (349 kB)
+Installing collected packages: tzdata, threadpoolctl, six, shiboken6, pyzmq, numpy, narwhals, joblib, scipy, python-dateutil, PySide6_Essentials, MetaTrader5, scikit-learn, PySide6_Addons, pandas, PySide6
+Successfully installed MetaTrader5-5.0.5735 PySide6-6.11.1 PySide6_Addons-6.11.1 PySide6_Essentials-6.11.1 joblib-1.5.3 narwhals-2.23.0 numpy-2.5.1 pandas-3.0.3 python-dateutil-2.9.0.post0 pyzmq-27.1.0 scikit-learn-1.9.0 scipy-1.18.0 shiboken6-6.11.1 six-1.17.0 threadpoolctl-3.6.0 tzdata-2026.2

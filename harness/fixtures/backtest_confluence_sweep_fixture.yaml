@@ -1,0 +1,29 @@
+# Fixture para el barrido de pesos de confluencia (Ítem C).
+# SOLO diseño: ejecutable tras aplicar Ítem C a signals/pipeline.py.
+#
+# AVISO OVERFITTING: este sweep es IN-SAMPLE. No fusionar pesos hasta correr
+# walk-forward OOS (PurgedKFold) sobre las mismas ventanas.
+events: []
+parameters:
+  mode: backtest
+  config:
+    data_dir: data/raw
+    symbols: [EURUSD, GBPUSD, XAUUSD, NZDUSD, USDCAD, USDCHF, USDJPY]
+    timeframe: H4
+    use_ml_quality_filter: true
+    max_bars: null
+  # --- Barrido de pesos sobre los filtros REALES de hoy ---
+  # Claves válidas: trend, choch, ob_fvg, bos, swing, agents
+  # (displacement, fvg, sweep, ote requieren Ítem D para existir como filtros)
+  confluence_weight_sweep:
+    - name: baseline
+      # equivale a la suma +1 actual (comportamiento de producción hoy)
+      weights: {trend: 1, choch: 1, ob_fvg: 1, bos: 1, swing: 1, agents: 1}
+    - name: rulebook
+      # pesos del rulebook mapeados a filtros existentes
+      weights: {trend: 3, choch: 3, ob_fvg: 2, bos: 1, swing: 1, agents: 2}
+    - name: ob_fvg_heavy
+      # variante que sobrepone OB/FVG
+      weights: {trend: 2, choch: 2, ob_fvg: 3, bos: 2, swing: 1, agents: 1}
+  # Métrica de éxito del plan: rulebook no debe empeorar PF vs baseline (+1).
+  # El adapter itera confluence_weight_sweep y reporta PF/WR por combinación.

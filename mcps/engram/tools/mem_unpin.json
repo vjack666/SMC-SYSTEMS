@@ -1,0 +1,16 @@
+{
+  "name": "mem_unpin",
+  "description": "Unpin a local observation so it only appears in normal recency order. Pinned state is local to this device and is not synced.",
+  "inputSchema": {
+    "properties": {
+      "id": {
+        "description": "Observation ID to unpin",
+        "type": "number"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "type": "object"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "mem_context",
+  "description": "Get recent memory context from previous sessions. Shows recent sessions and observations to understand what was done before.",
+  "inputSchema": {
+    "properties": {
+      "project": {
+        "description": "Filter by project (omit for all projects)",
+        "type": "string"
+      },
+      "scope": {
+        "description": "Filter observations by scope: project (default) or personal",
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
+}

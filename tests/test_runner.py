@@ -11,6 +11,7 @@ import pytest
 
 from paper_trading.models import PaperPosition, PositionSide, PositionStatus, TradeMode
 from paper_trading.runner import PaperTradingRunner
+from signals.pipeline import ScalpingConfig
 
 CANONICAL_DTYPE = np.dtype([
     ("time", "i8"), ("open", "f8"), ("high", "f8"), ("low", "f8"),
@@ -35,6 +36,7 @@ def runner(tmp_path):
         data_dir=tmp_path,
         kill_switch_path=tmp_path / "KILL_SWITCH",
         max_hold_bars=3,
+        scalping_config=ScalpingConfig(use_ml_quality_filter=False),
     )
 
 

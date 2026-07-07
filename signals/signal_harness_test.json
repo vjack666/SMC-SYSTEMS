@@ -1,0 +1,14 @@
+{
+  "signal_id": "harness_test",
+  "symbol": "EURUSD",
+  "action": "BUY",
+  "order_type": "MARKET",
+  "volume": 0.01,
+  "price": null,
+  "stop_loss": 1.08,
+  "take_profit": 1.1,
+  "comment": "harness smoke test",
+  "magic_number": 0,
+  "timestamp": "2026-07-07T13:13:25.384328",
+  "payload": {}
+}

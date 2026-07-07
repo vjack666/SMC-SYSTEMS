@@ -15,6 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from data.mt5.connector import ConnectionConfig
 from paper_trading.runner import POLL_INTERVAL, PaperTradingRunner
 from signals.pipeline import ScalpingConfig
 
@@ -55,6 +56,8 @@ def main() -> None:
                         help="Disable AI agents (ICT/Wyckoff/Structure)")
     parser.add_argument("--relaxed-bos", action="store_true",
                         help="Use relaxed BOS detection")
+    parser.add_argument("--mt5-path", type=str, default=None,
+                        help="Path to Funded Next / MT5 terminal executable")
 
     args = parser.parse_args()
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
@@ -72,9 +75,12 @@ def main() -> None:
         ml_model_path=args.ml_model,
     )
 
+    connector_config = ConnectionConfig(path=args.mt5_path) if args.mt5_path else None
+
     runner = PaperTradingRunner(
         symbols=symbols,
         timeframe=args.timeframe,
+        connector_config=connector_config,
         data_dir=Path(args.data_dir),
         state_dir=Path(args.state_dir),
         min_confidence=args.min_confidence,

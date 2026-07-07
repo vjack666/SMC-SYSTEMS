@@ -1,0 +1,16 @@
+adapters
+agents
+backtest
+data
+desktop
+detectors
+features
+governance
+harness
+integration
+ml
+monitoring
+orchestration
+paper_trading
+risk
+signals

@@ -1,0 +1,9 @@
+{
+  "symbol": "EURUSD",
+  "timeframe": "H4",
+  "max_bars": null,
+  "with_orchestrator": false,
+  "raw_signals": 348,
+  "pass_ml": 8,
+  "pct": 2.2988505747126435
+}

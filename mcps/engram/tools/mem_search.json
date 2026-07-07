@@ -1,0 +1,40 @@
+{
+  "name": "mem_search",
+  "description": "Search your persistent memory across all sessions. Use this to find past decisions, bugs fixed, patterns used, files changed, or any context from previous coding sessions.",
+  "inputSchema": {
+    "properties": {
+      "all_projects": {
+        "description": "Search across every project instead of the current one. When true, the project argument is ignored and results may come from any project. Useful for recalling decisions logged elsewhere when you don't know the project key.",
+        "type": "boolean"
+      },
+      "limit": {
+        "description": "Max results (default: 10, max: 20)",
+        "type": "number"
+      },
+      "match_mode": {
+        "description": "Token matching: \"all\" (default — every token must match, FTS5 AND) or \"any\" (any token matches — broader recall for multi-token queries). Any other value returns an error.",
+        "type": "string"
+      },
+      "project": {
+        "description": "Filter by project name. Ignored when all_projects=true.",
+        "type": "string"
+      },
+      "query": {
+        "description": "Search query — natural language or keywords",
+        "type": "string"
+      },
+      "scope": {
+        "description": "Filter by scope: project (default) or personal",
+        "type": "string"
+      },
+      "type": {
+        "description": "Filter by type: tool_use, file_change, command, file_read, search, manual, decision, architecture, bugfix, pattern",
+        "type": "string"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  }
+}

@@ -129,7 +129,9 @@ def build_trend_context_frame(
     )
     # ltf_score already shares RangeIndex with ltf_frame and ltf
 
-    base = pd.DataFrame({"time": pd.to_datetime(ltf_frame["time"], utc=True)})
+    base = pd.DataFrame({"time": pd.to_datetime(ltf_frame["time"].values.astype("datetime64[ns]"), utc=True)})
+    d1_state["time"] = pd.to_datetime(d1_state["time"].values.astype("datetime64[ns]"), utc=True)
+    h4_state["time"] = pd.to_datetime(h4_state["time"].values.astype("datetime64[ns]"), utc=True)
     base = pd.merge_asof(base.sort_values("time"), d1_state.sort_values("time"), on="time", direction="backward")
     base = pd.merge_asof(base.sort_values("time"), h4_state.sort_values("time"), on="time", direction="backward")
 

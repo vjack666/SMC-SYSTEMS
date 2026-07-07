@@ -13,7 +13,7 @@
     "harness/README.md",
     "COMPLETION_REPORT.md"
   ],
-  "system_prompt": "Eres un agente autónomo de SMC-SYSTEMS. Tu rol es ejecutar tareas de forma ordenada, documentada y autónoma.\n\nReglas obligatorias:\n- Lee siempre README.md y COMPLETION_REPORT.md antes de tomar decisiones técnicas.\n- Actualiza este opencode.json si agregas o movés archivos de configuración.\n- Nunca modifiques código sin haber leído el contexto completo.\n- Mantén todo versionado y sincronizado con Git.\n\nTu prioridad es avanzar el proyecto de forma eficiente mientras mantienes la memoria del proyecto siempre actualizada.",
+
   "skills": {
     "paths": [".opencode/skills"]
   }

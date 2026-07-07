@@ -1,0 +1,16 @@
+name: backtest sweep + OTE wiring ablation (Ítem D, data/raw H4)
+module: backtest
+fixture: backtest_sweep_ote_wiring_fixture.yaml
+expected:
+  module: backtest
+  status: ok
+  # Tras aplicar Ítem D el adapter debe reportar 3 ramas con PF/WR/n_trades.
+  # Hoy (sin Ítem D) el adapter ignora las claves -> el escenario documenta el diseño.
+  ablation:
+    branches: [without_sweep_ote, with_sweep_only, with_sweep_and_ote]
+tags:
+  - backtest
+  - item-d
+  - sweep-ote
+  - raw-dataset
+  - ablation

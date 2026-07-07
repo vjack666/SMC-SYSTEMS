@@ -1,0 +1,57 @@
+---
+pid: 22788
+cwd: "C:\Users\v_jac\Desktop\SMC-SYSTEMS"
+command: "python scripts/run_ml_pipeline.py"
+started_at: 2026-07-06T15:56:42.665Z
+running_for_ms: 12799990 
+---
+[starting] ML pipeline started
+[building_dataset] Building v4 dataset from real market data...
+[1/7] EURUSD M15
+  Candles: 5000
+  Signals: 186
+  -> 186 samples saved to C:\Users\v_jac\Desktop\SMC-SYSTEMS\data\ml\EURUSD\v4_EURUSD.parquet
+[2/7] GBPUSD M15
+  Candles: 5000
+  Signals: 112
+  -> 112 samples saved to C:\Users\v_jac\Desktop\SMC-SYSTEMS\data\ml\GBPUSD\v4_GBPUSD.parquet
+[3/7] USDJPY M15
+  Candles: 5000
+  Signals: 322
+  -> 322 samples saved to C:\Users\v_jac\Desktop\SMC-SYSTEMS\data\ml\USDJPY\v4_USDJPY.parquet
+[4/7] AUDUSD M15
+  Candles: 5000
+  Signals: 224
+  -> 224 samples saved to C:\Users\v_jac\Desktop\SMC-SYSTEMS\data\ml\AUDUSD\v4_AUDUSD.parquet
+[5/7] NZDUSD M15
+  Candles: 5000
+  Signals: 148
+  -> 148 samples saved to C:\Users\v_jac\Desktop\SMC-SYSTEMS\data\ml\NZDUSD\v4_NZDUSD.parquet
+[6/7] USDCAD M15
+  Candles: 5000
+  Signals: 455
+  -> 455 samples saved to C:\Users\v_jac\Desktop\SMC-SYSTEMS\data\ml\USDCAD\v4_USDCAD.parquet
+[7/7] USDCHF M15
+  Candles: 5000
+  Signals: 202
+  -> 202 samples saved to C:\Users\v_jac\Desktop\SMC-SYSTEMS\data\ml\USDCHF\v4_USDCHF.parquet
+
+Combined dataset: C:\Users\v_jac\Desktop\SMC-SYSTEMS\data\ml\multi_symbol\v4_dataset.parquet
+  Total samples: 1649
+  EURUSD: 186 samples
+  GBPUSD: 112 samples
+  USDJPY: 322 samples
+  AUDUSD: 224 samples
+  NZDUSD: 148 samples
+  USDCAD: 455 samples
+  USDCHF: 202 samples
+  Win rate: 0.607
+[building_dataset] Dataset ready (1649 samples)
+[training] Training quality filter with chronological holdout...
+[Governance] Model registered: quality_filter v2026-07-06T16-06-40-985000+00-00
+[Monitoring] PSI baseline saved: C:\Users\v_jac\Desktop\SMC-SYSTEMS\ml\models\quality_filter.drift_baseline.json
+[training] Model trained — holdout ROC-AUC=0.551
+[verifying] Verifying ML integration in paper trading...
+[verifying] Integration checks complete
+[complete] ML_PIPELINE_COMPLETE
+ML_PIPELINE_COMPLETE

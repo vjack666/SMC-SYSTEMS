@@ -131,8 +131,8 @@ ScalpingConfig(
 - `backtest/validation/` — MT5BacktestRunner, TradeComparator, ReportGenerator
 - `orchestration/backtest_validation_graph.py` — LangGraph (7 nodes, conditional routing)
 
-### F8 — Deployment Guide ⬜
-- Not yet created. Missing: VPS setup, environment config, systemd, recovery procedures
+### F8 — Deployment Guide ✅
+- `docs/DEPLOYMENT_GUIDE.md` — VPS setup, environment config, systemd, NSSM, monitoring, recovery procedures
 
 ### F9-F13 — Quant Audit ✅
 - Wyckoff agent (377 lines, 12 fases, stochastic exhaustion incluido)

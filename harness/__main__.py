@@ -13,6 +13,7 @@ from governance.harness_adapter import GovernanceHarnessAdapter
 from monitoring.harness_adapter import MonitoringHarnessAdapter
 from orchestration.harness_adapter import LangGraphBacktestAdapter
 from adapters import BacktestAdapter, FeatureEnrichmentAdapter, RiskGovernorAdapter, SignalAdapter
+from adapters.wyckoff_adapter import WyckoffAdapter
 from paper_trading.harness_adapter import PaperTradingHarnessAdapter
 
 
@@ -41,6 +42,7 @@ ADAPTERS: dict[str, Any] = {
     "monitoring": MonitoringHarnessAdapter(),
     "governance": GovernanceHarnessAdapter(),
     "paper_trading": PaperTradingHarnessAdapter(),
+    "wyckoff": WyckoffAdapter(),
 }
 
 
@@ -58,7 +60,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--adapters",
-    default="echo,signal_pipeline,risk_governor,backtest,feature_enrichment,mt5_bridge,mt5_ea,langgraph_validation,monitoring,governance,paper_trading",
+    default="echo,signal_pipeline,risk_governor,backtest,feature_enrichment,mt5_bridge,mt5_ea,langgraph_validation,monitoring,governance,paper_trading,wyckoff",
     help="Comma-separated list of adapters to enable.",
     )
     args = parser.parse_args()
