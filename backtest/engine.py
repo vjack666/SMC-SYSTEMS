@@ -331,7 +331,7 @@ def run_combined_backtest(
     for sym_idx, symbol in enumerate(active_symbols):
         if progress_cb:
             progress_cb("symbol", sym_idx, len(active_symbols), symbol)
-        frame = load_frame(config.data_dir, symbol, config.timeframe)
+        frame = load_frame(config.data_dir, symbol, config.timeframe, auto_download=False)
         frame = apply_time_window(frame, config.start_time, config.end_time)
         if progress_cb:
             progress_cb("context", 0, 1, f"{symbol} building scalping context...")
