@@ -16,6 +16,9 @@ class DecisionConfig:
     ml_weight: float = 0.15
     min_combined_confidence: float = 0.55
     conflict_penalty: float = 0.15
+    # Item F: "soft" = resta conflict_penalty a la confianza (actual);
+    # "hard" = fuerza NEUTRAL/confianza 0.0 si ICT y Wyckoff contradicen
+    conflict_mode: str = "soft"
 
 
 @dataclass
@@ -207,13 +210,24 @@ class DecisionAgent:
 
         biases = [r.bias for r in [ict, wyckoff, structure] if r is not None and r.confidence > 0.0]
         if len(set(b for b in biases if b != "NEUTRAL")) > 1:
-            conflict_penalty = self.config.conflict_penalty
-            combined_confidence = max(combined_confidence - conflict_penalty, 0.0)
-            record.conflict_penalty_applied = conflict_penalty
             conflicts.append(f"conflict: {', '.join(biases)}")
-            reasons.append(f"conflict penalty -{conflict_penalty:.2f}")
+            if self.config.conflict_mode == "hard":
+                # Veto duro: senal NEUTRAL, confianza 0.0
+                record.conflict_penalty_applied = 1.0
+                reasons.append("conflict HARD veto -> NEUTRAL")
+            else:
+                # Penalizacion suave (comportamiento actual)
+                conflict_penalty = self.config.conflict_penalty
+                combined_confidence = max(combined_confidence - conflict_penalty, 0.0)
+                record.conflict_penalty_applied = conflict_penalty
+                reasons.append(f"conflict penalty -{conflict_penalty:.2f}")
 
-        if combined_bias_val >= 0.15:
+        # Aplicar veto duro ANTES de mapear bias final
+        hard_veto = self.config.conflict_mode == "hard" and any("HARD veto" in r for r in reasons)
+        if hard_veto:
+            final_bias = "NEUTRAL"
+            combined_confidence = 0.0
+        elif combined_bias_val >= 0.15:
             final_bias = "BULLISH"
         elif combined_bias_val <= -0.15:
             final_bias = "BEARISH"

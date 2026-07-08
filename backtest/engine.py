@@ -51,6 +51,11 @@ class CombinedBacktestConfig:
     n_splits: int = 5
     purge: int = 48
     embargo: int = 48
+    # Item F: modo de resolucion de conflicto ICT/Wyckoff ("soft"=penaliza, "hard"=veto NEUTRAL)
+    decision_conflict_mode: str = "soft"
+    # Item F: forzar orquestador (y su DecisionAgent) aunque use_ml_quality_filter=False,
+    # para medir el veto hard/soft en backtest sin cargar el modelo ML roto.
+    enable_orchestrator: bool = False
 
 
 @dataclass(frozen=True)
@@ -375,7 +380,13 @@ def run_combined_backtest(
         frame = apply_time_window(frame, config.start_time, config.end_time)
         if progress_cb:
             progress_cb("context", 0, 1, f"{symbol} building scalping context...")
-        orchestrator = AgentOrchestrator() if config.use_ml_quality_filter else None
+        if config.use_ml_quality_filter or config.enable_orchestrator:
+            from agents.decision_agent import DecisionAgent, DecisionConfig
+
+            _dconf = DecisionConfig(conflict_mode=config.decision_conflict_mode)
+            orchestrator = AgentOrchestrator(decision_agent=DecisionAgent(_dconf))
+        else:
+            orchestrator = None
         context = build_scalping_context(
             symbol=symbol,
             timeframe=config.timeframe,
