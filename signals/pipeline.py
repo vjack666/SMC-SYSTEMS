@@ -65,6 +65,7 @@ class ScalpingConfig:
     enable_sweep_filter: bool = True     # rechazar entradas de reversal sin sweep previo
     enable_ote_filter: bool = True       # requerir zona OTE/discount(premium) segun direccion
     sweep_lookback: int = 8              # ventana de reversal tras el sweep (coherente con INDUCEMENT_LOOKBACK)
+    enable_detector_invalidation: bool = False  # Item E: degradar BOS/CHOCH/OB muertos (OFF=comportamiento actual)
 
 
 def _session_filter(times: pd.Series, symbol: str, allow_xau_asia: bool) -> pd.Series:
@@ -143,20 +144,28 @@ def build_scalping_context(
         bos_up = data["bos_direction"] > 0
         bos_down = data["bos_direction"] < 0
 
-    bos_filter = (
-        ((data["macro_direction"] == "BULLISH") & bos_up)
-        | ((data["macro_direction"] == "BEARISH") & bos_down)
-    )
+        # --- Item E: degradar BOS muerto (invalidated/aged) ---
+        if config.enable_detector_invalidation and "bos_status" in data.columns:
+            bos_alive = data["bos_status"].isin(["active", "none"])
+        else:
+            bos_alive = pd.Series(True, index=data.index)
+
+        bos_filter = (
+            ((data["macro_direction"] == "BULLISH") & bos_up & bos_alive)
+            | ((data["macro_direction"] == "BEARISH") & bos_down & bos_alive)
+        )
 
     volume_filter = data["tick_volume"] >= (data["tick_volume"].rolling(20).mean().fillna(0.0) * 0.90)
 
     bullish_anchor = _last_anchor(
         data["close"],
-        data["fvg_bullish"] | data["ob_bullish"],
+        (data["fvg_bullish"] | data["ob_bullish"])
+        & (data["ob_status"].isin(["active", "none"]) if (config.enable_detector_invalidation and "ob_status" in data.columns) else True),
     )
     bearish_anchor = _last_anchor(
         data["close"],
-        data["fvg_bearish"] | data["ob_bearish"],
+        (data["fvg_bearish"] | data["ob_bearish"])
+        & (data["ob_status"].isin(["active", "none"]) if (config.enable_detector_invalidation and "ob_status" in data.columns) else True),
     )
     bull_near = ((data["close"] - bullish_anchor).abs() / data["atr"].replace(0.0, np.nan)).fillna(99.0) <= (
         config.ob_fvg_proximity_atr
@@ -171,9 +180,16 @@ def build_scalping_context(
 
     recent_bearish_choch = (data["choch_signal"] == CHOCH_BEARISH).rolling(10, min_periods=1).max().astype(bool)
     recent_bullish_choch = (data["choch_signal"] == CHOCH_BULLISH).rolling(10, min_periods=1).max().astype(bool)
+
+    # --- Item E: degradar CHOCH muerto ---
+    if config.enable_detector_invalidation and "choch_status" in data.columns:
+        choch_alive = data["choch_status"].isin(["active", "none"])
+    else:
+        choch_alive = pd.Series(True, index=data.index)
+
     choch_filter = (
-        ((data["macro_direction"] == "BULLISH") & (~recent_bearish_choch))
-        | ((data["macro_direction"] == "BEARISH") & (~recent_bullish_choch))
+        ((data["macro_direction"] == "BULLISH") & (~recent_bearish_choch) & choch_alive)
+        | ((data["macro_direction"] == "BEARISH") & (~recent_bullish_choch) & choch_alive)
     )
 
     swing_high_ref = data["high"].rolling(20, min_periods=5).max().shift(1)

@@ -12,6 +12,7 @@ class BosConfig:
     atr_period: int = 14
     followthrough_bars: int = 8
     liquidity_lookback: int = 20
+    max_age: int = 24  # Item E: invalidar BOS tras N barras sin follow-through
 
 
 def _compute_atr(frame: pd.DataFrame, period: int) -> pd.Series:
@@ -83,4 +84,39 @@ def detect_bos(frame: pd.DataFrame, config: BosConfig | None = None) -> pd.DataF
         np.where(data["bos_direction"] == -1, data["swing_low"].shift(1), np.nan),
     )
 
+    # --- Item E: invalidacion + envejecimiento (patron _track_fvg_fill) ---
+    data["bos_status"], data["bos_age"] = _track_bos_validity(data, max_age=config.max_age)
+
     return data
+
+
+def _track_bos_validity(data: pd.DataFrame, max_age: int) -> tuple[pd.Series, pd.Series]:
+    n = len(data)
+    status = pd.Series(["none"] * n, index=data.index, dtype=object)
+    age = pd.Series([0] * n, index=data.index, dtype=int)
+    last_dir = 0
+    last_level = float("nan")
+    last_idx = -1
+    active = False
+    low = data["low"].to_numpy()
+    high = data["high"].to_numpy()
+    bos_dir = data["bos_direction"].to_numpy()
+    bos_lvl = data["bos_level"].to_numpy()
+    for i in range(1, n):
+        d = int(bos_dir[i])
+        lvl = bos_lvl[i]
+        if d != 0 and pd.notna(lvl):
+            last_dir, last_level, last_idx, active = d, float(lvl), i, True
+        if active:
+            age.iloc[i] = i - last_idx
+            crossed = (
+                (last_dir == 1 and low[i] < last_level)   # BOS alcista roto por abajo
+                or (last_dir == -1 and high[i] > last_level)  # BOS bajista roto por arriba
+            )
+            if crossed:
+                status.iloc[i], active = "invalidated", False
+            elif age.iloc[i] > max_age:
+                status.iloc[i], active = "aged", False
+            else:
+                status.iloc[i] = "active"
+    return status, age
