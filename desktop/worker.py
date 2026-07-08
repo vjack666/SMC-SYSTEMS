@@ -167,7 +167,7 @@ class TradingWorker(QObject):
         config = ScalpingConfig(
             min_confluence_score=2,
             min_atr_ratio=0.8,
-            use_ml_quality_filter=True,
+            use_ml_quality_filter=False,
         )
         governor_cfg = GovernorConfig()
 

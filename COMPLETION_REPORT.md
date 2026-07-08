@@ -151,3 +151,38 @@ ScalpingConfig(
 
 ### F16 — Governance & Automation ✅
 - Model registry (versioning + delta), retraining scheduler, auto-report generator
+
+---
+
+## Backtest Visualizer — Experiment Removed (2026-07-08)
+
+An attempt was made to build a bar-by-bar visualizer for the backtest:
+
+- `scripts/run_backtest_streamlit.py` — Streamlit web app (candlesticks + signals + trades + equity curve, auto-advance on Play)
+- `scripts/run_backtest.py` — console LiveDashboard with trade feed, equity sparkline, chart snapshots
+- `backtest/engine.py` — added a `"trade_open"` callback stage (later reverted)
+
+**Why it was removed:** the architecture was wrong from the start. The auto-advance
+block called `st.rerun()` *before* the chart was built, so the browser never received
+the updated figure — only the initial frozen frame. Other issues found during the
+debug session:
+
+1. **`st.rerun()` placement** — must be the LAST statement in the script, after all UI
+   elements are rendered. Calling it mid-script aborts execution and drops all deltas
+   that hadn't been sent yet.
+2. **Dynamic button labels break widget identity** — a button whose label changes
+   between reruns (`"Play"` ↔ `"Pause"`) loses its click event. Use a fixed `key`.
+3. **`time.sleep()` inside the script blocks the WebSocket** — the browser can't
+   receive updates while the server thread is sleeping. Use a time-based throttle
+   (`time.monotonic()` gate) instead of `time.sleep()`.
+4. **Chart rebuild cost** — `template="plotly_dark"` + `make_subplots` with 3 rows
+   took ~2.5s for 80 bars. Removing the template and pre-converting trade timestamps
+   dropped it to ~0.35s. Still too slow for 50k bars at 1 bar/step.
+5. **50k M15 bars is too much for a sliding visualizer** — even with a 300-bar window,
+   the full pipeline takes ~70s cold / ~9s cached, and stepping through all bars would
+   take hours. A visualizer needs a much smaller, focused dataset.
+
+**Decision:** delete the visualizer entirely. The core backtest engine
+(`backtest/engine.py`, `backtest/validation/`) is solid and unchanged. A new,
+better visualizer will be designed from scratch later — engine and viewer fully
+decoupled, correct `st.rerun()` ordering, and a bounded dataset.

@@ -2,9 +2,9 @@
 
 **Proyecto:** SMC-SYSTEMS (renombrado desde SMC_SUCCESSOR)  
 **Repositorio:** https://github.com/vjack666/SMC-SYSTEMS  
-**Versión del Roadmap:** 2.0 (post-limpieza y auditoría)  
-**Fecha de Actualización:** 2026-07-04  
-**Estado General:** 🟡 Alineación en progreso (Fase 1 completada, gaps críticos identificados en auditoría)
+**Versión del Roadmap:** 2.1 (post-A5 completion)  
+**Fecha de Actualización:** 2026-07-08  
+**Estado General:** 🟢 Alineación en progreso (A5 completado, plan de mejora de estrategia pendiente)
 
 ---
 
@@ -36,7 +36,7 @@
 | F8 - Deployment Guide | No iniciado | Faltante (gap crítico) | 🔴 |
 | F10 - Stochastic Exhaustion | No implementado | Aún no implementado (gap Wyckoff) | 🔴 |
 | Documentación | Actualizada | Desactualizada (README stale, paths incorrectos, harness adapters discrepancy 10 vs 4) | 🟡 |
-| Tests / Harness scenarios | Harness como gate | 6 módulos sin tests, backtest sin escenarios completos | 🟡 |
+| Tests / Harness scenarios | Harness como gate | 100 tests unitarios + escenarios harness para backtest cableados | 🟢 |
 | Backtest métricas | — | PF 1.61, WR 63.74%, Sharpe 3.33 (buenos) pero solo 91 trades (bajo vs objetivo ≥200) | 🟡 |
 | Out-of-sample validation | Suficiente | Insuficiente (solo 2 años de datos) | 🟡 |
 
@@ -56,10 +56,11 @@ Todo debe estar funcional antes de pensar en deployment. F8 (Deployment Guide) s
 | A4 | Stochastic Exhaustion (F10) | Ya implementado en wyckoff_agent.py. Pendiente: verificar integración harness + pipeline. | 🟡 Verificación | Alta |
 | A2 | Parameter Tuning (F12) | Optuna integrado, conectado al pipeline via tune_first. CLI listo. 7 tests pasando. | ✅ Completado | Alta |
 | A7 | Validación cuantitativa (F9/F13) | PurgedKFold, CVaR, DSR, PBO, bootstrap — todo implementado en stats_validator.py. 10 tests pasando. | ✅ Completado | Alta |
-| A5 | Tests + cobertura | Tests para 6 módulos sin cobertura. Escenarios harness para backtest. | 🔴 Pendiente | Alta |
+| A5 | Tests + cobertura | Tests para 6 módulos sin cobertura. Escenarios harness para backtest. | ✅ Completado | Alta |
 | A3 | Resolver discrepancia Harness | 11 adapters documentados en AGENT_ARCHITECTURE.md | ✅ Completado | Media |
 | A6 | Expandir datos | Incrementar dataset histórico (>3-4 años) para out-of-sample robusto. | 🟡 Pendiente | Media |
 | A8 | Deployment Guide (F8) | VPS, systemd, recovery, monitoring. **AL FINAL**. | 🔴 Pendiente | Baja |
+| A9 | Plan mejora estrategia (A-F) | ML filter off, symbol breakdown, confluence weights, sweep+OTE, detector invalidation, conflict mode | ✅ Completado | Alta |
 
 **Criterio de completitud:** Todos los items A1-A8 en 🟢. El harness pasa 100% de escenarios. Solo entonces se considera production-ready.
 
@@ -87,10 +88,11 @@ Todo debe estar funcional antes de pensar en deployment. F8 (Deployment Guide) s
 
 ## 6. Próximos Pasos Inmediatos
 
-1. Usuario revisa y aprueba este `CRONOGRAMA_Y_ROADMAP.md` (versión 2.0).
-2. Arrancar con A1 (docs stale) para despejar confusión, luego A4 (Stochastic).
-3. F8 (Deployment) queda AL ÚLTIMO — no se toca hasta que todo lo demás esté funcional.
-4. Cualquier nuevo desarrollo debe pasar primero por el harness actualizado.
+1. Usuario revisa y aprueba este `CRONOGRAMA_Y_ROADMAP.md` (versión 2.1).
+2. A5 + A9 (Ítems A-F) completados. ML filter desactivado por defecto.
+3. A6 (expandir datos >3-4 años) — pendiente para validación OOS robusta.
+4. F8 (Deployment) queda AL ÚLTIMO — no se toca hasta que todo lo demás esté funcional.
+5. Cualquier nuevo desarrollo debe pasar primero por el harness actualizado.
 
 ---
 

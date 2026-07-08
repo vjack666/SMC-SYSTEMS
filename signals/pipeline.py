@@ -46,7 +46,7 @@ class ScalpingConfig:
     use_confluence_mode: bool = True
     min_confluence_score: int = 2
     min_atr_ratio: float = 1.0
-    use_ml_quality_filter: bool = True
+    use_ml_quality_filter: bool = False
     ml_model_path: str = "ml/models/quality_filter.pkl"
     # --- Item C: pesos de confluencia expuestos como config ---
     # Claves validas hoy: trend, choch, ob_fvg, bos, swing, agents, sweep, ote
@@ -90,19 +90,40 @@ def build_scalping_context(
     data_dir: Path = Path("data/mt5"),
     config: ScalpingConfig | None = None,
     orchestrator: AgentOrchestrator | None = None,
+    progress_cb: Callable[[str, int, int, str], None] | None = None,
 ) -> pd.DataFrame:
     if config is None:
         config = ScalpingConfig()
 
+    steps = [
+        "load_frame", "detect_bos", "detect_choch", "detect_fvg",
+        "detect_order_blocks", "detect_displacement", "compute_zones",
+        "indicators", "trend_context", "filters", "sweep_ote",
+        "confluence", "done",
+    ]
+    total_steps = len(steps)
+
+    def _step(idx: int, msg: str) -> None:
+        if progress_cb:
+            progress_cb("context", idx, total_steps, f"{symbol} {msg}")
+
+    _step(0, "loading data...")
     data = load_frame(data_dir, symbol, timeframe)
 
+    _step(1, "detecting BOS...")
     data = detect_bos(data, BosConfig(followthrough_bars=18))
+    _step(2, "detecting CHOCH...")
     data = detect_choch(data)
+    _step(3, "detecting FVG...")
     data = detect_fvg(data)
+    _step(4, "detecting order blocks...")
     data = detect_order_blocks(data)
+    _step(5, "detecting displacement...")
     data = detect_displacement(data)
+    _step(6, "computing zones...")
     data = compute_zones(data, ZoneConfig(swing_lookback=20))
 
+    _step(7, "computing indicators...")
     data["atr"] = add_atr(data, 14)
     data["ema_fast"] = add_ema(data, 20)
     data["ema_slow"] = add_ema(data, 50)
@@ -113,6 +134,7 @@ def build_scalping_context(
     data["stoch_k"] = stoch["stoch_k"]
     data["stoch_d"] = stoch["stoch_d"]
 
+    _step(8, "building trend context (merge D1/H4)...")
     macro = build_trend_context_frame(symbol=symbol, ltf_frame=data, data_dir=data_dir)
     data["time"] = pd.to_datetime(data["time"].values.astype("datetime64[ns]"), utc=True)
     macro["time"] = pd.to_datetime(macro["time"].values.astype("datetime64[ns]"), utc=True)
@@ -127,6 +149,7 @@ def build_scalping_context(
     data["d1_direction"] = np.where(data["d1_trend"].isin(["BULLISH", "BEARISH"]), data["d1_trend"], "RANGING")
     data["macro_trend"] = data["macro_direction"]
 
+    _step(9, "computing filters...")
     regime_pass = ~data["regime_state"].isin(["LOW_VOL", "CHAOTIC"])
     trend_filter = (
         data["macro_direction"].isin(["BULLISH", "BEARISH"])
@@ -205,6 +228,7 @@ def build_scalping_context(
     )
 
     # --- Item D: sweep + OTE (macro_direction ya existe) ---
+    _step(10, "sweep + OTE filters...")
     sh = data.get("swing_high", data["high"].rolling(5, min_periods=2).max().shift(1))
     sl = data.get("swing_low", data["low"].rolling(5, min_periods=2).min().shift(1))
     bearish_sweep = (data["high"] > sh) & (data["close"] < sh)
@@ -257,6 +281,7 @@ def build_scalping_context(
         data["filter_stoch_exhaust"] = True
 
     w = config.confluence_weights
+    _step(11, "computing confluence score...")
     active = {
         "trend": data["filter_trend"].astype(float),
         "bos": data["filter_bos"].astype(float),
@@ -297,6 +322,7 @@ def build_scalping_context(
     data.loc[short_mask & ~has_swing, "structural_sl"] = data.loc[short_mask & ~has_swing, "close"] + data.loc[short_mask & ~has_swing, "atr"]
 
     data["passed_all_filters"] = mandatory_pass & (data["confluence_score"] == max_confluence)
+    _step(12, f"context ready ({len(data)} bars)")
     return data
 
 

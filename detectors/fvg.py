@@ -40,7 +40,8 @@ def detect_fvg(frame: pd.DataFrame) -> pd.DataFrame:
 
 def _track_fvg_fill(data: pd.DataFrame) -> pd.Series:
     n = len(data)
-    status = pd.Series(["none"] * n, index=data.index)
+    # Use a plain list to avoid pandas 3.x Arrow string array assignment issues
+    status_list: list[str] = ["none"] * n
     active_bull_top: float | None = None
     active_bull_bot: float | None = None
     active_bear_top: float | None = None
@@ -70,12 +71,12 @@ def _track_fvg_fill(data: pd.DataFrame) -> pd.Series:
             bear_unfilled = False
 
         if bull_unfilled:
-            status.iloc[i] = "bullish_unfilled"
+            status_list[i] = "bullish_unfilled"
         elif bear_unfilled:
-            status.iloc[i] = "bearish_unfilled"
+            status_list[i] = "bearish_unfilled"
         elif row["fvg_bullish"] or row["fvg_bearish"]:
-            status.iloc[i] = "just_created"
+            status_list[i] = "just_created"
         else:
-            status.iloc[i] = "none"
+            status_list[i] = "none"
 
-    return status
+    return pd.Series(status_list, index=data.index, name="fvg_fill_status")
