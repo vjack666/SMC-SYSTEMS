@@ -29,3 +29,7 @@ data/mt5/_temp_*
 data/monitoring/
 data/mt5/
 data/paper_trading/
+
+# Resultados de ejecucion (regenerados por backtests/pruebas, no son codigo)
+results/ml_trade_dataset.csv
+results/ml_dataset_quality_log.json
