@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Callable, cast
 
 import numpy as np
 import pandas as pd
@@ -47,6 +48,23 @@ class ScalpingConfig:
     min_atr_ratio: float = 1.0
     use_ml_quality_filter: bool = True
     ml_model_path: str = "ml/models/quality_filter.pkl"
+    # --- Item C: pesos de confluencia expuestos como config ---
+    # Claves validas hoy: trend, choch, ob_fvg, bos, swing, agents, sweep, ote
+    # (displacement, fvg, sweep, ote requieren Item D para existir como filtros)
+    confluence_weights: dict[str, float] = field(default_factory=lambda: {
+        "trend": 3.0,    # MTF (rulebook=3)
+        "choch": 3.0,    # CHOCH (rulebook=3)
+        "ob_fvg": 2.0,   # OB (rulebook=2); FVG separado queda en Item D
+        "bos": 1.0,      # BOS (rulebook=1)
+        "swing": 1.0,    # OTE estructural (rulebook=1)
+        "agents": 2.0,   # capa agentes (no en rulebook; peso conservador)
+        "sweep": 2.0,    # Item D: sweep de liquidez (rulebook=2)
+        "ote": 1.0,      # Item D: OTE/premium-discount (rulebook=1)
+    })
+    # --- Item D: sweep + OTE ---
+    enable_sweep_filter: bool = True     # rechazar entradas de reversal sin sweep previo
+    enable_ote_filter: bool = True       # requerir zona OTE/discount(premium) segun direccion
+    sweep_lookback: int = 8              # ventana de reversal tras el sweep (coherente con INDUCEMENT_LOOKBACK)
 
 
 def _session_filter(times: pd.Series, symbol: str, allow_xau_asia: bool) -> pd.Series:
@@ -170,6 +188,26 @@ def build_scalping_context(
         | ((data["macro_direction"] == "BEARISH") & trend_down & data["rsi"].between(26, 60))
     )
 
+    # --- Item D: sweep + OTE (macro_direction ya existe) ---
+    sh = data.get("swing_high", data["high"].rolling(5, min_periods=2).max().shift(1))
+    sl = data.get("swing_low", data["low"].rolling(5, min_periods=2).min().shift(1))
+    bearish_sweep = (data["high"] > sh) & (data["close"] < sh)
+    bullish_sweep = (data["low"] < sl) & (data["close"] > sl)
+    data["liquidity_sweep_detected"] = (bearish_sweep | bullish_sweep).to_numpy()
+    data["recent_liquidity_sweep"] = (
+        data["liquidity_sweep_detected"].rolling(config.sweep_lookback, min_periods=1).max().astype(bool).to_numpy()
+    )
+    zone = cast(pd.Series, data.get("premium_discount_zone", pd.Series(["OTE_NONE"] * len(data), index=data.index)))
+    data["filter_ote"] = (
+        ((data["macro_direction"] == "BULLISH") & zone.isin(["OTE_LONG", "DISCOUNT"]))
+        | ((data["macro_direction"] == "BEARISH") & zone.isin(["OTE_SHORT", "PREMIUM"]))
+    ).to_numpy()
+    data["filter_sweep"] = (
+        data["recent_liquidity_sweep"] if config.enable_sweep_filter else True
+    )
+    if not config.enable_ote_filter:
+        data["filter_ote"] = True
+
     data["filter_trend"] = trend_filter
     data["filter_session"] = session_filter
     data["filter_atr"] = atr_filter
@@ -202,15 +240,19 @@ def build_scalping_context(
     else:
         data["filter_stoch_exhaust"] = True
 
-    max_confluence = 6.0 if orchestrator is not None else 5.0
-    confluence_score = (
-        data["filter_trend"].astype(int)
-        + data["filter_bos"].astype(int)
-        + data["filter_ob_fvg"].astype(int)
-        + data["filter_choch"].astype(int)
-        + data["filter_swing"].astype(int)
-        + (data["filter_agents"].astype(int) if orchestrator is not None else 0)
-    )
+    w = config.confluence_weights
+    active = {
+        "trend": data["filter_trend"].astype(float),
+        "bos": data["filter_bos"].astype(float),
+        "ob_fvg": data["filter_ob_fvg"].astype(float),
+        "choch": data["filter_choch"].astype(float),
+        "swing": data["filter_swing"].astype(float),
+        "agents": data["filter_agents"].astype(float) if orchestrator is not None else 0.0,
+        "sweep": data["filter_sweep"].astype(float) if config.enable_sweep_filter else 0.0,
+        "ote": data["filter_ote"].astype(float) if config.enable_ote_filter else 0.0,
+    }
+    confluence_score = sum(active[k] * w.get(k, 1.0) for k in active)
+    max_confluence = sum(w.get(k, 1.0) for k in active)
     data["confluence_score"] = confluence_score
 
     data["signal_confidence"] = (0.40 + (confluence_score / max_confluence) * 0.55).clip(lower=0.40, upper=0.95)
