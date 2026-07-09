@@ -1,13 +1,13 @@
-"""Noticias rojas del dia + resumen de estructura del mercado (datos reales).
+"""Noticias rojas del dia (datos reales del RSS oficial).
 
-El resumen de estructura se genera desde result['estructura'] (lo que devuelve
-el motor con analyze_timeframe real: BOS, barrido de liquidez, OTE, Wyckoff).
-Se actualiza solo en cada ciclo (cuando el mercado cambia de verdad).
+El resumen de estructura del mercado se muestra en su propia pestaña
+(ResumenWidget), no aqui, para no duplicar. La funcion resumen_estructura()
+queda exportada para ser reusada por ese widget.
 """
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QListWidget, QFrame
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QListWidget
 
 
 def resumen_estructura(estructura: dict) -> str:
@@ -68,22 +68,7 @@ class NoticiasWidget(QWidget):
         self.list.setStyleSheet("background-color: #1e1e1e; color: #eee;")
         layout.addWidget(self.list, 2)
 
-        # Separador + resumen de estructura
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("color: #444;")
-        layout.addWidget(sep)
-
-        self.struct_title = QLabel("ESTRUCTURA DEL MERCADO")
-        self.struct_title.setStyleSheet("color: #7fb3ff; font-weight: bold; font-size: 12px;")
-        layout.addWidget(self.struct_title)
-
-        self.struct_lbl = QLabel("calculando...")
-        self.struct_lbl.setStyleSheet("color: #ddd; font-size: 12px;")
-        self.struct_lbl.setWordWrap(True)
-        layout.addWidget(self.struct_lbl, 1)
-
-    def update_state(self, events: list[dict], fuente: str = "", estructura: dict | None = None) -> None:
+    def update_state(self, events: list[dict], fuente: str = "") -> None:
         self.list.clear()
         self.fuente.setText(f"Fuente: {fuente}")
         if not events:
@@ -92,5 +77,3 @@ class NoticiasWidget(QWidget):
             for e in events:
                 txt = f"{e.get('currency','')} {e.get('event','')} {e.get('time_utc','')} UTC"
                 self.list.addItem(txt)
-        if estructura is not None:
-            self.struct_lbl.setText(resumen_estructura(estructura))

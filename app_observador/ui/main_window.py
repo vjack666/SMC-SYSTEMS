@@ -24,6 +24,7 @@ from app_observador.ui.semaforo_widget import SemaforoWidget
 from app_observador.ui.sesgo_widget import SesgoWidget
 from app_observador.ui.mapa_widget import MapaWidget
 from app_observador.ui.noticias_widget import NoticiasWidget
+from app_observador.ui.resumen_widget import ResumenWidget
 from app_observador.ui.estado_widget import EstadoWidget
 from app_observador.ui.crono_widget import CronoWidget
 
@@ -62,6 +63,7 @@ class MainWindow(QMainWindow):
         self.sesgo = SesgoWidget()
         self.mapa = MapaWidget()
         self.noticias = NoticiasWidget()
+        self.resumen = ResumenWidget()
         self.estado = EstadoWidget()
         self.crono = CronoWidget()
 
@@ -113,12 +115,17 @@ class MainWindow(QMainWindow):
         row1.addWidget(self.estado, 1)
         root.addLayout(row1)
 
-        # Fila 2: pestañas (Principal = noticias | Mapa ICT = imagen)
+        # Fila 2: pestañas (1=Principal/resumen | 2=Noticias | 3=Mapa ICT)
         tabs = QTabWidget()
         tab_principal = QWidget()
         tp_layout = QVBoxLayout(tab_principal)
-        tp_layout.addWidget(self.noticias, 1)
+        tp_layout.addWidget(self.resumen, 1)
         tabs.addTab(tab_principal, "Principal")
+
+        tab_noticias = QWidget()
+        tn_layout = QVBoxLayout(tab_noticias)
+        tn_layout.addWidget(self.noticias, 1)
+        tabs.addTab(tab_noticias, "Noticias")
 
         tab_mapa = QWidget()
         tm_layout = QVBoxLayout(tab_mapa)
@@ -149,7 +156,8 @@ class MainWindow(QMainWindow):
             result.get("semaforo", {}).get("reasons", []),
         )
         self.sesgo.update_state(result.get("bias", "—"), result.get("wyckoff", {}).get("M15"))
-        self.noticias.update_state(result.get("noticias", []), result.get("fuente_noticias", ""), result.get("estructura"))
+        self.noticias.update_state(result.get("noticias", []), result.get("fuente_noticias", ""))
+        self.resumen.update_state(result.get("estructura"))
         self.mapa.refresh()
         self.estado.update_state()
         self.crono.update_state()

@@ -40,74 +40,99 @@ SYMBOL = "EURUSD"
 
 
 def _candles(ax, df: pd.DataFrame, n: int = 80) -> None:
-    """Dibuja velas verdes/rojas estilo TradingView (ultimas n)."""
+    """Dibuja velas verde bosque / rojo burdeos (estilo ICT limpio, fondo claro)."""
     d = df.iloc[-n:].reset_index(drop=True)
-    up = "#26a69a"
-    down = "#ef5350"
+    up = "#1b5e3c"
+    down = "#7a1f2b"
     for i, row in d.iterrows():
         color = up if row["close"] >= row["open"] else down
-        ax.plot([i, i], [row["low"], row["high"]], color=color, lw=0.8, zorder=1)
+        # mecha
+        ax.plot([i, i], [row["low"], row["high"]], color=color, lw=1.0, zorder=4)
+        # cuerpo
         body_h = abs(row["close"] - row["open"])
         ax.add_patch(
-            Rectangle((i - 0.35, min(row["open"], row["close"])), 0.7, max(body_h, 1e-6),
-                      facecolor=color, edgecolor=color, zorder=2)
+            Rectangle((i - 0.3, min(row["open"], row["close"])), 0.6, max(body_h, 1e-6),
+                      facecolor=color, edgecolor=color, lw=0.4, zorder=4)
         )
     ax.set_xlim(-1, len(d))
     ax.set_ylim(d["low"].min() * 0.9995, d["high"].max() * 1.0005)
 
 
 def _zone_rect(ax, y0: float, y1: float, x0: float, x1: float, color: str, alpha: float, label: str) -> None:
-    ax.add_patch(Rectangle((x0, y0), x1 - x0, y1 - y0, facecolor=color,
-                           alpha=alpha, edgecolor=color, lw=1.2, label=label))
+    """Zona semitransparente (axhspan) — NO tapa velas. alpha fijo ~0.18."""
+    ax.axhspan(y0, y1, xmin=x0, xmax=x1, facecolor=color, alpha=alpha, zorder=2)
+    # etiqueta opaca al borde derecho
+    ax.text(x1, y1, label, fontsize=7, color=color, alpha=1.0,
+            va="bottom", ha="right", zorder=5)
 
 
 def panel(ax, df, tf: str, info: dict, n: int = 80, show_plan: bool = False) -> None:
+    # fondo claro + grid punteado (estilo ICT limpio)
+    ax.set_facecolor("#f5f5f5")
+    ax.grid(color="#e0e0e0", lw=0.6, ls=":", zorder=0)
+    ax.set_axisbelow(True)
+
     _candles(ax, df, n)
     d = df.iloc[-n:].reset_index(drop=True)
     x1 = len(d) - 1
 
-    # Killzones: banda de fondo tenue por sesion
+    # Killzones: banda vertical muy sutil por sesion
     if "kz" in df.columns:
-        km = {"NY": "#ff5d00", "LDN_OPEN": "#00bcd4", "LDN_CLOSE": "#2157f3", "ASIA": "#e91e63"}
-        for name, col in km.items():
+        km = {"NY": "#9aa5b1", "LDN_OPEN": "#9aa5b1", "LDN_CLOSE": "#9aa5b1", "ASIA": "#9aa5b1"}
+        for name in set(km):
             idxs = [i for i, k in enumerate(df["kz"].iloc[-n:]) if name in str(k)]
             for i in idxs:
-                ax.axvspan(i - 0.5, i + 0.5, color=col, alpha=0.05, zorder=0)
+                ax.axvspan(i - 0.5, i + 0.5, color=km[name], alpha=0.07, zorder=1)
 
-    # Liquidez (BSL naranja / SSL celeste) — zona activa mas reciente
+    # Liquidez (BSL rojo / SSL naranja) — LINEA discontinua, NO rectangulo
+    lo, hi = d["low"].min(), d["high"].max()
     if "bsl_price" in df.columns and df["bsl_price"].notna().any():
         last = df.dropna(subset=["bsl_price"]).iloc[-1]
-        _zone_rect(ax, last["bsl_bot"], last["bsl_top"], -1, x1, "#fa451c", 0.12, "Buyside Liq")
+        lvl = float(last["bsl_price"])
+        if lo <= lvl <= hi:  # solo si esta en el rango visible
+            ax.axhline(lvl, color="#c0392b", ls="--", lw=0.8, alpha=0.7, zorder=3)
+            ax.text(x1, lvl, f"BSL {lvl:.5f}", fontsize=7, color="#c0392b", alpha=1.0,
+                    va="bottom", ha="right", zorder=5)
     if "ssl_price" in df.columns and df["ssl_price"].notna().any():
         last = df.dropna(subset=["ssl_price"]).iloc[-1]
-        _zone_rect(ax, last["ssl_bot"], last["ssl_top"], -1, x1, "#1ce4fa", 0.12, "Sellside Liq")
+        lvl = float(last["ssl_price"])
+        if lo <= lvl <= hi:
+            ax.axhline(lvl, color="#e08e45", ls="--", lw=0.8, alpha=0.7, zorder=3)
+            ax.text(x1, lvl, f"SSL {lvl:.5f}", fontsize=7, color="#e08e45", alpha=1.0,
+                    va="bottom", ha="right", zorder=5)
 
-    # NWOG/NDOG: cajas punteadas
+    # NWOG/NDOG: cajas punteadas violeta suave
     gaps = detect_nwog_ndog(df)
     for g in gaps[-2:]:
         gi0 = df.index.get_loc(g["x0"]) if g["x0"] in df.index else 0
         ax.add_patch(Rectangle((gi0 - 0.5, g["bot"]), n, g["top"] - g["bot"],
-                               fill=False, edgecolor="#b2b5be", lw=1, ls=":",
-                               label="NWOG/NDOG"))
+                               fill=False, edgecolor="#8a7fbd", lw=1, ls=":",
+                               zorder=2))
 
-    # FVG (azul) — del detector existente
+    # FVG (verde/rojo medio) — zona tenue
     try:
         fvg = detect_fvg(df.iloc[-max(n, 200):])
         for _, row in fvg.iterrows():
             if bool(row.get("fvg_active")):
                 top = float(row.get("fvg_top", row["close"]))
                 bot = float(row.get("fvg_bottom", row["close"]))
-                _zone_rect(ax, bot, top, -1, x1, "#06b2d0", 0.18, "FVG")
+                col = "#2e7d4f" if row.get("fvg_type") != "bearish" else "#b23a48"
+                _zone_rect(ax, bot, top, -1, x1, col, 0.18, "FVG")
                 break
     except Exception:
         pass
 
-    # zona premium/discount
+    # zona premium/discount: linea 50% punteada (sin relleno)
     z0, z1 = info["zone_low"], info["zone_high"]
-    _zone_rect(ax, z0, z1, -1, x1, "#ffd54f", 0.08, "rango precio")
-    # OB activo
+    mid = (z0 + z1) / 2
+    ax.axhline(mid, color="#555555", lw=0.6, ls=":", alpha=0.6, zorder=3)
+    ax.text(0.02, 0.97, "Premium / Discount",
+            transform=ax.transAxes, va="top", ha="left", fontsize=7,
+            color="#555555", alpha=1.0, zorder=5)
+    # OB activo (verde medio)
     if info["ob_bottom"] is not None:
-        _zone_rect(ax, info["ob_bottom"], info["ob_top"], -1, x1, "#66bb6a", 0.22, "Order Block")
+        col = "#2e7d4f" if info["ob_dir"] == "bullish" else "#b23a48"
+        _zone_rect(ax, info["ob_bottom"], info["ob_top"], -1, x1, col, 0.18, "Order Block")
 
     # texto explicacion (dummies)
     ob_txt = f"OB: {info['ob_dir']} [{info['ob_bottom']:.5f}-{info['ob_top']:.5f}]" \
@@ -118,21 +143,21 @@ def panel(ax, df, tf: str, info: dict, n: int = 80, show_plan: bool = False) -> 
         f"{ob_txt}\n"
         f"FVG: {info.get('fvg_state','-')}"
     )
-    ax.text(0.02, 0.97, txt, transform=ax.transAxes, va="top", ha="left",
-            fontsize=8.5, color="white", bbox=dict(boxstyle="round", fc="#1e2230", ec="none", alpha=0.85))
-    ax.set_ylabel(tf, fontsize=10, color="white")
-    ax.tick_params(colors="white")
-    ax.set_facecolor("#131722")
+    ax.text(0.02, 0.90, txt, transform=ax.transAxes, va="top", ha="left",
+            fontsize=8, color="#2c3e50",
+            bbox=dict(boxstyle="round", fc="#ffffff", ec="none", alpha=0.75), zorder=6)
+    ax.set_ylabel(tf, fontsize=10, color="#2c3e50")
+    ax.tick_params(colors="#555555")
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
-    ax.grid(color="#2a2e39", lw=0.4)
+    ax.grid(color="#e0e0e0", lw=0.6, ls=":", zorder=0)
 
 
 def save_tf_png(sym: str, tf: str, df: pd.DataFrame, info: dict, out_dir: Path) -> Path:
-    """Genera UN PNG por temporalidad (estilo TradingView) con zonas ICT pintadas."""
+    """Genera UN PNG por temporalidad (estilo ICT limpio) con zonas ICT pintadas."""
     n = {"D1": 60, "H4": 80, "M15": 90}.get(tf, 80)
     fig, ax = plt.subplots(1, 1, figsize=(13, 6))
-    fig.patch.set_facecolor("#131722")
+    fig.patch.set_facecolor("#f5f5f5")
     panel(ax, df, tf, info, n=n)
 
     # plan de trade solo en M15
@@ -142,14 +167,14 @@ def save_tf_png(sym: str, tf: str, df: pd.DataFrame, info: dict, out_dir: Path) 
             analyze_timeframe(pd.read_parquet(BASE / "data" / "raw" / f"{sym}_H4.parquet"), "H4"),
             info), info)
         if plan is not None:
-            ax.axhline(plan["entry"], color="#42a5f5", lw=1.2, ls="--", label="ENTRADA")
-            ax.axhline(plan["sl"], color="#ef5350", lw=1.2, ls="--", label="STOP LOSS")
-            ax.axhline(plan["tp"], color="#26a69a", lw=1.2, ls="--", label="TAKE PROFIT")
+            ax.axhline(plan["entry"], color="#2c3e50", lw=1.0, label="ENTRADA", zorder=5)
+            ax.axhline(plan["sl"], color="#7a1f2b", lw=0.8, ls="--", label="STOP LOSS", zorder=5)
+            ax.axhline(plan["tp"], color="#1b5e3c", lw=0.8, ls="--", label="TAKE PROFIT", zorder=5)
 
-    ax.set_title(f"{sym} {tf} — datos reales MT5 (estilo TradingView)",
-                 color="white", fontsize=12, loc="left")
+    ax.set_title(f"{sym} {tf} — análisis ICT (datos reales MT5)",
+                 color="#2c3e50", fontsize=11, fontweight="bold", loc="left")
     out = out_dir / f"{sym}_{tf}.png"
-    fig.savefig(out, dpi=110, bbox_inches="tight")
+    fig.savefig(out, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close(fig)
     return out
 
