@@ -98,6 +98,10 @@ def run_cycle(force_fetch: bool = False) -> dict:
             "sweep_down": bool(info.get("sweep_down", False)),
             "ote_long": [float(x) for x in info.get("ote_long", (0.0, 0.0))],
             "ote_short": [float(x) for x in info.get("ote_short", (0.0, 0.0))],
+            # datos reales ya calculados por analyze_timeframe (para puntuar modelos ICT)
+            "ob_dir": str(info.get("ob_dir", "-") or "-"),
+            "fvg_state": str(info.get("fvg_state", "-") or "-"),
+            "choch_status": str(info.get("choch_status", "-") or "-"),
         }
     result["estructura"]["WYCKOFF_M15"] = result["wyckoff"].get("M15", {})
 

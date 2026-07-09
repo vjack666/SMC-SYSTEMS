@@ -324,6 +324,7 @@ def main() -> None:
     ap.add_argument("--timeframe", default=TIMEFRAME)
     ap.add_argument("--all", action="store_true", help="correr todas las variantes x symbols con datos")
     ap.add_argument("--driver", action="store_true", help="alias de --all")
+    ap.add_argument("--symbols", nargs="*", default=None, help="subset de simbolos (default: todos)")
     args = ap.parse_args()
 
     out_dir = ROOT / "results" / "edge_diagnosis"
@@ -331,9 +332,30 @@ def main() -> None:
 
     if args.all or args.driver:
         variants = all_variants()
-        symbols = SYMBOLS_FULL + SYMBOLS_SHORT
-        full_results = []
+        symbols = args.symbols if args.symbols else (SYMBOLS_FULL + SYMBOLS_SHORT)
+        # --- checkpoint: reanudar desde full_results.json existente ---
+        done_keys: set[tuple[str, str]] = set()
+        full_results: list[dict] = []
+        fr_path = out_dir / "full_results.json"
+        if fr_path.exists():
+            try:
+                full_results = json.loads(fr_path.read_text(encoding="utf-8"))
+                for r in full_results:
+                    if "symbol" in r and "variant" in r and "error" not in r:
+                        done_keys.add((r["symbol"], r["variant"]))
+                print(f"[resume] {len(done_keys)} (symbol,variant) ya hechos", flush=True)
+            except Exception:
+                full_results = []
         per_variant_csv: dict[str, list[dict]] = {v.key: [] for v in variants}
+        # cargar CSV existentes para no perder trades ya simulados
+        for v in variants:
+            cp = out_dir / f"{v.key}.csv"
+            if cp.exists():
+                try:
+                    import pandas as pd
+                    per_variant_csv[v.key] = pd.read_csv(cp).to_dict("records")
+                except Exception:
+                    pass
         from signals import build_scalping_context
         for s in symbols:
             # build UNA vez por simbolo (las variantes solo cambian el gating, no los detectores)
@@ -343,17 +365,35 @@ def main() -> None:
             build_s = time.time() - t0
             print(f"[build] {s}: {len(base_ctx)} bars en {build_s:.1f}s", flush=True)
             for v in variants:
-                r = run_one_reuse(v.key, s, base_ctx)
+                if (s, v.key) in done_keys:
+                    print(f"  [{s}] {v.key} SKIP (ya hecho)", flush=True)
+                    continue
+                print(f"  [{s}] {v.key}...", flush=True)
+                try:
+                    r = run_one_reuse(v.key, s, base_ctx)
+                except Exception as exc:
+                    import traceback as _tb
+                    print(f"[ERROR] {s}/{v.key}: {exc}", flush=True)
+                    print(_tb.format_exc(), flush=True)
+                    r = {"symbol": s, "variant": v.key, "n_total": 0, "is": None, "oos": None,
+                         "insufficient": True, "trades": [], "error": str(exc)}
                 full_results.append(r)
                 if "trades" in r:
                     per_variant_csv[v.key].extend(r["trades"])
-            # escribir CSV crudo de la variante (auditable)
-            import pandas as pd
-            pdf = pd.DataFrame(per_variant_csv[v.key])
-            pdf.to_csv(out_dir / f"{v.key}.csv", index=False)
+                # CHECKPOINT: escribir tras cada variante (survive a timeouts del launcher)
+                try:
+                    import pandas as pd
+                    pdf = pd.DataFrame(per_variant_csv[v.key])
+                    pdf.to_csv(out_dir / f"{v.key}.csv", index=False)
+                    Path(out_dir / "full_results.json").write_text(
+                        json.dumps(full_results, indent=2, default=str), encoding="utf-8")
+                except Exception as wexc:
+                    print(f"[WARN checkpoint] {wexc}", flush=True)
         # resumen por variante x symbol
         summary = []
         for r in full_results:
+            if "error" in r:
+                continue
             row = {"variant": r["variant"], "symbol": r["symbol"], "n_total": r["n_total"],
                    "insufficient": r["insufficient"]}
             for sp in ("is", "oos"):
@@ -367,7 +407,6 @@ def main() -> None:
             summary.append(row)
             import pandas as pd
             pd.DataFrame(summary).to_csv(out_dir / "summary.csv", index=False)
-        Path(out_dir / "full_results.json").write_text(json.dumps(full_results, indent=2, default=str), encoding="utf-8")
         print(f"Done. {len(variants)} variantes x {len(symbols)} symbols -> {out_dir}")
         return
 

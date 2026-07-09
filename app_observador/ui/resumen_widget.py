@@ -130,8 +130,85 @@ def _dir_setup(bias: str, votes: dict | None, m15: dict) -> str:
     return "NEUTRAL"
 
 
+def modelo_ict(estructura: dict, bias: str, votes: dict | None) -> tuple[str, str, int]:
+    """Elige el modelo ICT mas coherente por puntuacion sobre los datos reales.
+
+    Devuelve (nombre, libro_md, score). Modelos evaluados (detectables hoy):
+      - Turtle Soup   : reversión contra tendencia (sweep + MSS/CHoCH opuesto a D1)
+      - Silver Bullet : intradía killzone (sweep + FVG en M15)
+      - PO3           : continuación a favor (sesgo alineado + manipulación/sweep)
+      - Unicorn       : FVG + Order Block juntos en M15 (necesita ob_dir/fvg_state)
+    Cada modelo suma puntos segun features del motor; gana el de mayor score.
+    Empate -> el primero en esta lista (orden de especificidad).
+    """
+    d1 = estructura.get("D1", {})
+    h4 = estructura.get("H4", {})
+    m15 = estructura.get("M15", {})
+    dir_setup = _dir_setup(bias, votes, m15)
+    tendencia_d1 = d1.get("trend", "RANGING")
+    sweep_m15 = bool(m15.get("sweep_up")) or bool(m15.get("sweep_down"))
+    sweep_menor = sweep_m15 or bool(h4.get("sweep_up")) or bool(h4.get("sweep_down"))
+    fvg_m15 = str(m15.get("fvg_state", "-")).lower() not in ("-", "none", "nan", "")
+    ob_m15 = str(m15.get("ob_dir", "-")) not in ("-", "none", "nan", "")
+    choch_m15 = str(m15.get("choch_status", "-")).lower() not in ("-", "none", "nan", "")
+    bos_m15 = int(m15.get("bos_dir", 0) or 0) != 0
+    kz = killzone_activa_ahora()
+
+    # --- Turtle Soup (contra tendencia) ---
+    s_ts = 0
+    if dir_setup == "LONG" and tendencia_d1 == "BEARISH":
+        s_ts += 3
+    elif dir_setup == "SHORT" and tendencia_d1 == "BULLISH":
+        s_ts += 3
+    if sweep_menor:
+        s_ts += 2
+    if choch_m15 or bos_m15:
+        s_ts += 1
+
+    # --- Silver Bullet (intradía killzone, sweep + FVG) ---
+    s_sb = 0
+    if kz in ("London Open", "New York AM", "New York PM"):
+        s_sb += 2
+    if sweep_m15:
+        s_sb += 2
+    if fvg_m15:
+        s_sb += 2
+    if dir_setup != "NEUTRAL":
+        s_sb += 1
+
+    # --- PO3 (continuación a favor) ---
+    s_po3 = 0
+    if (dir_setup == "LONG" and tendencia_d1 == "BULLISH") or \
+       (dir_setup == "SHORT" and tendencia_d1 == "BEARISH"):
+        s_po3 += 3
+    if sweep_menor:
+        s_po3 += 1
+    if tendencia_d1 == "RANGING":
+        s_po3 += 1  # en rango, PO3 busca la ruptura del rango
+
+    # --- Unicorn (FVG + OB juntos en M15) ---
+    s_uni = 0
+    if fvg_m15 and ob_m15:
+        s_uni += 4
+    if choch_m15:
+        s_uni += 1
+    if dir_setup != "NEUTRAL":
+        s_uni += 1
+
+    candidatos = [
+        ("Unicorn (FVG + OB)", "07_SILVER_BULLET.md", s_uni),  # Unicorn usa mismo libro base de entrada
+        ("Silver Bullet", "07_SILVER_BULLET.md", s_sb),
+        ("Turtle Soup", "06_TURTLE_SOUP.md", s_ts),
+        ("Power of Three (PO3)", "08_POWER_OF_THREE.md", s_po3),
+    ]
+    # ordenar por score desc, luego por orden de especificidad (Unicorn primero)
+    orden = {"Unicorn (FVG + OB)": 0, "Silver Bullet": 1, "Turtle Soup": 2, "Power of Three (PO3)": 3}
+    mejor = max(candidatos, key=lambda c: (c[2], -orden[c[0]]))
+    return mejor
+
+
 def modo_ict(estructura: dict, bias: str, votes: dict | None) -> list[str]:
-    """Bloque MODO INTRADIA / SCALPING: a-favor vs contra-tendencia + modelo ICT."""
+    """Bloque MODO INTRADIA / SCALPING: modelo ICT mas coherente + a-favor/contra."""
     lineas: list[str] = []
     d1 = estructura.get("D1", {})
     m15 = estructura.get("M15", {})
@@ -139,23 +216,25 @@ def modo_ict(estructura: dict, bias: str, votes: dict | None) -> list[str]:
     dir_setup = _dir_setup(bias, votes, m15)
     tendencia_d1 = d1.get("trend", "RANGING")
 
+    nombre, libro, score = modelo_ict(estructura, bias, votes)
     lineas.append("MODO INTRADIA / SCALPING (ICT)")
     lineas.append(f"  Direccion del setup: {dir_setup}   |   Tendencia D1: {tendencia_d1}")
+    lineas.append(f"  MODELO MAS COHERENTE: {nombre}  (score {score})")
+    cita = _cita_ict(libro)
+    if cita:
+        lineas.append(cita)
 
     if dir_setup == "LONG" and tendencia_d1 == "BEARISH":
-        lineas.append("  CONTRA TENDENCIA (external Turtle Soup): setup long vs D1 bajista.")
+        lineas.append("  CONTRA TENDENCIA: setup long vs D1 bajista (reversion).")
         lineas.append("  Esperar sweep de SSL + MSS alcista en M15 antes de entrar.")
-        lineas += _cita_ict("06_TURTLE_SOUP.md").splitlines() or ["  [docs/ict/06_TURTLE_SOUP.md]"]
     elif dir_setup == "SHORT" and tendencia_d1 == "BULLISH":
-        lineas.append("  CONTRA TENDENCIA (external Turtle Soup): setup short vs D1 alcista.")
+        lineas.append("  CONTRA TENDENCIA: setup short vs D1 alcista (reversion).")
         lineas.append("  Esperar sweep de BSL + MSS bajista en M15 antes de entrar.")
-        lineas += _cita_ict("06_TURTLE_SOUP.md").splitlines() or ["  [docs/ict/06_TURTLE_SOUP.md]"]
     elif dir_setup != "NEUTRAL" and (
         (dir_setup == "LONG" and tendencia_d1 == "BULLISH")
         or (dir_setup == "SHORT" and tendencia_d1 == "BEARISH")
     ):
         lineas.append("  A FAVOR (continuation): setup y D1 alineados.")
-        lineas += _cita_ict("08_POWER_OF_THREE.md").splitlines() or ["  [docs/ict/08_POWER_OF_THREE.md]"]
     elif tendencia_d1 == "RANGING":
         lineas.append("  NEUTRAL: D1 en rango -> esperar sweep + CHOCH en M15 para definir.")
     else:
@@ -165,8 +244,7 @@ def modo_ict(estructura: dict, bias: str, votes: dict | None) -> list[str]:
     sweep_down = bool(m15.get("sweep_down")) or bool(h4.get("sweep_down"))
     if dir_setup != "NEUTRAL":
         if (sweep_up and dir_setup == "SHORT") or (sweep_down and dir_setup == "LONG"):
-            lineas.append("  Liquidez barrida en TF menor -> modelo Silver Bullet / Turtle Soup listo.")
-            lineas += _cita_ict("07_SILVER_BULLET.md").splitlines() or ["  [docs/ict/07_SILVER_BULLET.md]"]
+            lineas.append("  Liquidez barrida en TF menor -> entrada alineada al modelo.")
             lineas += _cita_ict("05_LIQUIDEZ.md").splitlines() or ["  [docs/ict/05_LIQUIDEZ.md]"]
         else:
             lineas.append("  Aun sin barrido de liquidez confirmado en TF menor -> esperar sweep.")
