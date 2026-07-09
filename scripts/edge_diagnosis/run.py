@@ -139,7 +139,9 @@ def harness_pass_signals(context: "pd.DataFrame", cfg: ScalpingConfig, v: Varian
     sl_ok = np.isfinite(sl_val)
     entry = context["close"].astype(float)
 
-    mask = signal_pass.to_numpy() & (direction != 0) & atr_ok.to_numpy()
+    # tambien aplicamos min_confidence (como hace _build_signals_from_context en engine.py:78)
+    conf = context["signal_confidence"].astype(float)
+    mask = signal_pass.to_numpy() & (direction != 0) & atr_ok.to_numpy() & (conf.to_numpy() >= MIN_CONFIDENCE)
     rows = np.where(mask)[0]
     out = []
     for i in rows:
@@ -156,6 +158,75 @@ def harness_pass_signals(context: "pd.DataFrame", cfg: ScalpingConfig, v: Varian
     return out
 
 
+def _simulate_trade_vectorized(frame: "pd.DataFrame", signals: list[ScalpingSignal], max_hold_bars: int) -> list[dict]:
+    """Simulacion SL-estructural + TP-2xATR (igual semantica que backtest/engine.py:158).
+    VERSION VECTORIZADA: para cada senal busca el primer cruce de SL/TP en la ventana
+    de max_hold_bars usando numpy, en lugar de un loop Python barra por barra.
+    Devuelve lista de dicts con pnl_r, exit_reason, mfe_r, mae_r."""
+    import numpy as np  # noqa
+    if not signals:
+        return []
+    times = frame["time"].astype(str).to_numpy()
+    high = frame["high"].to_numpy(dtype=float)
+    low = frame["low"].to_numpy(dtype=float)
+    close = frame["close"].to_numpy(dtype=float)
+    n = len(frame)
+    out = []
+    for sig in signals:
+        matches = np.nonzero(times == sig.time)[0]
+        if len(matches) == 0:
+            continue
+        idx = int(matches[0])
+        sl = float(sig.stop_loss)
+        tp = float(sig.take_profit)
+        risk = abs(float(sig.entry) - sl)
+        if risk <= 0.0:
+            continue
+        j_end = min(idx + max_hold_bars, n - 1)
+        if j_end <= idx:
+            continue
+        seg_h = high[idx + 1: j_end + 1]
+        seg_l = low[idx + 1: j_end + 1]
+        seg_c = close[idx + 1: j_end + 1]
+        if sig.direction == 1:
+            sl_hit = seg_l <= sl
+            tp_hit = seg_h >= tp
+        else:
+            sl_hit = seg_h >= sl
+            tp_hit = seg_l <= tp
+        sl_idx = np.argmax(sl_hit) if sl_hit.any() else -1
+        tp_idx = np.argmax(tp_hit) if tp_hit.any() else -1
+        if sl_idx != -1 and (tp_idx == -1 or sl_idx <= tp_idx):
+            exit_j = idx + 1 + sl_idx
+            exit_price = sl
+            reason = "SL"
+            mfe = float(((seg_h[:sl_idx + 1] - sig.entry) / risk).max()) if sig.direction == 1 else float(((sig.entry - seg_l[:sl_idx + 1]) / risk).max())
+            mae = float(((seg_l[:sl_idx + 1] - sig.entry) / risk).min()) if sig.direction == 1 else float(((sig.entry - seg_h[:sl_idx + 1]) / risk).min())
+        elif tp_idx != -1:
+            exit_j = idx + 1 + tp_idx
+            exit_price = tp
+            reason = "TP"
+            mfe = float(((seg_h[:tp_idx + 1] - sig.entry) / risk).max()) if sig.direction == 1 else float(((sig.entry - seg_l[:tp_idx + 1]) / risk).max())
+            mae = float(((seg_l[:tp_idx + 1] - sig.entry) / risk).min()) if sig.direction == 1 else float(((sig.entry - seg_h[:tp_idx + 1]) / risk).min())
+        else:
+            exit_j = j_end
+            exit_price = float(seg_c[-1])
+            reason = "hold_limit"
+            mfe = float(((seg_h - sig.entry) / risk).max()) if sig.direction == 1 else float(((sig.entry - seg_l) / risk).max())
+            mae = float(((seg_l - sig.entry) / risk).min()) if sig.direction == 1 else float(((sig.entry - seg_h) / risk).min())
+        if not np.isfinite(mfe):
+            mfe = 0.0
+        if not np.isfinite(mae):
+            mae = 0.0
+        pnl_r = (exit_price - sig.entry) / risk if sig.direction == 1 else (sig.entry - exit_price) / risk
+        out.append({
+            "symbol": sig.symbol, "variant": sig.variant if hasattr(sig, "variant") else "",
+            "entry_time": sig.time, "direction": sig.direction, "confidence": sig.confidence,
+            "pnl_r": float(pnl_r), "exit_reason": reason, "mfe_r": float(mfe), "mae_r": float(mae),
+        })
+    return out
+
+
 def simulate(symbol: str, variant_key: str) -> dict:
     import pandas as pd  # noqa
     v = next(x for x in all_variants() if x.key == variant_key)
@@ -163,17 +234,10 @@ def simulate(symbol: str, variant_key: str) -> dict:
     context = build_scalping_context(symbol=symbol, timeframe=TIMEFRAME, data_dir=DATA_DIR, config=cfg, orchestrator=None)
     frame = context  # context conserva OHLC para la simulacion
     signals = harness_pass_signals(context, cfg, v)
-    rows = []
-    for sig in signals:
-        trade, stats = _simulate_trade_with_stats(frame, sig, MAX_HOLD_BARS)
-        if trade is None:
-            continue
-        rows.append({
-            "symbol": symbol, "variant": variant_key, "entry_time": trade.entry_time,
-            "direction": trade.direction, "confidence": trade.confidence,
-            "pnl_r": trade.pnl_r, "exit_reason": stats["exit_reason"],
-            "mfe_r": stats["mfe_r"], "mae_r": stats["mae_r"],
-        })
+    rows = _simulate_trade_vectorized(frame, signals, MAX_HOLD_BARS)
+    for r in rows:
+        r["variant"] = variant_key
+        r["symbol"] = symbol
     df = pd.DataFrame(rows)
     if df.empty:
         return {"symbol": symbol, "variant": variant_key, "n_total": 0, "trades": []}

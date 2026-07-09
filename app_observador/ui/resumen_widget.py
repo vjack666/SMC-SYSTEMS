@@ -1,14 +1,16 @@
-"""Pestaña Principal: SETUP ARMADO del dia (Wyckoff + sesgo + estructura).
+"""Pestaña Principal: SETUP ARMADO del dia (Wyckoff + sesgo + ICT + estructura).
 
 Muestra en texto detallado como esta armado el setup usando:
   - result['estructura'] (motor, datos reales MT5)
   - result['bias'] + result['veredicto']['votes'] (sesgo direccional)
-  - docs/WYCKOFF_RULEBOOK.md -> significado de cada fase (leido como texto)
+  - docs/WYCKOFF_RULEBOOK.md -> significado de cada fase
+  - docs/ict/*.md -> reglas ICT (Turtle Soup, Silver Bullet, liquidez, etc.)
   - graphify-out/graph.json -> mapea la fase a su detector real (trazabilidad)
 No inventa nada: todo sale de esas fuentes.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
@@ -18,6 +20,7 @@ from app_observador.ui.noticias_widget import resumen_estructura
 ROOT = Path(__file__).resolve().parents[3]
 GRAPH_JSON = ROOT / "graphify-out" / "graph.json"
 RULEBOOK = ROOT / "docs" / "WYCKOFF_RULEBOOK.md"
+ICT_DIR = ROOT / "docs" / "ict"
 
 # Secciones del rulebook por fase (numero de seccion -> titulo)
 WYCKOFF_SECCION = {
@@ -46,7 +49,6 @@ def _cargar_grafo() -> dict | None:
     if not GRAPH_JSON.exists():
         return None
     try:
-        import json
         return json.loads(GRAPH_JSON.read_text(encoding="utf-8"))
     except Exception:
         return None
@@ -81,9 +83,85 @@ def _significado_fase(fase: str) -> str:
     return f"  [{secc} de WYCKOFF_RULEBOOK.md]"
 
 
+def _cita_ict(nombre: str) -> str:
+    """Referencia a un libro de la biblioteca ICT (ruta relativa al repo)."""
+    if not (ICT_DIR / nombre).exists():
+        return ""
+    return f"  [docs/ict/{nombre}]"
+
+
+def _dir_setup(bias: str, votes: dict | None, m15: dict) -> str:
+    """Direccion del setup: votos L/S -> bos_dir M15 -> NEUTRAL."""
+    v = votes or {}
+    if v.get("LONG", 0) > v.get("SHORT", 0):
+        return "LONG"
+    if v.get("SHORT", 0) > v.get("LONG", 0):
+        return "SHORT"
+    bd = int(m15.get("bos_dir", 0) or 0)
+    if bd > 0:
+        return "LONG"
+    if bd < 0:
+        return "SHORT"
+    return "NEUTRAL"
+
+
+def modo_ict(estructura: dict, bias: str, votes: dict | None) -> list[str]:
+    """Bloque MODO INTRADIA / SCALPING: a-favor vs contra-tendencia + modelo ICT.
+
+    Usa solo datos del motor (trend D1, bos_dir, sweep_up/down, votes).
+    Cita docs/ict/*.md para el modelo sugerido. No inventa.
+    """
+    lineas: list[str] = []
+    d1 = estructura.get("D1", {})
+    m15 = estructura.get("M15", {})
+    h4 = estructura.get("H4", {})
+    dir_setup = _dir_setup(bias, votes, m15)
+    tendencia_d1 = d1.get("trend", "RANGING")
+
+    lineas.append("MODO INTRADIA / SCALPING (ICT)")
+    lineas.append(f"  Direccion del setup: {dir_setup}   |   Tendencia D1: {tendencia_d1}")
+
+    # A favor vs contra tendencia (marea D1 como referencia)
+    if dir_setup == "LONG" and tendencia_d1 == "BEARISH":
+        lineas.append("  CONTRA TENDENCIA (external Turtle Soup): setup long vs D1 bajista.")
+        lineas.append("  Esperar sweep de SSL + MSS alcista en M15 antes de entrar.")
+        lineas += _cita_ict("06_TURTLE_SOUP.md").splitlines() or ["  [docs/ict/06_TURTLE_SOUP.md]"]
+    elif dir_setup == "SHORT" and tendencia_d1 == "BULLISH":
+        lineas.append("  CONTRA TENDENCIA (external Turtle Soup): setup short vs D1 alcista.")
+        lineas.append("  Esperar sweep de BSL + MSS bajista en M15 antes de entrar.")
+        lineas += _cita_ict("06_TURTLE_SOUP.md").splitlines() or ["  [docs/ict/06_TURTLE_SOUP.md]"]
+    elif dir_setup != "NEUTRAL" and (
+        (dir_setup == "LONG" and tendencia_d1 == "BULLISH")
+        or (dir_setup == "SHORT" and tendencia_d1 == "BEARISH")
+    ):
+        lineas.append("  A FAVOR (continuation): setup y D1 alineados.")
+        lineas += _cita_ict("08_POWER_OF_THREE.md").splitlines() or ["  [docs/ict/08_POWER_OF_THREE.md]"]
+    elif tendencia_d1 == "RANGING":
+        lineas.append("  NEUTRAL: D1 en rango -> esperar sweep + CHOCH en M15 para definir.")
+    else:
+        lineas.append("  NEUTRAL: sin direccion de setup hoy (votos/empatados, sin BOS M15).")
+
+    # Sweep de liquidez (materia prima de Turtle Soup / Silver Bullet)
+    sweep_up = bool(m15.get("sweep_up")) or bool(h4.get("sweep_up"))
+    sweep_down = bool(m15.get("sweep_down")) or bool(h4.get("sweep_down"))
+    if dir_setup != "NEUTRAL":
+        if (sweep_up and dir_setup == "SHORT") or (sweep_down and dir_setup == "LONG"):
+            lineas.append("  Liquidez barrida en TF menor -> modelo Silver Bullet / Turtle Soup listo.")
+            lineas += _cita_ict("07_SILVER_BULLET.md").splitlines() or ["  [docs/ict/07_SILVER_BULLET.md]"]
+            lineas += _cita_ict("05_LIQUIDEZ.md").splitlines() or ["  [docs/ict/05_LIQUIDEZ.md]"]
+        else:
+            lineas.append("  Aun sin barrido de liquidez confirmado en TF menor -> esperar sweep.")
+            lineas += _cita_ict("05_LIQUIDEZ.md").splitlines() or ["  [docs/ict/05_LIQUIDEZ.md]"]
+
+    # TP sugerido = liquidez opuesta (ver mapa ICT)
+    lineas.append("  TP sugerido = liquidez opuesta (BSL si long / SSL si short, ver mapa ICT).")
+    lineas.append("  Regla Stellar: RR >= 1:2 (TP estructural).")
+    return lineas
+
+
 def resumen_setup(estructura: dict, bias: str = "", votes: dict | None = None,
                  extra: dict | None = None) -> str:
-    """Texto detallado del setup: sesgo direccional + estructura + Wyckoff + armado."""
+    """Texto detallado del setup: sesgo + estructura + Wyckoff + ICT + armado."""
     if not estructura:
         return "Sin datos de estructura (MT5 no disponible)."
 
@@ -119,7 +197,11 @@ def resumen_setup(estructura: dict, bias: str = "", votes: dict | None = None,
         if det:
             lineas.append(f"  Detectado por:{det}")
 
-    # 4) Setup armado: alineacion simple D1/H4/M15
+    # 4) Modo intradia / scalping (a-favor vs contra-tendencia + modelo ICT)
+    lineas.append("")
+    lineas += modo_ict(estructura, bias, votes)
+
+    # 5) Setup armado: alineacion simple D1/H4/M15
     lineas.append("")
     lineas.append("COMO ESTA ARMADO EL SETUP")
     sesgos_tf = [estructura.get(tf, {}).get("trend", "") for tf in ("D1", "H4", "M15")]
