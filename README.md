@@ -10,10 +10,10 @@
 > MQL5) describen el proyecto "SMC_SUCCESSOR" original y **NO están cableadas
 > al flujo diario actual**. Están en el repo por si se activa el bot en el futuro.
 
-**Smart Money Concepts trading system** — modular, event-driven, con un PySide6 desktop UI, MetaTrader 5 integration, multi-agent analysis, and an ML quality filter wired into paper and live trading.
+**Smart Money Concepts trading system** — modular, event-driven, observador de análisis ICT/Wyckoff para prop firm (FundedNext) con app de escritorio PySide6 del observador, integración MetaTrader 5, análisis multi-agente y filtro ML.
 
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![PySide6](https://img.shields.io/badge/PySide6-6.6%2B-green)
+![PySide6](https://img.shields.io/badge/PySide6-observador-green)
 ![License](https://img.shields.io/badge/license-MIT-yellow)
 
 ---
@@ -22,7 +22,7 @@
 
 | Area | Status | Description |
 |------|--------|-------------|
-| **Desktop UI** | ✅ Production | 6-tab PySide6 app, MT5 live data, single-instance guard, stable chart refresh |
+| **App observador (UI)** | ✅ En construcción | `app_observador/` PySide6: semáforo FundedNext, sesgo + alineación Wyckoff D1/H4/M15, mapa ICT embebido, noticias rojas, black-box JSON 90d |
 | **Paper / Live trading** | ✅ Production | `PaperTradingRunner` with agents, structural SL, ML gate, risk governor, kill switch |
 | **Multi-agent analysis** | ✅ Production | ICT, Wyckoff (+ stochastic exhaustion), Structure, Decision Agent (weighted voting) |
 | **ML quality filter** | ✅ Wired | XGBoost model gates trades in backtest, paper, live, and desktop UI |
@@ -91,19 +91,18 @@ pip install -e .
 
 Dependencies include `PySide6`, `MetaTrader5`, `xgboost`, `pyarrow`, `scipy`, `optuna`, `langgraph`.
 
-### Run Desktop UI
+### Run Observador UI (app_observador)
 
 ```bash
-# Recommended — detached process, no extra console
-scripts\start_desktop.bat
-
-# Or directly
-python scripts/run_desktop.py
+# Requiere MT5 abierto y PySide6 instalado
+python app_observador/main.py
 ```
 
-MT5 must be open. The app enforces a **single instance**. Closing the window stops the process cleanly.
+Ventana del observador: semáforo FundedNext, sesgo + alineación Wyckoff D1/H4/M15,
+mapa ICT embebido, noticias rojas y estado del loop/vigilante. Refresca cada 5 min.
+Black-box en `data/blackbox/` (JSON, retención 90 días).
 
-### Run Paper Trading (headless)
+### Run Paper Trading (headless) — bot heredado, NO usado en modo observador
 
 ```bash
 python scripts/run_paper_trading.py --symbols EURUSD,GBPUSD --timeframe M15
@@ -128,27 +127,20 @@ Pipeline steps: build v4 dataset from `data/raw` → chronological holdout train
 
 ---
 
-## Desktop UI
+## App Observador (app_observador)
 
-6-tab interface with dark Fusion theme:
+Ventana PySide6 del observador (reemplaza el antiguo `desktop/` del bot):
 
-| Tab | Content |
-|-----|---------|
-| **Dashboard** | Account info, live prices, system status, governor state |
-| **Chart** | Candlesticks, EMA20/50, Stochastic, signal markers (refreshed on main thread every 30s) |
-| **Positions** | Open positions with P&L |
-| **Trade Log** | Historical trades |
-| **Log** | Real-time output — ML filter messages appear here (`SKIP — ML filter`, `LONG OPEN`, etc.) |
-| **Control** | Start / Stop / Emergency Stop, risk %, min confidence, symbols |
+| Panel | Contenido |
+|-------|-----------|
+| **Semáforo** | VERDE/AMARILLO/ROJO FundedNext + motivo |
+| **Sesgo** | Sesgo del día + alineación Wyckoff D1/H4/M15 |
+| **Mapa ICT** | Velas D1/H4/M15 con OB/FVG/Liquidez/Killzones (matplotlib embebido) |
+| **Noticias** | Eventos rojos del día (news_report) |
+| **Estado** | loop ON/OFF, vigilante ON/OFF, cuenta MT5, equity |
 
-**Workflow:** app auto-starts MT5 data streaming → go to **Control** → **Start** to enable the trading loop with ML.
-
-Diagnostic logs:
-
-- `results/desktop_crash.log` — unhandled errors and Qt messages
-- `data/paper_trading/runner.log` — trading loop log
-
-See [docs/DESKTOP_UI.md](docs/DESKTOP_UI.md) for details.
+Black-box: `data/blackbox/app_AAAA-MM-DD.log` (JSON, rotación + retención 90 días).
+Ver SDD en `docs/specs/app_observador.md`.
 
 ---
 
@@ -185,7 +177,7 @@ The ML filter is **conservative** — it rejects most candidate signals. Treat h
 | `backtest/engine.py` | ✅ `use_ml_quality_filter` on `CombinedBacktestConfig` |
 | `paper_trading/runner.py` | ✅ via `ScalpingConfig.use_ml_quality_filter` |
 | `scripts/run_live_trading.py` | ✅ `--no-ml` flag |
-| `desktop/worker.py` | ✅ ML enabled by default on Start |
+| `app_observador/` | 🔧 En construcción (observador, reemplaza desktop/ del bot) |
 
 ---
 
@@ -222,7 +214,7 @@ SMC-SYSTEMS/
 ├── agents/             # ICT, Wyckoff, Structure, Decision + orchestrator
 ├── backtest/           # Combined backtest engine with ML gate
 ├── data/               # MT5 connector, raw parquets, ML datasets
-├── desktop/            # PySide6 UI, workers, single-instance, crash logging
+├── app_observador/     # App PySide6 del observador (semáforo, mapa ICT, black-box)
 ├── detectors/          # BOS, CHOCH, FVG, OB, displacement, zones
 ├── features/           # FeatureEngine (30+ features for ML)
 ├── governance/         # Model registry, retraining scheduler
@@ -243,8 +235,7 @@ SMC-SYSTEMS/
 
 | Script | Purpose |
 |--------|---------|
-| `run_desktop.py` | Desktop UI entry point |
-| `start_desktop.bat` | Launch UI via `pythonw` (no console) |
+| `app_observador/main.py` | App observador (UI PySide6) |
 | `run_paper_trading.py` | Headless paper loop |
 | `run_live_trading.py` | Live / paper CLI runner |
 | `run_ml_pipeline.py` | Full ML train + verify pipeline |
@@ -295,7 +286,7 @@ Output: `dist/SMC_Trading.exe`. Requires MT5 on the target machine.
 |----------|-------------|
 | [COMPLETION_REPORT.md](COMPLETION_REPORT.md) | Pipeline wiring, backtest metrics, entry protocol |
 | [Agent Architecture](docs/AGENT_ARCHITECTURE.md) | Agent system design |
-| [Desktop UI](docs/DESKTOP_UI.md) | UI reference |
+| [App Observador](docs/specs/app_observador.md) | SDD de la UI del observador (reemplaza desktop/) |
 | [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | VPS, systemd, NSSM |
 | [ICT Rulebook](docs/ICT_RULEBOOK.md) | ICT specifications |
 | [Wyckoff Rulebook](docs/WYCKOFF_RULEBOOK.md) | Wyckoff specifications |

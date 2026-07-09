@@ -201,5 +201,5 @@ Reproducido el Exp A con harness directo (`scripts/_run_ml_iso.py`) y aislado el
 - El filtro ML es **perjudicial en general** (H4 y M15): con el modelo cargando bien, descarta ~97% de señales (AUC 0.55 ≈ azar, peor que ruido).
 - ML OFF H4 (261 trades, PF 1.35, Sharpe 1.59) y ML OFF M15 (60 trades, PF 1.21) ya cumplen métricas sanas y el Criterio de Aceptación (≥200 trades en H4).
 - El orquestador (langgraph) es lento en este sandbox (8+ min/símbolo en backtest completo) pero no causa el colapsa.
-- **Decisión pendiente de aplicar**: cambiar `use_ml_quality_filter` a `False` por defecto en `signals/pipeline.py:48` (y `backtest/engine.py:42`, `desktop/worker.py:170`). El código sigue en `True`. Recomendación del plan confirmada y reforzada por evidencia corregida.
+- **Decisión pendiente de aplicar**: cambiar `use_ml_quality_filter` a `False` por defecto en `signals/pipeline.py:48` (y `backtest/engine.py:42`). El código sigue en `True`. Recomendación del plan confirmada y reforzada por evidencia corregida. (Nota: la UI `desktop/` del bot fue eliminada 2026-07-09; el flag ya no aplica a la app del observador.)
 

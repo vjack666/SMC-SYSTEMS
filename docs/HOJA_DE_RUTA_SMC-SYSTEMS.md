@@ -12,7 +12,7 @@
 Sistema de trading automatizado y semi-automático basado en **Smart Money Concepts (SMC)**, **Wyckoff** e **ICT**. 
 
 Arquitectura **modular event-driven** con:
-- UI Desktop completa (PySide6, 6 tabs, dark theme, charts con OB/FVG/zones)
+- UI Desktop del observador (PySide6, `app_observador/`: semáforo, sesgo Wyckoff D1/H4/M15, mapa ICT, noticias, black-box)
 - Multi-agentes de análisis (ICT, Wyckoff, Structure → Decision Agent)
 - Gobernador de Riesgo con state machine (NORMAL → CAUTION → DEFENSIVE → LOCKDOWN)
 - ML para hyperparameter tuning (Optuna) + validación estadística robusta
@@ -53,7 +53,7 @@ Arquitectura **modular event-driven** con:
 **Estructura:** Flat en root (refactor flatten SMC_SUCCESSOR/ completado). Repo limpio de contenido sobrante y docs obsoletos.
 
 **Componentes clave implementados:**
-- `desktop/` : UI PySide6 completa (Dashboard, Chart con EMA/Stoch/OB/FVG, Positions, Trade Log, Log, Control)
+- `app_observador/` : App PySide6 del observador (semáforo, sesgo Wyckoff D1/H4/M15, mapa ICT, noticias, black-box) — reemplaza el antiguo `desktop/` del bot (borrado 2026-07-09)
 - `agents/` : ICT, Wyckoff, Structure, Decision agents
 - `harness/` : Framework completo de testing scenario-based (runners, scenarios YAML, assertions, reports, fixtures). Soporta ModuleAdapter pattern.
 - `risk/` : Risk Governor state machine

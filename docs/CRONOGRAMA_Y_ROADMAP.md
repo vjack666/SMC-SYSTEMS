@@ -21,10 +21,10 @@
 ## 2. Estado Actual del Repositorio (Post-Limpieza)
 
 ### Estructura Confirmada (limpia y modular)
-- **Entry points:** `scripts/run_desktop.py`, `scripts/run_paper_trading.py`, `scripts/run_live_trading.py` (ya no existe `run_system.py`)
+- **Entry points:** `app_observador/main.py` (observador), `scripts/run_paper_trading.py`, `scripts/run_live_trading.py` (bot heredado, no usado en modo observador). El antiguo `scripts/run_desktop.py` fue borrado 2026-07-09.
 - **Harness:** Carpeta `harness/` presente y declarada como gate de calidad.
-- **Documentación:** Carpeta `docs/` con `DESKTOP_UI.md`, `DEPLOYMENT_GUIDE.md` (incompleto), `AGENT_ARCHITECTURE.md`, `ICT_RULEBOOK.md`, `WYCKOFF_RULEBOOK.md`.
-- **Componentes clave implementados:** `agents/`, `risk/`, `signals/`, `detectors/`, `ml/`, `governance/`, `orchestration/`, `desktop/`, `MQL5/SMC_SYSTEMS_BRIDGE/`.
+- **Documentación:** Carpeta `docs/` con `specs/app_observador.md`, `DEPLOYMENT_GUIDE.md` (incompleto), `AGENT_ARCHITECTURE.md`, `ICT_RULEBOOK.md`, `WYCKOFF_RULEBOOK.md`. El antiguo `docs/DESKTOP_UI.md` fue borrado.
+- **Componentes clave implementados:** `agents/`, `risk/`, `signals/`, `detectors/`, `ml/`, `governance/`, `orchestration/`, `app_observador/` (observador, reemplaza `desktop/` borrado), `MQL5/SMC_SYSTEMS_BRIDGE/`.
 - **Reportes existentes:** `COMPLETION_REPORT.md`, `AUDIT_REPORT.md`, `MT5_INTEGRATION_REPORT.md`.
 
 ### Progreso Real vs Roadmap Anterior (Comparación)

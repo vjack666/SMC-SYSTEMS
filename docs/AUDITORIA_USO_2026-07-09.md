@@ -60,7 +60,7 @@ loop_analisis.py  (observador 24/7, SIEMPRE ACTIVO)
 | Carpeta | LOC | Qué es |
 |---------|-----|--------|
 | `ml/` | 2467 | Pipeline ML (XGBoost gate, walk-forward, Optuna) |
-| `desktop/` | 1641 | UI PySide6 (6 tabs) |
+| `desktop/` (ELIMINADO) | — | UI PySide6 del bot; borrada 2026-07-09, reemplazada por `app_observador/` (observador) |
 | `backtest/` | 1430 | Motor backtest combinado |
 | `agents/` | 1160 | ICTAgent / StructureAgent / DecisionAgent / Orchestrator |
 | `paper_trading/` | 940 | PaperTradingRunner (PAPER/LIVE) |
