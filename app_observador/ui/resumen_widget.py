@@ -1,19 +1,26 @@
-"""Pestaña Principal: SETUP ARMADO del dia (Wyckoff + sesgo + ICT + estructura).
+"""Pestaña Principal: SETUP ARMADO + checklists INTRADIA / SCALPING.
 
-Muestra en texto detallado como esta armado el setup usando:
-  - result['estructura'] (motor, datos reales MT5)
-  - result['bias'] + result['veredicto']['votes'] (sesgo direccional)
-  - docs/WYCKOFF_RULEBOOK.md -> significado de cada fase
-  - docs/ict/*.md -> reglas ICT (Turtle Soup, Silver Bullet, liquidez, etc.)
-  - graphify-out/graph.json -> mapea la fase a su detector real (trazabilidad)
-No inventa nada: todo sale de esas fuentes.
+Layout de 2 columnas:
+  - Izquierda: SETUP ARMADO DEL DIA (texto: sesgo + estructura + Wyckoff + ICT).
+  - Derecha: dos paneles (INTRADIA, SCALPING) con checklist numerado de
+    "que falta para terminar de armar la estrategia", derivado de los datos
+    REALES del motor (trend, bos_dir, sweep, votos, killzone activa).
+
+Fuentes de regla:
+  - docs/WYCKOFF_RULEBOOK.md -> fase Wyckoff
+  - docs/ict/*.md -> modelos ICT (Turtle Soup, Silver Bullet, PO3, liquidez)
+  - graphify-out/graph.json -> detector real de cada fase
+No inventa: cada check refleja un dato del motor o la hora/killzone.
 """
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QListWidget,
+)
 
 from app_observador.ui.noticias_widget import resumen_estructura
 
@@ -44,6 +51,14 @@ WYCKOFF_NODO = {
     "Upthrust": "agents_wyckoff_agent_wyckoffagent_detect_upthrust",
 }
 
+# Bandas de killzone (UTC) segun docs/ict/01_KILLZONES.md (aprox, horario estandar).
+# London 07-10 UTC, NY AM 12:30-15:00 UTC, NY PM 17:00-20:00 UTC.
+KILLZONES_UTC = {
+    "London Open": (7, 10),
+    "New York AM": (12, 15),
+    "New York PM": (17, 20),
+}
+
 
 def _cargar_grafo() -> dict | None:
     if not GRAPH_JSON.exists():
@@ -55,6 +70,19 @@ def _cargar_grafo() -> dict | None:
 
 
 _GRAFO = _cargar_grafo()
+
+
+def killzone_activa_ahora() -> str:
+    """Devuelve el nombre de la killzone activa ahora (UTC) o '' si ninguna.
+
+    Aproximacion de las bandas documentadas en docs/ict/01_KILLZONES.md.
+    """
+    ahora = datetime.now(timezone.utc)
+    h = ahora.hour + ahora.minute / 60.0
+    for nombre, (ini, fin) in KILLZONES_UTC.items():
+        if ini <= h < fin:
+            return nombre
+    return ""
 
 
 def _detector_fase(fase: str) -> str:
@@ -74,7 +102,6 @@ def _detector_fase(fase: str) -> str:
 
 
 def _significado_fase(fase: str) -> str:
-    """Referencia de seccion del rulebook para la fase (sin hardcodear texto largo)."""
     if not RULEBOOK.exists():
         return ""
     secc = WYCKOFF_SECCION.get(fase)
@@ -84,14 +111,12 @@ def _significado_fase(fase: str) -> str:
 
 
 def _cita_ict(nombre: str) -> str:
-    """Referencia a un libro de la biblioteca ICT (ruta relativa al repo)."""
     if not (ICT_DIR / nombre).exists():
         return ""
     return f"  [docs/ict/{nombre}]"
 
 
 def _dir_setup(bias: str, votes: dict | None, m15: dict) -> str:
-    """Direccion del setup: votos L/S -> bos_dir M15 -> NEUTRAL."""
     v = votes or {}
     if v.get("LONG", 0) > v.get("SHORT", 0):
         return "LONG"
@@ -106,11 +131,7 @@ def _dir_setup(bias: str, votes: dict | None, m15: dict) -> str:
 
 
 def modo_ict(estructura: dict, bias: str, votes: dict | None) -> list[str]:
-    """Bloque MODO INTRADIA / SCALPING: a-favor vs contra-tendencia + modelo ICT.
-
-    Usa solo datos del motor (trend D1, bos_dir, sweep_up/down, votes).
-    Cita docs/ict/*.md para el modelo sugerido. No inventa.
-    """
+    """Bloque MODO INTRADIA / SCALPING: a-favor vs contra-tendencia + modelo ICT."""
     lineas: list[str] = []
     d1 = estructura.get("D1", {})
     m15 = estructura.get("M15", {})
@@ -121,7 +142,6 @@ def modo_ict(estructura: dict, bias: str, votes: dict | None) -> list[str]:
     lineas.append("MODO INTRADIA / SCALPING (ICT)")
     lineas.append(f"  Direccion del setup: {dir_setup}   |   Tendencia D1: {tendencia_d1}")
 
-    # A favor vs contra tendencia (marea D1 como referencia)
     if dir_setup == "LONG" and tendencia_d1 == "BEARISH":
         lineas.append("  CONTRA TENDENCIA (external Turtle Soup): setup long vs D1 bajista.")
         lineas.append("  Esperar sweep de SSL + MSS alcista en M15 antes de entrar.")
@@ -141,7 +161,6 @@ def modo_ict(estructura: dict, bias: str, votes: dict | None) -> list[str]:
     else:
         lineas.append("  NEUTRAL: sin direccion de setup hoy (votos/empatados, sin BOS M15).")
 
-    # Sweep de liquidez (materia prima de Turtle Soup / Silver Bullet)
     sweep_up = bool(m15.get("sweep_up")) or bool(h4.get("sweep_up"))
     sweep_down = bool(m15.get("sweep_down")) or bool(h4.get("sweep_down"))
     if dir_setup != "NEUTRAL":
@@ -153,7 +172,6 @@ def modo_ict(estructura: dict, bias: str, votes: dict | None) -> list[str]:
             lineas.append("  Aun sin barrido de liquidez confirmado en TF menor -> esperar sweep.")
             lineas += _cita_ict("05_LIQUIDEZ.md").splitlines() or ["  [docs/ict/05_LIQUIDEZ.md]"]
 
-    # TP sugerido = liquidez opuesta (ver mapa ICT)
     lineas.append("  TP sugerido = liquidez opuesta (BSL si long / SSL si short, ver mapa ICT).")
     lineas.append("  Regla Stellar: RR >= 1:2 (TP estructural).")
     return lineas
@@ -167,22 +185,19 @@ def resumen_setup(estructura: dict, bias: str = "", votes: dict | None = None,
 
     lineas: list[str] = []
 
-    # 1) Sesgo direccional (votos L/S) + cita rulebook §11-12 (volumen/precio)
+    # 1) Sesgo direccional (votos L/S)
     v = votes or {"LONG": 0, "SHORT": 0}
     lineas.append("SESGO DIRECCIONAL")
     lineas.append(f"  Veredicto: {bias}   (votos L:{v.get('LONG', 0)} / S:{v.get('SHORT', 0)})")
-    lineas.append("  Regla volumen-precio (WYCKOFF_RULEBOOK.md §11-12):")
-    lineas.append("    precio sube + volumen sube = compra fuerte;")
-    lineas.append("    precio baja + volumen baja = venta debil (posible acumulacion).")
 
-    # 2) Estructura por TF (reusa resumen_estructura existente)
+    # 2) Estructura por TF
     lineas.append("")
     lineas.append("ESTRUCTURA D1 / H4 / M15")
     lineas.append(resumen_estructura(estructura))
 
-    # 3) Fase Wyckoff M15: nombre + significado del rulebook + detector del grafo
+    # 3) Fase Wyckoff M15
     wyk = estructura.get("WYCKOFF_M15") or {}
-    if not wyk:  # fallback: el motor tambien expone result["wyckoff"]["M15"]
+    if not wyk:
         wyk = (extra or {}).get("wyckoff_m15", {}) or {}
     if wyk:
         fase = wyk.get("phase_es", "")
@@ -197,11 +212,11 @@ def resumen_setup(estructura: dict, bias: str = "", votes: dict | None = None,
         if det:
             lineas.append(f"  Detectado por:{det}")
 
-    # 4) Modo intradia / scalping (a-favor vs contra-tendencia + modelo ICT)
+    # 4) Modo intradia / scalping
     lineas.append("")
     lineas += modo_ict(estructura, bias, votes)
 
-    # 5) Setup armado: alineacion simple D1/H4/M15
+    # 5) Setup armado
     lineas.append("")
     lineas.append("COMO ESTA ARMADO EL SETUP")
     sesgos_tf = [estructura.get(tf, {}).get("trend", "") for tf in ("D1", "H4", "M15")]
@@ -218,24 +233,182 @@ def resumen_setup(estructura: dict, bias: str = "", votes: dict | None = None,
     return "\n".join(lineas)
 
 
+# ---------------------------------------------------------------------------
+# Checklists INTRADIA / SCALPING
+# ---------------------------------------------------------------------------
+
+def _sweep_dir(estructura: dict, tfs: tuple[str, ...]) -> str:
+    """Devuelve 'up'/'down'/'none' segun sweeps en los TF indicados."""
+    up = any(estructura.get(tf, {}).get("sweep_up") for tf in tfs)
+    down = any(estructura.get(tf, {}).get("sweep_down") for tf in tfs)
+    if up and down:
+        return "both"
+    return "up" if up else "down" if down else "none"
+
+
+def _bos_m15(estructura: dict) -> str:
+    m15 = estructura.get("M15", {})
+    bd = int(m15.get("bos_dir", 0) or 0)
+    st = m15.get("bos_status", "")
+    if bd == 1 and st == "active":
+        return "alcista"
+    if bd == -1 and st == "active":
+        return "bajista"
+    if bd != 0:
+        return "intentando"
+    return "no"
+
+
+def checklist_intradia(estructura: dict, bias: str, votes: dict | None) -> list[str]:
+    """Checklist INTRADIA (H1/H4/M15, modelo PO3 / Turtle Soup). Items numerados."""
+    items: list[str] = []
+    d1 = estructura.get("D1", {})
+    h4 = estructura.get("H4", {})
+    m15 = estructura.get("M15", {})
+    dir_setup = _dir_setup(bias, votes, m15)
+    kz = killzone_activa_ahora()
+
+    # 1. Sesgo del dia
+    if "NEUTRAL" in bias or not bias:
+        items.append("✗ Falta: definir SESGO DEL DIA (L/S) desde H4/D1.")
+    else:
+        items.append(f"✓ Sesgo del dia: {bias}.")
+
+    # 2. Contexto D1/H4
+    if d1.get("trend") in ("", "RANGING") and h4.get("trend") in ("", "RANGING"):
+        items.append("✗ Falta: contexto D1/H4 definido (en rango -> sin marea).")
+    else:
+        items.append(f"✓ Contexto: D1 {d1.get('trend','?')} / H4 {h4.get('trend','?')}.")
+
+    # 3. Killzone intradia activa
+    if kz in ("London Open", "New York AM", "New York PM"):
+        items.append(f"✓ Killzone intradia activa: {kz} (UTC).")
+    else:
+        items.append("✗ Fuera de killzone intradia (London/NY) -> esperar ventana.")
+
+    # 4. Sweep de liquidez en H4/M15
+    sw = _sweep_dir(estructura, ("H4", "M15"))
+    if sw == "none":
+        items.append("✗ Falta: barrido de liquidez (sweep SSL/BSL) en H4/M15.")
+    else:
+        items.append(f"✓ Liquidez barrida ({sw}) en H4/M15.")
+
+    # 5. BOS/CHoCH en M15
+    bos = _bos_m15(estructura)
+    if bos == "no":
+        items.append("✗ Falta: BOS/CHoCH en M15 (estructura intacta).")
+    else:
+        items.append(f"✓ M15 con BOS {bos}.")
+
+    # 6. Direccion alineada al sesgo
+    if dir_setup == "NEUTRAL":
+        items.append("✗ Falta: direccion del setup (votos/L-S o BOS M15).")
+    else:
+        items.append(f"✓ Direccion setup: {dir_setup}.")
+
+    # 7. TP en liquidez opuesta (ver mapa)
+    items.append("○ TP en liquidez opuesta (BSL/SSL del mapa ICT).")
+
+    # 8. RR >= 1:2
+    items.append("○ RR >= 1:2 (regla Stellar).")
+    return items
+
+
+def checklist_scalping(estructura: dict, bias: str, votes: dict | None) -> list[str]:
+    """Checklist SCALPING (M1/M5, modelo Silver Bullet). Items numerados."""
+    items: list[str] = []
+    m15 = estructura.get("M15", {})
+    dir_setup = _dir_setup(bias, votes, m15)
+    kz = killzone_activa_ahora()
+
+    # 1. Ventana Silver Bullet (NY AM 10-11 ET ~ 14-15 UTC; usamos banda NY AM)
+    if kz == "New York AM":
+        items.append("✓ Ventana Silver Bullet activa (NY AM).")
+    else:
+        items.append("✗ Fuera de ventana Silver Bullet (NY AM 10-11 ET) -> esperar.")
+
+    # 2. Sesgo filtrado
+    if "NEUTRAL" in bias or not bias:
+        items.append("✗ Falta: sesgo del dia para filtrar solo setups a favor.")
+    else:
+        items.append(f"✓ Sesgo filtra setups: {bias}.")
+
+    # 3. Sweep en M15 (la materia prima del Silver Bullet en M1/M5)
+    sw = _sweep_dir(estructura, ("M15",))
+    if sw == "none":
+        items.append("✗ Falta: sweep de SSL/BSL en M15 (previo al FVG M1/M5).")
+    else:
+        items.append(f"✓ Sweep M15 ({sw}) presente.")
+
+    # 4. FVG en M1/M5 (no lo trae el cache; se infiere necesario)
+    items.append("○ Buscar FVG en M1/M5 tras el sweep (no en cache del motor).")
+
+    # 5. Direccion coincide con sesgo
+    if dir_setup == "NEUTRAL":
+        items.append("✗ Falta: direccion del setup para el scalp.")
+    else:
+        items.append(f"✓ Direccion scalp: {dir_setup}.")
+
+    # 6. SL ajustado al FVG/sweep
+    items.append("○ SL bajo FVG alcista / sobre FVG bajista (o en SSL/BSL).")
+
+    # 7. RR 1:2 rapido
+    items.append("○ RR >= 1:2, salida en liquidez opuesta (rapido).")
+    return items
+
+
 class ResumenWidget(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setSpacing(6)
+        root = QHBoxLayout(self)
+        root.setSpacing(10)
 
+        # --- Columna izquierda: SETUP ARMADO ---
+        left = QVBoxLayout()
         self.title = QLabel("SETUP ARMADO DEL DÍA")
         self.title.setStyleSheet("color: #7fb3ff; font-weight: bold; font-size: 13px;")
-        layout.addWidget(self.title)
-
+        left.addWidget(self.title)
         self.lbl = QLabel("calculando...")
         self.lbl.setStyleSheet("color: #ddd; font-size: 12px;")
         self.lbl.setWordWrap(True)
-        layout.addWidget(self.lbl, 1)
+        left.addWidget(self.lbl, 1)
+        left_w = QWidget()
+        left_w.setLayout(left)
+        root.addWidget(left_w, 1)
+
+        # --- Columna derecha: INTRADIA + SCALPING (checklists) ---
+        right = QVBoxLayout()
+        right.setSpacing(8)
+
+        self.g_intra = QGroupBox("INTRADÍA  (H1/H4/M15 — PO3 / Turtle Soup)")
+        gi_layout = QVBoxLayout(self.g_intra)
+        self.list_intra = QListWidget()
+        self.list_intra.setStyleSheet("background-color: #1e1e1e; color: #eee; font-size: 12px;")
+        gi_layout.addWidget(self.list_intra)
+        right.addWidget(self.g_intra, 1)
+
+        self.g_scalp = QGroupBox("SCALPING  (M1/M5 — Silver Bullet)")
+        gs_layout = QVBoxLayout(self.g_scalp)
+        self.list_scalp = QListWidget()
+        self.list_scalp.setStyleSheet("background-color: #1e1e1e; color: #eee; font-size: 12px;")
+        gs_layout.addWidget(self.list_scalp)
+        right.addWidget(self.g_scalp, 1)
+
+        right_w = QWidget()
+        right_w.setLayout(right)
+        root.addWidget(right_w, 1)
 
     def update_state(self, estructura: dict | None = None, bias: str = "",
                      votes: dict | None = None, extra: dict | None = None) -> None:
         if estructura is None:
             self.lbl.setText("Sin datos de estructura (MT5 no disponible).")
+            self.list_intra.clear()
+            self.list_scalp.clear()
             return
         self.lbl.setText(resumen_setup(estructura, bias or "", votes, extra))
+        self.list_intra.clear()
+        for it in checklist_intradia(estructura, bias or "", votes):
+            self.list_intra.addItem(it)
+        self.list_scalp.clear()
+        for it in checklist_scalping(estructura, bias or "", votes):
+            self.list_scalp.addItem(it)

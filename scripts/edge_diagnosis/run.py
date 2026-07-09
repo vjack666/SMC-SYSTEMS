@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -97,10 +98,8 @@ def all_variants() -> list[Variant]:
 
 
 def build_config(v: Variant) -> ScalpingConfig:
-    cfg = ScalpingConfig()
-    for k, val in v.config_overrides.items():
-        setattr(cfg, k, val)
-    return cfg
+    # ScalpingConfig es frozen -> construimos una nueva instancia con los overrides
+    return ScalpingConfig(**v.config_overrides)
 
 
 def harness_pass_signals(context: "pd.DataFrame", cfg: ScalpingConfig, v: Variant):
@@ -109,12 +108,15 @@ def harness_pass_signals(context: "pd.DataFrame", cfg: ScalpingConfig, v: Varian
     VERSION VECTORIZADA (sin .loc en loop) para no colgarse en 50k-99k barras."""
     import pandas as pd  # local import ok
     import numpy as np  # local import ok
+    n = len(context)
     fp = set(v.force_pass)
-    f_session = True if "session" in fp else context["filter_session"].astype(bool)
-    f_atr = True if "atr" in fp else context["filter_atr"].astype(bool)
-    f_choch = True if "choch" in fp else context["filter_choch"].astype(bool)
-    f_swing = True if "swing" in fp else context["filter_swing"].astype(bool)
-    f_micro = True if "micro" in fp else context["filter_micro"].astype(bool)
+    # forzar PASS = Serie de True del largo correcto (no escalar, para poder operar)
+    all_true = pd.Series(True, index=context.index)
+    f_session = all_true if "session" in fp else context["filter_session"].astype(bool)
+    f_atr = all_true if "atr" in fp else context["filter_atr"].astype(bool)
+    f_choch = all_true if "choch" in fp else context["filter_choch"].astype(bool)
+    f_swing = all_true if "swing" in fp else context["filter_swing"].astype(bool)
+    f_micro = all_true if "micro" in fp else context["filter_micro"].astype(bool)
 
     mandatory = f_session & f_atr
     w = cfg.confluence_weights
@@ -279,6 +281,42 @@ def run_one(variant_key: str, symbol: str) -> dict:
             "trades": res["trades"]}
 
 
+def run_one_reuse(variant_key: str, symbol: str, context: "pd.DataFrame") -> dict:
+    """Igual que run_one pero REUSA el context ya construido (una sola vez por simbolo)."""
+    import pandas as pd  # noqa
+    v = next(x for x in all_variants() if x.key == variant_key)
+    cfg = build_config(v)
+    # Re-aplicar overrides que afectan columnas de filtro calculadas en el context.
+    # La mayoria de variantes solo cambian el gating (force_pass / min_confluence), que se
+    # aplica en harness_pass_signals sobre el MISMO context. Las que cambian ob_fvg_proximity
+    # o enable_sweep/ote afectan columnas del context -> necesitamos rebuild. Para simplicidad
+    # y correctitud, si la variante tiene config_overrides que afectan detectores, rebuild.
+    detector_affecting = {"ob_fvg_proximity_atr", "enable_sweep_filter", "enable_ote_filter"}
+    if set(cfg.__dict__) & detector_affecting and any(
+        k in v.config_overrides for k in detector_affecting
+    ):
+        ctx = build_scalping_context(symbol=symbol, timeframe=TIMEFRAME, data_dir=DATA_DIR, config=cfg, orchestrator=None)
+    else:
+        ctx = context
+    signals = harness_pass_signals(ctx, cfg, v)
+    rows = _simulate_trade_vectorized(ctx, signals, MAX_HOLD_BARS)
+    for r in rows:
+        r["variant"] = variant_key
+        r["symbol"] = symbol
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return {"symbol": symbol, "variant": variant_key, "n_total": 0,
+                "is": None, "oos": None, "insufficient": True, "trades": []}
+    df = df.sort_values("entry_time").reset_index(drop=True)
+    n_is = int(len(df) * IS_RATIO)
+    df["split"] = ["IS"] * n_is + ["OOS"] * (len(df) - n_is)
+    is_m = metrics_from(df[df["split"] == "IS"])
+    oos_m = metrics_from(df[df["split"] == "OOS"])
+    insufficient = (is_m["n"] < MIN_N) or (oos_m["n"] < MIN_N)
+    return {"symbol": symbol, "variant": variant_key, "n_total": len(df),
+            "is": is_m, "oos": oos_m, "insufficient": insufficient, "trades": df.to_dict("records")}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--variant", default="baseline")
@@ -296,9 +334,16 @@ def main() -> None:
         symbols = SYMBOLS_FULL + SYMBOLS_SHORT
         full_results = []
         per_variant_csv: dict[str, list[dict]] = {v.key: [] for v in variants}
-        for v in variants:
-            for s in symbols:
-                r = run_one(v.key, s)
+        from signals import build_scalping_context
+        for s in symbols:
+            # build UNA vez por simbolo (las variantes solo cambian el gating, no los detectores)
+            t0 = time.time()
+            base_ctx = build_scalping_context(symbol=s, timeframe=TIMEFRAME, data_dir=DATA_DIR,
+                                              config=ScalpingConfig(), orchestrator=None)
+            build_s = time.time() - t0
+            print(f"[build] {s}: {len(base_ctx)} bars en {build_s:.1f}s", flush=True)
+            for v in variants:
+                r = run_one_reuse(v.key, s, base_ctx)
                 full_results.append(r)
                 if "trades" in r:
                     per_variant_csv[v.key].extend(r["trades"])
@@ -320,8 +365,8 @@ def main() -> None:
                 else:
                     row[f"{sp}_n"] = 0
             summary.append(row)
-        import pandas as pd
-        pd.DataFrame(summary).to_csv(out_dir / "summary.csv", index=False)
+            import pandas as pd
+            pd.DataFrame(summary).to_csv(out_dir / "summary.csv", index=False)
         Path(out_dir / "full_results.json").write_text(json.dumps(full_results, indent=2, default=str), encoding="utf-8")
         print(f"Done. {len(variants)} variantes x {len(symbols)} symbols -> {out_dir}")
         return
