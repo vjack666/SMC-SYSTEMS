@@ -12,7 +12,7 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Signal, QTimer
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFrame,
+    QPushButton, QLabel, QFrame, QTabWidget,
 )
 
 from app_observador.config import REFRESH_SECONDS, SYMBOL
@@ -95,11 +95,18 @@ class MainWindow(QMainWindow):
         row1.addWidget(self.estado, 1)
         root.addLayout(row1)
 
-        # Fila 2: mapa (grande) + noticias
-        row2 = QHBoxLayout()
-        row2.addWidget(self.mapa, 3)
-        row2.addWidget(self.noticias, 1)
-        root.addLayout(row2, 1)
+        # Fila 2: pestañas (Principal = noticias | Mapa ICT = imagen)
+        tabs = QTabWidget()
+        tab_principal = QWidget()
+        tp_layout = QVBoxLayout(tab_principal)
+        tp_layout.addWidget(self.noticias, 1)
+        tabs.addTab(tab_principal, "Principal")
+
+        tab_mapa = QWidget()
+        tm_layout = QVBoxLayout(tab_mapa)
+        tm_layout.addWidget(self.mapa, 1)
+        tabs.addTab(tab_mapa, "Mapa ICT")
+        root.addWidget(tabs, 1)
 
         self.setCentralWidget(central)
 
