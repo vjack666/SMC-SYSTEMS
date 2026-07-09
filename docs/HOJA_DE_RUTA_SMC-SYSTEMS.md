@@ -60,7 +60,7 @@ Arquitectura **modular event-driven** con:
 - `paper_trading/` y runners para PAPER/LIVE
 - `ml/` : Optuna + validación
 - `data/` : MT5 connector + Parquet con staleness thresholds
-- `indicators.py` + `detectors/` : OB, FVG, EMA, RSI, Stochastic, etc.
+- `indicators/` + `detectors/` : OB, FVG, EMA, RSI, Stochastic, etc.
 - `MQL5/SMC_SYSTEMS_BRIDGE/` : Bridge para MT5
 - Múltiples reports de auditoría y completitud actualizados
 

@@ -27,7 +27,7 @@ y renderizarse bajo la seccion de EJECUCION M15.
 ### Reuso (no duplicar)
 - `agents/wyckoff_agent.py` → WyckoffAgent (logica de fase 100% del proyecto)
 - `detectors/bos.py` → detect_bos() ya pone swing_label
-- `indicators.py` → compute_stochastic() da stoch_k/stoch_d
+- `indicators/` → compute_stochastic() da stoch_k/stoch_d
 - `compute_zones`/`detect_trend` ya en rutina (macro_direction del trend)
 - `docs/WYCKOFF_RULEBOOK.md` → reglas (solo referencia)
 

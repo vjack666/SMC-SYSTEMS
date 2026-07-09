@@ -14,10 +14,10 @@ carpeta. Sin leer la doc como verdad — se midió el código.
 ```
 loop_analisis.py  (observador 24/7, SIEMPRE ACTIVO)
 ├─ update_mt5_data.py     → data/raw/*.parquet (MT5 demo)
-├─ rutina_eurusd.py       → detectors/*, indicators.py, fase_wyckoff_m15.py
+├─ rutina_eurusd.py       → detectors/*, indicators/, fase_wyckoff_m15.py
 │   ├─ detectors: bos, choch, fvg, order_blocks, trend, zones
 │   │   (+ liquidity, killzones, gaps, fib usados por mapa_precio)
-│   ├─ indicators.py (raíz) → add_atr, add_stochastic
+│   ├─ indicators/ (paquete) → add_atr, add_stochastic
 │   └─ fase_wyckoff_m15.py → agents/wyckoff_agent.py
 ├─ informe_eurusd.py      → rutina_eurusd + news_report
 ├─ semaforo_fundednext.py → rutina_eurusd + news_report + tools/fundednext_compliance.py
@@ -26,7 +26,7 @@ loop_analisis.py  (observador 24/7, SIEMPRE ACTIVO)
 └─ mapa_precio.py         → rutina_eurusd + detectors/* (ICT, solo imagen)
 ```
 
-**Import OK confirmado:** `indicators` resuelve (módulo `indicators.py` en raíz, no carpeta).
+**Import OK confirmado:** `indicators` resuelve como paquete (`indicators/__init__.py` re-exporta `indicators/indicators.py`).
 
 ---
 
@@ -46,7 +46,7 @@ loop_analisis.py  (observador 24/7, SIEMPRE ACTIVO)
 | `scripts/update_mt5_data.py` | — | Descarga MT5 demo |
 | `scripts/mapa_precio.py` | — | Imagen ICT (no loop) |
 | `detectors/*` (11) | 812 | BOS/CHOCH/FVG/OB/Trend/Zones + Liquidez/Killzones/Gaps/Fib |
-| `indicators.py` (raíz) | — | ATR/Stoch/EMA/RSI |
+| `indicators/` (paquete) | — | ATR/Stoch/EMA/RSI |
 | `agents/wyckoff_agent.py` | — | Calculador fase Wyckoff |
 | `tools/fundednext_compliance.py` | 265 | Límites DLL/MLL/riesgo |
 | `risk/sizer.py` | — | Cierre MT5 |
@@ -90,9 +90,10 @@ loop_analisis.py  (observador 24/7, SIEMPRE ACTIVO)
    "por ahora SIN bot". Hay desalineación doc↔uso real. Recomiendo un README corto
    que diga "Modo actual: observador FundedNext (sin bot)" para no confundirte.
 
-2. **`indicators.py` está en la RAÍZ, no en `detectors/` ni `indicators/`.** Funciona
-   porque `sys.path` incluye raíz, pero es frágil (un refactor de carpeta lo rompe).
-   No es bug hoy; es deuda de organización.
+2. **`indicators` ahora es un PAQUETE (`indicators/`)** con `__init__.py` que
+   re-exporta el módulo. Antes estaba suelto en la raíz (frágil). Ya robustecido
+   en esta sesión: `from indicators import ...` sigue funcionando sin tocar los
+   importadores.
 
 3. **`ml/` y `backtest/` NO están en tu loop.** El README reporta WR 63.7% / PF 1.61,
    pero eso es backtest IN-SAMPLE de 91 trades (4 símbolos) — NO validado walk-forward
@@ -111,8 +112,8 @@ loop_analisis.py  (observador 24/7, SIEMPRE ACTIVO)
   cuenta real de FundedNext con bot más adelante). Pero etiquetarlo como "no activo".
 - **Acción sugerida #1:** agregar un `README_MODESTO.md` o encabezado en README que
   aclare el modo observador. Bajo esfuerzo, alto valor para no confundirte.
-- **Acción sugerida #2:** mover `indicators.py` a `detectors/` o `indicators/` para
-  robustez (requiere actualizar 1 import en fase_wyckoff_m15 + graphify re-map).
+- **Acción sugerida #2:** ✅ YA EJECUTADA — `indicators.py` movido a `indicators/`
+  con `__init__.py` re-export (robustez, sin breaking). Verificado por import + loop.
 
 ---
 

@@ -4,7 +4,7 @@
 >
 > **Clasificación**: Arquitectura — Módulo de contexto de mercado
 >
-> **Dependencias**: `data.py`, `indicators.py`, `regime.py`
+> **Dependencias**: `data.py`, `indicators/`, `regime.py`
 
 ---
 
