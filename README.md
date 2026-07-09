@@ -1,6 +1,16 @@
 # SMC-SYSTEMS
 
-**Smart Money Concepts trading system** — modular, event-driven, with a PySide6 desktop UI, MetaTrader 5 integration, multi-agent analysis, and an ML quality filter wired into paper and live trading.
+> **⚠️ MODO ACTUAL: OBSERVADOR FUNDEDNEXT (SIN BOT)**
+> El sistema se usa hoy como **observador de análisis** para el challenge de
+> prop firm FundedNext (cuenta demo). El loop `scripts/loop_analisis.py` corre
+> 24/7 (lun-vie, finde apagado) y genera ficha técnica + informe + semáforo +
+> alertas locales. **NUNCA abre órdenes.** El `vigilante_riesgo.py` solo CIERRA
+> posiciones (2%/4% flotante) si operás manualmente.
+> Las secciones de abajo (desktop PySide6, live/paper trading, ML gate, puente
+> MQL5) describen el proyecto "SMC_SUCCESSOR" original y **NO están cableadas
+> al flujo diario actual**. Están en el repo por si se activa el bot en el futuro.
+
+**Smart Money Concepts trading system** — modular, event-driven, con un PySide6 desktop UI, MetaTrader 5 integration, multi-agent analysis, and an ML quality filter wired into paper and live trading.
 
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![PySide6](https://img.shields.io/badge/PySide6-6.6%2B-green)
