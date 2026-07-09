@@ -288,7 +288,8 @@ Output: `dist/SMC_Trading.exe`. Requires MT5 on the target machine.
 | [Agent Architecture](docs/AGENT_ARCHITECTURE.md) | Agent system design |
 | [App Observador](docs/specs/app_observador.md) | SDD de la UI del observador (reemplaza desktop/) |
 | [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | VPS, systemd, NSSM |
-| [ICT Rulebook](docs/ICT_RULEBOOK.md) | ICT specifications |
+| [ICT Rulebook](docs/ICT_RULEBOOK.md) | ICT specifications (general) |
+| [Biblioteca ICT](docs/ict/00_INDICE.md) | Libros por concepto (killzones, MSS/CHoCH, FVG, OB, liquidez, Turtle Soup, Silver Bullet, PO3) |
 | [Wyckoff Rulebook](docs/WYCKOFF_RULEBOOK.md) | Wyckoff specifications |
 | [Roadmap](docs/CRONOGRAMA_Y_ROADMAP.md) | Prioritized work plan |
 

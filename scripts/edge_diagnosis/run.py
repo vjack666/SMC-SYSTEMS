@@ -49,7 +49,7 @@ from risk import GovernorConfig  # noqa: E402
 DATA_DIR = ROOT / "data" / "raw"
 TIMEFRAME = "M15"
 MAX_HOLD_BARS = 16
-MIN_CONFIDENCE = 0.40  # solo la restriccion de detectores; el gating real lo hace confluence
+MIN_CONFIDENCE = 0.52  # reproduce el baseline del diagnostico de hoy (CombinedBacktestConfig.min_confidence default)
 IS_RATIO = 0.70
 MIN_N = 100
 
@@ -105,8 +105,10 @@ def build_config(v: Variant) -> ScalpingConfig:
 
 def harness_pass_signals(context: "pd.DataFrame", cfg: ScalpingConfig, v: Variant):
     """Replica pipeline.py:301-306 usando las columnas de filtro ya calculadas.
-    Permite forzar PASS a filtros sin flag de config (override de la ablacion)."""
+    Permite forzar PASS a filtros sin flag de config (override de la ablacion).
+    VERSION VECTORIZADA (sin .loc en loop) para no colgarse en 50k-99k barras."""
     import pandas as pd  # local import ok
+    import numpy as np  # local import ok
     fp = set(v.force_pass)
     f_session = True if "session" in fp else context["filter_session"].astype(bool)
     f_atr = True if "atr" in fp else context["filter_atr"].astype(bool)
@@ -129,29 +131,28 @@ def harness_pass_signals(context: "pd.DataFrame", cfg: ScalpingConfig, v: Varian
     confluence = sum(active[k] * w.get(k, 1.0) for k in active)
     signal_pass = mandatory & (confluence >= cfg.min_confluence_score)
 
+    md = context["macro_direction"].fillna("RANGING")
+    direction = np.where(md == "BULLISH", 1, np.where(md == "BEARISH", -1, 0))
+    atr = context["atr"].astype(float)
+    atr_ok = np.isfinite(atr) & (atr > 0.0)
+    sl_val = context["structural_sl"].astype(float)
+    sl_ok = np.isfinite(sl_val)
+    entry = context["close"].astype(float)
+
+    mask = signal_pass.to_numpy() & (direction != 0) & atr_ok.to_numpy()
+    rows = np.where(mask)[0]
     out = []
-    for idx, row in context.iterrows():
-        if not bool(signal_pass.loc[idx]):
-            continue
-        direction = 0
-        md = row.get("macro_direction", "RANGING")
-        if md == "BULLISH":
-            direction = 1
-        elif md == "BEARISH":
-            direction = -1
-        else:
-            continue
-        atr = float(row["atr"])
-        if not (atr and atr > 0):
-            continue
-        entry = float(row["close"])
-        sl = float(row["structural_sl"]) if pd.notna(row.get("structural_sl")) and pd.notna(row["structural_sl"]) else (
-            entry - atr if direction == 1 else entry + atr)
-        tp = entry + 2.0 * atr if direction == 1 else entry - 2.0 * atr
+    for i in rows:
+        d = int(direction[i])
+        e = float(entry.iloc[i])
+        a = float(atr.iloc[i])
+        sl = float(sl_val.iloc[i]) if sl_ok.iloc[i] else (e - a if d == 1 else e + a)
+        tp = e + 2.0 * a if d == 1 else e - 2.0 * a
         out.append(ScalpingSignal(
-            symbol=row.get("symbol", ""), time=str(row["time"]),
-            direction=direction, confidence=float(row["signal_confidence"]),
-            entry=entry, stop_loss=sl, take_profit=tp))
+            symbol=str(context.iloc[i].get("symbol", "")),
+            time=str(context.iloc[i]["time"]),
+            direction=d, confidence=float(context.iloc[i]["signal_confidence"]),
+            entry=e, stop_loss=sl, take_profit=tp))
     return out
 
 
