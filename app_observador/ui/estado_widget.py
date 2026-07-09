@@ -23,8 +23,8 @@ def _proc_running(script_name: str) -> bool:
     try:
         out = subprocess.run(
             ["tasklist", "/FI", f"IMAGENAME eq python.exe", "/FO", "CSV"],
-            capture_output=True, text=True, timeout=5,
-        ).stdout
+            capture_output=True, timeout=5,
+        ).stdout.decode("cp1252", errors="replace")
         return script_name in out
     except Exception:
         return False
