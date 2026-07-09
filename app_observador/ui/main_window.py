@@ -25,6 +25,7 @@ from app_observador.ui.sesgo_widget import SesgoWidget
 from app_observador.ui.mapa_widget import MapaWidget
 from app_observador.ui.noticias_widget import NoticiasWidget
 from app_observador.ui.estado_widget import EstadoWidget
+from app_observador.ui.crono_widget import CronoWidget
 
 # alertas.py vive en scripts/ (popup + beep de Windows)
 import sys
@@ -62,6 +63,7 @@ class MainWindow(QMainWindow):
         self.mapa = MapaWidget()
         self.noticias = NoticiasWidget()
         self.estado = EstadoWidget()
+        self.crono = CronoWidget()
 
         self._build_layout()
 
@@ -123,6 +125,7 @@ class MainWindow(QMainWindow):
         tm_layout.addWidget(self.mapa, 1)
         tabs.addTab(tab_mapa, "Mapa ICT")
         root.addWidget(tabs, 1)
+        root.addWidget(self.crono)  # franja de cronologia del semaforo (siempre visible)
 
         self.setCentralWidget(central)
 
@@ -149,6 +152,7 @@ class MainWindow(QMainWindow):
         self.noticias.update_state(result.get("noticias", []), result.get("fuente_noticias", ""))
         self.mapa.refresh()
         self.estado.update_state()
+        self.crono.update_state()
 
         color = result.get("semaforo", {}).get("color", "DESCCONOCIDO")
         if alert and self._last_color is not None and color != self._last_color:
