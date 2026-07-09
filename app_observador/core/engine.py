@@ -49,6 +49,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
         "fuente_noticias": "",
         "mapas": {},
         "wyckoff": {},
+        "estructura": {},
         "errores": [],
     }
 
@@ -84,6 +85,21 @@ def run_cycle(force_fetch: bool = False) -> dict:
     result["bias"] = bias
     result["veredicto"] = verdict
     log_event("engine", "veredicto", symbol=SYMBOL, data={"bias": bias, "votes": verdict.get("votes")})
+
+    # 1b) Estructura del mercado (datos reales de analyze_timeframe) para la UI
+    for tf in TIMEFRAMES:
+        info = tfs_data[tf][1]
+        result["estructura"][tf] = {
+            "trend": info.get("trend", ""),
+            "bos_dir": int(info.get("bos_dir", 0)),
+            "bos_status": str(info.get("bos_status", "")),
+            "bos_level": float(info.get("bos_level", 0.0) or 0.0),
+            "sweep_up": bool(info.get("sweep_up", False)),
+            "sweep_down": bool(info.get("sweep_down", False)),
+            "ote_long": [float(x) for x in info.get("ote_long", (0.0, 0.0))],
+            "ote_short": [float(x) for x in info.get("ote_short", (0.0, 0.0))],
+        }
+    result["estructura"]["WYCKOFF_M15"] = result["wyckoff"].get("M15", {})
 
     # 2) Noticias rojas reales (usa cache del dia; si no hay cache, baja RSS)
     try:

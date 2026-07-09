@@ -149,7 +149,7 @@ class MainWindow(QMainWindow):
             result.get("semaforo", {}).get("reasons", []),
         )
         self.sesgo.update_state(result.get("bias", "—"), result.get("wyckoff", {}).get("M15"))
-        self.noticias.update_state(result.get("noticias", []), result.get("fuente_noticias", ""))
+        self.noticias.update_state(result.get("noticias", []), result.get("fuente_noticias", ""), result.get("estructura"))
         self.mapa.refresh()
         self.estado.update_state()
         self.crono.update_state()
