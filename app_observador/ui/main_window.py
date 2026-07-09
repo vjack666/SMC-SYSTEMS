@@ -19,6 +19,7 @@ from app_observador.config import REFRESH_SECONDS, SYMBOL
 from app_observador.core.blackbox import log_event, log_error
 from app_observador.core.data_retention import run_retention
 from app_observador.core.mt5_status import shutdown as mt5_shutdown
+from app_observador.core.engine import load_cached
 from app_observador.ui.semaforo_widget import SemaforoWidget
 from app_observador.ui.sesgo_widget import SesgoWidget
 from app_observador.ui.mapa_widget import MapaWidget
@@ -77,7 +78,15 @@ class MainWindow(QMainWindow):
             log_error("main_window", "retention_arranque", e)
 
         self._last_color = None  # para alertar solo en cambios
-        # Primer ciclo
+
+        # Abrir rapido: pinta el ultimo ciclo cacheado (<1s) sin alerta
+        cached = load_cached()
+        if cached:
+            self._apply_result(cached, alert=False)
+            if cached.get("semaforo", {}).get("color"):
+                self._last_color = cached["semaforo"]["color"]
+
+        # Primer ciclo real (en background, refresca cache + mapas)
         self._run_cycle()
 
     def _build_layout(self) -> None:
@@ -131,10 +140,7 @@ class MainWindow(QMainWindow):
             pass
         super().closeEvent(event)
 
-    def _on_result(self, result: dict) -> None:
-        self.btn.setEnabled(True)
-        self.btn.setText("Actualizar ahora")
-
+    def _apply_result(self, result: dict, alert: bool = True) -> None:
         self.semaforo.update_state(
             result.get("semaforo", {}).get("color", "DESCCONOCIDO"),
             result.get("semaforo", {}).get("reasons", []),
@@ -144,9 +150,8 @@ class MainWindow(QMainWindow):
         self.mapa.refresh()
         self.estado.update_state()
 
-        # Alerta solo en cambios de semaforo que importan (ROJO, o VERDE->AMARILLO)
         color = result.get("semaforo", {}).get("color", "DESCCONOCIDO")
-        if self._last_color is not None and color != self._last_color:
+        if alert and self._last_color is not None and color != self._last_color:
             if color == "ROJO" or (color == "AMARILLO" and self._last_color == "VERDE"):
                 razones = "\n".join(result.get("semaforo", {}).get("reasons", [])[:3])
                 alertar(color, f"{SYMBOL}: semaforo {color}\n{razones}")
@@ -156,6 +161,11 @@ class MainWindow(QMainWindow):
 
         if result.get("errores"):
             log_error("main_window", "ciclo_con_errores", Exception("; ".join(result["errores"])))
+
+    def _on_result(self, result: dict) -> None:
+        self.btn.setEnabled(True)
+        self.btn.setText("Actualizar ahora")
+        self._apply_result(result, alert=True)
 
 
 def main() -> int:

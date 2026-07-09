@@ -13,13 +13,15 @@ caja negra. Cada paso queda registrado en blackbox para análisis de errores.
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
 
 from app_observador.config import DATA_RAW, MAPS_DIR, ROOT, SYMBOL, TIMEFRAMES
-from app_observador.core.blackbox import log_event, log_error
+from app_observador.core.blackbox import BLACKBOX_DIR, log_event, log_error
 
+CACHE_PATH = BLACKBOX_DIR / "last_cycle.json"
 _SCRIPTS = ROOT / "scripts"
 
 
@@ -129,7 +131,26 @@ def run_cycle(force_fetch: bool = False) -> dict:
     if not result["errores"]:
         log_event("engine", "ciclo_completo", level="INFO", symbol=SYMBOL,
                   data={"color": result["semaforo"]["color"], "bias": bias})
+
+    # Cache del ultimo ciclo (la app lo lee en <1s al abrir)
+    try:
+        CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        CACHE_PATH.write_text(
+            json.dumps(result, ensure_ascii=False, default=str),
+            encoding="utf-8")
+    except Exception as e:
+        log_error("engine", "cache_write", e, symbol=SYMBOL)
     return result
+
+
+def load_cached() -> dict | None:
+    """Lee el ultimo ciclo cacheado (None si no existe). Para abrir la app rapido."""
+    try:
+        if CACHE_PATH.exists():
+            return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return None
 
 
 if __name__ == "__main__":
