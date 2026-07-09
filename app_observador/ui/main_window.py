@@ -18,11 +18,17 @@ from PySide6.QtWidgets import (
 from app_observador.config import REFRESH_SECONDS, SYMBOL
 from app_observador.core.blackbox import log_event, log_error
 from app_observador.core.data_retention import run_retention
+from app_observador.core.mt5_status import shutdown as mt5_shutdown
 from app_observador.ui.semaforo_widget import SemaforoWidget
 from app_observador.ui.sesgo_widget import SesgoWidget
 from app_observador.ui.mapa_widget import MapaWidget
 from app_observador.ui.noticias_widget import NoticiasWidget
 from app_observador.ui.estado_widget import EstadoWidget
+
+# alertas.py vive en scripts/ (popup + beep de Windows)
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
+from alertas import alertar  # noqa: E402
 
 
 class _Worker(QThread):
@@ -70,6 +76,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             log_error("main_window", "retention_arranque", e)
 
+        self._last_color = None  # para alertar solo en cambios
         # Primer ciclo
         self._run_cycle()
 
@@ -117,6 +124,13 @@ class MainWindow(QMainWindow):
         self._worker.finished.connect(self._on_result)
         self._worker.start()
 
+    def closeEvent(self, event) -> None:
+        try:
+            mt5_shutdown()
+        except Exception:
+            pass
+        super().closeEvent(event)
+
     def _on_result(self, result: dict) -> None:
         self.btn.setEnabled(True)
         self.btn.setText("Actualizar ahora")
@@ -129,6 +143,16 @@ class MainWindow(QMainWindow):
         self.noticias.update_state(result.get("noticias", []), result.get("fuente_noticias", ""))
         self.mapa.refresh()
         self.estado.update_state()
+
+        # Alerta solo en cambios de semaforo que importan (ROJO, o VERDE->AMARILLO)
+        color = result.get("semaforo", {}).get("color", "DESCCONOCIDO")
+        if self._last_color is not None and color != self._last_color:
+            if color == "ROJO" or (color == "AMARILLO" and self._last_color == "VERDE"):
+                razones = "\n".join(result.get("semaforo", {}).get("reasons", [])[:3])
+                alertar(color, f"{SYMBOL}: semaforo {color}\n{razones}")
+                log_event("main_window", "alerta_disparada", symbol=SYMBOL,
+                          data={"de": self._last_color, "a": color})
+        self._last_color = color
 
         if result.get("errores"):
             log_error("main_window", "ciclo_con_errores", Exception("; ".join(result["errores"])))
