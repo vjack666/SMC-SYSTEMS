@@ -157,7 +157,13 @@ class MainWindow(QMainWindow):
         )
         self.sesgo.update_state(result.get("bias", "—"), result.get("wyckoff", {}).get("M15"))
         self.noticias.update_state(result.get("noticias", []), result.get("fuente_noticias", ""))
-        self.resumen.update_state(result.get("estructura"))
+        verd = result.get("veredicto", {}) or {}
+        self.resumen.update_state(
+            result.get("estructura"),
+            result.get("bias", ""),
+            verd.get("votes"),
+            extra={"wyckoff_m15": result.get("wyckoff", {}).get("M15", {})},
+        )
         self.mapa.refresh()
         self.estado.update_state()
         self.crono.update_state()
