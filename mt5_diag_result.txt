@@ -1,5 +1,0 @@
-SMC_MT5_TERMINAL = C:\Program Files\FundedNext MT5 Terminal\terminal64.exe
-existe el exe: True
-MT5 pkg version: <function _getattr.<locals>._noop at 0x0000018F9EB4B8A0>
-initialize() -> None
-last_error: None
