@@ -1,101 +1,97 @@
 # CRONOGRAMA Y ROADMAP - SMC-SYSTEMS
 
-**Proyecto:** SMC-SYSTEMS (renombrado desde SMC_SUCCESSOR)  
-**Repositorio:** https://github.com/vjack666/SMC-SYSTEMS  
-**Versión del Roadmap:** 2.1 (post-A5 completion)  
-**Fecha de Actualización:** 2026-07-08  
-**Estado General:** 🟢 Alineación en progreso (A5 completado, plan de mejora de estrategia pendiente)
+**Proyecto:** SMC-SYSTEMS (renombrado desde SMC_SUCCESSOR)
+**Repositorio:** https://github.com/vjack666/SMC-SYSTEMS
+**Versión del Roadmap:** 2.2 (post-edge-diagnosis + arranque automático FundedNext)
+**Fecha de Actualización:** 2026-07-10
+**Estado General:** 🟢 Modo observador FundedNext operativo 24/7 + edge diagnosis completa. Pendiente: walk-forward OOS de celda ganadora, expansión de datos y deployment.
 
 ---
 
 ## 1. Principios Rectores (NO NEGOCIABLES)
 
-1. **El Roadmap es la única fuente de verdad.** Todo avance se mide exclusivamente por hitos/objetivos cumplidos (no por tiempo ni por "casi listo").
-2. **Harness-First Development.** Todo nuevo módulo, feature o refactor **debe** integrarse a través del `harness/` y pasar el 100% de los escenarios definidos antes de considerarse completo. No hay excepciones.
-3. **Limpieza y Enfoque.** Después de la limpieza masiva realizada por el usuario, solo se mantiene lo esencial. Nada de contenido legacy o disperso.
-4. **Documentación Dual.** Todos los documentos MD deben ser consumibles tanto por humanos (explicaciones simples) como por agentes IA (estructura clara, secciones bien definidas, listas accionables).
-5. **Cierre de Ciclo con Informe Semanal.** Cada vez que se completa un hito importante o se cierra un ciclo de trabajo, se genera el Informe Semanal usando la skill correspondiente.
+1. **Este Cronograma es la ÚNICA fuente de verdad.** `docs/HOJA_DE_RUTA_SMC-SYSTEMS.md` quedó OBSOLETO (versión 2.0, 04-jul) y redirige aquí. Cualquier decisión de alcance/prioridad se alinea en este documento.
+2. **Harness-First Development.** Todo nuevo módulo/feature/refactor debe integrarse vía `harness/` y pasar 100% de escenarios antes de considerarse completo.
+3. **Limpieza y Enfoque.** Solo lo esencial versionado. Nada de contenido legacy disperso (ver commit de auditoría de archivos 340597f).
+4. **Documentación Dual.** Consumible por humanos y agentes IA (estructura clara, listas accionables).
+5. **Cierre de Ciclo con Informe Semanal.** Al completar hito importante, generar informe.
 
 ---
 
-## 2. Estado Actual del Repositorio (Post-Limpieza)
+## 2. Estado Actual del Repositorio (2026-07-10)
 
-### Estructura Confirmada (limpia y modular)
-- **Entry points:** `app_observador/main.py` (observador), `scripts/run_paper_trading.py`, `scripts/run_live_trading.py` (bot heredado, no usado en modo observador). El antiguo `scripts/run_desktop.py` fue borrado 2026-07-09.
-- **Harness:** Carpeta `harness/` presente y declarada como gate de calidad.
-- **Documentación:** Carpeta `docs/` con `specs/app_observador.md`, `DEPLOYMENT_GUIDE.md` (incompleto), `AGENT_ARCHITECTURE.md`, `ICT_RULEBOOK.md`, `WYCKOFF_RULEBOOK.md`. El antiguo `docs/DESKTOP_UI.md` fue borrado.
-- **Componentes clave implementados:** `agents/`, `risk/`, `signals/`, `detectors/`, `ml/`, `governance/`, `orchestration/`, `app_observador/` (observador, reemplaza `desktop/` borrado), `MQL5/SMC_SYSTEMS_BRIDGE/`.
-- **Reportes existentes:** `COMPLETION_REPORT.md`, `AUDIT_REPORT.md`, `MT5_INTEGRATION_REPORT.md`.
+### Modo de operación real
+- **OBSERVADOR FUNDEDNEXT (SIN BOT):** el sistema corre como analizador 24/7 para el challenge prop firm FundedNext (cuenta demo MetaQuotes en fase de prueba; la real se toma sola al loguearla). El loop `scripts/loop_analisis.py` (lun-vie 07:00-20:00, finde off) genera ficha + informe + semáforo + alertas locales. **NUNCA abre órdenes.**
+- `scripts/vigilante_riesgo.py` SOLO CIERRA posiciones (2%/4% flotante) si operás manualmente.
+- Arranque automático vía `start_hermes_session.ps1` (abre MT5 FundedNext, baja datos en vivo, lanza loop + vigilante + observador, reporte de salud). Se invoca desde la Carpeta de Inicio (`.lnk` con Bypass).
+- El código de bot heredado (`run_paper_trading.py`, `run_live_trading.py`, MQL5 EA) está implementado pero NO cableado al flujo diario.
 
-### Progreso Real vs Roadmap Anterior (Comparación)
-| Aspecto | Expectativa Anterior (memoria F14 + Harness Phase 1) | Estado Actual (post-limpieza) | Semáforo |
-|---------|-------------------------------------------------------|--------------------------------|----------|
-| Fase 1 / Harness baseline | 5% progreso general | Completada + muchos F avanzados | 🟢 |
-| F5 - MT5 Bridge | Prioridad Julio 2026 | Presente + reportes de integración | 🟢 |
-| F6 - MQL5 EA | Prioridad Julio 2026 | Presente en `MQL5/SMC_SYSTEMS_BRIDGE` | 🟢 |
-| F8 - Deployment Guide | No iniciado | Faltante (gap crítico) | 🔴 |
-| F10 - Stochastic Exhaustion | No implementado | Aún no implementado (gap Wyckoff) | 🔴 |
-| Documentación | Actualizada | Desactualizada (README stale, paths incorrectos, harness adapters discrepancy 10 vs 4) | 🟡 |
-| Tests / Harness scenarios | Harness como gate | 100 tests unitarios + escenarios harness para backtest cableados | 🟢 |
-| Backtest métricas | — | PF 1.61, WR 63.74%, Sharpe 3.33 (buenos) pero solo 91 trades (bajo vs objetivo ≥200) | 🟡 |
-| Out-of-sample validation | Suficiente | Insuficiente (solo 2 años de datos) | 🟡 |
+### Estructura confirmada
+- **Entry points activos:** `app_observador/main.py` (observador), `scripts/loop_analisis.py`, `scripts/rutina_eurusd.py`, `scripts/hermes_startup_routine.py`, `start_hermes_session.ps1`.
+- **Componentes:** `agents/`, `risk/`, `signals/`, `detectors/`, `ml/`, `governance/`, `orchestration/`, `app_observador/`, `MQL5/SMC_SYSTEMS_BRIDGE/`, `harness/`.
+- **Reportes:** `COMPLETION_REPORT.md`, `AUDIT_REPORT.md`, `MT5_INTEGRATION_REPORT.md`, `docs/EDGE_DIAGNOSIS_REPORT.md`, `docs/ESTADO_ACTUAL.md`, `docs/RUTINA_EURUSD.md`, `docs/AUDITORIA_USO_2026-07-09.md`.
 
-**Conclusión de la comparación:** El proyecto avanzó significativamente en implementación (F4-F7, F9-F16 parciales completados), pero el **Roadmap y la documentación no se actualizaron**. La auditoría revela que el repo está "sucio" por refactor incompleto y que el harness no está fully alineado. Esta versión 2.0 del Roadmap corrige eso.
+### Edge Diagnosis (COMPLETADA 2026-07-10)
+Matriz **21 variantes × 8 símbolos = 168 celdas**, 0 errores, 0 insufficient.
+- Mejor variante promedio: `no_session` → OOS PF **1.159**.
+- Peor: `prox_1` → OOS PF **1.084** (el filtro de proximidad OB/FVG erosiona el edge).
+- Mejor símbolo: **XAUUSD OOS PF 1.376**; peor: AUDUSD (0.849) y NZDUSD (0.809) PIERDEN.
+- Celda TOP: `no_session` × XAUUSD → OOS PF **1.642**, N=900, Sharpe 3.28, WR 55.1%.
+- Detalle completo en `docs/EDGE_DIAGNOSIS_REPORT.md` y `results/edge_diagnosis/full_results.json`.
+- **Próximo paso pendiente:** walk-forward OOS real (PurgedKFold, DSR>0, N>=200/fold, PF>=1.10) de la celda ganadora antes de cualquier automatización.
 
 ---
 
-## 3. Hitos y Objetivos Actuales (Actualizado Post-Limpieza)
-
-### Hito Actual: **Funcionalidad Completa + Validación** (Julio 2026)
-
-Todo debe estar funcional antes de pensar en deployment. F8 (Deployment Guide) se mueve al final.
+## 3. Hitos y Objetivos
 
 | ID | Objetivo | Descripción | Estado | Prioridad |
 |----|----------|-------------|--------|-----------|
-| A1 | Actualizar documentación | README, AGENT_ARCHITECTURE, harness docs, paths — todo alineado con el código real | ✅ Completado | Alta |
-| A4 | Stochastic Exhaustion (F10) | Ya implementado en wyckoff_agent.py. Pendiente: verificar integración harness + pipeline. | 🟡 Verificación | Alta |
-| A2 | Parameter Tuning (F12) | Optuna integrado, conectado al pipeline via tune_first. CLI listo. 7 tests pasando. | ✅ Completado | Alta |
-| A7 | Validación cuantitativa (F9/F13) | PurgedKFold, CVaR, DSR, PBO, bootstrap — todo implementado en stats_validator.py. 10 tests pasando. | ✅ Completado | Alta |
-| A5 | Tests + cobertura | Tests para 6 módulos sin cobertura. Escenarios harness para backtest. | ✅ Completado | Alta |
-| A3 | Resolver discrepancia Harness | 11 adapters documentados en AGENT_ARCHITECTURE.md | ✅ Completado | Media |
-| A6 | Expandir datos | Incrementar dataset histórico (>3-4 años) para out-of-sample robusto. | 🟡 Pendiente | Media |
-| A8 | Deployment Guide (F8) | VPS, systemd, recovery, monitoring. **AL FINAL**. | 🔴 Pendiente | Baja |
+| A1 | Actualizar documentación | README, AGENT_ARCHITECTURE, harness docs, paths alineados | ✅ Completado | Alta |
+| A2 | Parameter Tuning (F12) | Optuna integrado al pipeline, CLI listo, 7 tests | ✅ Completado | Alta |
+| A4 | Stochastic Exhaustion (F10) | Implementado en `agents/wyckoff_agent.py:73` (divergencias, cruces, volumen) + verificado en pipeline | ✅ Completado | Alta |
+| A5 | Tests + cobertura | Tests para 6 módulos + escenarios harness backtest | ✅ Completado | Alta |
+| A7 | Validación cuantitativa (F9/F13) | PurgedKFold, CVaR, DSR, PBO, bootstrap en `ml/stats_validator.py`, 10 tests | ✅ Completado | Alta |
 | A9 | Plan mejora estrategia (A-F) | ML filter off, symbol breakdown, confluence weights, sweep+OTE, detector invalidation, conflict mode | ✅ Completado | Alta |
+| A10 | Edge Diagnosis (21×8) | 168/168 celdas, 0 errores, celda ganadora documentada | ✅ Completado | Alta |
+| A11 | Arranque automático FundedNext | `start_hermes_session.ps1` + mutex + loop/vigilante headless + reporte salud + `.lnk` Inicio | ✅ Completado | Alta |
+| A3 | Resolver discrepancia Harness | 11 adapters documentados en AGENT_ARCHITECTURE.md | ✅ Completado | Media |
+| A6 | Expandir datos | >3-4 años históricos para OOS robusto (scripts listos: `download_multiyear.py`) | 🟡 Pendiente | Media |
+| A12 | Walk-forward OOS celda ganadora | `no_session` × XAUUSD: PurgedKFold, DSR>0, N>=200, PF>=1.10 antes de live | 🔴 Pendiente | Alta |
+| A8 | Deployment Guide (F8) | VPS, systemd/NSSM, recovery, monitoring. **AL FINAL** | 🔴 Pendiente | Baja |
 
-**Criterio de completitud:** Todos los items A1-A8 en 🟢. El harness pasa 100% de escenarios. Solo entonces se considera production-ready.
+**Criterio de completitud:** A1-A11 en 🟢 + A12 validado. El harness pasa 100% de escenarios. Solo entonces se considera production-ready para bot.
 
 ---
 
 ## 4. Fases Futuras (una vez cerrado el Hito Actual)
 
-- **Fase Live Trading & Robustez:** Validación full en paper trading con harness, kill-switch testing, drift detection en producción, ML retraining scheduler.
+- **Fase Walk-Forward OOS:** validación dura de la celda ganadora `no_session` × XAUUSD (filtro antes de cualquier live automation).
+- **Fase Live Trading & Robustez:** validación full en paper trading con harness, kill-switch testing, drift detection en producción, ML retraining scheduler.
 - **Fase Deployment (F8):** ÚLTIMA. Solo cuando todo esté funcional y validado.
-- **Fase Expansión:** Soporte multi-símbolo/timeframe más amplio, UI enhancements, gobernanza de modelos.
+- **Fase Expansión:** soporte multi-símbolo/timeframe más amplio, UI enhancements, gobernanza de modelos.
 
 ---
 
 ## 5. Métricas de Éxito del Proyecto (Gate de Calidad)
 
-- Profit Factor ≥ 1.25 (actual 1.61 ✅)
+- Profit Factor ≥ 1.25 (actual 1.61 ✅ backtest)
 - Win Rate ≥ 52% (actual 63.74% ✅)
 - Max Drawdown ≤ 10% (actual 4.96% ✅)
 - Sharpe > 1.0 (actual 3.33 ✅)
 - Expectancy > 0 (actual 0.1145R ✅)
-- **Trade count por backtest ≥ 200** (actual 91 ⚠️ — debe mejorarse con menos filtros estrictos o más datos)
+- **Edge diagnosis OOS PF ≥ 1.10 en >1 símbolo:** ✅ (XAUUSD 1.376, USDCAD 1.264, etc.) — falta walk-forward.
+- **Trade count por backtest ≥ 200** (actual 91 ⚠️ — mejorar con menos filtros o más datos, A6)
 - Harness: 100% escenarios passing antes de cualquier merge.
 
 ---
 
 ## 6. Próximos Pasos Inmediatos
 
-1. Usuario revisa y aprueba este `CRONOGRAMA_Y_ROADMAP.md` (versión 2.1).
-2. A5 + A9 (Ítems A-F) completados. ML filter desactivado por defecto.
-3. A6 (expandir datos >3-4 años) — pendiente para validación OOS robusta.
-4. F8 (Deployment) queda AL ÚLTIMO — no se toca hasta que todo lo demás esté funcional.
-5. Cualquier nuevo desarrollo debe pasar primero por el harness actualizado.
+1. A12 — Walk-forward OOS de `no_session` × XAUUSD (PurgedKFold, DSR>0, N>=200/fold, PF>=1.10). Gate duro antes de live.
+2. A6 — Expandir datos históricos (>3-4 años) para OOS robusto.
+3. A8 — Deployment Guide queda AL ÚLTIMO.
+4. Cualquier nuevo desarrollo pasa primero por el harness actualizado.
 
 ---
 
-**Este documento reemplaza cualquier versión anterior de CRONOGRAMA_Y_ROADMAP.md. Es la única fuente de verdad a partir de ahora.**
-
-*Generado automáticamente por Grok tras revisión del estado actual del repo post-limpieza y rename. Alineado con COMPLETION_REPORT.md y AUDIT_REPORT.md existentes.*
+*Este documento es la ÚNICA fuente de verdad a partir de 2026-07-10. Reemplaza `docs/HOJA_DE_RUTA_SMC-SYSTEMS.md` (obsoleta, v2.0 04-jul) y cualquier versión anterior de CRONOGRAMA_Y_ROADMAP.md. Alineado con COMPLETION_REPORT.md, AUDIT_REPORT.md, EDGE_DIAGNOSIS_REPORT.md y ESTADO_ACTUAL.md.*
