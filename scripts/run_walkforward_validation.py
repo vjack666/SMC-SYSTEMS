@@ -244,6 +244,7 @@ def main() -> None:
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     LOG_PATH.write_text("", encoding="utf-8")  # log fresco
+    _write_status("starting", 0, 3, note="arrancando")
     t0 = time.time()
     _log("=" * 70)
     _log(f"PRUEBA DE FUEGO (A12) — {args.variant} x {args.symbol}")
@@ -303,4 +304,16 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:  # noqa: BLE001 - queremos dejar constancia y no colgar la ventana
+        import traceback
+
+        _log("=" * 70)
+        _log(f"ERROR NO CONTROLADO: {e}")
+        _log(traceback.format_exc())
+        _write_status("error", -1, -1, ok=False, error=str(e))
+        # No hacemos sys.exit aqui: la ventana del pipeline se queda abierta
+        # mostrando el error para que el usuario lo lea antes de cerrar.
+        print(f"\nERROR: {e}  (ver results/walkforward/walkforward.log)")
+        input("Presiona ENTER para cerrar...")

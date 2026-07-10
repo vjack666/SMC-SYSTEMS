@@ -4,13 +4,16 @@ REM  PRUEBA DE FUEGO (A12) - SMC-SYSTEMS
 REM  Walk-forward OOS de la celda ganadora no_session x XAUUSD
 REM  Con barra de progreso en vivo + log con timestamp.
 REM
-REM  Doble-clic en este archivo. Requiere MT5 abierto y logueado
-REM  SOLO si queres bajar mas datos (--download-years). Si no, la
-REM  prueba usa los datos que ya estan en data/raw.
+REM  Doble-clic en este archivo. La validacion corre en su PROPIA
+REM  ventana (independiente): podeis cerrar ESTA ventana y el pipeline
+REM  sigue hasta terminar y escribir el reporte. No se muere al cerrar.
+REM
+REM  Requiere MT5 abierto y logueado SOLO si pasas --download-years.
+REM  Sin ese flag usa los datos que ya estan en data/raw.
 REM =====================================================================
 
 SETLOCAL ENABLEDELAYEDEXPANSION
-title SMC-SYSTEMS - Prueba de Fuego (A12)
+SET ROOT=%~dp0
 
 REM --- Python: usar el del repo o el del PATH ---
 IF EXIST "C:\Python314\python.exe" (
@@ -19,16 +22,13 @@ IF EXIST "C:\Python314\python.exe" (
     SET PY=python
 )
 
-SET ROOT=%~dp0
-SET LOG=%ROOT%results\walkforward\walkforward.log
-
 echo.
 echo  ============================================================
 echo   SMC-SYSTEMS - PRUEBA DE FUEGO (A12 Walk-Forward OOS)
 echo   Celda ganadora: no_session x XAUUSD
 echo  ============================================================
 echo.
-echo   [1/2] Verificando Python...
+echo   Verificando Python...
 "%PY%" --version
 IF ERRORLEVEL 1 (
     echo   ERROR: no se encontro Python. Instalalo o ajusta PY en este .bat
@@ -37,12 +37,14 @@ IF ERRORLEVEL 1 (
 )
 
 echo.
-echo   [2/2] Lanzando validacion (barra de progreso abajo)...
-echo   Log: %LOG%
+echo   Lanzando validacion en ventana propia (barra + log)...
+echo   Log: %ROOT%results\walkforward\walkforward.log
+echo   Podas cerrar esta ventana; el pipeline sigue hasta el reporte.
 echo.
 
-REM --- La barra de progreso vive en la consola (progress.json + walkforward.log) ---
-"%PY%" "%ROOT%scripts\run_walkforward_validation.py" %*
+REM --- start "" abre el pipeline en su propia ventana, INDEPENDIENTE.
+REM     /WAIT hace que este .bat espere y luego reporte el veredicto.
+start "" /WAIT "%PY%" "%ROOT%scripts\run_walkforward_validation.py" %*
 
 SET RC=%ERRORLEVEL%
 echo.
