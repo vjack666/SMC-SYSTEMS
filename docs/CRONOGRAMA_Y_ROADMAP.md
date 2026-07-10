@@ -55,8 +55,8 @@ Matriz **21 variantes × 8 símbolos = 168 celdas**, 0 errores, 0 insufficient.
 | A10 | Edge Diagnosis (21×8) | 168/168 celdas, 0 errores, celda ganadora documentada | ✅ Completado | Alta |
 | A11 | Arranque automático FundedNext | `start_hermes_session.ps1` + mutex + loop/vigilante headless + reporte salud + `.lnk` Inicio | ✅ Completado | Alta |
 | A3 | Resolver discrepancia Harness | 11 adapters documentados en AGENT_ARCHITECTURE.md | ✅ Completado | Media |
-| A6 | Expandir datos | >3-4 años históricos para OOS robusto (scripts listos: `download_multiyear.py`) | 🟡 Pendiente | Media |
-| A12 | Walk-forward OOS celda ganadora | `no_session` × XAUUSD: PurgedKFold, DSR>0, N>=200, PF>=1.10 antes de live | 🟡 En curso | Alta |
+| A6 | Expandir datos | >3-4 años históricos para OOS robusto (scripts listos: `download_multiyear.py`, `download_xauusd_m15.bat`) | 🟡 En curso | Alta |
+| A12 | Walk-forward OOS celda ganadora | `no_session` × XAUUSD: **FALLÓ** 1er pase (PF -0.058, DSR 0.0) por pocos datos (584 samples / 87 por ventana < 200). Reintentar tras A6 (4 años M15). | 🔴 Pendiente (re-run) | Alta |
 | A8 | Deployment Guide (F8) | VPS, systemd/NSSM, recovery, monitoring. **AL FINAL** | 🔴 Pendiente | Baja |
 
 **Criterio de completitud:** A1-A11 en 🟢 + A12 validado. El harness pasa 100% de escenarios. Solo entonces se considera production-ready para bot.

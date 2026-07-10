@@ -151,7 +151,7 @@ def _print_live(done: int, total: int, phase: str, extra: str = "") -> None:
     print(line, end="", flush=True)
 
 
-def _build_v4_dataset(symbol: str, variant: str) -> Path:
+def _build_v4_dataset(symbol: str, variant: str, max_bars: int) -> Path:
     _log(f"FASE 2: armando dataset v4 para {variant} x {symbol}...")
     _log("  (el builder de features SMC es pesado; puede tardar varios minutos)")
     _write_status("dataset", 1, 3, current_symbol=symbol, note="build_ml_dataset en curso")
@@ -165,7 +165,7 @@ def _build_v4_dataset(symbol: str, variant: str) -> Path:
         timeframes=("M15",),
         data_dir=_ROOT / "data" / "raw",
         output_dir=out_dir,
-        max_bars=8000,
+        max_bars=args.max_bars,
         min_confidence=0.0,
         scalping_config=ScalpingConfig(trend_confidence_threshold=0.0, min_atr_ratio=0.0),
         schema_version="v4",
@@ -245,6 +245,8 @@ def main() -> None:
     ap.add_argument("--download-years", type=float, default=0.0,
                     help="Si >0, baja N anos de historia (A6) antes del walk-forward")
     ap.add_argument("--windows", type=int, default=4, help="Cantidad de ventanas walk-forward")
+    ap.add_argument("--max-bars", type=int, default=140000,
+                    help="Max barras M15 a usar del dataset (default 140k ~ 4 anos)")
     args = ap.parse_args()
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -274,7 +276,7 @@ def main() -> None:
     # FASE 2 — dataset
     _write_status("dataset", done, phases)
     _print_live(done, phases, "dataset")
-    dataset_path = _build_v4_dataset(args.symbol, args.variant)
+    dataset_path = _build_v4_dataset(args.symbol, args.variant, args.max_bars)
     done += 1
     _write_status("dataset", done, phases)
     _print_live(done, phases, "dataset")
