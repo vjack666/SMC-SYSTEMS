@@ -180,10 +180,15 @@ def _build_v4_dataset(symbol: str, variant: str) -> Path:
     finally:
         _hb_stop.set()
         _hb.join(timeout=1)
+    # build_ml_dataset guarda en subdirectorios (p.ej. XAUUSD/v4_XAUUSD.parquet
+    # y multi_symbol/v4_dataset.parquet). Buscamos recursivamente y priorizamos
+    # el archivo del simbolo de la celda ganadora (en cualquier orden del nombre).
     dataset_path = out_dir / "v4_dataset.parquet"
     if not dataset_path.exists():
-        # build_ml_dataset puede nombrar distinto; buscar el parquet generado
-        candidates = sorted(out_dir.glob(f"*{symbol}*v4*.parquet")) or sorted(out_dir.glob("*.parquet"))
+        all_pq = sorted(out_dir.rglob("*.parquet"))
+        # priorizar el que menciona el simbolo (v4_XAUUSD o XAUUSD_v4 indistinto)
+        by_symbol = [p for p in all_pq if symbol.lower() in p.name.lower()]
+        candidates = by_symbol or all_pq
         if not candidates:
             raise FileNotFoundError(f"No se genero dataset v4 en {out_dir}")
         dataset_path = candidates[-1]
