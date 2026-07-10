@@ -20,7 +20,7 @@ IF EXIST "C:\Python314\python.exe" (
 )
 
 SET ROOT=%~dp0
-SET LOG=%ROOT%results\walkforward\walkforward_run.log
+SET LOG=%ROOT%results\walkforward\walkforward.log
 
 echo.
 echo  ============================================================
@@ -28,7 +28,7 @@ echo   SMC-SYSTEMS - PRUEBA DE FUEGO (A12 Walk-Forward OOS)
 echo   Celda ganadora: no_session x XAUUSD
 echo  ============================================================
 echo.
-echo   [1/4] Verificando Python...
+echo   [1/2] Verificando Python...
 "%PY%" --version
 IF ERRORLEVEL 1 (
     echo   ERROR: no se encontro Python. Instalalo o ajusta PY en este .bat
@@ -37,7 +37,7 @@ IF ERRORLEVEL 1 (
 )
 
 echo.
-echo   [2/4] Lanzando validacion (barra de progreso abajo)...
+echo   [2/2] Lanzando validacion (barra de progreso abajo)...
 echo   Log: %LOG%
 echo.
 
