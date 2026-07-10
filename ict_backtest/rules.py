@@ -42,19 +42,28 @@ def killzone_en(ts: datetime) -> str:
     return ""
 
 
-def _dir_setup(bias: str, votes: dict | None, m15: dict) -> str:
-    """Direccion del setup: votos L/S o BOS M15."""
+def _dir_setup(bias: str, votes: dict | None, m15: dict, counter_trend: bool = False) -> str:
+    """Direccion del setup.
+
+    A-favor (counter_trend=False): la direccion sigue al BOS/votos del exec TF
+    (que coincide con la marea del HTF).
+    Contratendencia (counter_trend=True): el setup opera la REVERSION, por lo
+    que la direccion es el BOS/choch del exec TF TAL CUAL (ese break YA es el
+    movimiento contrario a la marea del HTF). No se invierte nada.
+    """
     v = votes or {}
     if v.get("LONG", 0) > v.get("SHORT", 0):
-        return "LONG"
-    if v.get("SHORT", 0) > v.get("LONG", 0):
-        return "SHORT"
-    bd = int(m15.get("bos_dir", 0) or 0)
-    if bd > 0:
-        return "LONG"
-    if bd < 0:
-        return "SHORT"
-    return "NEUTRAL"
+        raw = "LONG"
+    elif v.get("SHORT", 0) > v.get("LONG", 0):
+        raw = "SHORT"
+    else:
+        bd = int(m15.get("bos_dir", 0) or 0)
+        raw = "LONG" if bd > 0 else "SHORT" if bd < 0 else "NEUTRAL"
+    if counter_trend:
+        # En contratendencia el setup opera la REVERSION: direccion OPUESTA al sesgo HTF.
+        want = -1 if bias == "BULLISH" else 1 if bias == "BEARISH" else 0
+        return "LONG" if want == 1 else "SHORT" if want == -1 else "NEUTRAL"
+    return raw
 
 
 def _sweep_dir(estructura: dict, tfs: tuple[str, ...]) -> str:
@@ -80,31 +89,39 @@ def _bos_exec(estructura: dict, exec_tf: str = "M15") -> str:
 
 def checklist_intradia(estructura: dict, bias: str, votes: dict | None,
                        ts: datetime | None = None, exec_tf: str = "M15",
-                       htf: str = "H4") -> list[str]:
+                       htf: str = "H4", counter_trend: bool = False) -> list[str]:
     """Checklist INTRADIA (PO3/Turtle Soup). Items numerados.
 
     ts: timestamp de la vela para killzone historica (si None, fuera de KZ).
     exec_tf: TF de ejecucion (M15 en vivo; H4 en backtest de opcion A).
     htf: TF de contexto alto para el sweep (H4 por defecto).
+    counter_trend: si True, el setup opera CONTRA la marea del HTF.
     """
     items: list[str] = []
     d1 = estructura.get("D1", {})
     h4 = estructura.get(htf, {})
     m15 = estructura.get(exec_tf, {})
-    dir_setup = _dir_setup(bias, votes, m15)
+    label = "CONTRA-tendencia" if counter_trend else "a-favor"
+    dir_setup = _dir_setup(bias, votes, m15, counter_trend)
     kz = killzone_en(ts) if ts is not None else ""
 
     # 1. Sesgo del dia
     if "NEUTRAL" in (bias or "") or not bias:
         items.append("FALTA: definir SESGO DEL DIA (L/S) desde H4/D1.")
     else:
-        items.append(f"OK: Sesgo del dia: {bias}.")
+        items.append(f"OK: Sesgo del dia: {bias} (setup {label}).")
 
-    # 2. Contexto D1/H4
-    if d1.get("trend") in ("", "RANGING") and h4.get("trend") in ("", "RANGING"):
-        items.append("FALTA: contexto D1/H4 definido (en rango -> sin marea).")
+    # 2. Contexto D1/H4 (en contratendencia, el HTF debe tener tendencia clara A OPONERSE)
+    if counter_trend:
+        if bias in ("BULLISH", "BEARISH"):
+            items.append(f"OK: Contratendencia lista sobre {bias} en {htf}.")
+        else:
+            items.append(f"FALTA: contratendencia requiere HTF con tendencia ({bias}).")
     else:
-        items.append(f"OK: Contexto D1 {d1.get('trend','?')} / {htf} {h4.get('trend','?')}.")
+        if d1.get("trend") in ("", "RANGING") and h4.get("trend") in ("", "RANGING"):
+            items.append("FALTA: contexto D1/H4 definido (en rango -> sin marea).")
+        else:
+            items.append(f"OK: Contexto D1 {d1.get('trend','?')} / {htf} {h4.get('trend','?')}.")
 
     # 3. Killzone intradia
     if kz in ("London Open", "New York AM", "New York PM"):
@@ -112,7 +129,7 @@ def checklist_intradia(estructura: dict, bias: str, votes: dict | None,
     else:
         items.append("FALTA: killzone intradia (London/NY) -> esperar ventana.")
 
-    # 4. Sweep HTF/exec
+    # 4. Sweep HTF/exec (en contratendencia, el sweep es de la liquidez OPUESTA al sesgo)
     sw = _sweep_dir(estructura, (htf, exec_tf))
     if sw == "none":
         items.append(f"FALTA: barrido de liquidez (sweep SSL/BSL) en {htf}/{exec_tf}.")
@@ -121,10 +138,24 @@ def checklist_intradia(estructura: dict, bias: str, votes: dict | None,
 
     # 5. BOS/CHOCH exec
     bos = _bos_exec(estructura, exec_tf)
-    if bos == "no":
-        items.append(f"FALTA: BOS/CHOCH en {exec_tf} (estructura intacta).")
+    if counter_trend:
+        # En contratendencia el disparo es un BOS en direccion OPUESTA al sesgo HTF.
+        exec_row = estructura.get(exec_tf, {})
+        bos_dir = int(exec_row.get("bos_dir", 0) or 0)
+        choch = str(exec_row.get("choch_signal", "NONE"))
+        # direccion objetivo: opuesta al sesgo
+        want = -1 if bias == "BULLISH" else 1 if bias == "BEARISH" else 0
+        ok = (bos_dir == want) or (want == 1 and choch == "CHOCH_BULLISH") or (want == -1 and choch == "CHOCH_BEARISH")
+        if want != 0 and ok:
+            nombre = "CHOCH/LONG" if want == 1 else "CHOCH/SHORT"
+            items.append(f"OK: reversión {nombre} en {exec_tf} (contra {bias}).")
+        else:
+            items.append(f"FALTA: reversión en {exec_tf} contra {bias} (BOS={bos_dir}, CHOCH={choch}).")
     else:
-        items.append(f"OK: {exec_tf} con BOS {bos}.")
+        if bos == "no":
+            items.append(f"FALTA: BOS/CHOCH en {exec_tf} (estructura intacta).")
+        else:
+            items.append(f"OK: {exec_tf} con BOS {bos}.")
 
     # 6. Direccion alineada
     if dir_setup == "NEUTRAL":
@@ -201,16 +232,17 @@ def checklist_scalping(estructura: dict, bias: str, votes: dict | None,
 
 def evaluate(model: str, estructura: dict, bias: str, votes: dict | None,
              ts: datetime | None = None, exec_tf: str = "M15",
-             htf: str = "H4") -> dict[str, Any]:
+             htf: str = "H4", counter_trend: bool = False) -> dict[str, Any]:
     """Evalua un modelo ICT y devuelve checklist + puntuacion.
 
     model: "intradia" | "scalping"
     exec_tf: TF de ejecucion (M15 en vivo; H4 en backtest opcion A).
+    counter_trend: si True, setup opera contra la marea del HTF.
     Devuelve {"model":..., "checks":[...], "passed":int, "total":int,
               "ready":bool, "direction":"LONG"|"SHORT"|"NEUTRAL"}
     """
     if model == "intradia":
-        checks = checklist_intradia(estructura, bias, votes, ts, exec_tf, htf)
+        checks = checklist_intradia(estructura, bias, votes, ts, exec_tf, htf, counter_trend)
     elif model == "scalping":
         checks = checklist_scalping(estructura, bias, votes, ts)
     else:
@@ -220,7 +252,7 @@ def evaluate(model: str, estructura: dict, bias: str, votes: dict | None,
     total = len(checks)
     # "ready" = todos los OK (los PENDIENTE son de ejecucion, no bloquean senal)
     blocked = [c for c in checks if c.startswith("FALTA:")]
-    dir_setup = _dir_setup(bias, votes, estructura.get(exec_tf, {}))
+    dir_setup = _dir_setup(bias, votes, estructura.get(exec_tf, {}), counter_trend)
     return {
         "model": model,
         "checks": checks,

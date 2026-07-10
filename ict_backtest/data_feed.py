@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from detectors import detect_bos, detect_fvg, detect_order_blocks
+from detectors import detect_bos, detect_choch, detect_displacement, detect_fvg, detect_liquidity, detect_order_blocks
 from detectors.trend import detect_trend
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,6 +51,15 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     d["fvg_state"] = f.apply(_fvg_state, axis=1).values
     o = detect_order_blocks(d)  # ob_bullish, ob_bearish, ...
     d["ob_direction"] = o.apply(_ob_dir, axis=1).values
+    c = detect_choch(d)        # choch_signal (CHOCH_BULLISH/BEARISH)
+    d["choch_signal"] = c["choch_signal"].values
+    disp = detect_displacement(d)  # displacement_bullish/bearish, magnitude
+    d["displacement_bullish"] = disp["displacement_bullish"].values
+    d["displacement_bearish"] = disp["displacement_bearish"].values
+    d["displacement_mag"] = disp["displacement_magnitude"].values
+    liq = detect_liquidity(d)  # bsl_price, ssl_price (pools de liquidez)
+    d["bsl_price"] = liq["bsl_price"].values
+    d["ssl_price"] = liq["ssl_price"].values
     return d
 
 

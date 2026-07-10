@@ -52,8 +52,11 @@ def _metrics(pnls: list[float]) -> dict[str, float]:
     }
 
 
-def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int) -> dict:
+def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
+        counter_trend: bool = False, tp_mode: str = "fixed2r",
+        require_displacement: bool = False) -> dict:
     tfs = tuple(dict.fromkeys([htf, ltf, "D1"]))  # unicos, D1 para contexto
+    tag = f"{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
     print(f"[1/3] Cargando frames {symbol} {tfs} + features ICT ...", flush=True)
     t0 = time.time()
     frames = load_frames(symbol, tfs)
@@ -61,10 +64,11 @@ def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int) -> dict:
         print(f"      {tf}: {len(df)} velas ({df['time'].min()} -> {df['time'].max()})", flush=True)
     print(f"      features en {time.time()-t0:.1f}s", flush=True)
 
-    print(f"[2/3] Generando senales (modelo={model}, htf={htf}, ltf={ltf}) ...", flush=True)
+    print(f"[2/3] Generando senales (modelo={model}, htf={htf}, ltf={ltf}, {tag}) ...", flush=True)
     t0 = time.time()
     signals = build_signals_from_frames(symbol, frames, bias_by_tf={}, model=model,
-                                        htf=htf, ltf=ltf)
+                                        htf=htf, ltf=ltf, counter_trend=counter_trend,
+                                        tp_mode=tp_mode, require_displacement=require_displacement)
     print(f"      {len(signals)} senales en {time.time()-t0:.1f}s", flush=True)
 
     print(f"[3/3] Simulando trades vela a vela (max_hold={max_hold}) ...", flush=True)
@@ -83,7 +87,7 @@ def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int) -> dict:
             print(f"      [{bar}] {pct}% ({k}/{total})", flush=True)
 
     m = _metrics(pnls)
-    print("\n===== RESULTADO ICT BACKTEST =====", flush=True)
+    print(f"\n===== RESULTADO [{tag}] =====", flush=True)
     print(f"  simbolo      : {symbol}  |  modelo: {model}  |  {htf}->{ltf}", flush=True)
     print(f"  trades       : {m['trades']}", flush=True)
     print(f"  winrate      : {m['winrate']*100:.1f}%", flush=True)
@@ -102,8 +106,30 @@ def main() -> None:
     ap.add_argument("--ltf", default="H4")
     ap.add_argument("--model", default="intradia", choices=["intradia", "scalping"])
     ap.add_argument("--max-hold", type=int, default=16)
+    ap.add_argument("--counter-trend", action="store_true")
+    ap.add_argument("--tp-mode", default="fixed2r", choices=["fixed2r", "liquidity"])
+    ap.add_argument("--require-displacement", action="store_true")
+    ap.add_argument("--sweep", action="store_true",
+                    help="corre las 4 variantes PARTE 2.1 y muestra tabla comparativa")
     args = ap.parse_args()
-    run(args.symbol, args.htf, args.ltf, args.model, args.max_hold)
+
+    if args.sweep:
+        variants = [
+            ("V1 AT fixed2r",        dict(counter_trend=False, tp_mode="fixed2r", require_displacement=False)),
+            ("V2 AT liquidity+disp", dict(counter_trend=False, tp_mode="liquidity", require_displacement=True)),
+            ("V3 CT liquidity+disp", dict(counter_trend=True,  tp_mode="liquidity", require_displacement=True)),
+            ("V4 CT fixed2r",        dict(counter_trend=True,  tp_mode="fixed2r",  require_displacement=False)),
+        ]
+        print("### SWEEP PARTE 2.1 (XAUUSD D1->H4) ###")
+        for name, kw in variants:
+            print(f"\n----- {name} -----")
+            m = run(args.symbol, args.htf, args.ltf, args.model, args.max_hold, **kw)
+            print(f">>> {name}: PF={m['pf']:.3f} WR={m['winrate']*100:.1f}% trades={m['trades']} R={m['total_r']:.1f}")
+        return
+
+    run(args.symbol, args.htf, args.ltf, args.model, args.max_hold,
+        counter_trend=args.counter_trend, tp_mode=args.tp_mode,
+        require_displacement=args.require_displacement)
 
 
 if __name__ == "__main__":

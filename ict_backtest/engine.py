@@ -50,6 +50,9 @@ def build_signals_from_frames(
     min_confidence: float = 0.0,
     htf: str = "H4",
     ltf: str = "M15",
+    counter_trend: bool = False,
+    tp_mode: str = "fixed2r",
+    require_displacement: bool = False,
 ) -> list[ICTSignal]:
     """Construye senales ICT evaluando el mini-check del dashboard por vela.
 
@@ -58,8 +61,12 @@ def build_signals_from_frames(
     `estructura` por TF y llama a ict_backtest.rules.evaluate. Si el check pasa
     (ready) y la direccion es LONG/SHORT, genera ICTSignal con SL/TP.
 
+    counter_trend: setup opera contra la marea del HTF.
+    tp_mode: "fixed2r" (entry +/- 2R) | "liquidity" (BSL/SSL mas cercano).
+    require_displacement: exige vela de displacement fuerte en el exec TF.
+
     SL  = nivel de invalidacion (structural) o ATR si no hay.
-    TP  = entry +/- 2*ATR (RR 1:2 por defecto; ajustable).
+    TP  = entry +/- 2*ATR (RR 1:2) o liquidez opuesta (tp_mode).
     """
     from ict_backtest.rules import evaluate
 
@@ -73,8 +80,6 @@ def build_signals_from_frames(
     for i in range(len(ltf_df)):
         row = ltf_df.iloc[i]
         ts = _coerce_ts(row.get("time"))
-        # Armar estructura por TF leyendo la fila correspondiente (mismo indice i
-        # asumiendo frames alineados; si no, por tiempo mas cercano).
         estructura = _build_estructura(frames, i, ltf)
         # Sesgo POR VELA desde la tendencia del HTF (backtest honesto, sin mirar futuro).
         htf_trend = str(estructura.get(htf, {}).get("trend", "NEUTRAL"))
@@ -82,12 +87,18 @@ def build_signals_from_frames(
         if bias_by_tf.get(htf) in ("BULLISH", "BEARISH") and htf not in frames:
             bias = bias_by_tf[htf]
 
-        verdict = evaluate(model, estructura, bias, votes, ts, exec_tf=ltf, htf=htf)
+        verdict = evaluate(model, estructura, bias, votes, ts, exec_tf=ltf,
+                           htf=htf, counter_trend=counter_trend)
         if not verdict["ready"]:
             continue
         direction = 1 if verdict["direction"] == "LONG" else -1 if verdict["direction"] == "SHORT" else 0
         if direction == 0:
             continue
+        if require_displacement:
+            disp_ok = bool(row.get("displacement_bullish", False)) if direction == 1 \
+                else bool(row.get("displacement_bearish", False))
+            if not disp_ok:
+                continue
 
         entry = float(row["close"])
         atr = float(row[atr_col]) if atr_col else 0.0
@@ -99,7 +110,20 @@ def build_signals_from_frames(
         risk = abs(entry - sl)
         if risk <= 0:
             continue
-        tp = entry + 2.0 * risk if direction == 1 else entry - 2.0 * risk
+
+        if tp_mode == "liquidity":
+            liq = _tp_liquidity(row, direction)
+            if liq is not None:
+                tp = liq
+            else:
+                tp = entry + 2.0 * risk if direction == 1 else entry - 2.0 * risk
+        else:
+            tp = entry + 2.0 * risk if direction == 1 else entry - 2.0 * risk
+        # Garantizar RR >= 1 (TP mas alla del SL en la direccion correcta)
+        if direction == 1 and tp <= entry:
+            tp = entry + 2.0 * risk
+        if direction == -1 and tp >= entry:
+            tp = entry - 2.0 * risk
 
         results.append(ICTSignal(
             symbol=symbol, time=str(row["time"]), direction=direction,
@@ -227,6 +251,25 @@ def _row_at_time(df: pd.DataFrame, t: Any) -> Any:
         if len(prior):
             return df.iloc[int(prior.index[-1])]
     except Exception:
+        pass
+    return None
+
+
+def _tp_liquidity(row: pd.Series, direction: int) -> float | None:
+    """TP = pool de liquidez opuesto mas cercano (BSL si long / SSL si short).
+
+    Usa bsl_price/ssl_price del detect_liquidity en el TF de ejecucion.
+    """
+    try:
+        if direction == 1:
+            bsl = float(row.get("bsl_price"))
+            if pd.notna(bsl) and bsl > float(row["close"]):
+                return bsl
+        else:
+            ssl = float(row.get("ssl_price"))
+            if pd.notna(ssl) and ssl < float(row["close"]):
+                return ssl
+    except (TypeError, ValueError, KeyError):
         pass
     return None
 
