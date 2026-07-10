@@ -10,7 +10,7 @@ for i in $(seq 1 80); do
     echo "[wrapper] completado en intento $i"; break
   fi
   echo "[wrapper] intento $i @ $(date +%H:%M:%S)" >> "$LOG"
-  timeout 50 "$PY" -u "$SCRIPT" --driver >> "$LOG" 2>&1
+  timeout 50 "$PY" -u "$SCRIPT" --driver --fast-only >> "$LOG" 2>&1
   sleep 1
 done
 echo "[wrapper] FIN bucle" >> "$LOG"

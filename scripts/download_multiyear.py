@@ -84,7 +84,17 @@ def main() -> None:
 
     try:
         with MT5Connector(config=ConnectionConfig(path=MT5_TERMINAL_PATH)) as mt5:
-            print(f"Connected: {mt5.terminal_info().get('name', 'unknown')}")
+            ti = mt5.terminal_info()
+            if ti is None:
+                account = mt5.account_info()
+                if account is None:
+                    raise ConnectionError(
+                        "MT5 abierto pero SIN sesion/login (terminal_info y account_info son None). "
+                        "Abre MetaTrader 5, entra a tu cuenta y confirmá 'Conectado' arriba a la derecha."
+                    )
+                print(f"Connected: {ti.get('name', 'unknown') if ti else 'n/a'}")
+            else:
+                print(f"Connected: {ti.get('name', 'unknown')}")
             with tqdm(total=total_jobs, desc="Global", unit="dl", ascii=True) as pbar:
                 for symbol, tf in jobs:
                     path = output_dir / f"{symbol}_{tf}.parquet"

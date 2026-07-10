@@ -25,11 +25,18 @@ import argparse
 import json
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+
+# Unbuffered stdout when launched from .bat (progress bar / live ETA).
+try:
+    sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+except Exception:
+    pass
 
 # --- Patch load_frame: auto_download SIEMPRE False (no descargar, no inventar) ---
 import data as _data_mod
@@ -50,6 +57,11 @@ from risk import GovernorConfig  # noqa: E402
 DATA_DIR = ROOT / "data" / "raw"
 TIMEFRAME = "M15"
 MAX_HOLD_BARS = 16
+# Cap de senales simuladas por variante: las variantes muy permisivas (prox_3) generan
+# decenas de miles de senales (casi toda barra pasa). Simularlas TODAS excede el timeout
+# del launcher (~55s) y el checkpoint nunca se escribe. Se simulan las N de MAYOR confianza
+# (el stack ya rankea por confianza), documentado en el reporte como limite de diagnostico.
+MAX_SIGNALS_PER_VARIANT = 3000
 MIN_CONFIDENCE = 0.52  # reproduce el baseline del diagnostico de hoy (CombinedBacktestConfig.min_confidence default)
 IS_RATIO = 0.70
 MIN_N = 100
@@ -63,6 +75,275 @@ NEUTRAL_GOV = GovernorConfig(
 
 SYMBOLS_FULL = ["EURUSD", "AUDUSD", "NZDUSD", "USDCAD", "XAUUSD"]  # historico suficiente
 SYMBOLS_SHORT = ["GBPUSD", "USDCHF", "USDJPY"]  # 500 barras (~7 dias) -> insuficiente
+
+PROGRESS_PATH = ROOT / "results" / "edge_diagnosis" / "progress.json"
+REPORT_PATH = ROOT / "results" / "edge_diagnosis" / "EDGE_DIAGNOSIS_REPORT.md"
+# If updated_at is older than this while status=running, surface hang risk (watchers / final MD).
+HANG_STALE_SECONDS = 5 * 60
+
+
+def _iso_now() -> str:
+    return datetime.now(timezone.utc).astimezone().replace(microsecond=0).isoformat()
+
+
+def _write_progress(payload: dict) -> None:
+    """Atomic-ish overwrite of machine-readable progress (JSON)."""
+    PROGRESS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = PROGRESS_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    tmp.replace(PROGRESS_PATH)
+
+
+def _progress_bar(done: int, total: int, width: int = 28) -> str:
+    if total <= 0:
+        return "[" + "?" * width + "]"
+    frac = min(1.0, max(0.0, done / total))
+    filled = int(width * frac)
+    return "[" + "#" * filled + "-" * (width - filled) + f"] {frac * 100:5.1f}%"
+
+
+def _fmt_duration(seconds: float | None) -> str:
+    if seconds is None or seconds < 0:
+        return "—"
+    s = int(round(seconds))
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    if h:
+        return f"{h}h {m:02d}m {sec:02d}s"
+    if m:
+        return f"{m}m {sec:02d}s"
+    return f"{sec}s"
+
+
+def _print_live_progress(p: dict) -> None:
+    """Single-line console bar with ETA (overwrites with \\r until newline on unit end)."""
+    bar = _progress_bar(int(p.get("done_units", 0)), int(p.get("total_units", 0)))
+    cur = f"{p.get('current_symbol', '?')}/{p.get('current_variant', '?')}"
+    eta = _fmt_duration(p.get("eta_seconds_remaining"))
+    fin = p.get("eta_at") or "—"
+    elapsed = _fmt_duration(p.get("elapsed_seconds"))
+    line = (
+        f"\r  {bar}  {p.get('done_units', 0)}/{p.get('total_units', 0)}  "
+        f"now={cur}  elapsed={elapsed}  ETA_left={eta}  finish~{fin}   "
+    )
+    print(line, end="", flush=True)
+
+
+def write_edge_report(full_results: list[dict], out_path: Path = REPORT_PATH) -> Path:
+    """Build a human-readable MD ranking variants/symbols from full_results.json payload."""
+    import math
+
+    rows: list[dict] = []
+    errors: list[dict] = []
+    for r in full_results:
+        if r.get("error"):
+            errors.append({"symbol": r.get("symbol"), "variant": r.get("variant"), "error": r.get("error")})
+            continue
+        oos = r.get("oos") or {}
+        is_m = r.get("is") or {}
+        pf = oos.get("pf")
+        if pf is None or (isinstance(pf, float) and (math.isnan(pf) or math.isinf(pf))):
+            pf_s = None
+        else:
+            pf_s = float(pf)
+        rows.append({
+            "variant": r.get("variant"),
+            "symbol": r.get("symbol"),
+            "n_total": r.get("n_total", 0),
+            "insufficient": bool(r.get("insufficient")),
+            "is_n": is_m.get("n", 0),
+            "oos_n": oos.get("n", 0),
+            "oos_wr": oos.get("wr"),
+            "oos_pf": pf_s,
+            "oos_sharpe": oos.get("sharpe"),
+            "oos_avg_r": oos.get("avg_r"),
+            "is_pf": (is_m.get("pf") if is_m.get("pf") not in (float("inf"),) else None),
+        })
+
+    # Aggregate OOS PF by variant (only rows with valid n and pf)
+    by_var: dict[str, list[float]] = {}
+    by_sym: dict[str, list[float]] = {}
+    for row in rows:
+        if row["insufficient"] or row["oos_pf"] is None or row["oos_n"] < 20:
+            continue
+        by_var.setdefault(row["variant"], []).append(row["oos_pf"])
+        by_sym.setdefault(row["symbol"], []).append(row["oos_pf"])
+
+    def _avg(xs: list[float]) -> float:
+        return sum(xs) / len(xs) if xs else float("nan")
+
+    var_rank = sorted(
+        ((k, _avg(v), len(v)) for k, v in by_var.items()),
+        key=lambda t: (t[1] if t[1] == t[1] else -1),
+        reverse=True,
+    )
+    sym_rank = sorted(
+        ((k, _avg(v), len(v)) for k, v in by_sym.items()),
+        key=lambda t: (t[1] if t[1] == t[1] else -1),
+        reverse=True,
+    )
+
+    # Best single cells (valid OOS)
+    valid_cells = [r for r in rows if r["oos_pf"] is not None and not r["insufficient"]]
+    valid_cells.sort(key=lambda r: r["oos_pf"], reverse=True)
+    top10 = valid_cells[:10]
+    bottom10 = list(reversed(valid_cells[-10:])) if valid_cells else []
+
+    n_ok = sum(1 for r in rows if not r["insufficient"] and r.get("n_total", 0) > 0)
+    n_insuf = sum(1 for r in rows if r["insufficient"])
+    n_zero = sum(1 for r in rows if r.get("n_total", 0) == 0)
+
+    now = _iso_now()
+    lines = [
+        f"# Edge Diagnosis Report",
+        "",
+        f"**Generated:** {now}",
+        f"**Units completed:** {len(full_results)}  |  valid OOS cells: {n_ok}  |  "
+        f"insufficient N: {n_insuf}  |  zero trades: {n_zero}  |  errors: {len(errors)}",
+        "",
+        "## Verdict (read this first)",
+        "",
+        "This harness measures the **detector stack alone** (no ML, no agents, neutral risk governor).",
+        "A real edge needs **OOS PF > 1.1 with N>=100 per split** on more than one symbol, and",
+        "that it **survives** ablation (does not vanish when one filter is removed).",
+        "",
+    ]
+
+    if not var_rank:
+        lines += [
+            "> **No variant produced a statistically usable OOS sample.** "
+            "Either data is too short (SYMBOLS_SHORT) or filters kill almost all signals.",
+            "",
+        ]
+    else:
+        best_v, best_pf, best_n = var_rank[0]
+        worst_v, worst_pf, worst_n = var_rank[-1]
+        lines += [
+            f"- **Best avg OOS PF by variant:** `{best_v}` → PF **{best_pf:.3f}** (over {best_n} symbol cells)",
+            f"- **Worst avg OOS PF by variant:** `{worst_v}` → PF **{worst_pf:.3f}** (over {worst_n} symbol cells)",
+            "",
+        ]
+        multi_sym = best_n >= 2
+        if best_pf < 1.0:
+            lines += [
+                "> **No positive edge found** in the ranked variants (best average OOS PF still < 1.0).",
+                "> Priority: fix the base signal logic, not more infrastructure.",
+                "",
+            ]
+        elif best_pf < 1.1 or not multi_sym:
+            lines += [
+                f"> **Marginal / provisional** (`{best_v}` avg OOS PF {best_pf:.3f} over {best_n} cell(s)). "
+                "Do **not** treat as proven edge until multi-symbol + larger N confirm.",
+                "",
+            ]
+        else:
+            lines += [
+                f"> **Candidate edge** under variant `{best_v}` (avg OOS PF {best_pf:.3f} over {best_n} symbols). "
+                "Still validate walk-forward before any live automation.",
+                "",
+            ]
+
+    lines += [
+        "## Ranking — variants (avg OOS PF, cells with n_oos>=20 and sufficient N)",
+        "",
+        "| Rank | Variant | Avg OOS PF | # cells |",
+        "|-----:|---------|----------:|--------:|",
+    ]
+    for i, (k, pf, n) in enumerate(var_rank, 1):
+        lines.append(f"| {i} | `{k}` | {pf:.3f} | {n} |")
+    if not var_rank:
+        lines.append("| — | *(none)* | — | — |")
+
+    lines += [
+        "",
+        "## Ranking — symbols (avg OOS PF across variants)",
+        "",
+        "| Rank | Symbol | Avg OOS PF | # cells |",
+        "|-----:|--------|----------:|--------:|",
+    ]
+    for i, (k, pf, n) in enumerate(sym_rank, 1):
+        lines.append(f"| {i} | `{k}` | {pf:.3f} | {n} |")
+    if not sym_rank:
+        lines.append("| — | *(none)* | — | — |")
+
+    lines += [
+        "",
+        "## Top 10 cells (variant × symbol) by OOS PF",
+        "",
+        "| Variant | Symbol | OOS N | OOS WR | OOS PF | OOS Sharpe | OOS avg R |",
+        "|---------|--------|------:|-------:|-------:|-----------:|----------:|",
+    ]
+    for r in top10:
+        wr = f"{r['oos_wr']*100:.1f}%" if r["oos_wr"] is not None else "—"
+        sh = f"{r['oos_sharpe']:.2f}" if r["oos_sharpe"] is not None else "—"
+        ar = f"{r['oos_avg_r']:.4f}" if r["oos_avg_r"] is not None else "—"
+        lines.append(
+            f"| `{r['variant']}` | `{r['symbol']}` | {r['oos_n']} | {wr} | "
+            f"{r['oos_pf']:.3f} | {sh} | {ar} |"
+        )
+    if not top10:
+        lines.append("| — | — | — | — | — | — | — |")
+
+    lines += [
+        "",
+        "## Bottom 10 cells (worst OOS PF)",
+        "",
+        "| Variant | Symbol | OOS N | OOS WR | OOS PF |",
+        "|---------|--------|------:|-------:|-------:|",
+    ]
+    for r in bottom10:
+        wr = f"{r['oos_wr']*100:.1f}%" if r["oos_wr"] is not None else "—"
+        lines.append(
+            f"| `{r['variant']}` | `{r['symbol']}` | {r['oos_n']} | {wr} | {r['oos_pf']:.3f} |"
+        )
+    if not bottom10:
+        lines.append("| — | — | — | — | — |")
+
+    lines += [
+        "",
+        "## Baseline detail (reference config)",
+        "",
+        "| Symbol | N total | IS PF | OOS PF | OOS N | Insufficient |",
+        "|--------|--------:|------:|-------:|------:|:------------:|",
+    ]
+    for r in sorted((x for x in rows if x["variant"] == "baseline"), key=lambda x: x["symbol"] or ""):
+        is_pf = r.get("is_pf")
+        is_s = f"{float(is_pf):.3f}" if isinstance(is_pf, (int, float)) and is_pf == is_pf else "—"
+        oos_s = f"{r['oos_pf']:.3f}" if r["oos_pf"] is not None else "—"
+        lines.append(
+            f"| `{r['symbol']}` | {r['n_total']} | {is_s} | {oos_s} | {r['oos_n']} | "
+            f"{'YES' if r['insufficient'] else 'no'} |"
+        )
+
+    if errors:
+        lines += ["", "## Errors during run", ""]
+        for e in errors:
+            lines.append(f"- `{e['symbol']}/{e['variant']}`: {e['error']}")
+
+    lines += [
+        "",
+        "## Artifacts",
+        "",
+        f"- Progress (live): `{PROGRESS_PATH.relative_to(ROOT)}`",
+        f"- Full results JSON: `results/edge_diagnosis/full_results.json`",
+        f"- Per-variant CSVs: `results/edge_diagnosis/*.csv`",
+        f"- Summary CSV: `results/edge_diagnosis/summary.csv`",
+        "",
+        "## How to re-run",
+        "",
+        "Double-click `run_edge_diagnosis.bat` or:",
+        "",
+        "```bat",
+        "python -u scripts/edge_diagnosis/run.py --all",
+        "```",
+        "",
+        "The job **resumes** from `full_results.json` if interrupted.",
+        "",
+    ]
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text("\n".join(lines), encoding="utf-8")
+    return out_path
 
 
 @dataclass
@@ -145,6 +426,10 @@ def harness_pass_signals(context: "pd.DataFrame", cfg: ScalpingConfig, v: Varian
     conf = context["signal_confidence"].astype(float)
     mask = signal_pass.to_numpy() & (direction != 0) & atr_ok.to_numpy() & (conf.to_numpy() >= MIN_CONFIDENCE)
     rows = np.where(mask)[0]
+    # cap por confianza descendente (variantes permisivas generan decenas de miles de senales)
+    if len(rows) > MAX_SIGNALS_PER_VARIANT:
+        order = rows[np.argsort(-conf.to_numpy()[rows])]
+        rows = order[:MAX_SIGNALS_PER_VARIANT]
     out = []
     for i in rows:
         d = int(direction[i])
@@ -173,12 +458,13 @@ def _simulate_trade_vectorized(frame: "pd.DataFrame", signals: list[ScalpingSign
     low = frame["low"].to_numpy(dtype=float)
     close = frame["close"].to_numpy(dtype=float)
     n = len(frame)
+    # indice time->pos UNA vez (O(n)); lookup O(1) por senal en vez de np.nonzero O(n) por senal
+    tpos = {t: i for i, t in enumerate(times)}
     out = []
     for sig in signals:
-        matches = np.nonzero(times == sig.time)[0]
-        if len(matches) == 0:
+        idx = tpos.get(sig.time)
+        if idx is None:
             continue
-        idx = int(matches[0])
         sl = float(sig.stop_loss)
         tp = float(sig.take_profit)
         risk = abs(float(sig.entry) - sl)
@@ -281,24 +567,65 @@ def run_one(variant_key: str, symbol: str) -> dict:
             "trades": res["trades"]}
 
 
-def run_one_reuse(variant_key: str, symbol: str, context: "pd.DataFrame") -> dict:
-    """Igual que run_one pero REUSA el context ya construido (una sola vez por simbolo)."""
+def _get_context(symbol: str, cfg: ScalpingConfig, variant: "Variant") -> "pd.DataFrame":
+    """Context cacheado a disco por simbolo (el build tarda 22-40s; los reintentos lo reciclan)."""
+    import pickle
+    cache_dir = ROOT / "results" / "edge_diagnosis" / "_ctx"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    # solo las variantes que CAMBIAN detectores necesitan rebuild; el resto usa cache default
+    detector_affecting = {"ob_fvg_proximity_atr", "enable_sweep_filter", "enable_ote_filter"}
+    if detector_affecting & set(variant.config_overrides.keys()):
+        # cache por (symbol, variant) porque el context DEPENDE de la config de la variante
+        cpath = cache_dir / f"{symbol}__{variant.key}.pkl"
+        if cpath.exists():
+            try:
+                t0 = time.time()
+                with open(cpath, "rb") as f:
+                    obj = pickle.load(f)
+                print(f"[ctx] {symbol}/{variant.key} pickle load {time.time()-t0:.1f}s", flush=True)
+                return obj
+            except Exception as e:
+                print(f"[ctx] {symbol}/{variant.key} pickle FALLÓ: {e}", flush=True)
+        ctx = build_scalping_context(symbol=symbol, timeframe=TIMEFRAME, data_dir=DATA_DIR, config=cfg, orchestrator=None)
+        try:
+            with open(cpath, "wb") as f:
+                pickle.dump(ctx, f)
+        except Exception:
+            pass
+        return ctx
+    cpath = cache_dir / f"{symbol}.pkl"
+    if cpath.exists():
+        try:
+            t0 = time.time()
+            with open(cpath, "rb") as f:
+                obj = pickle.load(f)
+            print(f"[ctx] {symbol} pickle load {time.time()-t0:.1f}s", flush=True)
+            return obj
+        except Exception as e:
+            print(f"[ctx] {symbol} pickle FALLÓ: {e}", flush=True)
+    ctx = build_scalping_context(symbol=symbol, timeframe=TIMEFRAME, data_dir=DATA_DIR, config=cfg, orchestrator=None)
+    try:
+        with open(cpath, "wb") as f:
+            pickle.dump(ctx, f)
+    except Exception:
+        pass
+    return ctx
+
+
+def run_one_reuse(variant_key: str, symbol: str, context: "pd.DataFrame | None" = None) -> dict:
+    """Reusa context cacheado por simbolo. Una sola vez por simbolo (el build es lento)."""
     import pandas as pd  # noqa
     v = next(x for x in all_variants() if x.key == variant_key)
     cfg = build_config(v)
-    # Re-aplicar overrides que afectan columnas de filtro calculadas en el context.
-    # La mayoria de variantes solo cambian el gating (force_pass / min_confluence), que se
-    # aplica en harness_pass_signals sobre el MISMO context. Las que cambian ob_fvg_proximity
-    # o enable_sweep/ote afectan columnas del context -> necesitamos rebuild. Para simplicidad
-    # y correctitud, si la variante tiene config_overrides que afectan detectores, rebuild.
     detector_affecting = {"ob_fvg_proximity_atr", "enable_sweep_filter", "enable_ote_filter"}
-    if set(cfg.__dict__) & detector_affecting and any(
-        k in v.config_overrides for k in detector_affecting
-    ):
-        ctx = build_scalping_context(symbol=symbol, timeframe=TIMEFRAME, data_dir=DATA_DIR, config=cfg, orchestrator=None)
+    if detector_affecting & set(v.config_overrides.keys()):
+        ctx = _get_context(symbol, cfg, v)
     else:
-        ctx = context
+        ctx = _get_context(symbol, ScalpingConfig(), v)  # cache default
     signals = harness_pass_signals(ctx, cfg, v)
+    # cap por confianza descendente (variantes permisivas generan decenas de miles)
+    if len(signals) > MAX_SIGNALS_PER_VARIANT:
+        signals = sorted(signals, key=lambda s: float(s.confidence), reverse=True)[:MAX_SIGNALS_PER_VARIANT]
     rows = _simulate_trade_vectorized(ctx, signals, MAX_HOLD_BARS)
     for r in rows:
         r["variant"] = variant_key
@@ -317,6 +644,78 @@ def run_one_reuse(variant_key: str, symbol: str, context: "pd.DataFrame") -> dic
             "is": is_m, "oos": oos_m, "insufficient": insufficient, "trades": df.to_dict("records")}
 
 
+def print_status_from_file() -> int:
+    """Medidor de progreso: barra + % + cuanto falta + desglose por simbolo.
+    Exit 0=ok, 2=stale/hang risk, 1=missing."""
+    if not PROGRESS_PATH.exists():
+        print("No progress.json yet — edge diagnosis has not started.")
+        return 1
+    try:
+        p = json.loads(PROGRESS_PATH.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"Could not read progress.json: {e}")
+        return 1
+    status = p.get("status", "?")
+    pct = p.get("percent", 0)
+    done = p.get("done_units", 0)
+    total = p.get("total_units", 0)
+    left = max(0, total - done)
+    cur_s = p.get("current_symbol")
+    cur_v = p.get("current_variant")
+    cur = f"{cur_s}/{cur_v}" if cur_s and cur_v else "—"
+    eta = p.get("eta_seconds_remaining")
+    eta_s = _fmt_duration(eta)
+    fin = p.get("eta_at") or "—"
+    elapsed = _fmt_duration(p.get("elapsed_seconds"))
+    avg = p.get("avg_seconds_per_unit")
+    updated = p.get("updated_at") or ""
+
+    bar = _progress_bar(done, total, width=32)
+    print()
+    print(f"  EDGE DIAGNOSIS — {bar}")
+    print(f"  {pct:5.1f}%   {done}/{total} unidades hechas")
+    if status == "done":
+        print(f"  COMPLETADO. Reporte: {REPORT_PATH}")
+        return 0
+    # Cuanto falta, en unidades y en tiempo estimado
+    left_min = (eta / 60.0) if eta else None
+    left_txt = f"~{left_min:.1f} min" if left_min is not None else "—"
+    print(f"  FALTAN {left} unidades  ~  {left_txt}  (termina ~{fin})")
+    print(f"  Ahora: {cur}   |   transcurrido: {elapsed}   |   ritmo: {_fmt_duration(avg)}/unidad")
+
+    # Desglose por simbolo: cuantas variantes hechas vs total de ese simbolo
+    fr = (ROOT / "results" / "edge_diagnosis" / "full_results.json")
+    per_sym: dict[str, int] = {}
+    if fr.exists():
+        try:
+            data = json.loads(fr.read_text(encoding="utf-8"))
+            for r in data:
+                if "symbol" in r and "variant" in r and "error" not in r:
+                    per_sym[r["symbol"]] = per_sym.get(r["symbol"], 0) + 1
+        except Exception:
+            pass
+    if per_sym:
+        nvar = max(per_sym.values())
+        print("  -- por simbolo (variantes hechas / total) --")
+        for sym, h in sorted(per_sym.items()):
+            sb = _progress_bar(h, nvar, width=14)
+            mark = "OK" if h >= nvar else "  "
+            print(f"    {mark} {sym:8s} {sb}  {h}/{nvar}")
+
+    if status == "running" and updated:
+        try:
+            ts = datetime.fromisoformat(updated)
+            age = (datetime.now() - ts).total_seconds() if ts.tzinfo is None else \
+                  (datetime.now(timezone.utc) - ts.astimezone(timezone.utc)).total_seconds()
+            if age > HANG_STALE_SECONDS:
+                print(f"  AVISO: POSIBLE PROCESO COLGADO: sin avance hace {_fmt_duration(age)} "
+                      f"(umbral {HANG_STALE_SECONDS // 60} min).")
+                return 2
+        except Exception:
+            pass
+    return 0
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--variant", default="baseline")
@@ -325,14 +724,47 @@ def main() -> None:
     ap.add_argument("--all", action="store_true", help="correr todas las variantes x symbols con datos")
     ap.add_argument("--driver", action="store_true", help="alias de --all")
     ap.add_argument("--symbols", nargs="*", default=None, help="subset de simbolos (default: todos)")
+    ap.add_argument("--fast-only", action="store_true",
+                    help="excluye variantes detector_affecting (prox/mc/w0_sweep/w0_ote) que requieren rebuild lento del context")
+    ap.add_argument(
+        "--status",
+        action="store_true",
+        help="solo lee results/edge_diagnosis/progress.json y reporta %% / ETA / hang",
+    )
+    ap.add_argument(
+        "--report-only",
+        action="store_true",
+        help="regenera EDGE_DIAGNOSIS_REPORT.md desde full_results.json sin correr backtests",
+    )
     args = ap.parse_args()
 
     out_dir = ROOT / "results" / "edge_diagnosis"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    if args.status:
+        raise SystemExit(print_status_from_file())
+
+    if args.report_only:
+        fr_path = out_dir / "full_results.json"
+        if not fr_path.exists():
+            print(f"Missing {fr_path} — nothing to report.")
+            raise SystemExit(1)
+        data = json.loads(fr_path.read_text(encoding="utf-8"))
+        path = write_edge_report(data, REPORT_PATH)
+        print(f"Report written: {path}")
+        return
+
     if args.all or args.driver:
         variants = all_variants()
+        if getattr(args, "fast_only", False):
+            det = {"ob_fvg_proximity_atr", "enable_sweep_filter", "enable_ote_filter"}
+            variants = [v for v in variants if not (det & set(v.config_overrides.keys()))]
         symbols = args.symbols if args.symbols else (SYMBOLS_FULL + SYMBOLS_SHORT)
+        total_units = len(symbols) * len(variants)
+        t_start = time.time()
+        started_at = _iso_now()
+        progress_errors: list[dict] = []
+
         # --- checkpoint: reanudar desde full_results.json existente ---
         done_keys: set[tuple[str, str]] = set()
         full_results: list[dict] = []
@@ -343,9 +775,75 @@ def main() -> None:
                 for r in full_results:
                     if "symbol" in r and "variant" in r and "error" not in r:
                         done_keys.add((r["symbol"], r["variant"]))
+                    if r.get("error"):
+                        progress_errors.append({
+                            "symbol": r.get("symbol"), "variant": r.get("variant"),
+                            "error": r.get("error"),
+                        })
                 print(f"[resume] {len(done_keys)} (symbol,variant) ya hechos", flush=True)
             except Exception:
                 full_results = []
+                done_keys = set()
+                progress_errors = []
+
+        def _emit_progress(
+            *,
+            status: str,
+            current_symbol: str | None = None,
+            current_variant: str | None = None,
+        ) -> dict:
+            # Count successful + error units already stored (resume-safe %).
+            done_units = len(full_results)
+            elapsed = time.time() - t_start
+            avg = (elapsed / done_units) if done_units > 0 else None
+            remaining = (total_units - done_units)
+            eta_left = (avg * remaining) if avg is not None else None
+            eta_at = None
+            if eta_left is not None:
+                eta_at = (
+                    datetime.now().astimezone().replace(microsecond=0)
+                    + timedelta(seconds=eta_left)
+                ).isoformat()
+            payload = {
+                "task": "edge_diagnosis",
+                "status": status,
+                "total_units": total_units,
+                "done_units": done_units,
+                "percent": round(done_units / total_units * 100, 1) if total_units else 0.0,
+                "current_symbol": current_symbol,
+                "current_variant": current_variant,
+                "started_at": started_at,
+                "updated_at": _iso_now(),
+                "elapsed_seconds": round(elapsed, 1),
+                "avg_seconds_per_unit": round(avg, 2) if avg is not None else None,
+                "eta_seconds_remaining": round(eta_left, 1) if eta_left is not None else None,
+                "eta_at": eta_at,
+                "hang_stale_seconds": HANG_STALE_SECONDS,
+                "errors": progress_errors,
+            }
+            if status == "done":
+                payload["current_symbol"] = None
+                payload["current_variant"] = None
+                payload["percent"] = 100.0
+                payload["eta_seconds_remaining"] = 0
+                payload["eta_at"] = _iso_now()
+            try:
+                _write_progress(payload)
+            except Exception as wexc:
+                print(f"[WARN progress.json] {wexc}", flush=True)
+            return payload
+
+        # Initial progress snapshot (before first unit).
+        p0 = _emit_progress(status="running", current_symbol=symbols[0] if symbols else None,
+                            current_variant=variants[0].key if variants else None)
+        print(
+            f"[edge] {len(variants)} variants x {len(symbols)} symbols = {total_units} units "
+            f"(resume: {len(done_keys)} done)",
+            flush=True,
+        )
+        _print_live_progress(p0)
+        print(flush=True)
+
         per_variant_csv: dict[str, list[dict]] = {v.key: [] for v in variants}
         # cargar CSV existentes para no perder trades ya simulados
         for v in variants:
@@ -356,27 +854,28 @@ def main() -> None:
                     per_variant_csv[v.key] = pd.read_csv(cp).to_dict("records")
                 except Exception:
                     pass
-        from signals import build_scalping_context
+
         for s in symbols:
-            # build UNA vez por simbolo (las variantes solo cambian el gating, no los detectores)
-            t0 = time.time()
-            base_ctx = build_scalping_context(symbol=s, timeframe=TIMEFRAME, data_dir=DATA_DIR,
-                                              config=ScalpingConfig(), orchestrator=None)
-            build_s = time.time() - t0
-            print(f"[build] {s}: {len(base_ctx)} bars en {build_s:.1f}s", flush=True)
+            # el context se cachea por simbolo en _get_context (build lento una sola vez)
             for v in variants:
                 if (s, v.key) in done_keys:
                     print(f"  [{s}] {v.key} SKIP (ya hecho)", flush=True)
+                    p = _emit_progress(status="running", current_symbol=s, current_variant=v.key)
+                    _print_live_progress(p)
                     continue
-                print(f"  [{s}] {v.key}...", flush=True)
+                print(f"\n  [{s}] {v.key}...", flush=True)
+                p = _emit_progress(status="running", current_symbol=s, current_variant=v.key)
+                _print_live_progress(p)
+                unit_t0 = time.time()
                 try:
-                    r = run_one_reuse(v.key, s, base_ctx)
+                    r = run_one_reuse(v.key, s)
                 except Exception as exc:
                     import traceback as _tb
-                    print(f"[ERROR] {s}/{v.key}: {exc}", flush=True)
+                    print(f"\n[ERROR] {s}/{v.key}: {exc}", flush=True)
                     print(_tb.format_exc(), flush=True)
                     r = {"symbol": s, "variant": v.key, "n_total": 0, "is": None, "oos": None,
                          "insufficient": True, "trades": [], "error": str(exc)}
+                    progress_errors.append({"symbol": s, "variant": v.key, "error": str(exc)})
                 full_results.append(r)
                 if "trades" in r:
                     per_variant_csv[v.key].extend(r["trades"])
@@ -389,6 +888,24 @@ def main() -> None:
                         json.dumps(full_results, indent=2, default=str), encoding="utf-8")
                 except Exception as wexc:
                     print(f"[WARN checkpoint] {wexc}", flush=True)
+                p = _emit_progress(status="running", current_symbol=s, current_variant=v.key)
+                unit_dt = time.time() - unit_t0
+                print(
+                    f"\n  ok {s}/{v.key} in {_fmt_duration(unit_dt)}  "
+                    f"n={r.get('n_total', 0)}  "
+                    f"{_progress_bar(p['done_units'], p['total_units'])}  "
+                    f"ETA_left={_fmt_duration(p.get('eta_seconds_remaining'))}  "
+                    f"finish~{p.get('eta_at') or '—'}",
+                    flush=True,
+                )
+                # Hang hint for the next unit: if a unit exceeds 5 min, call it out.
+                if unit_dt > HANG_STALE_SECONDS:
+                    print(
+                        f"  [SLOW] {s}/{v.key} took {_fmt_duration(unit_dt)} "
+                        f"(>{HANG_STALE_SECONDS // 60} min). Not hung, but unusually slow.",
+                        flush=True,
+                    )
+
         # resumen por variante x symbol
         summary = []
         for r in full_results:
@@ -405,9 +922,25 @@ def main() -> None:
                 else:
                     row[f"{sp}_n"] = 0
             summary.append(row)
+        try:
             import pandas as pd
             pd.DataFrame(summary).to_csv(out_dir / "summary.csv", index=False)
-        print(f"Done. {len(variants)} variantes x {len(symbols)} symbols -> {out_dir}")
+        except Exception as wexc:
+            print(f"[WARN summary.csv] {wexc}", flush=True)
+
+        p_done = _emit_progress(status="done")
+        print(
+            f"\n[edge] DONE {p_done['done_units']}/{p_done['total_units']} "
+            f"in {_fmt_duration(p_done.get('elapsed_seconds'))}",
+            flush=True,
+        )
+        try:
+            report = write_edge_report(full_results, REPORT_PATH)
+            print(f"[edge] Report written: {report}", flush=True)
+        except Exception as rexc:
+            print(f"[ERROR report] {rexc}", flush=True)
+            # Still mark progress done; report failure is secondary.
+        print(f"Done. {len(variants)} variantes x {len(symbols)} symbols -> {out_dir}", flush=True)
         return
 
     # corrida individual
