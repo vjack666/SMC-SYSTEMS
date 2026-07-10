@@ -46,6 +46,7 @@ scripts/.hermes-tmp.*
 # Runtime artifacts (estado vivo del loop, no codigo)
 data/blackbox/
 scripts/_lab_*.py
+scripts/_verify_imports.py
 
 # Graphify map (generado localmente, vive fuera del repo)
 graphify-out/
