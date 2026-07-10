@@ -18,19 +18,30 @@
 
 ---
 
+## 📌 Fuente de verdad del proyecto
+
+**La única fuente de verdad para hitos, estado y roadmap es
+[`docs/CRONOGRAMA_Y_ROADMAP.md`](docs/CRONOGRAMA_Y_ROADMAP.md) (v2.2, 2026-07-10).**
+`docs/HOJA_DE_RUTA_SMC-SYSTEMS.md` quedó obsoleta y redirige al Cronograma.
+
+---
+
 ## Features
 
 | Area | Status | Description |
 |------|--------|-------------|
-| **App observador (UI)** | ✅ En construcción | `app_observador/` PySide6: semáforo FundedNext, sesgo + alineación Wyckoff D1/H4/M15, mapa ICT embebido, noticias rojas, black-box JSON 90d |
-| **Paper / Live trading** | ✅ Production | `PaperTradingRunner` with agents, structural SL, ML gate, risk governor, kill switch |
+| **App observador (UI)** | ✅ Producción | `app_observador/` PySide6: semáforo FundedNext, sesgo + alineación Wyckoff D1/H4/M15, mapa ICT embebido, noticias rojas, black-box JSON 90d |
+| **Rutina EURUSD diaria** | ✅ Producción | `scripts/rutina_eurusd.py` + `scripts/loop_analisis.py` 24/7 (lun-vie) → ficha + informe + semáforo + alertas |
+| **Arranque automático** | ✅ Producción | `start_hermes_session.ps1` abre MT5 FundedNext, baja datos en vivo, lanza loop + vigilante + observador, reporte de salud (Carpeta de Inicio) |
+| **Vigilante de riesgo** | ✅ Producción | `scripts/vigilante_riesgo.py` SOLO CIERRA posiciones (2%/4% flotante) |
+| **Edge Diagnosis (SMC puro)** | ✅ Completada | 21 variantes × 8 símbolos = 168 celdas, 0 errores. Mejor celda `no_session`×XAUUSD OOS PF 1.642 |
 | **Multi-agent analysis** | ✅ Production | ICT, Wyckoff (+ stochastic exhaustion), Structure, Decision Agent (weighted voting) |
-| **ML quality filter** | ✅ Wired | XGBoost model gates trades in backtest, paper, live, and desktop UI |
+| **ML quality filter** | ✅ Wired | XGBoost model gates trades en backtest, paper, live, y desktop UI |
 | **ML training pipeline** | ✅ Offline | Dataset builder, chronological training, walk-forward, Optuna tuning, stats validation |
 | **Backtest engine** | ✅ Production | Combined multi-symbol backtest with ML filter and governor |
 | **Risk governor** | ✅ Production | NORMAL → CAUTION → DEFENSIVE → LOCKDOWN |
-| **MT5 bridge + MQL5 EA** | ✅ Implemented | ZeroMQ bridge for live execution |
-| **Monitoring & governance** | ⚠️ Harness-level | Drift baseline (PSI), model registry; scheduler runs via harness adapters |
+| **MT5 bridge + MQL5 EA** | ✅ Implemented | ZeroMQ bridge for live execution (bot heredado, no usado en modo observador) |
+| **Monitoring & governance** | ⚠️ Harness-level | Drift baseline (PSI), model registry; scheduler via harness adapters |
 | **Harness-first testing** | ✅ Production | 11 adapters, 14 scenarios |
 | **LangGraph orchestration** | ✅ Implemented | Backtest validation graph |
 
@@ -65,7 +76,7 @@ Confluence scoring → signal confidence → regime-based threshold
 QualityFilter (ml/inference.py) — XGBoost predict_proba gate
     │
     ▼
-PaperTradingRunner (PAPER / LIVE) + Risk Governor
+PaperTradingRunner (PAPER / LIVE) + Risk Governor   [bot heredado, NO en modo observador]
     │
     ▼
 Desktop UI (PySide6) ← DataStreamer + TradingWorker
@@ -77,9 +88,9 @@ Desktop UI (PySide6) ← DataStreamer + TradingWorker
 
 ### Prerequisites
 
-- Python 3.11+
-- [MetaTrader 5](https://www.metatrader5.com/) terminal (build 4000+), logged in
-- MT5 demo or live account
+- Python 3.11+ (se usa `C:\Python314\python.exe` con MT5 real; el venv `smc_probe` solo tiene stub de MT5 para backtests offline)
+- [MetaTrader 5](https://www.metatrader5.com/) terminal (build 4000+), logged in a la cuenta FundedNext
+- PySide6 instalado para la app del observador
 
 ### Install
 
@@ -91,10 +102,36 @@ pip install -e .
 
 Dependencies include `PySide6`, `MetaTrader5`, `xgboost`, `pyarrow`, `scipy`, `optuna`, `langgraph`.
 
+### Arranque automático diario (modo observador)
+
+Al iniciar sesión en Windows se ejecuta `start_hermes_session.ps1` (vía `.lnk` en la
+Carpeta de Inicio con Bypass). Hace:
+
+1. Abre el terminal MT5 de FundedNext (si no está corriendo).
+2. Baja datos EN VIVO a `data/raw/` (EURUSD D1/H4/M15).
+3. Lanza `scripts/loop_analisis.py` (ficha + informe + alertas, 24/7 lun-vie).
+4. Lanza `scripts/vigilante_riesgo.py` (solo cierra, 2%/4%).
+5. Lanza `run_app.py` (observador PySide6).
+6. Imprime reporte de salud (MT5 abierto, procesos vivos, estado git).
+
+Para arrancar a mano:
+
+```bat
+start_hermes_session.ps1        # PowerShell (recomendado)
+rem o bien:
+start_all_session.bat
+```
+
+### Rutina EURUSD manual
+
+```bat
+C:\Python314\python.exe scripts\rutina_eurusd.py         # ver ficha
+C:\Python314\python.exe scripts\rutina_eurusd.py --save  # guardar al diario (docs/diario/)
+```
+
 ### Run Observador UI (app_observador)
 
 ```bash
-# Requiere MT5 abierto y PySide6 instalado
 python app_observador/main.py
 ```
 
@@ -102,19 +139,11 @@ Ventana del observador: semáforo FundedNext, sesgo + alineación Wyckoff D1/H4/
 mapa ICT embebido, noticias rojas y estado del loop/vigilante. Refresca cada 5 min.
 Black-box en `data/blackbox/` (JSON, retención 90 días).
 
-### Run Paper Trading (headless) — bot heredado, NO usado en modo observador
+### Run Paper / Live Trading (bot heredado, NO usado en modo observador)
 
 ```bash
 python scripts/run_paper_trading.py --symbols EURUSD,GBPUSD --timeframe M15
-python scripts/run_paper_trading.py --no-ml          # disable ML filter
-python scripts/run_paper_trading.py --ml-model path/to/model.pkl
-```
-
-### Run Live Trading
-
-```bash
 python scripts/run_live_trading.py --symbols EURUSD,GBPUSD --risk 1.0 --min-confidence 0.7
-python scripts/run_live_trading.py --no-ml
 ```
 
 ### Train / refresh ML model
@@ -123,7 +152,20 @@ python scripts/run_live_trading.py --no-ml
 python scripts/run_ml_pipeline.py
 ```
 
-Pipeline steps: build v4 dataset from `data/raw` → chronological holdout training → save `ml/models/quality_filter.pkl` → integration checks. Progress is written to `results/ml_pipeline_status.json`. On completion prints `ML_PIPELINE_COMPLETE`.
+Pipeline steps: build v4 dataset from `data/raw` → chronological holdout training → save `ml/models/quality_filter.pkl` → integration checks. Progress in `results/ml_pipeline_status.json`. On completion prints `ML_PIPELINE_COMPLETE`.
+
+---
+
+## Edge Diagnosis (SMC puro, sin ML ni agentes)
+
+Matriz **21 variantes × 8 símbolos = 168 celdas**, gobernador neutralizado.
+Resultado (2026-07-10, ver [`docs/EDGE_DIAGNOSIS_REPORT.md`](docs/EDGE_DIAGNOSIS_REPORT.md)):
+
+- Mejor variante promedio: `no_session` → **OOS PF 1.159**.
+- Peor: `prox_1` → **OOS PF 1.084** (el filtro de proximidad OB/FVG erosiona el edge).
+- Mejor símbolo: **XAUUSD OOS PF 1.376**; peor: AUDUSD (0.849) y NZDUSD (0.809) PIERDEN.
+- Celda TOP: `no_session` × XAUUSD → **OOS PF 1.642, N=900, Sharpe 3.28, WR 55.1%**.
+- **Próximo paso (pendiente A12):** walk-forward OOS real (PurgedKFold, DSR>0, N>=200/fold, PF>=1.10) de la celda ganadora antes de cualquier automatización.
 
 ---
 
@@ -212,10 +254,11 @@ Full checklist in [COMPLETION_REPORT.md](COMPLETION_REPORT.md).
 ```
 SMC-SYSTEMS/
 ├── agents/             # ICT, Wyckoff, Structure, Decision + orchestrator
+├── app_observador/     # App PySide6 del observador (semáforo, mapa ICT, black-box)
 ├── backtest/           # Combined backtest engine with ML gate
 ├── data/               # MT5 connector, raw parquets, ML datasets
-├── app_observador/     # App PySide6 del observador (semáforo, mapa ICT, black-box)
 ├── detectors/          # BOS, CHOCH, FVG, OB, displacement, zones
+├── docs/               # CRONOGRAMA_Y_ROADMAP.md (fuente de verdad) + rulebooks
 ├── features/           # FeatureEngine (30+ features for ML)
 ├── governance/         # Model registry, retraining scheduler
 ├── harness/            # Harness-first testing framework
@@ -225,23 +268,25 @@ SMC-SYSTEMS/
 ├── MQL5/               # MQL5 EA bridge
 ├── paper_trading/      # Runner (PAPER/LIVE), models, persistence
 ├── risk/               # Governor, sizer, dynamic thresholds
-├── scripts/            # CLI entry points (see table below)
+├── scripts/            # CLI entry points (loop_analisis, rutina_eurusd, etc.)
 ├── signals/            # Scalping pipeline + ScalpingConfig
-├── tests/              # 21 pytest modules
-└── docs/               # Architecture, rulebooks, deployment guide
+├── tests/              # pytest modules
+└── tools/              # fundednext_compliance.py (reglas Stellar Lite $5K)
 ```
 
 ### Key scripts
 
 | Script | Purpose |
 |--------|---------|
+| `start_hermes_session.ps1` | Arranque automático diario (MT5 + datos + loop + vigilante + observador) |
 | `app_observador/main.py` | App observador (UI PySide6) |
-| `run_paper_trading.py` | Headless paper loop |
-| `run_live_trading.py` | Live / paper CLI runner |
+| `scripts/loop_analisis.py` | Loop de análisis 24/7 (observador) |
+| `scripts/rutina_eurusd.py` | Ficha top-down EURUSD D1/H4/M15 |
+| `scripts/vigilante_riesgo.py` | Cierra posiciones manuales al 2%/4% flotante |
+| `run_paper_trading.py` | Headless paper loop (bot heredado) |
+| `run_live_trading.py` | Live / paper CLI runner (bot heredado) |
 | `run_ml_pipeline.py` | Full ML train + verify pipeline |
-| `build_v4.py` | Build v4 ML dataset only |
-| `walk_forward_quick.py` | Walk-forward report |
-| `stats_validate.py` | Standalone statistical validation |
+| `scripts/edge_diagnosis/run.py` | Edge diagnosis 21×8 (SMC puro) |
 
 ---
 
@@ -284,21 +329,29 @@ Output: `dist/SMC_Trading.exe`. Requires MT5 on the target machine.
 
 | Document | Description |
 |----------|-------------|
+| [CRONOGRAMA_Y_ROADMAP.md](docs/CRONOGRAMA_Y_ROADMAP.md) | **ÚNICA fuente de verdad** — hitos y estado (v2.2) |
 | [COMPLETION_REPORT.md](COMPLETION_REPORT.md) | Pipeline wiring, backtest metrics, entry protocol |
+| [EDGE_DIAGNOSIS_REPORT.md](docs/EDGE_DIAGNOSIS_REPORT.md) | Resultado edge diagnosis 21×8 (2026-07-10) |
+| [ESTADO_ACTUAL.md](docs/ESTADO_ACTUAL.md) | Estado edge diagnosis cerrada |
+| [RUTINA_EURUSD.md](docs/RUTINA_EURUSD.md) | Manual de uso diario de la rutina EURUSD |
+| [AUDITORIA_USO_2026-07-09.md](docs/AUDITORIA_USO_2026-07-09.md) | Cadena real de uso de la rutina vs código bot heredado |
 | [Agent Architecture](docs/AGENT_ARCHITECTURE.md) | Agent system design |
-| [App Observador](docs/specs/app_observador.md) | SDD de la UI del observador (reemplaza desktop/) |
-| [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | VPS, systemd, NSSM |
-| [ICT Rulebook](docs/ICT_RULEBOOK.md) | ICT specifications (general) |
-| [Biblioteca ICT](docs/ict/00_INDICE.md) | Libros por concepto (killzones, MSS/CHoCH, FVG, OB, liquidez, Turtle Soup, Silver Bullet, PO3) |
+| [App Observador](docs/specs/app_observador.md) | SDD de la UI del observador |
+| [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | VPS, systemd, NSSM (pendiente A8) |
+| [ICT Rulebook](docs/ICT_RULEBOOK.md) | ICT specifications |
+| [Biblioteca ICT](docs/ict/00_INDICE.md) | Libros por concepto |
 | [Wyckoff Rulebook](docs/WYCKOFF_RULEBOOK.md) | Wyckoff specifications |
-| [Roadmap](docs/CRONOGRAMA_Y_ROADMAP.md) | Prioritized work plan |
 
 ---
 
-## Current Status (2026-07)
+## Current Status (2026-07-10)
 
 | Component | State |
 |-----------|-------|
+| Observador FundedNext (loop 24/7) | ✅ Producción |
+| Arranque automático (PowerShell + Inicio) | ✅ Producción |
+| Rutina EURUSD + diario | ✅ Producción |
+| Edge Diagnosis (SMC puro, 168 celdas) | ✅ Completada |
 | Signal pipeline + agents | ✅ Complete |
 | Backtest (4 symbols, ML) | ✅ WR 63.7%, PF 1.61, Sharpe 3.33, DD 4.96% |
 | ML inference in trading loop | ✅ Complete |
@@ -306,8 +359,9 @@ Output: `dist/SMC_Trading.exe`. Requires MT5 on the target machine.
 | Desktop UI | ✅ Stable (main-thread chart, single instance) |
 | Statistical validation (CVaR, DSR, PBO, bootstrap) | ✅ Implemented |
 | Optuna tuning | ✅ Implemented |
-| MT5 bridge + MQL5 EA | ✅ Implemented |
+| MT5 bridge + MQL5 EA | ✅ Implemented (bot heredado) |
+| Walk-forward OOS celda ganadora | ⚠️ Pendiente (A12) |
 | Production monitoring in live loop | ⚠️ Drift baseline saved on train; live drift check not in runner yet |
-| Deployment automation | ⚠️ Documented; not fully automated |
+| Deployment automation | ⚠️ Documented (A8); not fully automated |
 
-**Bottom line:** research, backtest, paper, and desktop trading paths are functional end-to-end with ML. Live deployment still requires operational hardening (monitoring in loop, VPS setup, model refresh cadence).
+**Bottom line:** research, backtest, edge-diagnosis, paper, and desktop trading paths are functional end-to-end with ML. Live deployment still requires operational hardening (walk-forward OOS validation, monitoring in loop, VPS setup, model refresh cadence).
