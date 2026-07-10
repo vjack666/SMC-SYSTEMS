@@ -15,7 +15,7 @@ REM =====================================================================
 set ROOT=C:\Users\v_jac\Desktop\SMC-SYSTEMS
 set PY=C:\Python314\python.exe
 set PYW=C:\Python314\pythonw.exe
-set MT5=C:\Program Files\MetaTrader 5\terminal64.exe
+set MT5=C:\Program Files\FundedNext MT5 Terminal\terminal64.exe
 
 cd /d "%ROOT%"
 
@@ -26,15 +26,17 @@ if errorlevel 1 (
 )
 
 REM ---- 2) Loop de analisis (SIEMPRE ACTIVO 24/7) ----
+REM Usa pythonw.exe (sin consola) para que NO salte ventana negra.
 tasklist | find /I "loop_analisis.py" >nul 2>&1
 if errorlevel 1 (
-    start "" /min "%PY%" "%ROOT%\scripts\loop_analisis.py"
+    start "" /min "%PYW%" "%ROOT%\scripts\loop_analisis.py"
 )
 
 REM ---- 3) Vigilante de riesgo (SOLO CIERRA) ----
+REM Usa pythonw.exe (sin consola) para que NO salte ventana negra.
 tasklist | find /I "vigilante_riesgo.py" >nul 2>&1
 if errorlevel 1 (
-    start "" /min "%PY%" "%ROOT%\scripts\vigilante_riesgo.py"
+    start "" /min "%PYW%" "%ROOT%\scripts\vigilante_riesgo.py"
 )
 
 REM ---- 4) App del observador (sin consola negra) ----
@@ -43,15 +45,17 @@ if errorlevel 1 (
     start "" "%PYW%" "%ROOT%\run_app.py"
 )
 
-REM ---- 5) Hermes (opcional, comenta si no queres) ----
-REM  Solo abre Hermes si NO hay ya una ventana Hermes abierta.
-REM  Se identifica por el titulo unico "HermesSMC" de la ventana cmd.
-tasklist /V /FI "IMAGENAME eq cmd.exe" 2>nul | find /I "HermesSMC" >nul 2>&1
-if errorlevel 1 (
-    where hermes >nul 2>&1
-    if not errorlevel 1 (
-        start "HermesSMC" cmd /min /k "hermes"
-    )
-)
+REM ---- 5) Hermes (DESACTIVADO AQUI: evita 2da ventana de Hermes) ----
+REM  El Hermes se prende en start_hermes_session.ps1 (unico punto de inicio),
+REM  con un lapse de 3 min antes de iniciarlo. Si lo queres tambien por aca,
+REM  quita el REM de las siguientes lineas:
+REM
+REM  tasklist /V /FI "IMAGENAME eq cmd.exe" 2>nul | find /I "HermesSMC" >nul 2>&1
+REM  if errorlevel 1 (
+REM      where hermes >nul 2>&1
+REM      if not errorlevel 1 (
+REM          start "HermesSMC" cmd /min /k "hermes"
+REM      )
+REM  )
 
 exit /b

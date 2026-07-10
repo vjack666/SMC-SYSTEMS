@@ -9,10 +9,10 @@ Corre dentro de la ventana 8-11 AM Ecuador (13-16 UTC), cada 5 minutos:
 
 NUNCA abre ordenes en MT5. Es un observador para que el trader decida.
 
-Uso:
-  C:\\Python314\\python.exe scripts\\loop_analisis.py          # loop continuo
-  C:\\Python314\\python.exe scripts\\loop_analisis.py --once    # 1 ciclo y sale
-  C:\\Python314\\python.exe scripts\\loop_analisis.py --test-window  # simula ventana abierta
+Uso (en segundo plano, SIN ventana de consola):
+  C:\Python314\pythonw.exe scripts\loop_analisis.py          # loop continuo
+  C:\Python314\python.exe scripts\loop_analisis.py --once    # 1 ciclo y sale (consola)
+  C:\Python314\python.exe scripts\loop_analisis.py --test-window  # simula ventana abierta
 
 Parada: Ctrl+C (salida limpia).
 """

@@ -650,7 +650,7 @@ class PaperTradingRunner:
         self._log("If the terminal path is custom, pass --mt5-path <path> to the script.")
         self._log("Common paths:")
         self._log("  C:\\Program Files\\Funded Next\\terminal64.exe")
-        self._log("  C:\\Program Files\\MetaTrader 5\\terminal64.exe")
+        self._log("  C:\\Program Files\\FundedNext MT5 Terminal\\terminal64.exe")
         return False
 
     def _check_drift(self) -> bool:

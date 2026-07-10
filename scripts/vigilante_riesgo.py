@@ -9,9 +9,9 @@ Reusa:
   - risk/sizer.py  -> close_position()  (cierre real de MT5)
   - scripts/alertas.py -> alertar()      (popup + sonido)
 
-Uso:
-  C:\\Python314\\python.exe scripts\\vigilante_riesgo.py
-  C:\\Python314\\python.exe scripts\\vigilante_riesgo.py --no-close   # solo avisa
+Uso (en segundo plano, SIN ventana de consola):
+  C:\Python314\pythonw.exe scripts\vigilante_riesgo.py
+  C:\Python314\python.exe scripts\vigilante_riesgo.py --no-close   # solo avisa (consola)
 """
 from __future__ import annotations
 
