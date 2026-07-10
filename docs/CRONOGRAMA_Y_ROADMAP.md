@@ -56,7 +56,7 @@ Matriz **21 variantes × 8 símbolos = 168 celdas**, 0 errores, 0 insufficient.
 | A11 | Arranque automático FundedNext | `start_hermes_session.ps1` + mutex + loop/vigilante headless + reporte salud + `.lnk` Inicio | ✅ Completado | Alta |
 | A3 | Resolver discrepancia Harness | 11 adapters documentados en AGENT_ARCHITECTURE.md | ✅ Completado | Media |
 | A6 | Expandir datos | >3-4 años históricos para OOS robusto (scripts listos: `download_multiyear.py`) | 🟡 Pendiente | Media |
-| A12 | Walk-forward OOS celda ganadora | `no_session` × XAUUSD: PurgedKFold, DSR>0, N>=200, PF>=1.10 antes de live | 🔴 Pendiente | Alta |
+| A12 | Walk-forward OOS celda ganadora | `no_session` × XAUUSD: PurgedKFold, DSR>0, N>=200, PF>=1.10 antes de live | 🟡 En curso | Alta |
 | A8 | Deployment Guide (F8) | VPS, systemd/NSSM, recovery, monitoring. **AL FINAL** | 🔴 Pendiente | Baja |
 
 **Criterio de completitud:** A1-A11 en 🟢 + A12 validado. El harness pasa 100% de escenarios. Solo entonces se considera production-ready para bot.
