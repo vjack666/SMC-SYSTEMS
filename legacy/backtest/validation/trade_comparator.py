@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from backtest.validation.mt5_backtest_runner import SimulatedTradeResult
+from .mt5_backtest_runner import SimulatedTradeResult
 
 
 @dataclass

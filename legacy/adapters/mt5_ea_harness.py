@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from backtest.validation.mt5_backtest_runner import MT5BacktestRunner, SlippageConfig
-from harness.contracts import HarnessEvent
+from legacy.backtest.validation.mt5_backtest_runner import MT5BacktestRunner, SlippageConfig
+from legacy.harness.contracts import HarnessEvent
 from integration.mt5_bridge.schema import SignalAction, SignalMessage, OrderType
 
 

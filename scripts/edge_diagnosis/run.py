@@ -51,7 +51,7 @@ _data_mod.load_frame = _patched_load_frame
 sys.modules["data"].load_frame = _patched_load_frame
 
 from signals import ScalpingConfig, build_scalping_context, ScalpingSignal  # noqa: E402
-from backtest.engine import _build_signals_from_context, _simulate_trade_with_stats  # noqa: E402
+from legacy.backtest.engine import _build_signals_from_context, _simulate_trade_with_stats  # noqa: E402
 from risk import GovernorConfig  # noqa: E402
 
 DATA_DIR = ROOT / "data" / "raw"

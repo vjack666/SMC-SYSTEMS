@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from backtest import CombinedBacktestConfig, run_filter_diagnosis
+from legacy.backtest import CombinedBacktestConfig, run_filter_diagnosis
 
 
 class BacktestAdapter:
@@ -20,7 +20,7 @@ class BacktestAdapter:
                 diagnosis = run_filter_diagnosis(config)
                 return {"module": self.name, "event_names": [], "status": "ok", "mode": "diagnosis", "diagnosis": diagnosis}
             else:
-                from backtest import run_combined_backtest
+                from legacy.backtest import run_combined_backtest
                 metrics, trades = run_combined_backtest(config)
                 return {
                     "module": self.name,

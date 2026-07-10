@@ -1,4 +1,4 @@
-from backtest.engine import (
+from .engine import (
     CombinedBacktestConfig,
     CombinedTrade,
     metrics_pass_thresholds,

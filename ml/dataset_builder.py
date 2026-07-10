@@ -11,7 +11,7 @@ from sklearn.inspection import permutation_importance
 from sklearn.ensemble import RandomForestClassifier
 
 from agents.orchestrator import AGENT_COLUMNS, AgentOrchestrator
-from backtest.engine import _build_signals_from_context, _simulate_trade_with_stats
+from legacy.backtest.engine import _build_signals_from_context, _simulate_trade_with_stats
 from data import load_frame
 from features import FeatureEngine
 from regime import detect_regimes

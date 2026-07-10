@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from harness.contracts import HarnessEvent
+from legacy.harness.contracts import HarnessEvent
 
 ADAPTER_NAME = "paper_trading"
 

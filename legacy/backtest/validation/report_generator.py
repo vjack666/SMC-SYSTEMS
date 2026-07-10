@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from backtest.validation.trade_comparator import ComparisonResult
+from .trade_comparator import ComparisonResult
 
 
 class ReportGenerator:

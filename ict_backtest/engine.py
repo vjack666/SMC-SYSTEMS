@@ -1,0 +1,236 @@
+"""ict_backtest/engine.py — Motor event-driven (vela a vela) rescatado.
+
+Rescata la simulacion de legacy/backtest/engine.py (_build_signals_from_context
++ _simulate_trade_with_stats), SIN ML ni dependencias del legacy. El bucle de
+simulacion es barra por barra: por cada senal, avanza vela a vela hasta SL/TP/
+limite de hold. Eso es lo que pediste: no procesar todo de golpe.
+
+Para ICT no usamos ScalpingSignal del legacy; definimos ICTSignal propio con
+SL/TP derivados de la regla (structural SL + TP en liquidez opuesta, RR>=1:2).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+
+@dataclass
+class ICTSignal:
+    symbol: str
+    time: str
+    direction: int          # +1 long, -1 short
+    entry: float
+    stop_loss: float
+    take_profit: float
+    model: str = ""         # "intradia" | "scalping"
+    confidence: float = 0.0
+
+
+@dataclass
+class ICTTrade:
+    symbol: str
+    entry_time: str
+    exit_time: str
+    direction: int
+    entry: float
+    exit: float
+    pnl_r: float            # PnL en unidades de riesgo (RR)
+
+
+def build_signals_from_frames(
+    symbol: str,
+    frames: dict[str, pd.DataFrame],
+    bias_by_tf: dict[str, str],
+    votes: dict | None = None,
+    model: str = "intradia",
+    min_confidence: float = 0.0,
+    htf: str = "H4",
+    ltf: str = "M15",
+) -> list[ICTSignal]:
+    """Construye senales ICT evaluando el mini-check del dashboard por vela.
+
+    frames: {"D1": df, "H4": df, "M15": df, ...} alineados por indice/tiempo.
+    Recorre el LTF barra por barra (event-driven). En cada vela, arma el dict
+    `estructura` por TF y llama a ict_backtest.rules.evaluate. Si el check pasa
+    (ready) y la direccion es LONG/SHORT, genera ICTSignal con SL/TP.
+
+    SL  = nivel de invalidacion (structural) o ATR si no hay.
+    TP  = entry +/- 2*ATR (RR 1:2 por defecto; ajustable).
+    """
+    from ict_backtest.rules import evaluate
+
+    ltf_df = frames.get(ltf)
+    if ltf_df is None or len(ltf_df) == 0:
+        return []
+
+    atr_col = "atr" if "atr" in ltf_df.columns else None
+    results: list[ICTSignal] = []
+
+    for i in range(len(ltf_df)):
+        row = ltf_df.iloc[i]
+        ts = _coerce_ts(row.get("time"))
+        # Armar estructura por TF leyendo la fila correspondiente (mismo indice i
+        # asumiendo frames alineados; si no, por tiempo mas cercano).
+        estructura = _build_estructura(frames, i, ltf)
+        bias = bias_by_tf.get(htf, "NEUTRAL")
+
+        verdict = evaluate(model, estructura, bias, votes, ts)
+        if not verdict["ready"]:
+            continue
+        direction = 1 if verdict["direction"] == "LONG" else -1 if verdict["direction"] == "SHORT" else 0
+        if direction == 0:
+            continue
+
+        entry = float(row["close"])
+        atr = float(row[atr_col]) if atr_col else 0.0
+        if not np.isfinite(atr) or atr <= 0:
+            continue
+
+        sl_level = _invalidation_level(estructura, direction)
+        sl = sl_level if sl_level is not None else (entry - atr if direction == 1 else entry + atr)
+        risk = abs(entry - sl)
+        if risk <= 0:
+            continue
+        tp = entry + 2.0 * risk if direction == 1 else entry - 2.0 * risk
+
+        results.append(ICTSignal(
+            symbol=symbol, time=str(row["time"]), direction=direction,
+            entry=entry, stop_loss=sl, take_profit=tp,
+            model=model, confidence=verdict["passed"] / max(1, verdict["total"]),
+        ))
+    return results
+
+
+def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
+                  max_hold_bars: int) -> tuple[ICTTrade | None, dict[str, Any]]:
+    """Simula UN trade vela a vela hasta SL/TP/hold_limit. (Rescatado legacy.)"""
+    times = frame["time"].astype(str)
+    matches = list(frame.index[times == signal.time])
+    if len(matches) == 0:
+        return None, {"exit_reason": "time_not_found", "mfe_r": 0.0, "mae_r": 0.0, "hold_bars": 0}
+
+    idx = int(matches[0])
+    sl, tp = signal.stop_loss, signal.take_profit
+    risk = abs(signal.entry - sl)
+    if risk <= 0.0:
+        return None, {"exit_reason": "invalid_risk", "mfe_r": 0.0, "mae_r": 0.0, "hold_bars": 0}
+
+    exit_idx, exit_price, exit_reason = idx, signal.entry, "hold_limit"
+    mfe_r, mae_r = -1e9, 1e9
+
+    for step in range(1, max_hold_bars + 1):
+        j = idx + step
+        if j >= len(frame):
+            break
+        row = frame.iloc[j]
+        high, low = float(row["high"]), float(row["low"])
+
+        if signal.direction == 1:
+            step_mfe = (high - signal.entry) / risk
+            step_mae = (low - signal.entry) / risk
+            if low <= sl:
+                exit_idx, exit_price, exit_reason = j, sl, "SL"
+                mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
+                break
+            if high >= tp:
+                exit_idx, exit_price, exit_reason = j, tp, "TP"
+                mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
+                break
+        else:
+            step_mfe = (signal.entry - low) / risk
+            step_mae = (signal.entry - high) / risk
+            if high >= sl:
+                exit_idx, exit_price, exit_reason = j, sl, "SL"
+                mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
+                break
+            if low <= tp:
+                exit_idx, exit_price, exit_reason = j, tp, "TP"
+                mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
+                break
+        exit_idx, exit_price = j, float(row["close"])
+        mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
+
+    pnl_r = (exit_price - signal.entry) / risk if signal.direction == 1 else (signal.entry - exit_price) / risk
+    trade = ICTTrade(
+        symbol=signal.symbol, entry_time=signal.time,
+        exit_time=str(frame.iloc[exit_idx]["time"]), direction=signal.direction,
+        entry=signal.entry, exit=exit_price, pnl_r=float(pnl_r),
+    )
+    hold_bars = max(0, int(exit_idx - idx))
+    if mfe_r < -1e8:
+        mfe_r = 0.0
+    if mae_r > 1e8:
+        mae_r = 0.0
+    return trade, {"exit_reason": exit_reason, "mfe_r": float(mfe_r), "mae_r": float(mae_r), "hold_bars": hold_bars}
+
+
+# ---- helpers ----
+
+def _coerce_ts(value: Any) -> pd.Timestamp | None:
+    if value is None:
+        return None
+    ts = pd.to_datetime(value, utc=True, errors="coerce")
+    if pd.isna(ts):
+        return None
+    return ts.tz_convert("UTC") if ts.tz else ts.tz_localize("UTC")
+
+
+def _build_estructura(frames: dict[str, pd.DataFrame], i: int,
+                      ltf: str) -> dict[str, dict]:
+    """Arma el dict estructura[tf] = {trend, bos_dir, bos_status, sweep_up, sweep_down, ...}
+    leyendo la fila i de cada TF (o la mas cercana en tiempo)."""
+    est: dict[str, dict] = {}
+    ltf_time = frames[ltf].iloc[i]["time"] if ltf in frames else None
+    for tf, df in frames.items():
+        if tf == ltf or len(df) == 0:
+            pass
+        # indice por tiempo si es posible
+        row = _row_at_time(df, ltf_time) if ltf_time is not None else (df.iloc[i] if i < len(df) else None)
+        if row is None:
+            est[tf] = {}
+            continue
+        est[tf] = {
+            "trend": str(row.get("macro_direction", row.get("trend", "RANGING"))),
+            "bos_dir": int(row.get("bos_direction", 0) or 0),
+            "bos_status": str(row.get("bos_status", "")),
+            "sweep_up": bool(row.get("liquidity_sweep_up", row.get("sweep_up", False))),
+            "sweep_down": bool(row.get("liquidity_sweep_down", row.get("sweep_down", False))),
+            "fvg_state": str(row.get("fvg_state", row.get("fvg_bullish", "-"))),
+            "ob_dir": str(row.get("ob_direction", row.get("ob_dir", "-"))),
+        }
+    if ltf in frames:
+        est[ltf] = est.get(ltf, {})
+    return est
+
+
+def _row_at_time(df: pd.DataFrame, t: Any) -> Any:
+    try:
+        times = df["time"].astype(str)
+        matches = list(df.index[times == str(t)])
+        if len(matches):
+            return df.iloc[int(matches[0])]
+    except Exception:
+        pass
+    return None
+
+
+def _invalidation_level(estructura: dict, direction: int) -> float | None:
+    """SL = nivel de invalidacion del LTF (M15). Si hay, usarlo; sino None."""
+    m15 = estructura.get("M15", {})
+    inv = m15.get("invalidation") if isinstance(m15, dict) else None
+    if inv is not None:
+        try:
+            v = float(inv)
+            if np.isfinite(v) and v > 0:
+                return v
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+if __name__ == "__main__":
+    print("ict_backtest.engine cargado OK")

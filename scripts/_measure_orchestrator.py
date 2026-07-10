@@ -22,7 +22,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from backtest import CombinedBacktestConfig  # noqa: E402
+from legacy.backtest import CombinedBacktestConfig  # noqa: E402
 from signals import ScalpingConfig, build_scalping_context  # noqa: E402
 from signals.pipeline import AgentOrchestrator  # noqa: E402
 from data import load_frame, apply_time_window  # noqa: E402

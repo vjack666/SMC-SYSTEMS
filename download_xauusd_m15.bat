@@ -8,10 +8,14 @@ REM  Este script usa el terminal de FundedNext por defecto.
 REM
 REM  El XAUUSD_M15 actual se borra y se reemplaza por 4 anos completos
 REM  (el script salta archivos existentes, por eso se borra primero).
+REM
+REM  La salida (y cualquier error) se guarda en download_m15.log
+REM  y la ventana ESPERA a que apretes ENTER, asi no se cierra sola.
 REM =====================================================================
 
 SETLOCAL ENABLEDELAYEDEXPANSION
 SET ROOT=%~dp0
+SET LOG=%ROOT%download_m15.log
 
 IF EXIST "C:\Python314\python.exe" (SET PY=C:\Python314\python.exe) ELSE (SET PY=python)
 
@@ -42,14 +46,22 @@ IF EXIST "%ROOT%data\raw\XAUUSD_M15.parquet" (
 )
 
 echo.
-echo   Lanzando descarga en ventana propia (no muere al cerrar esta)...
+echo   Lanzando descarga... (log en %LOG%)
+echo   La ventana se queda abierta hasta que apretes ENTER, aunque falle.
 echo.
 
-REM start "" abre en ventana independiente; el script corre hasta terminar.
-start "" "%PY%" "%ROOT%scripts\download_multiyear.py" --symbols XAUUSD --timeframes M15 --years 4 --output data/raw
+REM Ejecuta el Python y guarda TODO (stdout + stderr) en el log.
+"%PY%" "%ROOT%scripts\download_multiyear.py" --symbols XAUUSD --timeframes M15 --years 4 --output data/raw > "%LOG%" 2>&1
+SET RC=%ERRORLEVEL%
 
-echo   La descarga corre en su propia ventana. Espera a que diga "Done".
-echo   Luego podes re-correr run_validation.bat (A12) para la prueba de fuego.
-echo   Presiona una tecla para cerrar esta ventana (la descarga sigue sola).
+echo.
+IF %RC%==0 (
+    echo   DESCARGA OK. Revisa el final de %LOG%
+) ELSE (
+    echo   FALLO (codigo %RC%). El error completo esta en:
+    echo     %LOG%
+)
+echo.
+echo   Presiona ENTER para cerrar.
 pause
 ENDLOCAL
