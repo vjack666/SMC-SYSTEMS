@@ -33,10 +33,17 @@ function Start-BgPy($scriptName, $logName) {
 #   a) abre MT5 FundedNext (si no esta), b) baja datos en vivo, c) arma ficha EURUSD.
 # Reemplaza el viejo .bat (que solo bajaba datos y dejaba la ficha a mano).
 $routine = Join-Path $PSScriptRoot 'scripts\hermes_startup_routine.py'
-Write-Host "[Hermes] Paso 1/4: MT5 FundedNext + datos en vivo + ficha EURUSD..."
-& 'C:\Python314\pythonw.exe' $routine
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[Hermes] ADVERTENCIA: la rutina de arranque fallo (MT5 cerrado o sin login?). Se continua igual." -ForegroundColor Yellow
+Write-Host "[Hermes] Paso 1/4: MT5 FundedNext + datos en vivo + ficha EURUSD (se espera a que termine)..."
+# pythonw.exe es un exe de subsistema Windows: con el operador & PowerShell NO espera
+# a que termine y el reporte de salud corria antes de que MT5 abriera => MT5 marcado [X].
+# Se lanza con Start-Process y se espera (con tope de seguridad) para que el terminal
+# FundedNext ya este abierto y logueado cuando se chequea mas abajo.
+$routineProc = Start-Process -FilePath 'C:\Python314\pythonw.exe' -ArgumentList $routine -PassThru -WindowStyle Hidden
+try {
+    $routineProc | Wait-Process -Timeout 180 -ErrorAction Stop
+    Write-Host "[Hermes] Rutina de arranque terminada (MT5 + datos en vivo + ficha EURUSD listos)."
+} catch {
+    Write-Host "[Hermes] ADVERTENCIA: la rutina tardo >180s; se continua igual (MT5 puede seguir abriendo)." -ForegroundColor Yellow
 }
 
 # ---- 2) Loop de analisis (SIEMPRE ACTIVO 24/7) ----
@@ -50,9 +57,14 @@ Start-BgPy 'vigilante_riesgo.py' 'vigilante.out'
 Write-Host "[Hermes] Vigilante encendido. Cierra TODAS las operaciones abiertas si la perdida flotante toca 2% (y 4% DLL). Nunca abre."
 
 # ---- 4) App del observador (Lab Setup / Principal) ----
+# run_app.py vive en la RAIZ del repo (no en scripts/): es el launcher que setea
+# sys.path a la raiz y arranca app_observador.ui.main_window. Start-BgPy asume
+# scripts\, asi que se lanza directamente con su ruta absoluta.
 Write-Host "[Hermes] Paso 4/4 (parte A): encendiendo app del observador (PySide6)..."
-Start-BgPy 'run_app.py' 'observador.out'
-Write-Host "[Hermes] Observador encendido en segundo plano."
+$appScript = Join-Path $PSScriptRoot 'run_app.py'
+Start-Process -FilePath 'C:\Python314\pythonw.exe' -ArgumentList $appScript `
+    -RedirectStandardOutput (Join-Path $PSScriptRoot 'logs\observador.out') -WindowStyle Hidden
+Write-Host "[Hermes] Observador encendido en segundo plano (run_app.py en raiz)."
 
 # ---- 5) Reporte de salud + actualizaciones (en esta misma ventana) ----
 # Verifica que los procesos quedaron VIVOS y revisa el estado del repo (git).
@@ -65,7 +77,7 @@ function Write-Status($label, $ok, $detail = '') {
     $color = if ($ok) { 'Green' } else { 'Red' }
     $mark  = if ($ok) { 'OK ' } else { 'X  ' }
     $txt   = "[$mark] $label"
-    if ($detail) { $txt += " — $detail" }
+    if ($detail) { $txt += " - $detail" }
     Write-Host $txt -ForegroundColor $color
 }
 
@@ -83,9 +95,14 @@ Write-Status 'MT5 FundedNext abierto' $mt5
 $git = 'git'
 $dirty = & $git -C $PSScriptRoot 'status' '--short' 2>$null
 $ahead = 0; $behind = 0
-$sb = & $git -C $PSScriptRoot 'status' '-sb' 2>$null
-if ($sb -match 'ahead (\d+)')  { $ahead  = [int]$Matches[1] }
-if ($sb -match 'behind (\d+)') { $behind = [int]$Matches[1] }
+# git status -sb devuelve un ARRAY de lineas. Con -match en modo array NO se puebla
+# $Matches (devuelve los elementos coincidentes) => "$Matches[1]" daba "matriz nula".
+# Se fuerza a texto unico con Out-String y se usa [regex]::Match (puebla Groups siempre).
+$sb = (& $git -C $PSScriptRoot 'status' '-sb' 2>$null) | Out-String
+$mAhead  = [regex]::Match($sb, 'ahead (\d+)')
+$mBehind = [regex]::Match($sb, 'behind (\d+)')
+if ($mAhead.Success)  { $ahead  = [int]$mAhead.Groups[1].Value }
+if ($mBehind.Success) { $behind = [int]$mBehind.Groups[1].Value }
 
 if ($dirty) {
     $n = ($dirty | Where-Object { $_ } | Measure-Object).Count

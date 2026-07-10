@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  EDGE DIAGNOSIS — double-click to run the full ablation harness
+REM  EDGE DIAGNOSIS - double-click to run the full ablation harness
 REM  Shows a live progress bar + ETA. Resumes if interrupted.
 REM  When finished writes:
 REM    results\edge_diagnosis\progress.json
@@ -9,7 +9,7 @@ REM ============================================================
 setlocal
 cd /d "%~dp0"
 
-title SMC-SYSTEMS — Edge Diagnosis
+title SMC-SYSTEMS - Edge Diagnosis
 
 echo.
 echo  ========================================================

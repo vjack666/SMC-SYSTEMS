@@ -8,7 +8,7 @@ REM ============================================================
 setlocal
 cd /d "%~dp0"
 
-title SMC-SYSTEMS — Download missing data
+title SMC-SYSTEMS - Download missing data
 
 echo.
 echo  ========================================================
