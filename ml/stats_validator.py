@@ -7,6 +7,18 @@ import scipy.stats as ss
 from sklearn.model_selection import TimeSeriesSplit
 
 
+def pd_to_epoch(times_arr: np.ndarray) -> np.ndarray:
+    """Convert an array of timestamps (str / datetime / numeric) to epoch seconds (float)."""
+    import pandas as pd
+
+    ser = pd.Series(times_arr)
+    ts = pd.to_datetime(ser, errors="coerce", utc=True)
+    if ts.isna().any():
+        # Mix of parseable and unparseable: fall back to positional order.
+        raise ValueError("unparseable timestamps")
+    return (ts.astype("int64") // 10**9).to_numpy(dtype=float)
+
+
 class PurgedKFold:
     def __init__(self, n_splits: int = 5, embargo: int = 0, purge: int = 0):
         self.n_splits = n_splits
@@ -17,6 +29,17 @@ class PurgedKFold:
         if times is None:
             yield from TimeSeriesSplit(n_splits=self.n_splits).split(X, y)
             return
+
+        # Normalize times to a sortable numeric type (epoch seconds). The caller
+        # may pass strings (e.g. ISO timestamps from a parquet "timestamp" column),
+        # which break the arithmetic at line below (`times[val_start] - self.purge`).
+        times_arr = np.asarray(times)
+        if times_arr.dtype.kind in ("U", "S", "O"):
+            try:
+                times_arr = pd_to_epoch(times_arr)
+            except Exception:
+                # Fall back to positional order if timestamps can't be parsed.
+                times_arr = np.arange(len(times_arr), dtype=float)
 
         n = len(X)
         test_size = n // (self.n_splits + 1)
@@ -41,7 +64,7 @@ class PurgedKFold:
             val_idx = np.arange(val_start_adjusted, val_end_adjusted)
 
             if train_end > 0 and self.embargo > 0:
-                train_idx = train_idx[times[train_idx] < times[val_start] - self.purge]
+                train_idx = train_idx[times_arr[train_idx] < times_arr[val_start] - self.purge]
                 if len(train_idx) == 0:
                     train_idx = np.array([], dtype=int)
 
