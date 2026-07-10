@@ -43,8 +43,15 @@ def _red_flags(relevant: list[dict]) -> list[str]:
     return out
 
 
-def evaluate(bias: str, relevant: list[dict]) -> tuple[str, list[str]]:
-    """Devuelve (color, razones)."""
+def evaluate(bias: str, relevant: list[dict],
+             trade_plan: dict | None = None) -> tuple[str, list[str]]:
+    """Devuelve (color, razones).
+
+    VERDE solo si hay un setup VALIDO (R:R >= 1:2) y sin noticia roja.
+    Si el contexto esta limpio pero el setup no conviene (R:R < 1:2) -> AMARILLO
+    ("esperar otro setup"), para no decirle al trader "opera" cuando la ficha
+    dice "descartar".
+    """
     reasons: list[str] = []
     has_red = len(relevant) > 0
     red_list = _red_flags(relevant)
@@ -55,6 +62,10 @@ def evaluate(bias: str, relevant: list[dict]) -> tuple[str, list[str]]:
             reasons.append(f"   - {r}")
         reasons.append("Challenge: podés operar; cuenta fondeada solo 40% profit en ventana 10min.")
 
+    # Setup valido? (R:R >= 1:2) -> lo decide el motor (rutina_eurusd.compute_trade_plan)
+    setup_valido = bool(trade_plan and trade_plan.get("valido"))
+    rr = trade_plan.get("rr") if trade_plan else None
+
     if bias.startswith("NEUTRAL"):
         # Sin sesgo claro
         if has_red:
@@ -63,15 +74,21 @@ def evaluate(bias: str, relevant: list[dict]) -> tuple[str, list[str]]:
         else:
             color = "AMARILLO"
             reasons.append("Sesgo NEUTRAL sin confirmación -> si operás, solo con setup claro y size reducido (0.5%).")
+        reasons.append(f"Límites challenge: DLL {DLL_PCT}% | MLL {MLL_PCT}% | riesgo <= {MAX_RISK_PCT}% por trade.")
         return color, reasons
 
     # Sesgo definido (LONG/SHORT)
     if has_red:
         color = "AMARILLO"
         reasons.append("Estructura clara PERO hay noticia roja -> reducí size y poné SL justo (cuidado slippage).")
-    else:
+    elif setup_valido:
         color = "VERDE"
-        reasons.append("Estructura clara y sin noticia roja en ventana -> operá con tu plan habitual.")
+        reasons.append("Estructura clara, sin noticia roja y setup con R:R >= 1:2 -> operá con tu plan habitual.")
+    else:
+        color = "AMARILLO"
+        rr_txt = f" (R:R 1:{rr:.2f})" if rr is not None else ""
+        reasons.append(f"Contexto limpio PERO el setup no conviene hoy{rr_txt} -> mejor esperar otro setup.")
+        reasons.append("El mapa esta claro, pero sin R:R >= 1:2 no vale la pena arriesgar. No te fuerces.")
 
     # Recordatorio de límites SIEMPRE (regla de oro del challenge)
     reasons.append(f"Límites challenge: DLL {DLL_PCT}% | MLL {MLL_PCT}% | riesgo <= {MAX_RISK_PCT}% por trade.")
@@ -110,7 +127,8 @@ def main() -> int:
     events, _ = news_report.load_events()
     relevant = news_report.filter_relevant(events)
 
-    color, reasons = evaluate(bias, relevant)
+    plan = rut.compute_trade_plan(verdict, m15)
+    color, reasons = evaluate(bias, relevant, plan)
     txt = render(color, reasons, bias)
     print(txt)
 

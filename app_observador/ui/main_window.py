@@ -27,6 +27,7 @@ from app_observador.ui.noticias_widget import NoticiasWidget
 from app_observador.ui.resumen_widget import ResumenWidget
 from app_observador.ui.estado_widget import EstadoWidget
 from app_observador.ui.crono_widget import CronoWidget
+from app_observador.ui.lab_setup_widget import LabSetupWidget
 
 # alertas.py vive en scripts/ (popup + beep de Windows)
 import sys
@@ -55,8 +56,8 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"SMC OBSERVADOR — {SYMBOL}")
-        self.setMinimumSize(1100, 720)
-        self.resize(1280, 820)
+        self.setMinimumSize(900, 600)
+        self.resize(1366, 820)
 
         # Widgets
         self.semaforo = SemaforoWidget()
@@ -66,6 +67,7 @@ class MainWindow(QMainWindow):
         self.resumen = ResumenWidget()
         self.estado = EstadoWidget()
         self.crono = CronoWidget()
+        self.lab = LabSetupWidget()
 
         self._build_layout()
 
@@ -103,6 +105,9 @@ class MainWindow(QMainWindow):
         title.setStyleSheet("color: #ddd; font-size: 14px; font-weight: bold;")
         top.addWidget(title)
         top.addStretch()
+        self.btn_max = QPushButton("Pantalla completa")
+        self.btn_max.clicked.connect(self._toggle_max)
+        top.addWidget(self.btn_max)
         self.btn = QPushButton("Actualizar ahora")
         self.btn.clicked.connect(lambda: self._run_cycle(force_fetch=True))
         top.addWidget(self.btn)
@@ -115,12 +120,17 @@ class MainWindow(QMainWindow):
         row1.addWidget(self.estado, 1)
         root.addLayout(row1)
 
-        # Fila 2: pestañas (1=Principal/resumen | 2=Noticias | 3=Mapa ICT)
+        # Fila 2: pestañas (1=Principal | 2=Lab Setup | 3=Noticias | 4=Mapa ICT)
         tabs = QTabWidget()
         tab_principal = QWidget()
         tp_layout = QVBoxLayout(tab_principal)
         tp_layout.addWidget(self.resumen, 1)
         tabs.addTab(tab_principal, "Principal")
+
+        tab_lab = QWidget()
+        tl_layout = QVBoxLayout(tab_lab)
+        tl_layout.addWidget(self.lab, 1)
+        tabs.addTab(tab_lab, "Lab Setup")
 
         tab_noticias = QWidget()
         tn_layout = QVBoxLayout(tab_noticias)
@@ -142,6 +152,15 @@ class MainWindow(QMainWindow):
         self._worker = _Worker(force_fetch=force_fetch)
         self._worker.finished.connect(self._on_result)
         self._worker.start()
+
+    def _toggle_max(self) -> None:
+        """Alterna pantalla completa / ventana normal (ajustable)."""
+        if self.isMaximized():
+            self.showNormal()
+            self.btn_max.setText("Pantalla completa")
+        else:
+            self.showMaximized()
+            self.btn_max.setText("Restaurar")
 
     def closeEvent(self, event) -> None:
         try:
@@ -167,6 +186,7 @@ class MainWindow(QMainWindow):
         self.mapa.refresh()
         self.estado.update_state()
         self.crono.update_state()
+        self.lab.update_state(result)
 
         color = result.get("semaforo", {}).get("color", "DESCCONOCIDO")
         if alert and self._last_color is not None and color != self._last_color:

@@ -147,7 +147,14 @@ def run_cycle(force_fetch: bool = False) -> dict:
 
     # 3) Semáforo FundedNext real
     try:
-        color, reasons = sem.evaluate(bias, result["noticias"])
+        # Calcula el plan de trade real para decidir VERDE/AMARILLO con R:R.
+        trade_plan = None
+        try:
+            rut_plan = _import_script("rutina_eurusd")
+            trade_plan = rut_plan.compute_trade_plan(verdict, m15)
+        except Exception:
+            trade_plan = None
+        color, reasons = sem.evaluate(bias, result["noticias"], trade_plan)
         result["semaforo"] = {"color": color, "reasons": reasons}
         log_event("engine", "semaforo", symbol=SYMBOL, data={"color": color})
     except Exception as e:
