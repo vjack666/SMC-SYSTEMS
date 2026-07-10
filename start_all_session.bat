@@ -44,9 +44,14 @@ if errorlevel 1 (
 )
 
 REM ---- 5) Hermes (opcional, comenta si no queres) ----
-where hermes >nul 2>&1
-if not errorlevel 1 (
-    start "" cmd /min /k "hermes"
+REM  Solo abre Hermes si NO hay ya una ventana Hermes abierta.
+REM  Se identifica por el titulo unico "HermesSMC" de la ventana cmd.
+tasklist /V /FI "IMAGENAME eq cmd.exe" 2>nul | find /I "HermesSMC" >nul 2>&1
+if errorlevel 1 (
+    where hermes >nul 2>&1
+    if not errorlevel 1 (
+        start "HermesSMC" cmd /min /k "hermes"
+    )
 )
 
 exit /b

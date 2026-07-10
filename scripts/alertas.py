@@ -11,11 +11,15 @@ Uso:
 from __future__ import annotations
 
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
 ALERT_LOG = BASE / "logs" / "alertas.log"
+
+# En Windows evita que subprocess abra una consola negra al llamar powershell.
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
 def _log_only(titulo: str, msg: str) -> None:
@@ -36,7 +40,7 @@ def _popup(titulo: str, msg: str) -> bool:
     )
     try:
         subprocess.run(["powershell", "-NoProfile", "-Command", ps],
-                       capture_output=True, timeout=30)
+                       capture_output=True, timeout=30, creationflags=_NO_WINDOW)
         return True
     except Exception:
         return False
@@ -47,7 +51,7 @@ def _beep() -> None:
     try:
         subprocess.run(
             ["powershell", "-NoProfile", "-Command", "[console]::beep(660,300)"],
-            capture_output=True, timeout=10)
+            capture_output=True, timeout=10, creationflags=_NO_WINDOW)
     except Exception:
         pass
 

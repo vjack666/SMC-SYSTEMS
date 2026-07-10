@@ -26,6 +26,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 FUNDEDNEXT_TERMINAL = r"C:\Program Files\FundedNext MT5 Terminal\terminal64.exe"
 DATA_DIR = Path("data/raw")
 
+# En Windows evita que subprocess abra una consola negra al llamar tasklist.
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
 
 def _terminal_running() -> bool:
     """True si terminal64.exe (FundedNext) ya esta en ejecucion."""
@@ -33,7 +36,7 @@ def _terminal_running() -> bool:
         out = subprocess.run(
             ["tasklist", "/FI", "IMAGENAME eq terminal64.exe"],
             capture_output=True, text=True, timeout=15,
-            encoding="mbcs", errors="ignore",
+            encoding="mbcs", errors="ignore", creationflags=_NO_WINDOW,
         ).stdout.lower()
         return "terminal64.exe" in out
     except Exception:

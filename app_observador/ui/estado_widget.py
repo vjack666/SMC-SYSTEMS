@@ -7,6 +7,7 @@ esta conectado, lo dice claramente (no muestra numeros falsos).
 from __future__ import annotations
 
 import subprocess
+import sys
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 
@@ -18,13 +19,16 @@ _PROC_NAMES = {
     "vigilante": "vigilante_riesgo.py",
 }
 
+# En Windows evita que subprocess abra una consola negra al llamar tasklist.
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
 
 def _proc_running(script_name: str) -> bool:
     """True si el script corre como proceso de Python (Windows tasklist)."""
     try:
         out = subprocess.run(
             ["tasklist", "/FI", f"IMAGENAME eq python.exe", "/FO", "CSV"],
-            capture_output=True, timeout=5,
+            capture_output=True, timeout=5, creationflags=_NO_WINDOW,
         ).stdout.decode("cp1252", errors="replace")
         return script_name in out
     except Exception:

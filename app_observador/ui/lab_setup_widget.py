@@ -5,8 +5,8 @@ Explica QUE pasa y POR QUE con los datos REALES del motor (engine.run_cycle):
   - Fase Wyckoff M15 + significado (regla del mercado, no opinion).
   - Logica del setup paso a paso (sesgo -> estructura -> entrada/SL/TP -> R:R).
   - Veredicto honesto: si el R:R < 1:2 el setup se DESCARTA y se explica por que.
-  - Glosario ICT/Wyckoff para aprender mientras operas.
 
+Los 4 cuadros principales se muestran en una grilla 2x2 (aprovecha el espacio).
 No inventa: todo refleja el dict que produce engine.run_cycle(). Se actualiza
 con el mismo timer de 5 min de la app (0 CPU extra entre refrescos).
 """
@@ -14,9 +14,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QScrollArea,
+    QWidget, QVBoxLayout, QGridLayout, QLabel, QGroupBox, QScrollArea,
     QFrame, QTextBrowser,
 )
 
@@ -25,22 +24,6 @@ from app_observador.ui.resumen_widget import modelo_ict
 ROOT = Path(__file__).resolve().parents[3]
 RULEBOOK = ROOT / "docs" / "WYCKOFF_RULEBOOK.md"
 ICT_DIR = ROOT / "docs" / "ict"
-
-# Glosario compacto (terminos que el trader necesita mientras mira el setup).
-GLOSARIO = [
-    ("BOS", "Break of Structure. El precio rompe el ultimo swing en la direccion de la tendencia. Confirma que la estructura cambio."),
-    ("CHOCH", "Change of Character. La estructura rompe EN CONTRA de la tendencia. Senal temprana de posible giro."),
-    ("OTE", "Optimal Trade Entry. Zona de Fibonacci 62-79% del ultimo impulso. Donde el smart money suele entrar."),
-    ("FVG", "Fair Value Gap. Hueco entre velas que el precio dejo sin cubrir. Zona de desequilibrio que suele ser objetivo."),
-    ("OB", "Order Block. Ultima vela antes de un impulso fuerte. Zona donde hay ordenes institucionales sin llenar."),
-    ("Sweep", "Barrido de liquidez. El precio caza los stops del rango (SSL abajo / BSL arriba) antes de girar."),
-    ("Silver Bullet", "Modelo ICT intradia: barre liquidez + FVG en M15 dentro de la killzone (London/NY AM)."),
-    ("Turtle Soup", "Modelo ICT de reversión: el precio barre la liquidez y falla (fakeout) contra la tendencia mayor."),
-    ("PO3", "Power of Three: acumular -> manipular (sweep) -> distribuir. Continuacion a favor de la tendencia."),
-    ("R:R", "Risk-Reward. Pips de beneficio potencial / pips de riesgo (SL). Regla Stellar: >= 1:2."),
-    ("Killzone", "Ventana horaria con mas volumen institucional (London 07-10 UTC, NY AM 12-15 UTC, NY PM 17-20 UTC)."),
-    ("Wyckoff", "Metodo de Richard Wyckoff: el precio pasa por fases (Acumulacion, Markup, Distribucion, Markdown)."),
-]
 
 # Significado corto de cada fase Wyckoff (para la explicacion didactica).
 WYCKOFF_SIGNIFICADO = {
@@ -90,7 +73,17 @@ class LabSetupWidget(QWidget):
         title.setStyleSheet("color: #7fb3ff; font-weight: bold; font-size: 15px;")
         root.addWidget(title)
 
-        # --- Grupo 1: MODELO ICT DETECTADO ---
+        # Grilla 2x2 con los 4 cuadros principales (aprovecha todo el espacio).
+        grid = QGridLayout()
+        grid.setSpacing(10)
+        # Reparto uniforme de los 4 cuadrantes.
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        grid.setRowStretch(0, 1)
+        grid.setRowStretch(1, 1)
+        root.addLayout(grid)
+
+        # --- Grupo 1: MODELO ICT DETECTADO (arriba-izquierda) ---
         self.g_modelo = QGroupBox("1) MODELO ICT DETECTADO (auto-adaptado a tus datos)")
         self.g_modelo.setStyleSheet("QGroupBox { color: #9fd3a0; font-weight: bold; }")
         m_layout = QVBoxLayout(self.g_modelo)
@@ -99,9 +92,9 @@ class LabSetupWidget(QWidget):
         self.lbl_modelo.setStyleSheet(
             "background-color: #15171c; color: #e6e6e6; border: none; font-size: 12px;")
         m_layout.addWidget(self.lbl_modelo)
-        root.addWidget(self.g_modelo)
+        grid.addWidget(self.g_modelo, 0, 0)
 
-        # --- Grupo 2: FASE WYCKOFF ---
+        # --- Grupo 2: FASE WYCKOFF (arriba-derecha) ---
         self.g_wyk = QGroupBox("2) FASE WYCKOFF (la regla del mercado)")
         self.g_wyk.setStyleSheet("QGroupBox { color: #c9a3ff; font-weight: bold; }")
         w_layout = QVBoxLayout(self.g_wyk)
@@ -109,9 +102,9 @@ class LabSetupWidget(QWidget):
         self.lbl_wyk.setStyleSheet(
             "background-color: #15171c; color: #e6e6e6; border: none; font-size: 12px;")
         w_layout.addWidget(self.lbl_wyk)
-        root.addWidget(self.g_wyk)
+        grid.addWidget(self.g_wyk, 0, 1)
 
-        # --- Grupo 3: LOGICA DEL SETUP (paso a paso) ---
+        # --- Grupo 3: LOGICA DEL SETUP (abajo-izquierda) ---
         self.g_logica = QGroupBox("3) LOGICA DEL SETUP (paso a paso)")
         self.g_logica.setStyleSheet("QGroupBox { color: #7fb3ff; font-weight: bold; }")
         l_layout = QVBoxLayout(self.g_logica)
@@ -119,9 +112,9 @@ class LabSetupWidget(QWidget):
         self.lbl_logica.setStyleSheet(
             "background-color: #15171c; color: #e6e6e6; border: none; font-size: 12px;")
         l_layout.addWidget(self.lbl_logica)
-        root.addWidget(self.g_logica)
+        grid.addWidget(self.g_logica, 1, 0)
 
-        # --- Grupo 4: VEREDICTO HONESTO ---
+        # --- Grupo 4: VEREDICTO HONESTO (abajo-derecha) ---
         self.g_veredicto = QGroupBox("4) VEREDICTO HONESTO (con R:R)")
         self.g_veredicto.setStyleSheet("QGroupBox { color: #ffd479; font-weight: bold; }")
         v_layout = QVBoxLayout(self.g_veredicto)
@@ -129,20 +122,7 @@ class LabSetupWidget(QWidget):
         self.lbl_veredicto.setStyleSheet(
             "background-color: #15171c; color: #e6e6e6; border: none; font-size: 12px;")
         v_layout.addWidget(self.lbl_veredicto)
-        root.addWidget(self.g_veredicto)
-
-        # --- Grupo 5: GLOSARIO ---
-        self.g_glos = QGroupBox("5) GLOSARIO RAPIDO (aprende mientras operas)")
-        self.g_glos.setStyleSheet("QGroupBox { color: #888; font-weight: bold; }")
-        gl_layout = QVBoxLayout(self.g_glos)
-        self.lbl_glos = QTextBrowser()
-        self.lbl_glos.setStyleSheet(
-            "background-color: #15171c; color: #cfcfcf; border: none; font-size: 11px;")
-        gl_lines = "<br>".join(
-            f"<b style='color:#9fd3a0'>{t}</b>: {d}" for t, d in GLOSARIO)
-        self.lbl_glos.setHtml(gl_lines)
-        gl_layout.addWidget(self.lbl_glos)
-        root.addWidget(self.g_glos)
+        grid.addWidget(self.g_veredicto, 1, 1)
 
         scroll.setWidget(inner)
         outer = QVBoxLayout(self)

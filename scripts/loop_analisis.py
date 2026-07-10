@@ -33,6 +33,9 @@ CYCLE_SECONDS = 5 * 60    # cada 5 minutos SIEMPRE
 ALWAYS_ON = True          # loop nunca duerme: corre 24/7 cada 5 min
 PY = r"C:\Python314\python.exe"
 
+# En Windows evita que subprocess abra una consola negra en cada subproceso.
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
 BASE = Path(__file__).resolve().parent.parent
 DIARIO = BASE / "docs" / "diario"
 
@@ -65,7 +68,7 @@ def _run(script: str, *args: str) -> tuple[bool, str]:
     cmd = [PY, str(BASE / "scripts" / script), *args]
     try:
         res = subprocess.run(cmd, cwd=str(BASE), capture_output=True,
-                              text=True, timeout=180)
+                              text=True, timeout=180, creationflags=_NO_WINDOW)
         out = (res.stdout or "") + (res.stderr or "")
         return res.returncode == 0, out.strip()[-600:]
     except subprocess.TimeoutExpired:
