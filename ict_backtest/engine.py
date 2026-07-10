@@ -76,9 +76,13 @@ def build_signals_from_frames(
         # Armar estructura por TF leyendo la fila correspondiente (mismo indice i
         # asumiendo frames alineados; si no, por tiempo mas cercano).
         estructura = _build_estructura(frames, i, ltf)
-        bias = bias_by_tf.get(htf, "NEUTRAL")
+        # Sesgo POR VELA desde la tendencia del HTF (backtest honesto, sin mirar futuro).
+        htf_trend = str(estructura.get(htf, {}).get("trend", "NEUTRAL"))
+        bias = htf_trend if htf_trend in ("BULLISH", "BEARISH") else "NEUTRAL"
+        if bias_by_tf.get(htf) in ("BULLISH", "BEARISH") and htf not in frames:
+            bias = bias_by_tf[htf]
 
-        verdict = evaluate(model, estructura, bias, votes, ts)
+        verdict = evaluate(model, estructura, bias, votes, ts, exec_tf=ltf, htf=htf)
         if not verdict["ready"]:
             continue
         direction = 1 if verdict["direction"] == "LONG" else -1 if verdict["direction"] == "SHORT" else 0
@@ -90,7 +94,7 @@ def build_signals_from_frames(
         if not np.isfinite(atr) or atr <= 0:
             continue
 
-        sl_level = _invalidation_level(estructura, direction)
+        sl_level = _invalidation_level(estructura, direction, ltf)
         sl = sl_level if sl_level is not None else (entry - atr if direction == 1 else entry + atr)
         risk = abs(entry - sl)
         if risk <= 0:
@@ -208,19 +212,28 @@ def _build_estructura(frames: dict[str, pd.DataFrame], i: int,
 
 
 def _row_at_time(df: pd.DataFrame, t: Any) -> Any:
+    """Fila cuyo tiempo es == t; si no existe, la ULTIMA con tiempo <= t (asof).
+
+    El asof evita mirar el futuro: para una vela LTF en tiempo t, el contexto
+    HTF es la ultima vela HTF ya cerrada (<= t).
+    """
     try:
-        times = df["time"].astype(str)
-        matches = list(df.index[times == str(t)])
-        if len(matches):
-            return df.iloc[int(matches[0])]
+        tt = pd.to_datetime(t, utc=True, errors="coerce")
+        times = pd.to_datetime(df["time"], utc=True, errors="coerce")
+        exact = df.index[times == tt]
+        if len(exact):
+            return df.iloc[int(list(exact)[0])]
+        prior = times[times <= tt]
+        if len(prior):
+            return df.iloc[int(prior.index[-1])]
     except Exception:
         pass
     return None
 
 
-def _invalidation_level(estructura: dict, direction: int) -> float | None:
-    """SL = nivel de invalidacion del LTF (M15). Si hay, usarlo; sino None."""
-    m15 = estructura.get("M15", {})
+def _invalidation_level(estructura: dict, direction: int, exec_tf: str = "M15") -> float | None:
+    """SL = nivel de invalidacion del TF de ejecucion. Si hay, usarlo; sino None."""
+    m15 = estructura.get(exec_tf, {})
     inv = m15.get("invalidation") if isinstance(m15, dict) else None
     if inv is not None:
         try:

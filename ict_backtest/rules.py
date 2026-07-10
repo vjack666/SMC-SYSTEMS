@@ -65,8 +65,8 @@ def _sweep_dir(estructura: dict, tfs: tuple[str, ...]) -> str:
     return "up" if up else "down" if down else "none"
 
 
-def _bos_m15(estructura: dict) -> str:
-    m15 = estructura.get("M15", {})
+def _bos_exec(estructura: dict, exec_tf: str = "M15") -> str:
+    m15 = estructura.get(exec_tf, {})
     bd = int(m15.get("bos_dir", 0) or 0)
     st = m15.get("bos_status", "")
     if bd == 1 and st == "active":
@@ -79,15 +79,18 @@ def _bos_m15(estructura: dict) -> str:
 
 
 def checklist_intradia(estructura: dict, bias: str, votes: dict | None,
-                       ts: datetime | None = None) -> list[str]:
-    """Checklist INTRADIA (H1/H4/M15, PO3/Turtle Soup). Items numerados.
+                       ts: datetime | None = None, exec_tf: str = "M15",
+                       htf: str = "H4") -> list[str]:
+    """Checklist INTRADIA (PO3/Turtle Soup). Items numerados.
 
     ts: timestamp de la vela para killzone historica (si None, fuera de KZ).
+    exec_tf: TF de ejecucion (M15 en vivo; H4 en backtest de opcion A).
+    htf: TF de contexto alto para el sweep (H4 por defecto).
     """
     items: list[str] = []
     d1 = estructura.get("D1", {})
-    h4 = estructura.get("H4", {})
-    m15 = estructura.get("M15", {})
+    h4 = estructura.get(htf, {})
+    m15 = estructura.get(exec_tf, {})
     dir_setup = _dir_setup(bias, votes, m15)
     kz = killzone_en(ts) if ts is not None else ""
 
@@ -101,7 +104,7 @@ def checklist_intradia(estructura: dict, bias: str, votes: dict | None,
     if d1.get("trend") in ("", "RANGING") and h4.get("trend") in ("", "RANGING"):
         items.append("FALTA: contexto D1/H4 definido (en rango -> sin marea).")
     else:
-        items.append(f"OK: Contexto D1 {d1.get('trend','?')} / H4 {h4.get('trend','?')}.")
+        items.append(f"OK: Contexto D1 {d1.get('trend','?')} / {htf} {h4.get('trend','?')}.")
 
     # 3. Killzone intradia
     if kz in ("London Open", "New York AM", "New York PM"):
@@ -109,19 +112,19 @@ def checklist_intradia(estructura: dict, bias: str, votes: dict | None,
     else:
         items.append("FALTA: killzone intradia (London/NY) -> esperar ventana.")
 
-    # 4. Sweep H4/M15
-    sw = _sweep_dir(estructura, ("H4", "M15"))
+    # 4. Sweep HTF/exec
+    sw = _sweep_dir(estructura, (htf, exec_tf))
     if sw == "none":
-        items.append("FALTA: barrido de liquidez (sweep SSL/BSL) en H4/M15.")
+        items.append(f"FALTA: barrido de liquidez (sweep SSL/BSL) en {htf}/{exec_tf}.")
     else:
-        items.append(f"OK: Liquidez barrida ({sw}) en H4/M15.")
+        items.append(f"OK: Liquidez barrida ({sw}) en {htf}/{exec_tf}.")
 
-    # 5. BOS/CHOCH M15
-    bos = _bos_m15(estructura)
+    # 5. BOS/CHOCH exec
+    bos = _bos_exec(estructura, exec_tf)
     if bos == "no":
-        items.append("FALTA: BOS/CHOCH en M15 (estructura intacta).")
+        items.append(f"FALTA: BOS/CHOCH en {exec_tf} (estructura intacta).")
     else:
-        items.append(f"OK: M15 con BOS {bos}.")
+        items.append(f"OK: {exec_tf} con BOS {bos}.")
 
     # 6. Direccion alineada
     if dir_setup == "NEUTRAL":
@@ -197,15 +200,17 @@ def checklist_scalping(estructura: dict, bias: str, votes: dict | None,
 
 
 def evaluate(model: str, estructura: dict, bias: str, votes: dict | None,
-             ts: datetime | None = None) -> dict[str, Any]:
+             ts: datetime | None = None, exec_tf: str = "M15",
+             htf: str = "H4") -> dict[str, Any]:
     """Evalua un modelo ICT y devuelve checklist + puntuacion.
 
     model: "intradia" | "scalping"
+    exec_tf: TF de ejecucion (M15 en vivo; H4 en backtest opcion A).
     Devuelve {"model":..., "checks":[...], "passed":int, "total":int,
               "ready":bool, "direction":"LONG"|"SHORT"|"NEUTRAL"}
     """
     if model == "intradia":
-        checks = checklist_intradia(estructura, bias, votes, ts)
+        checks = checklist_intradia(estructura, bias, votes, ts, exec_tf, htf)
     elif model == "scalping":
         checks = checklist_scalping(estructura, bias, votes, ts)
     else:
@@ -215,7 +220,7 @@ def evaluate(model: str, estructura: dict, bias: str, votes: dict | None,
     total = len(checks)
     # "ready" = todos los OK (los PENDIENTE son de ejecucion, no bloquean senal)
     blocked = [c for c in checks if c.startswith("FALTA:")]
-    dir_setup = _dir_setup(bias, votes, estructura.get("M15", {}))
+    dir_setup = _dir_setup(bias, votes, estructura.get(exec_tf, {}))
     return {
         "model": model,
         "checks": checks,
