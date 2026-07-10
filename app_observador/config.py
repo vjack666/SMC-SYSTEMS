@@ -12,7 +12,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 SYMBOL = "EURUSD"
+# TFs obligatorios del analisis top-down (contexto + veredicto + mapa)
 TIMEFRAMES = ["D1", "H4", "M15"]
+# TFs de scalping (M1/M5) — OPCIONALES: entran a la estructura/cache para el
+# check de scalping, pero solo existen para EURUSD en data/raw. Si faltan no
+# abortan el ciclo (el check de scalping queda en "sin datos M1/M5").
+TIMEFRAMES_SCALPING = ["M1", "M5"]
+# TFs que generan mapa PNG (solo los 3 de contexto, no M1/M5)
+TIMEFRAMES_MAPA = ["D1", "H4", "M15"]
 
 # Carpeta de datos crudos (parquet MT5) — ya existe, la lee el loop
 DATA_RAW = ROOT / "data" / "raw"

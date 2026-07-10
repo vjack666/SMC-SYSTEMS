@@ -418,8 +418,18 @@ def checklist_scalping(estructura: dict, bias: str, votes: dict | None) -> list[
     else:
         items.append(f"✓ Sweep M15 ({sw}) presente.")
 
-    # 4. FVG en M1/M5 (no lo trae el cache; se infiere necesario)
-    items.append("○ Buscar FVG en M1/M5 tras el sweep (no en cache del motor).")
+    # 4. FVG en M1/M5 (datos reales del motor, si existen los parquet)
+    m5 = estructura.get("M5", {}) or {}
+    m1 = estructura.get("M1", {}) or {}
+    fvg_m5 = str(m5.get("fvg_state", "-")).lower() not in ("-", "none", "nan", "")
+    fvg_m1 = str(m1.get("fvg_state", "-")).lower() not in ("-", "none", "nan", "")
+    if not m5 and not m1:
+        items.append("○ Buscar FVG en M1/M5 tras el sweep (sin datos M1/M5 en cache).")
+    elif fvg_m5 or fvg_m1:
+        donde = "M5" if fvg_m5 else "M1"
+        items.append(f"✓ FVG en {donde} presente tras sweep (Silver Bullet listo).")
+    else:
+        items.append("✗ Sin FVG en M1/M5 aun (esperar tras el sweep).")
 
     # 5. Direccion coincide con sesgo
     if dir_setup == "NEUTRAL":
@@ -427,8 +437,12 @@ def checklist_scalping(estructura: dict, bias: str, votes: dict | None) -> list[
     else:
         items.append(f"✓ Direccion scalp: {dir_setup}.")
 
-    # 6. SL ajustado al FVG/sweep
-    items.append("○ SL bajo FVG alcista / sobre FVG bajista (o en SSL/BSL).")
+    # 6. SL ajustado al FVG/sweep (OB real si existe)
+    ob_m5 = str(m5.get("ob_dir", "-")) not in ("-", "none", "nan", "")
+    if ob_m5:
+        items.append(f"✓ OB en M5 ({m5.get('ob_dir')}) -> SL sobre/fallo del OB.")
+    else:
+        items.append("○ SL bajo FVG alcista / sobre FVG bajista (o en SSL/BSL).")
 
     # 7. RR 1:2 rapido
     items.append("○ RR >= 1:2, salida en liquidez opuesta (rapido).")

@@ -18,7 +18,9 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-from app_observador.config import DATA_RAW, MAPS_DIR, ROOT, SYMBOL, TIMEFRAMES
+from app_observador.config import (
+    DATA_RAW, MAPS_DIR, ROOT, SYMBOL, TIMEFRAMES, TIMEFRAMES_MAPA, TIMEFRAMES_SCALPING
+)
 from app_observador.core.blackbox import BLACKBOX_DIR, log_event, log_error
 
 CACHE_PATH = BLACKBOX_DIR / "last_cycle.json"
@@ -105,6 +107,33 @@ def run_cycle(force_fetch: bool = False) -> dict:
         }
     result["estructura"]["WYCKOFF_M15"] = result["wyckoff"].get("M15", {})
 
+    # 1c) TFs de scalping (M1/M5) — OPCIONALES: no abortan si faltan.
+    #     Solo EURUSD tiene esos parquet en data/raw; para otros simbolos el
+    #     check de scalping quedara en "sin datos M1/M5".
+    for tf in TIMEFRAMES_SCALPING:
+        try:
+            df = rut._load(SYMBOL, tf)
+            info = rut.analyze_timeframe(df, tf)
+            result["estructura"][tf] = {
+                "trend": info.get("trend", ""),
+                "bos_dir": int(info.get("bos_dir", 0)),
+                "bos_status": str(info.get("bos_status", "")),
+                "bos_level": float(info.get("bos_level", 0.0) or 0.0),
+                "sweep_up": bool(info.get("sweep_up", False)),
+                "sweep_down": bool(info.get("sweep_down", False)),
+                "ote_long": [float(x) for x in info.get("ote_long", (0.0, 0.0))],
+                "ote_short": [float(x) for x in info.get("ote_short", (0.0, 0.0))],
+                "ob_dir": str(info.get("ob_dir", "-") or "-"),
+                "fvg_state": str(info.get("fvg_state", "-") or "-"),
+                "choch_status": str(info.get("choch_status", "-") or "-"),
+            }
+            log_event("engine", "tf_scalping_analizado", symbol=SYMBOL, tf=tf)
+        except Exception as e:
+            # sin datos M1/M5 -> no es error fatal, el check lo refleja
+            result["estructura"][tf] = {}
+            log_event("engine", "tf_scalping_sin_datos", symbol=SYMBOL, tf=tf,
+                      data={"error": str(e)[:120]})
+
     # 2) Noticias rojas reales (usa cache del dia; si no hay cache, baja RSS)
     try:
         relevant, fuente = news.load_events(no_fetch=not force_fetch)
@@ -125,10 +154,10 @@ def run_cycle(force_fetch: bool = False) -> dict:
         log_error("engine", "semaforo_fallo", e, symbol=SYMBOL)
         result["errores"].append(f"semaforo: {e}")
 
-    # 4) Regenerar mapas ICT (usando los df/info reales)
+    # 4) Regenerar mapas ICT (usando los df/info reales de los 3 TF de contexto)
     try:
         MAPS_DIR.mkdir(parents=True, exist_ok=True)
-        for tf in TIMEFRAMES:
+        for tf in TIMEFRAMES_MAPA:
             df, info = tfs_data[tf]
             path = mapa.save_tf_png(SYMBOL, tf, df, info, MAPS_DIR)
             result["mapas"][tf] = str(path)
