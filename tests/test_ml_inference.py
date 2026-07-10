@@ -12,7 +12,8 @@ from signals.pipeline import ScalpingConfig
 
 def test_scalping_config_has_ml_flags():
     cfg = ScalpingConfig()
-    assert cfg.use_ml_quality_filter is True
+    # ML quality filter is OFF by default (roadmap A9: "ML filter off por defecto").
+    assert cfg.use_ml_quality_filter is False
     assert cfg.ml_model_path.endswith("quality_filter.pkl")
 
 

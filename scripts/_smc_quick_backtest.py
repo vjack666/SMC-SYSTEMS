@@ -1,7 +1,7 @@
 """Quick offline backtest runner — bypasses MT5 download, uses cached parquet.
 
 Usage:
-    C:/Users/v_jac/smc_probe/Scripts/python.exe scripts/_smc_quick_backtest.py \
+    python scripts/_smc_quick_backtest.py \
         --symbols EURUSD GBPUSD USDCHF --no-ml
 """
 from __future__ import annotations

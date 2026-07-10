@@ -1,7 +1,0 @@
----
-pid: 25128
-cwd: "C:\Users\v_jac\Desktop\SMC-SYSTEMS"
-command: "python scripts/run_desktop.py"
-started_at: 2026-07-06T15:42:55.092Z
-running_for_ms: 13624999 
----

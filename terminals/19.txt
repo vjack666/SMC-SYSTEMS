@@ -1,8 +1,0 @@
----
-pid: 21268
-cwd: "C:\Users\v_jac\Desktop\SMC-SYSTEMS"
-command: "cmd /c scripts\\start_desktop.bat"
-started_at: 2026-07-06T16:13:46.486Z
-running_for_ms: 11770004 
----
-Desktop UI launched in separate process.
