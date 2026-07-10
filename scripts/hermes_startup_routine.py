@@ -7,11 +7,11 @@ Lo PRIMERO que hace Hermes al iniciar:
   3) Genera la ficha top-down EURUSD (la rutina diaria).
 
 Se ejecuta con el Python del sistema (el que tiene MetaTrader5 real):
-  C:\Python314\python.exe scripts/hermes_startup_routine.py
+  C:/Python314/pythonw.exe  (via start_hermes_session.ps1, sin ventana negra)
 
-La ventana de PowerShell del Startup ya arranca `hermes`. Para que Hermes
-corra ESTO primero, enganchalo desde tu shell de Hermes o dejalo como tarea
-previa. Ver notas al final del archivo.
+La ventana de PowerShell del Startup ya arranca `hermes`. Esta rutina corre
+AUTOMATICAMENTE como Paso 1 del .ps1 (baja datos + arma la ficha EURUSD).
+Ver notas al final del archivo.
 """
 from __future__ import annotations
 
@@ -22,11 +22,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PY = r"C:\Python314\python.exe"
 
+# Sin esta flag, cada subprocess.run abre su PROPIA consola negra al correr
+# desde la ventana de Hermes. CREATE_NO_WINDOW la suprime (Windows solo).
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
 
 def run(script: str, *extra: str) -> int:
     cmd = [PY, str(ROOT / script), *extra]
     print(f"\n>>> {' '.join(cmd)}")
-    r = subprocess.run(cmd)
+    r = subprocess.run(cmd, creationflags=_NO_WINDOW)
     return r.returncode
 
 
