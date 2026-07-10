@@ -161,20 +161,30 @@ DLL 4% | MLL 8% | riesgo ≤ 3% por trade.
 
 ## 10. Arranque automático (todo operativo al prender la compu)
 
-El acceso directo de Startup (`Hermes.lnk`) apunta a
-`start_hermes_session.ps1`, que al iniciar sesión hace 3 pasos:
+El acceso directo de Startup (`Hermes.lnk`, en
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\`) apunta a
+`start_hermes_session.ps1` y se ejecuta **oculto** al iniciar sesión
+(política `-ExecutionPolicy Bypass -NoProfile`). El `.ps1` hace 4 pasos:
 
 1. Abre el terminal MT5 FundedNext + actualiza `data/raw` (datos en vivo).
 2. Enciende el **loop de análisis** en segundo plano (SIEMPRE ACTIVO, sin bot, con alertas).
-3. Lanza Hermes en la terminal interactiva.
+3. Enciende el **vigilante de riesgo** (kill-switch, SOLO CIERRA al 2%/4%).
+4. Enciende la **app del observador** (PySide6) + reporte de salud; luego lanza Hermes.
+
+**Protección anti-duplicados:** `loop_analisis.py`, `vigilante_riesgo.py` y
+`run_app.py` usan un mutex de Windows (`scripts/_single_instance.py`). Si por
+cualquier razón el arranque se dispara dos veces (doble login, reinicio de
+sesión), la 2ª instancia se auto-cierra en vez de duplicar procesos.
 
 Resultado: apenas iniciás sesión en Windows ya estás operativo. El loop corre
 cada 5 min las 24h (ventana trading marcada 07:00-20:00 Ecuador) y te avisa con
 popup+sonido cuando hay que mirar. No hace falta correr nada a mano.
 
 > Si el loop no aparece: revisá `logs/loop_analisis.out`.
-> Para pararlo: desde el Administrador de tareas (proceso `python.exe` que
+> Para pararlo: desde el Administrador de tareas (proceso `pythonw.exe` que
 > corrió `loop_analisis.py`) o pedime "para el loop".
+> El acceso directo de escritorio `SMC SYSTEMS.lnk` es SOLO la app del
+> observador (no arranca el sistema); el auto-arranque es solo vía `Hermes.lnk`.
 
 ---
 

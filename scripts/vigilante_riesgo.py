@@ -82,6 +82,13 @@ def main() -> int:
                     help="solo avisa, no cierra (pruebas)")
     args = ap.parse_args()
 
+    # Instancia unica: el vigilante SIEMPRE corre en segundo plano como
+    # servicio; nunca debe duplicarse (dos vigilantes cierran lo mismo dos
+    # veces y ensucian los logs).
+    sys.path.insert(0, str(BASE / "scripts"))
+    from _single_instance import ensure_single_instance
+    ensure_single_instance("vigilante_riesgo")
+
     _log(f"Arrancado. SOFT={SOFT_PCT}% HARD={HARD_PCT}% (DLL) chequeo={CHECK_SECONDS}s")
     _log("SOLO CIERRA, nunca abre. Respeta sin-bot.")
 

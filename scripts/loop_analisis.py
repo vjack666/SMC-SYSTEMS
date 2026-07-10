@@ -153,6 +153,13 @@ def main() -> int:
                     help="ignora fin de semana (no se apaga vie 15:00/sab/dom)")
     args = ap.parse_args()
 
+    # Instancia unica SOLO en modo continuo (no en --once/--test-window, que
+    # son manuales/pruebas y deben poder correr en paralelo sin matarse).
+    if not (args.once or args.test_window):
+        sys.path.insert(0, str(BASE / "scripts"))
+        from _single_instance import ensure_single_instance
+        ensure_single_instance("loop_analisis")
+
     print(f"[loop] Arrancado. SIEMPRE ACTIVO (cada {CYCLE_SECONDS//60} min, 24/7).")
     print(f"[loop] Ventana trading: {TRADE_START_HOUR:02d}:00-"
           f"{TRADE_END_HOUR:02d}:00 Ecuador | MT5: {PY}")
