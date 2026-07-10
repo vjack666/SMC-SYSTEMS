@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -132,28 +133,53 @@ def _download_history(years: float, symbols: tuple[str, ...]) -> None:
     download_main()
 
 
+def _heartbeat(stop: threading.Event, phase: str, note: str, total: int, done: int) -> None:
+    """Imprime barra + latido al log cada 15s para que el usuario vea actividad."""
+    count = 0
+    while not stop.is_set():
+        if stop.wait(15):
+            break
+        count += 1
+        _print_live(done, total, phase, f"{note} ({count * 15}s)")
+        _log(f"  ... sigue trabajando ({count * 15}s) — {note}")
+
+
+def _print_live(done: int, total: int, phase: str, extra: str = "") -> None:
+    """Barra de progreso en vivo (una sola linea, se reescribe con \\r)."""
+    bar = _progress_bar(done, total)
+    line = f"\r  {bar}  {done}/{total}  [{phase}]  {extra}"
+    print(line, end="", flush=True)
+
+
 def _build_v4_dataset(symbol: str, variant: str) -> Path:
     _log(f"FASE 2: armando dataset v4 para {variant} x {symbol}...")
+    _log("  (el builder de features SMC es pesado; puede tardar varios minutos)")
+    _write_status("dataset", 1, 3, current_symbol=symbol, note="build_ml_dataset en curso")
     from ml.dataset_builder import DatasetBuildConfig, build_ml_dataset
+    from signals import ScalpingConfig
 
     out_dir = RESULTS_DIR / "datasets"
     out_dir.mkdir(parents=True, exist_ok=True)
-    # La variante 'no_session' es la que menos filtros aplica; el dataset usa todos
-    # los simbolos pero luego filtramos la celda ganadora por symbol al walk-forward.
-    from signals import ScalpingConfig
     config = DatasetBuildConfig(
         symbols=(symbol,),
         timeframes=("M15",),
         data_dir=_ROOT / "data" / "raw",
         output_dir=out_dir,
-        max_bars=20000,
+        max_bars=8000,
         min_confidence=0.0,
         scalping_config=ScalpingConfig(trend_confidence_threshold=0.0, min_atr_ratio=0.0),
         schema_version="v4",
         auto_download=False,
         combined_output=True,
     )
-    build_ml_dataset(config)
+    _hb_stop = threading.Event()
+    _hb = threading.Thread(target=_heartbeat, args=(_hb_stop, "dataset", "calculando features SMC", 3, 1), daemon=True)
+    _hb.start()
+    try:
+        build_ml_dataset(config)
+    finally:
+        _hb_stop.set()
+        _hb.join(timeout=1)
     dataset_path = out_dir / "v4_dataset.parquet"
     if not dataset_path.exists():
         # build_ml_dataset puede nombrar distinto; buscar el parquet generado
@@ -228,6 +254,7 @@ def main() -> None:
 
     # FASE 0/1 — descarga opcional (requiere MT5)
     if args.download_years > 0:
+        _print_live(done, phases, "mt5-check")
         _log("FASE 0: verificando MT5...")
         if not _check_mt5():
             _log("ERROR: MT5 no esta abierto o sin login. Abrilo, entra a tu cuenta y reintenta.")
@@ -236,18 +263,23 @@ def main() -> None:
         _download_history(args.download_years, (args.symbol,))
         done += 1
         _write_status("download", done, phases)
+        _print_live(done, phases, "download")
 
     # FASE 2 — dataset
     _write_status("dataset", done, phases)
+    _print_live(done, phases, "dataset")
     dataset_path = _build_v4_dataset(args.symbol, args.variant)
     done += 1
     _write_status("dataset", done, phases)
+    _print_live(done, phases, "dataset")
 
     # FASE 3 — walk-forward
     _write_status("walkforward", done, phases)
+    _print_live(done, phases, "walkforward")
     summary, dsr, pass_pf, pass_dsr = _run_walkforward(dataset_path, args.symbol, args.windows)
     done += 1
     _write_status("walkforward", done, phases)
+    _print_live(done, phases, "walkforward")
 
     # FASE 4 — reporte + veredicto
     elapsed = time.time() - t0
@@ -264,6 +296,8 @@ def main() -> None:
     _log(f"Reporte guardado: {out_json}")
 
     _write_status("done", phases, phases, ok=(verdict == "PASS"), verdict=verdict)
+    print()  # salta linea despues de la barra viva
+    _print_live(phases, phases, "done", f"VEREDICTO: {verdict}")
     print(f"\nVEREDICTO FINAL: {verdict}  (ver results/walkforward/WALKFORWARD_REPORT.json)")
     sys.exit(0 if verdict == "PASS" else 1)
 
