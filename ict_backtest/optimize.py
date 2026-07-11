@@ -178,6 +178,10 @@ def main() -> None:
     ap.add_argument("--cost", default=None,
                     help="costos en pips 'spread,commission,slippage' "
                          "(ej 0.8,0.5,0.3). Si se omite, sin costos (teorico).")
+    ap.add_argument("--n-jobs", type=int, default=-1,
+                    help="nucleos para Optuna (trials en paralelo). "
+                         "-1 = todos los nucleos logicos (default). "
+                         "1 = secuencial. Reduce RAM si bajas el numero.")
     args = ap.parse_args()
 
     # Costos de mercado reales (fix #4 auditoria). None = modo teorico.
@@ -231,7 +235,8 @@ def main() -> None:
                 return 0.01 * (1.0 + m["trades"] / 100.0)
             return float(m["pf"])
 
-        print(f"[C3] Optuna: {args.trials} trials (TPE) sobre ventana in-sample ...", flush=True)
+        print(f"[C3] Optuna: {args.trials} trials (TPE) sobre ventana in-sample "
+              f"| n_jobs={args.n_jobs} (nucleos)", flush=True)
         import optuna as _opt
 
         class _CuentaRegresiva:
@@ -256,7 +261,7 @@ def main() -> None:
                                   sampler=_opt.samplers.TPESampler(seed=42),
                                   study_name=f"{args.study_name}_{sym}")
         t0 = time.time()
-        study.optimize(objective, n_trials=args.trials,
+        study.optimize(objective, n_trials=args.trials, n_jobs=args.n_jobs,
                        callbacks=[_CuentaRegresiva(args.trials, sym)])
         print(f"      optimizado en {time.time()-t0:.1f}s", flush=True)
         print(f"      MEJOR PF in-sample: {study.best_value:.3f}", flush=True)
