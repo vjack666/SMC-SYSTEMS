@@ -7,7 +7,7 @@ parámetros). Todo verificado con datos reales XAUUSD (MT5 FundedNext).
 ## Contexto de datos (MT5 FundedNext)
 - XAUUSD_H4.parquet: 10.066 velas, 2020 → 2026 (~6.5 años). Local.
 - XAUUSD_D1.parquet: disponible, mismo rango.
-- XAUUSD_M15: solo ~50k velas desde 2024 (2 años) — insuficiente para muestra grande.
+- XAUUSD_M15: **NO EXISTE** en data/raw (solo D1 y H4 del oro). Para volumen M15 se usa EURUSD_M15 (50.000 velas, 2024-07-04 → 2026-07-10).
 - `ict_backtest/data_feed.py` carga parquet y corre detectores (bos, choch,
   displacement, fvg, liquidity, order_blocks, trend) produciendo las columnas
   que el motor consume.
@@ -72,6 +72,44 @@ Rama: main == origin/main (sincronizado).
   de la secuencia (displace_gap, bos_gap, require_displacement, tp_mode).
 
 Decidido al cierre: PENDIENTE. Retomar mañana con (A) si no hay contraindicación.
+
+---
+
+## ACTUALIZACIÓN 2026-07-11 — OPCIÓN (A) EJECUTADA ✅
+
+Ruben pidió buenas prácticas: confirmar el edge con volumen antes de la Capa 3.
+
+HALLAZGO DE DATOS: `XAUUSD_M15.parquet` **NO existe** en data/raw (solo D1 y H4
+del oro). Se usó `EURUSD_M15.parquet` (50.000 velas, 2024-07-04 → 2026-07-10).
+Validar en un SEGUNDO instrumento es aún más riguroso (out-of-sample por símbolo).
+
+COMANDO (fiel al diseño fractal D1→H4→M15; el runner carga D1 solo):
+`python ict_backtest/run_backtest.py --symbol EURUSD --htf H4 --ltf M15 \
+  --engine sequence --max-hold 96 --require-displacement`
+
+RESULTADO (config espejo H4: a-favor, fixed2r, require_displacement):
+- trades: 70  |  winrate: 47.1%  |  profit factor: **1.598**
+- expectancy: +0.316 R/trade  |  total: +22.1 R  |  max drawdown: -5.6 R
+- fases alcanzadas: SWEEP 1538 → DISPLACE 154 → BOS 86 → ENTRY 70
+- tiempo: fase 2 (secuencia) 485.9s sobre 50k velas M15.
+
+COMPARACIÓN CON LA BASE (XAUUSD H4, misma config):
+| métrica       | H4 (XAUUSD) | M15 (EURUSD) |
+|---------------|-------------|--------------|
+| trades        | 11          | 70 (6.4x)    |
+| winrate       | 36.4%       | 47.1%        |
+| profit factor | 1.132       | **1.598**    |
+| total R       | +0.8        | +22.1        |
+
+CONCLUSIÓN: el edge EVENT-SEQUENCE se CONFIRMA y MEJORA con volumen. No era
+ruido de 11 trades. El motor es robusto en un segundo instrumento y TF menor.
+Ya se puede pasar a (B) con confianza: el optimizador bayesiano (Capa 3, ver
+docs/ict/09_OPTIMIZADOR_BAYESIANO.md) tendrá muestra suficiente para no
+sobre-ajustar.
+
+NOTA DE RENDIMIENTO: la fase 2 de secuencia tardó ~8 min en 50k velas. Si se
+escala a varios símbolos/TF conviene revisar el cuello de "retorno al cuadro"
+(sequence.py BOS_DONE loop). Para un símbolo está bien.
 
 ## Cómo correr mañana (recordatorio)
 - Backtest Capa 2:  `PYTHONPATH=. python ict_backtest/run_backtest.py --symbol XAUUSD --htf D1 --ltf H4 --engine sequence --max-hold 16`

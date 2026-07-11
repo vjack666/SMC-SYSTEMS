@@ -17,6 +17,7 @@ un "libro" de la biblioteca; Graphify los indexa para que la app pueda citarlos.
 - `06_TURTLE_SOUP.md` — Modelo de reversión contra tendencia (sweep + MSS).
 - `07_SILVER_BULLET.md` — Modelo intradía/scalping (killzone + sweep + FVG).
 - `08_POWER_OF_THREE.md` — Power of Three / AMD (Accumulation-Manipulation-Distribution).
+- `09_OPTIMIZADOR_BAYESIANO.md` — Optimizador bayesiano para el backtest (Capa 3): qué es, overfitting, walk-forward, Optuna. [No es regla ICT; es algoritmo de validación del backtest.]
 
 ## Cómo se usa en SMC-SYSTEMS
 - `detectors/` ya implementa BOS/CHOCH (bos.py, choch.py), OB (ob.py), FVG (fvg.py),
