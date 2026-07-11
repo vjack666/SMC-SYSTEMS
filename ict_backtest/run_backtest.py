@@ -18,12 +18,16 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
+
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ict_backtest.data_feed import load_frames  # noqa: E402
-from ict_backtest.engine import build_signals_from_frames, simulate_trade  # noqa: E402
+from ict_backtest.engine import build_signals_from_frames, simulate_trade, ICTSignal  # noqa: E402
+from ict_backtest.market_structure import detect_market_structure  # noqa: E402
+from ict_backtest.sequence import run_sequence, SequenceConfig, _row_at_time  # noqa: E402
 
 
 def _metrics(pnls: list[float]) -> dict[str, float]:
@@ -50,6 +54,89 @@ def _metrics(pnls: list[float]) -> dict[str, float]:
         "max_dd_r": max_dd,
         "total_r": sum(pnls),
     }
+
+
+def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
+                           counter_trend: bool = False, tp_mode: str = "fixed2r",
+                           require_displacement: bool = True) -> dict:
+    """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden)."""
+    tfs = tuple(dict.fromkeys([htf, ltf, "D1"]))
+    tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
+    print(f"[1/3] Cargando frames {symbol} {tfs} + market_structure ...", flush=True)
+    t0 = time.time()
+    frames = load_frames(symbol, tfs)
+    for tf, df in frames.items():
+        print(f"      {tf}: {len(df)} velas", flush=True)
+    # Market structure con memoria (BOS/CHOCH canonicos) en cada TF
+    ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
+    print(f"      features en {time.time()-t0:.1f}s", flush=True)
+
+    ltf_df = ms[ltf]
+    htf_df = ms.get(htf, ltf_df)
+
+    def est_htf_fn(i):
+        t = ltf_df.iloc[i]["time"]
+        r = _row_at_time(htf_df, t)
+        return {"trend": str(r.get("trend", "RANGING")),
+                "sweep_up": bool(r.get("liquidity_sweep_up", False)),
+                "sweep_down": bool(r.get("liquidity_sweep_down", False))}
+
+    print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
+    t0 = time.time()
+    raw_sigs, phases = run_sequence(ltf_df, est_htf_fn,
+                                    SequenceConfig(counter_trend=counter_trend,
+                                                   tp_mode=tp_mode,
+                                                   require_displacement=require_displacement))
+    print(f"      fases: {phases}", flush=True)
+    print(f"      {len(raw_sigs)} senales en {time.time()-t0:.1f}s", flush=True)
+
+    # Convertir a ICTSignal con SL/TP y simular
+    print(f"[3/3] Simulando trades vela a vela (max_hold={max_hold}) ...", flush=True)
+    signals = []
+    for s in raw_sigs:
+        direction = s["direction"]
+        entry = s["entry"]
+        atr = float(ltf_df.iloc[s["entry_at"]].get("atr", 0.0) or 0.0)
+        if not (atr > 0):
+            continue
+        # SL = invalidacion: cruce del nivel BOS en sentido contrario
+        bos_lvl = s.get("bos_level", float("nan"))
+        if direction == 1:
+            sl = bos_lvl - 0.5 * atr if np.isfinite(bos_lvl) else entry - atr
+        else:
+            sl = bos_lvl + 0.5 * atr if np.isfinite(bos_lvl) else entry + atr
+        risk = abs(entry - sl)
+        if risk <= 0:
+            continue
+        tp = entry + 2.0 * risk if direction == 1 else entry - 2.0 * risk
+        signals.append(ICTSignal(symbol=symbol, time=s["time"], direction=direction,
+                                 entry=entry, stop_loss=sl, take_profit=tp,
+                                 model="sequence"))
+
+    pnls: list[float] = []
+    exits: dict[str, int] = {}
+    total = len(signals)
+    for k, sig in enumerate(signals, 1):
+        trade, meta = simulate_trade(ltf_df, sig, max_hold)
+        if trade is not None:
+            pnls.append(trade.pnl_r)
+            exits[meta["exit_reason"]] = exits.get(meta["exit_reason"], 0) + 1
+        if total and (k % max(1, total // 20) == 0 or k == total):
+            pct = 100 * k // total
+            bar = "#" * (pct // 5) + "-" * (20 - pct // 5)
+            print(f"      [{bar}] {pct}% ({k}/{total})", flush=True)
+
+    m = _metrics(pnls)
+    print(f"\n===== RESULTADO [{tag}] =====", flush=True)
+    print(f"  simbolo      : {symbol}  |  Capa2 sequence  |  {htf}->{ltf}", flush=True)
+    print(f"  trades       : {m['trades']}", flush=True)
+    print(f"  winrate      : {m['winrate']*100:.1f}%", flush=True)
+    print(f"  profit factor: {m['pf']:.3f}", flush=True)
+    print(f"  expectancy   : {m['expectancy']:.3f} R/trade", flush=True)
+    print(f"  total        : {m['total_r']:.1f} R", flush=True)
+    print(f"  max drawdown : {m['max_dd_r']:.1f} R", flush=True)
+    print(f"  salidas      : {exits}", flush=True)
+    return m
 
 
 def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
@@ -109,9 +196,19 @@ def main() -> None:
     ap.add_argument("--counter-trend", action="store_true")
     ap.add_argument("--tp-mode", default="fixed2r", choices=["fixed2r", "liquidity"])
     ap.add_argument("--require-displacement", action="store_true")
+    ap.add_argument("--no-displacement", action="store_true",
+                    help="no exigir vela de displacement (sequence engine)")
     ap.add_argument("--sweep", action="store_true",
                     help="corre las 4 variantes PARTE 2.1 y muestra tabla comparativa")
+    ap.add_argument("--engine", default="checklist", choices=["checklist", "sequence"],
+                    help="checklist=mini-check dashboard (PARTE 2); sequence=event-sequence (Capa 2)")
     args = ap.parse_args()
+
+    if args.engine == "sequence":
+        run_sequence_backtest(args.symbol, args.htf, args.ltf, args.max_hold,
+                              counter_trend=args.counter_trend, tp_mode=args.tp_mode,
+                              require_displacement=not args.no_displacement)
+        return
 
     if args.sweep:
         variants = [
