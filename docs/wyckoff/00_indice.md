@@ -17,4 +17,6 @@ el Decision Agent (ICT 0.35 / Wyckoff 0.30).
 ## Libros
 - `ventas/` — **Wyckoff para VENTAS** (fase de DISTRIBUCIÓN / sell-side): cómo identificar
   que smart money está descargando arriba del rango y operar el *markdown* (la caída).
-  [Pendiente: `compras/` — acumulación / buy-side, espejo de este libro.]
+- `compras/` — **Wyckoff para COMPRAS** (fase de ACUMULACIÓN / buy-side): cómo identificar
+  que smart money está absorbiendo abajo del rango y operar el *markup* (la subida). Espejo
+  de ventas. Fuentes: Wyckoff Analytics, TrendSpider Education.
