@@ -64,7 +64,9 @@ def _metrics(pnls: list[float]) -> dict[str, float]:
     losses = [p for p in pnls if p < 0]
     gross_win = sum(wins)
     gross_loss = abs(sum(losses))
-    pf = (gross_win / gross_loss) if gross_loss > 0 else float("inf")
+    # Tope para evitar inf cuando no hay perdidas (poco realista en vivo).
+    pf = (gross_win / gross_loss) if gross_loss > 0 else 10.0
+    pf = min(pf, 10.0)
     equity, peak, max_dd = 0.0, 0.0, 0.0
     for p in pnls:
         equity += p
@@ -93,7 +95,8 @@ def _build_htf_estimator(htf_df: pd.DataFrame):
 
 
 def sequence_pf_on_slice(ltf_df: pd.DataFrame, htf_df: pd.DataFrame,
-                         params: _OptParams, max_hold: int) -> dict:
+                         params: _OptParams, max_hold: int,
+                         cost: dict | None = None) -> dict:
     """Corre la Capa 2 sobre un subconjunto del LTF y devuelve metricas."""
     global ltf_time_fn
     ltf_time_fn = lambda i: ltf_df.iloc[i]["time"]
@@ -126,7 +129,8 @@ def sequence_pf_on_slice(ltf_df: pd.DataFrame, htf_df: pd.DataFrame,
 
     pnls: list[float] = []
     for sig in signals:
-        trade, _meta = simulate_trade(ltf_df, sig, max_hold)
+        # FIX #4 (auditoria): pasar costos de mercado reales a simulate_trade.
+        trade, _meta = simulate_trade(ltf_df, sig, max_hold, cost=cost)
         if trade is not None:
             pnls.append(trade.pnl_r)
     return _metrics(pnls)
@@ -168,126 +172,135 @@ def main() -> None:
                     help="si >0, usa solo las ultimas N velas del LTF (rapidez). 0=completo.")
     ap.add_argument("--max-hold", type=int, default=96)
     ap.add_argument("--study-name", default="capa3_sequence")
+    ap.add_argument("--symbols", default=None,
+                    help="lista separada por coma (EURUSD,AUDUSD,...) para correr "
+                         "varios pares y agregar metricas OOS. Si se omite usa --symbol.")
+    ap.add_argument("--cost", default=None,
+                    help="costos en pips 'spread,commission,slippage' "
+                         "(ej 0.8,0.5,0.3). Si se omite, sin costos (teorico).")
     args = ap.parse_args()
+
+    # Costos de mercado reales (fix #4 auditoria). None = modo teorico.
+    cost = None
+    if args.cost:
+        sp, cp, slp = (float(x) for x in args.cost.split(","))
+        cost = {"spread_pips": sp, "commission_pips": cp, "slippage_pips": slp}
+    symbols = [s.strip() for s in (args.symbols or args.symbol).split(",") if s.strip()]
+    print(f"[C3] Costos: {cost if cost else 'SIN COSTOS (teorico)'}", flush=True)
+    print(f"[C3] Simbolos: {symbols}", flush=True)
 
     import optuna
 
-    print(f"[C3] Cargando {args.symbol} {args.htf}/{args.ltf} ...", flush=True)
-    t0 = time.time()
-    frames = load_frames(args.symbol, (args.htf, args.ltf, "D1"))
-    # CRITICO: aplicar detect_market_structure IGUAL que run_backtest.py.
-    # Sin esto el HTF no tiene 'trend'/'liquidity_sweep' y run_sequence
-    # da 0 senales (bug de la primera version de la Capa 3).
-    ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
-    ltf_df = ms[args.ltf]
-    htf_df = ms.get(args.htf, ltf_df)
-    print(f"      LTF: {len(ltf_df)} velas | HTF: {len(htf_df)} velas "
-          f"({time.time()-t0:.1f}s)", flush=True)
+    # Agregados OOS de TODOS los simbolos (para veredicto de fondeo).
+    all_oos_pfs, all_oos_wrs, all_oos_trades = [], [], []
 
-    # Recorte opcional para rapidez (validacion). Siempre usamos el FINAL de la
-    # serie (datos mas recientes) para que el out-of-sample sea el mas nuevo.
-    if args.window_bars and args.window_bars < len(ltf_df):
-        ltf_df = ltf_df.iloc[-args.window_bars:].reset_index(drop=True)
-        # El HTF debe recortarse al mismo rango temporal aproximado.
-        t_min = ltf_df["time"].min()
-        htf_df = htf_df[htf_df["time"] >= t_min].reset_index(drop=True)
-        print(f"      recorte LTF -> {len(ltf_df)} velas (rapidez)", flush=True)
+    for sym in symbols:
+        print(f"\n########## SIMBOLO: {sym} ##########", flush=True)
+        t0 = time.time()
+        frames = load_frames(sym, (args.htf, args.ltf, "D1"))
+        # CRITICO: aplicar detect_market_structure IGUAL que run_backtest.py.
+        ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
+        ltf_df = ms[args.ltf]
+        htf_df = ms.get(args.htf, ltf_df)
+        print(f"      LTF: {len(ltf_df)} velas | HTF: {len(htf_df)} velas "
+              f"({time.time()-t0:.1f}s)", flush=True)
 
-    # REVISADO (2026-07-11): el PRIMER tercio de la serie dio 0 senales con
-    # la config base -> Optuna penalizaba todo con -1.0 y no aprendia.
-    # Elegimos como IN-SAMPLE el ULTIMO tercio (datos mas recientes, con volumen
-    # comprobado: la (A) dio 70 trades en la serie completa). El OUT-OF-SAMPLE
-    # son los tramos anteriores (validacion temporal hacia atras).
-    n = len(ltf_df)
-    min_train = max(2000, n // (args.n_windows + 1))
-    windows = _split_windows(n, args.n_windows, min_train)
-    # Dirección temporal CORRECTA (hallazgo #5): el fold 0 es el tramo más
-    # viejo (pasado) y se usa como IN-SAMPLE de optimización; los folds
-    # siguientes validan hacia el futuro. NO se invierte el tiempo.
-    print(f"      ventanas walk-forward: {len(windows)} (rolling, {min_train} velas train base)", flush=True)
+        # Recorte opcional para rapidez (validacion). Siempre usamos el FINAL.
+        if args.window_bars and args.window_bars < len(ltf_df):
+            ltf_df = ltf_df.iloc[-args.window_bars:].reset_index(drop=True)
+            t_min = ltf_df["time"].min()
+            htf_df = htf_df[htf_df["time"] >= t_min].reset_index(drop=True)
+            print(f"      recorte LTF -> {len(ltf_df)} velas (rapidez)", flush=True)
 
-    def objective(trial: "optuna.trial.Trial") -> float:
-        params = _OptParams(
-            displace_gap=trial.suggest_int("displace_gap", 1, 12),
-            bos_gap=trial.suggest_int("bos_gap", 1, 16),
-            require_displacement=trial.suggest_categorical("require_displacement", [True, False]),
-            tp_mode=trial.suggest_categorical("tp_mode", ["fixed2r", "liquidity"]),
+        n = len(ltf_df)
+        min_train = max(2000, n // (args.n_windows + 1))
+        windows = _split_windows(n, args.n_windows, min_train)
+        print(f"      ventanas walk-forward: {len(windows)} (rolling, {min_train} velas train base)", flush=True)
+
+        def objective(trial: "optuna.trial.Trial") -> float:
+            params = _OptParams(
+                displace_gap=trial.suggest_int("displace_gap", 1, 12),
+                bos_gap=trial.suggest_int("bos_gap", 1, 16),
+                require_displacement=trial.suggest_categorical("require_displacement", [True, False]),
+                tp_mode=trial.suggest_categorical("tp_mode", ["fixed2r", "liquidity"]),
+            )
+            tr0, te0 = windows[0][0], windows[0][1]
+            m = sequence_pf_on_slice(ltf_df.iloc[tr0:te0].reset_index(drop=True),
+                                     htf_df, params, args.max_hold, cost=cost)
+            if m["trades"] < 5 or not np.isfinite(m["pf"]) or m["pf"] <= 0:
+                return 0.01 * (1.0 + m["trades"] / 100.0)
+            return float(m["pf"])
+
+        print(f"[C3] Optuna: {args.trials} trials (TPE) sobre ventana in-sample ...", flush=True)
+        import optuna as _opt
+
+        class _CuentaRegresiva:
+            def __init__(self, n: int, sym: str):
+                self.n = n
+                self.sym = sym
+                self.t0 = time.time()
+            def __call__(self, study, trial):
+                done = trial.number + 1
+                if done < 1:
+                    return
+                elapsed = time.time() - self.t0
+                avg = elapsed / done
+                restan = self.n - done
+                falta_min = (avg * restan) / 60.0
+                mejor = study.best_value
+                barra = "#" * done + "-" * (self.n - done)
+                print(f"  [{self.sym}] [{barra}] Trial {done}/{self.n} | falta ~{falta_min:.1f} min "
+                      f"| mejor_PF={mejor:.3f}", flush=True)
+
+        study = _opt.create_study(direction="maximize",
+                                  sampler=_opt.samplers.TPESampler(seed=42),
+                                  study_name=f"{args.study_name}_{sym}")
+        t0 = time.time()
+        study.optimize(objective, n_trials=args.trials,
+                       callbacks=[_CuentaRegresiva(args.trials, sym)])
+        print(f"      optimizado en {time.time()-t0:.1f}s", flush=True)
+        print(f"      MEJOR PF in-sample: {study.best_value:.3f}", flush=True)
+        print(f"      MEJORES PARAMS: {study.best_params}", flush=True)
+
+        best = _OptParams(
+            displace_gap=study.best_params["displace_gap"],
+            bos_gap=study.best_params["bos_gap"],
+            require_displacement=study.best_params["require_displacement"],
+            tp_mode=study.best_params["tp_mode"],
         )
-        # OPTIMIZAR en la PRIMERA ventana (in-sample = ultimo tercio).
-        tr0, te0 = windows[0][0], windows[0][1]
-        m = sequence_pf_on_slice(ltf_df.iloc[tr0:te0].reset_index(drop=True),
-                                 htf_df, params, args.max_hold)
-        if m["trades"] < 5 or not np.isfinite(m["pf"]) or m["pf"] <= 0:
-            # NO penalizar con -1.0 (dejaba a Optuna sin gradiente). Devolvemos
-            # un PF bajo PERO finito, con leve empuje por nº de senales, para que
-            # Optuna aprenda a buscar configs que al menos generen operaciones.
-            return 0.01 * (1.0 + m["trades"] / 100.0)
-        return float(m["pf"])
 
-    print(f"[C3] Optuna: {args.trials} trials (TPE) sobre ventana in-sample ...", flush=True)
-    import optuna as _opt
+        print(f"\n===== WALK-FORWARD {sym} (params optimizados) =====", flush=True)
+        for wi, (tr_s, tr_e, te_s, te_e) in enumerate(windows):
+            if te_e - te_s < 5:
+                continue
+            m = sequence_pf_on_slice(ltf_df.iloc[te_s:te_e].reset_index(drop=True),
+                                     htf_df, best, args.max_hold, cost=cost)
+            tag = "IN-SAMPLE" if wi == 0 else "OUT-OF-SAMPLE"
+            print(f"  ventana {wi+1} [{tag}]: trades={m['trades']} WR={m['winrate']*100:.1f}% "
+                  f"PF={m['pf']:.3f} R={m['total_r']:.1f} DD={m['max_dd_r']:.1f}", flush=True)
+            if wi > 0:
+                all_oos_pfs.append(m["pf"]); all_oos_wrs.append(m["winrate"])
+                all_oos_trades.append(m["trades"])
 
-    # Callback con CONTADOR REGRESIVO: muestra "Trial N/M | falta ~Xmin".
-    class _CuentaRegresiva:
-        def __init__(self, n: int):
-            self.n = n
-            self.t0 = time.time()
-        def __call__(self, study, trial):
-            done = trial.number + 1
-            if done < 1:
-                return
-            elapsed = time.time() - self.t0
-            avg = elapsed / done
-            restan = self.n - done
-            falta_min = (avg * restan) / 60.0
-            mejor = study.best_value
-            barra = "#" * done + "-" * (self.n - done)
-            print(f"  [{barra}] Trial {done}/{self.n} | falta ~{falta_min:.1f} min "
-                  f"| mejor_PF={mejor:.3f}", flush=True)
+        # (los pnls individuales no se re-acumulan; el agregado usa PF/WR/trades
+        #  por fold, que es suficiente para el veredicto de fondeo)
 
-    study = _opt.create_study(direction="maximize",
-                                sampler=_opt.samplers.TPESampler(seed=42),
-                                study_name=args.study_name)
-    t0 = time.time()
-    study.optimize(objective, n_trials=args.trials,
-                   callbacks=[_CuentaRegresiva(args.trials)])
-    print(f"      optimizado en {time.time()-t0:.1f}s", flush=True)
-    print(f"      MEJOR PF in-sample: {study.best_value:.3f}", flush=True)
-    print(f"      MEJORES PARAMS: {study.best_params}", flush=True)
-
-    best = _OptParams(
-        displace_gap=study.best_params["displace_gap"],
-        bos_gap=study.best_params["bos_gap"],
-        require_displacement=study.best_params["require_displacement"],
-        tp_mode=study.best_params["tp_mode"],
-    )
-
-    # WALK-FORWARD: evaluar los mejores params en CADA ventana out-of-sample.
-    print("\n===== WALK-FORWARD OUT-OF-SAMPLE (params optimizados) =====", flush=True)
-    oos_pfs, oos_wrs, oos_trades = [], [], []
-    for wi, (tr_s, tr_e, te_s, te_e) in enumerate(windows):
-        if te_e - te_s < 5:
-            continue
-        m = sequence_pf_on_slice(ltf_df.iloc[te_s:te_e].reset_index(drop=True),
-                                 htf_df, best, args.max_hold)
-        tag = "IN-SAMPLE" if wi == 0 else "OUT-OF-SAMPLE"
-        print(f"  ventana {wi+1} [{tag}]: trades={m['trades']} WR={m['winrate']*100:.1f}% "
-              f"PF={m['pf']:.3f} R={m['total_r']:.1f} DD={m['max_dd_r']:.1f}", flush=True)
-        if wi > 0:
-            oos_pfs.append(m["pf"]); oos_wrs.append(m["winrate"]); oos_trades.append(m["trades"])
-
-    if oos_pfs:
-        mean_pf = float(np.mean(oos_pfs))
-        std_pf = float(np.std(oos_pfs)) if len(oos_pfs) > 1 else 0.0
-        print(f"\n>>> PF OUT-OF-SAMPLE MEDIO: {mean_pf:.3f} +/- {std_pf:.3f} "
-              f"(folds={len(oos_pfs)}, trades={sum(oos_trades)})", flush=True)
-        print(f">>> WR OUT-OF-SAMPLE MEDIO: {np.mean(oos_wrs)*100:.1f}%", flush=True)
-        if mean_pf > 1.0 and all(p > 1.0 for p in oos_pfs):
-            print(">>> VERDICTO: edge mantiene PF>1 en TODOS los folds OOS => robusto.", flush=True)
+    # ===== AGREGADO GLOBAL OOS (veredicto de fondeo) =====
+    if all_oos_pfs:
+        mean_pf = float(np.mean(all_oos_pfs))
+        std_pf = float(np.std(all_oos_pfs)) if len(all_oos_pfs) > 1 else 0.0
+        total_trades = sum(all_oos_trades)
+        mean_wr = float(np.mean(all_oos_wrs)) * 100
+        print(f"\n===== AGREGADO OOS GLOBAL ({len(symbols)} simbolos) =====", flush=True)
+        print(f">>> PF OUT-OF-SAMPLE MEDIO: {mean_pf:.3f} +/- {std_pf:.3f} "
+              f"(folds={len(all_oos_pfs)}, trades={total_trades})", flush=True)
+        print(f">>> WR OUT-OF-SAMPLE MEDIO: {mean_wr:.1f}%", flush=True)
+        if mean_pf > 1.0 and all(p > 1.0 for p in all_oos_pfs):
+            print(">>> VERDICTO: edge mantiene PF>1 en TODOS los folds OOS => ROBUSTO.", flush=True)
         elif mean_pf > 1.0:
-            print(">>> VERDICTO: PF>1 promedio OOS pero algun fold <1 => edge fragil, revisar.", flush=True)
+            print(">>> VERDICTO: PF>1 promedio OOS pero algun fold <1 => FRAGIL, revisar.", flush=True)
         else:
-            print(">>> VERDICTO: PF<=1 en out-of-sample => posible overfit o edge debil. Revisar.", flush=True)
+            print(">>> VERDICTO: PF<=1 en out-of-sample => posible overfit o edge debil.", flush=True)
 
 
 if __name__ == "__main__":
