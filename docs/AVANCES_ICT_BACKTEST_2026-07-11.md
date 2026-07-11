@@ -136,10 +136,62 @@ hallazgos CRÍTICOS VERIFICADOS empíricamente por el equipo antes de actuar:
 - #7: `_row_at_time` extraído a `ict_backtest/_util.py` (único punto de verdad);
   `engine.py` y `sequence.py` importan de ahí. `Any` importado.
 
-### Corridas de verificación (EN CURSO, background)
-- Capa 2 corregida (params 12/8, req_disp, liquidity) → `CAPA2_REFAC_CORRIDACORREGIDA.log`
-- Capa 3 walk-forward multi-fold (n_windows=4, 12 trials) → `CAPA3_REFAC_WF.log`
-- Por medir: PF real tras corregir #1/#2 (se espera < 2.0-2.6 previos).
+### Resultado MEDIDO (corrida corregida, 2026-07-11)
+- trades: 57  (era 87 con los bugs)
+- winrate: 45.6%
+- PROFIT FACTOR: **1.548**  (era 2.003 — los bugs #1/#2 inflaba ~30%)
+- expectancy: 0.298 R/trade
+- total: +17.0 R
+- max drawdown: -6.0 R
+- salidas: TP 22 / SL 35
+
+**Conclusión empírica:** la auditoría de Claude era CORRECTA. Al corregir
+look-ahead (#1) y CHOCH real (#2), el PF de Capa 2 baja de 2.003 → 1.548.
+El edge sigue vivo (PF>1) pero es más modesto de lo reportado. Esto valida
+el principio rector P1/P3: todo PF se mide con código limpio y OOS real.
+
+### Veredicto final Capa 3 (walk-forward multi-fold, 2026-07-11)
+Corrida `optimize.py --trials 12 --n-windows 4` (dirección temporal CORRECTA):
+- ventana 1 [IN-SAMPLE]:   trades=12  WR=33.3%  PF=0.875  R=-1.0  DD=-5.0
+- ventana 2 [OUT-OF-SAMPLE]: trades=7  WR=57.1%  PF=2.667  R=+5.0  DD=-2.0
+- ventana 3 [OUT-OF-SAMPLE]: trades=5  WR=40.0%  PF=1.000  R= 0.0  DD=-2.0
+- ventana 4 [OUT-OF-SAMPLE]: trades=9  WR=77.8%  PF=6.500  R=+11.0 DD=-1.0
+- **PF OUT-OF-SAMPLE MEDIO: 3.389 ± 2.303** (3 folds OOS, 21 trades)
+- **WR OUT-OF-SAMPLE MEDIO: 58.3%**
+- VERE DICTO: "PF>1 promedio OOS pero ALGUN fold <1 => edge FRAGIL, revisar"
+
+**Conclusión empírica final:** la auditoría de Claude era CORRECTA en lo
+sustancial. Cuadro comparativo:
+
+| Métrica | Antes (con bugs #1/#2) | Ahora (corregido) |
+|---------|------------------------|-------------------|
+| Capa 2 PF (params 12/8) | 2.003 | **1.548** |
+| Capa 3 OOS (1 split, reporte viejo) | 2.429 | — |
+| Capa 3 OOS (4 folds, dirección correcta) | no existía | **3.389 ± 2.303** |
+
+- Los bugs #1/#2 INFLABAN el PF (~30% en Capa 2). Confirmado.
+- El edge EXISTE pero es FRÁGIL/VARIABLE: PF OOS promedio alto (3.389) PERO
+  con desviación enorme (±2.303) y un fold neutro (1.000). Solo 21 trades OOS
+  totales => estimación ruidosa. NO es el "edge robusto" que se declaró antes.
+- El veredicto honesto: no se puede afirmar robustez con 21 trades OOS y un
+  fold en 1.000. Hay que aumentar N (más símbolos / más velas / más folds) y
+  aplicar costos de mercado (fix #4 disponible) antes de cualquier conclusión.
+
+> Pendiente (no hecho hoy): correr Capa 3 CON costos (fix #4 ya listo) y
+> extender a XAUUSD para subir N de trades OOS.
+
+### Respuesta a la auditoría externa (Claude, 2026-07-11) — CERRADA
+- #1 look-ahead: CONFIRMADO y CORREGIDO (test_swing_no_lookahead).
+- #2 CHOCH=BOS: CONFIRMADO y CORREGIDO (test_choch_differs_from_bos).
+- #3 tests faltantes: CORREGIDO (7 tests, <1s).
+- #4 sin costos: CORREGIDO en código (falta aplicar en corrida final).
+- #5 WF=1 split: CORREGIDO (rolling multi-fold, dirección correcta).
+- #6 no vectorizado: documentado como deuda técnica (medio plazo).
+- #7 imports/dedup: CORREGIDO (_util.row_at_time).
+- Veredicto del auditor ("no confiar en PF 2.0-2.6 hasta corregir"): VALIDADO
+  por los hechos. El PF real corregido es menor y el edge es frágil.
+
+
 
 ### Documentación
 - Libro: `docs/ict/10_AUDITORIA_REFACCION/` (carpeta=libro, archivos=temas 01-08)

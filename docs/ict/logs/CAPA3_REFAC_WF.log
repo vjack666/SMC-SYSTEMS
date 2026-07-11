@@ -1,0 +1,43 @@
+[C3] Cargando EURUSD H4/M15 ...
+      LTF: 50000 velas | HTF: 10136 velas (67.5s)
+      ventanas walk-forward: 4 (rolling, 10000 velas train base)
+[C3] Optuna: 12 trials (TPE) sobre ventana in-sample ...
+[I 2026-07-11 14:53:51,818] A new study created in memory with name: capa3_sequence
+[I 2026-07-11 14:57:13,450] Trial 0 finished with value: 2.0 and parameters: {'displace_gap': 5, 'bos_gap': 16, 'require_displacement': True, 'tp_mode': 'fixed2r'}. Best is trial 0 with value: 2.0.
+  [#-----------] Trial 1/12 | falta ~37.0 min | mejor_PF=2.000
+[I 2026-07-11 15:00:36,217] Trial 1 finished with value: 1.6 and parameters: {'displace_gap': 1, 'bos_gap': 14, 'require_displacement': False, 'tp_mode': 'liquidity'}. Best is trial 0 with value: 2.0.
+  [##----------] Trial 2/12 | falta ~33.7 min | mejor_PF=2.000
+[I 2026-07-11 15:03:46,718] Trial 2 finished with value: 1.8571428571428572 and parameters: {'displace_gap': 10, 'bos_gap': 4, 'require_displacement': False, 'tp_mode': 'liquidity'}. Best is trial 0 with value: 2.0.
+  [###---------] Trial 3/12 | falta ~29.7 min | mejor_PF=2.000
+[I 2026-07-11 15:05:08,426] Trial 3 finished with value: 2.6666666666666665 and parameters: {'displace_gap': 6, 'bos_gap': 5, 'require_displacement': True, 'tp_mode': 'liquidity'}. Best is trial 3 with value: 2.6666666666666665.
+  [####--------] Trial 4/12 | falta ~22.6 min | mejor_PF=2.667
+[I 2026-07-11 15:06:29,081] Trial 4 finished with value: 1.25 and parameters: {'displace_gap': 6, 'bos_gap': 13, 'require_displacement': False, 'tp_mode': 'fixed2r'}. Best is trial 3 with value: 2.6666666666666665.
+  [#####-------] Trial 5/12 | falta ~17.7 min | mejor_PF=2.667
+[I 2026-07-11 15:08:39,570] Trial 5 finished with value: 1.0 and parameters: {'displace_gap': 8, 'bos_gap': 3, 'require_displacement': False, 'tp_mode': 'fixed2r'}. Best is trial 3 with value: 2.6666666666666665.
+  [######------] Trial 6/12 | falta ~14.8 min | mejor_PF=2.667
+[I 2026-07-11 15:11:19,345] Trial 6 finished with value: 0.75 and parameters: {'displace_gap': 4, 'bos_gap': 2, 'require_displacement': True, 'tp_mode': 'liquidity'}. Best is trial 3 with value: 2.6666666666666665.
+  [#######-----] Trial 7/12 | falta ~12.5 min | mejor_PF=2.667
+[I 2026-07-11 15:14:30,503] Trial 7 finished with value: 1.875 and parameters: {'displace_gap': 1, 'bos_gap': 15, 'require_displacement': False, 'tp_mode': 'liquidity'}. Best is trial 3 with value: 2.6666666666666665.
+  [########----] Trial 8/12 | falta ~10.3 min | mejor_PF=2.667
+[I 2026-07-11 15:15:47,415] Trial 8 finished with value: 2.0 and parameters: {'displace_gap': 7, 'bos_gap': 3, 'require_displacement': True, 'tp_mode': 'fixed2r'}. Best is trial 3 with value: 2.6666666666666665.
+  [#########---] Trial 9/12 | falta ~7.3 min | mejor_PF=2.667
+[I 2026-07-11 15:17:04,360] Trial 9 finished with value: 1.875 and parameters: {'displace_gap': 8, 'bos_gap': 15, 'require_displacement': False, 'tp_mode': 'liquidity'}. Best is trial 3 with value: 2.6666666666666665.
+  [##########--] Trial 10/12 | falta ~4.6 min | mejor_PF=2.667
+[I 2026-07-11 15:18:21,361] Trial 10 finished with value: 1.0 and parameters: {'displace_gap': 12, 'bos_gap': 8, 'require_displacement': True, 'tp_mode': 'liquidity'}. Best is trial 3 with value: 2.6666666666666665.
+  [###########-] Trial 11/12 | falta ~2.2 min | mejor_PF=2.667
+[I 2026-07-11 15:19:39,593] Trial 11 finished with value: 1.0 and parameters: {'displace_gap': 4, 'bos_gap': 10, 'require_displacement': True, 'tp_mode': 'fixed2r'}. Best is trial 3 with value: 2.6666666666666665.
+  [############] Trial 12/12 | falta ~0.0 min | mejor_PF=2.667
+      optimizado en 1547.8s
+      MEJOR PF in-sample: 2.667
+      MEJORES PARAMS: {'displace_gap': 6, 'bos_gap': 5, 'require_displacement': True, 'tp_mode': 'liquidity'}
+
+===== WALK-FORWARD OUT-OF-SAMPLE (params optimizados) =====
+  ventana 1 [IN-SAMPLE]: trades=12 WR=33.3% PF=0.875 R=-1.0 DD=-5.0
+  ventana 2 [OUT-OF-SAMPLE]: trades=7 WR=57.1% PF=2.667 R=5.0 DD=-2.0
+  ventana 3 [OUT-OF-SAMPLE]: trades=5 WR=40.0% PF=1.000 R=0.0 DD=-2.0
+  ventana 4 [OUT-OF-SAMPLE]: trades=9 WR=77.8% PF=6.500 R=11.0 DD=-1.0
+
+>>> PF OUT-OF-SAMPLE MEDIO: 3.389 +/- 2.303 (folds=3, trades=21)
+>>> WR OUT-OF-SAMPLE MEDIO: 58.3%
+>>> VERDICTO: PF>1 promedio OOS pero algun fold <1 => edge fragil, revisar.
+EXIT_CAPA3=0
