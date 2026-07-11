@@ -160,21 +160,50 @@ Decisión del proyecto: usar **Optuna** para la Capa 3.
 
 ## 9. Aplicación en SMC-SYSTEMS (nuestra Capa 3)
 
-Flujo propuesto (a implementar DESPUÉS de la opción A):
+IMPLEMENTADO el 2026-07-11 en `ict_backtest/optimize.py` (Capa 3 real, no solo
+propuesta). Decisiones de diseño respecto al flujo teórico:
 
+1. **Walk-forward propio sobre el backtest**, NO reusar `ml/walk_forward.py`.
+   Ese módulo está acoplado a un clasificador ML (`train_model`, `load_dataset`,
+   `PurgedKFold`) y no aplica a sequence.py. La Capa 3 hace walk-forward DIVIDIENDO
+   el LTF en ventanas rolling: optimiza en la ventana IN-SAMPLE (ventana 0) y
+   valida los mejores parámetros en cada ventana OUT-OF-SAMPLE. El PF promedio
+   out-of-sample es la prueba de fuego contra el overfit.
+
+2. **Espacio de búsqueda** (4 parámetros de sequence.py):
+   - `displace_gap`: int 1..12
+   - `bos_gap`: int 1..16
+   - `require_displacement`: categorical [True, False]
+   - `tp_mode`: categorical ["fixed2r", "liquidity"]
+
+3. **Función objetivo**: corre `run_sequence` + `simulate_trade` sobre la
+   ventana in-sample y devuelve el PF. Penaliza con -1.0 si hay <5 trades o PF<=0
+   (así Optuna no "premía" configuraciones sin señales).
+
+4. **Optuna 4.9.0 ya estaba instalado** en el entorno (no hizo falta instalar).
+   Se usa `TPESampler(seed=42)` para reproducibilidad.
+
+5. **Alineación HTF/LTF robusta**: el estimator de HTF busca por TIEMPO
+   (`_row_at_time`), no por índice de posición, para que los slices de
+   walk-forward no se desalineen (bug corregido en la primera prueba).
+
+Comando de corrida seria:
+`python ict_backtest/optimize.py --symbol EURUSD --ltf M15 --trials 12 --n-windows 2 --max-hold 96`
+
+Comando rapido (validacion de pipeline, menos datos):
+`python ict_backtest/optimize.py --symbol EURUSD --ltf M15 --trials 2 --n-windows 2 --window-bars 12000`
+
+Flujo teórico original (de referencia):
 ```
 objective(trial):
     displace_gap       = trial.suggest_int("displace_gap", 1, 10)
     bos_gap            = trial.suggest_int("bos_gap", 1, 10)
     require_displacement = trial.suggest_categorical(..., [True, False])
     tp_mode            = trial.suggest_categorical(..., ["2r", "swing", ...])
-    # backtest de sequence.py con esos parámetros
     pf = run_sequence_backtest(params)
-    return pf   # Optuna maximiza
-
+    return pf
 study = optuna.create_study(direction="maximize")
 study.optimize(objective, n_trials=100)
-# Validación: walk-forward con ml/walk_forward.py sobre ventanas rolling
 ```
 
 Esto CONFIRMA (no contradice) lo acordado ayer:
