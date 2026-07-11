@@ -58,7 +58,8 @@ def _metrics(pnls: list[float]) -> dict[str, float]:
 
 def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            counter_trend: bool = False, tp_mode: str = "fixed2r",
-                           require_displacement: bool = True) -> dict:
+                           require_displacement: bool = True,
+                           displace_gap: int = 6, bos_gap: int = 10) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden)."""
     tfs = tuple(dict.fromkeys([htf, ltf, "D1"]))
     tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
@@ -86,7 +87,9 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     raw_sigs, phases = run_sequence(ltf_df, est_htf_fn,
                                     SequenceConfig(counter_trend=counter_trend,
                                                    tp_mode=tp_mode,
-                                                   require_displacement=require_displacement))
+                                                   require_displacement=require_displacement,
+                                                   displace_gap=displace_gap,
+                                                   bos_gap=bos_gap))
     print(f"      fases: {phases}", flush=True)
     print(f"      {len(raw_sigs)} senales en {time.time()-t0:.1f}s", flush=True)
 
@@ -200,6 +203,10 @@ def main() -> None:
                     help="no exigir vela de displacement (sequence engine)")
     ap.add_argument("--sweep", action="store_true",
                     help="corre las 4 variantes PARTE 2.1 y muestra tabla comparativa")
+    ap.add_argument("--displace-gap", type=int, default=6,
+                    help="ventana displacement tras sweep (sequence engine)")
+    ap.add_argument("--bos-gap", type=int, default=10,
+                    help="ventana BOS tras displacement (sequence engine)")
     ap.add_argument("--engine", default="checklist", choices=["checklist", "sequence"],
                     help="checklist=mini-check dashboard (PARTE 2); sequence=event-sequence (Capa 2)")
     args = ap.parse_args()
@@ -207,7 +214,8 @@ def main() -> None:
     if args.engine == "sequence":
         run_sequence_backtest(args.symbol, args.htf, args.ltf, args.max_hold,
                               counter_trend=args.counter_trend, tp_mode=args.tp_mode,
-                              require_displacement=not args.no_displacement)
+                              require_displacement=not args.no_displacement,
+                              displace_gap=args.displace_gap, bos_gap=args.bos_gap)
         return
 
     if args.sweep:
