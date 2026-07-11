@@ -67,7 +67,7 @@ def objective(
     from xgboost import XGBClassifier
 
     params = _xgb_params(trial)
-    estimator = XGBClassifier(**params)
+    estimator = XGBClassifier(**params, nthread=-1)
 
     tscv = TimeSeriesSplit(n_splits=cfg.n_splits)
     all_metrics: list[dict[str, float]] = []
@@ -195,7 +195,7 @@ def train_with_best_params(
     from xgboost import XGBClassifier
 
     clf_params = {k: v for k, v in best_params.items() if k != "eval_metric"}
-    estimator = XGBClassifier(**clf_params)
+    estimator = XGBClassifier(**clf_params, nthread=-1)
 
     preprocess = _build_feature_pipeline(X)
 

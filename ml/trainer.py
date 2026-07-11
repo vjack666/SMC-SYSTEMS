@@ -392,7 +392,7 @@ def compute_feature_importance(
                 model, X, y,
                 n_repeats=3,
                 random_state=42,
-                n_jobs=1,
+                n_jobs=-1,
             )
             result = [
                 {"feature": fn, "importance": float(perm.importances_mean[i])}
