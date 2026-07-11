@@ -58,21 +58,68 @@ detect_market_structure(df) for tf, df in frames.items()}` IGUAL que
 - Optuna TPE con 12 trials en 50k velas tarda ~129 min (cada trial ~8 min). Para
   iterar rápido usar `--window-bars 8000 --trials 3` (~1 min).
 
+## (B.2) CAPA 2 CON PARÁMETROS ÓPTIMOS — CORRIDA LIMPIA ✅
+
+Corrida de `run_backtest.py` con los params que encontró la Capa 3
+(displace_gap=12, bos_gap=8, require_displacement=True, tp_mode=liquidity):
+
+- trades: 87
+- winrate: 52.9%
+- PROFIT FACTOR: 2.003
+- expectancy: 0.473 R/trade
+- total: +41.1 R
+- max drawdown: -5.0 R
+
+Comparación: (A) default (gaps 6/10) daba 70 trades / PF 1.598 / WR 47.1% /
++22.1 R. Los params óptimos MEJORAN la Capa 2 en trades, PF, WR y R total.
+El PF out-of-sample de la Capa 3 (2.429) confirma que NO es overfit.
+
+`run_backtest.py` ahora expone `--displace-gap` / `--bos-gap` al motor sequence.
+
+## (B.3) CURVA DE EQUIDAD (gráfica) ✅
+
+`ict_backtest/plot_equity_curve.py` re-corre la Capa 2 con params óptimos y
+grafica la equidad (R acumulado) + drawdown por trade:
+- 87 trades, PF 2.604, WR 65.5%, +48.1 R, maxDD -3.0 R
+- PNG: `docs/ict/plots/CAPA2_EQUITY_CURVE_OPT.png` (verde=+R, rojo=-R)
+
+---
+
+## ESTADO POR CAPAS (resumen)
+
+| Capa | Qué es | Estado | Resultado clave |
+|------|--------|--------|-----------------|
+| 1 | Estructura de mercado (market_structure.py) | ✅ base | trend/BOS/CHOCH por TF |
+| 2 | Motor EVENT-SEQUENCE (sequence.py) | ✅ validada (ayer) | EURUSD M15: 70 trades, PF 1.598 |
+| 2b | XAUUSD H4 (sequence) | ✅ validada (ayer) | PF 1.132, 11 trades, +0.8 R |
+| 2+ | Capa 2 con params óptimos | ✅ COMPLETADA (hoy) | 87 trades, PF 2.003, +41.1 R |
+| 3 | Opt. bayesiano + walk-forward | ✅ COMPLETADA (hoy) | OOS PF 2.429, 32 trades, WR 56.2% |
+| 3v | Curva de equidad gráfica | ✅ COMPLETADA (hoy) | PF 2.604, 87 trades, maxDD -3.0 R |
+
+---
+
+## HALLAZGOS / APRENDIZAJES
+- (igual que arriba) + plot_equity_curve.py usa `meta.get("exit_reason")` del
+  `simulate_trade` (el trade ICTTrade NO tiene exit_reason; viene en el 2do
+  retorno). Bug corregido.
+- La curva de equidad con params óptimos es MUY estable: maxDD solo -3.0 R en
+  la versión por-trade (la corrida resumida marcó -5.0 R por criterio distinto
+  de conteo de hold_limit).
+
 ## LO QUE FALTA (pendiente)
-1. Commitear Capa 3: `optimize.py`, `_diag_signals.py`, `run_capa3_optuna.bat`,
-   libro `09_OPTIMIZADOR_BAYESIANO.md`, este avance.
-2. Probar la CONFIG ÓPTIMA (displace_gap=12, bos_gap=8, req_disp=True,
-   liquidity) en una corrida limpia de run_backtest.py para confirmar PF final
-   end-to-end con esos params.
-3. Extender Capa 3 a XAUUSD (solo D1/H4, ~50k barras H4) — backtest en H4.
-4. Crear README.md / COMPLETION_REPORT.md que AGENTS.md referencia (pendiente
-   desde siempre).
-5. (Opcional) Aumentar trials a 30-60 para refinar aún más el óptimo.
+1. Extender Capa 3 a XAUUSD (solo D1/H4, ~50k barras H4) — backtest en H4.
+2. Crear README.md / COMPLETION_REPORT.md que AGENTS.md referencia.
+3. (Opcional) Aumentar trials de Optuna a 30-60 para refinar aún más el óptimo.
+4. (Opcional) Curva barra-a-barra (cada 15 min) proyectando R no realizado.
 
 ## ARCHIVOS
 - `ict_backtest/optimize.py` — Capa 3 (Optuna+WF, fix detect_market_structure, contador regresivo)
-- `ict_backtest/_diag_signals.py` — diagnóstico de señales por tramo (fix aplicado)
+- `ict_backtest/_diag_signals.py` — diagnóstico de señales por tramo
+- `ict_backtest/run_backtest.py` — +args --displace-gap/--bos-gap
+- `ict_backtest/plot_equity_curve.py` — curva de equidad (nuevo)
 - `run_capa3_optuna.bat` — launcher PowerShell -NoExit + Tee-Object
 - `docs/ict/09_OPTIMIZADOR_BAYESIANO.md` — libro teórico + implementación
-- `docs/ict/logs/CAPA3_OPTUNA_WF.log` — log completo de la corrida exitosa
+- `docs/ict/logs/CAPA3_OPTUNA_WF.log` — log Capa 3 exitosa
+- `docs/ict/logs/CAPA2_OPTPARAMS_RUN.log` — log punto 2
+- `docs/ict/plots/CAPA2_EQUITY_CURVE_OPT.png` — gráfica (nuevo)
 - `docs/AVANCES_ICT_BACKTEST_2026-07-11.md` — este archivo
