@@ -133,15 +133,27 @@ def sequence_pf_on_slice(ltf_df: pd.DataFrame, htf_df: pd.DataFrame,
 
 
 def _split_windows(n: int, n_windows: int, min_train: int) -> list[tuple[int, int, int, int]]:
-    """Devuelve lista de (train_start, train_end, test_start, test_end)."""
+    """Walk-forward ROLLING multi-fold (hallazgo #5, auditoría 2026-07-11).
+
+    Cada fold: train = [0, te_s), test = [te_s, te_e). Los folds avanzan en el
+    tiempo (test contiguo, no solapado). La dirección temporal es CORRECTA:
+    se optimiza sobre el pasado y se valida hacia el futuro (no invertida).
+    Devuelve lista de (train_start, train_end, test_start, test_end).
+    """
+    if n_windows < 2:
+        n_windows = 2
+    # El primer tramo de entrenamiento arranca en 0 y crece; cada fold de test
+    # es una porción contigua hacia el final de la serie.
     out = []
+    step = (n - min_train) // n_windows
+    if step < 1:
+        step = 1
     for i in range(n_windows):
-        train_end = int(min_train + (n - min_train) * i / n_windows)
-        test_end = int(min_train + (n - min_train) * (i + 1) / n_windows) if i < n_windows - 1 \
-            else n
-        if test_end - train_end < 5:
+        te_s = min_train + step * i
+        te_e = min_train + step * (i + 1) if i < n_windows - 1 else n
+        if te_e - te_s < 5:
             continue
-        out.append((0, train_end, train_end, test_end))
+        out.append((0, te_s, te_s, te_e))
     return out
 
 
@@ -189,10 +201,10 @@ def main() -> None:
     n = len(ltf_df)
     min_train = max(2000, n // (args.n_windows + 1))
     windows = _split_windows(n, args.n_windows, min_train)
-    # Reordenar: la ventana 0 (in-sample de optimizacion) = ultimo tercio.
-    if windows:
-        windows = [windows[-1]] + windows[:-1]
-    print(f"      ventanas walk-forward: {len(windows)} (in-sample=ultimo tercio, {min_train} velas)", flush=True)
+    # Dirección temporal CORRECTA (hallazgo #5): el fold 0 es el tramo más
+    # viejo (pasado) y se usa como IN-SAMPLE de optimización; los folds
+    # siguientes validan hacia el futuro. NO se invierte el tiempo.
+    print(f"      ventanas walk-forward: {len(windows)} (rolling, {min_train} velas train base)", flush=True)
 
     def objective(trial: "optuna.trial.Trial") -> float:
         params = _OptParams(
@@ -265,11 +277,15 @@ def main() -> None:
             oos_pfs.append(m["pf"]); oos_wrs.append(m["winrate"]); oos_trades.append(m["trades"])
 
     if oos_pfs:
-        print(f"\n>>> PF OUT-OF-SAMPLE MEDIO: {np.mean(oos_pfs):.3f} "
-              f"(ventanas={len(oos_pfs)}, trades={sum(oos_trades)})", flush=True)
+        mean_pf = float(np.mean(oos_pfs))
+        std_pf = float(np.std(oos_pfs)) if len(oos_pfs) > 1 else 0.0
+        print(f"\n>>> PF OUT-OF-SAMPLE MEDIO: {mean_pf:.3f} +/- {std_pf:.3f} "
+              f"(folds={len(oos_pfs)}, trades={sum(oos_trades)})", flush=True)
         print(f">>> WR OUT-OF-SAMPLE MEDIO: {np.mean(oos_wrs)*100:.1f}%", flush=True)
-        if np.mean(oos_pfs) > 1.0:
-            print(">>> VERDICTO: edge mantiene PF>1 en out-of-sample => SIN overfit claro.", flush=True)
+        if mean_pf > 1.0 and all(p > 1.0 for p in oos_pfs):
+            print(">>> VERDICTO: edge mantiene PF>1 en TODOS los folds OOS => robusto.", flush=True)
+        elif mean_pf > 1.0:
+            print(">>> VERDICTO: PF>1 promedio OOS pero algun fold <1 => edge fragil, revisar.", flush=True)
         else:
             print(">>> VERDICTO: PF<=1 en out-of-sample => posible overfit o edge debil. Revisar.", flush=True)
 

@@ -25,20 +25,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-
-def _row_at_time(df: pd.DataFrame, t: Any) -> Any:
-    try:
-        tt = pd.to_datetime(t, utc=True, errors="coerce")
-        times = pd.to_datetime(df["time"], utc=True, errors="coerce")
-        exact = df.index[times == tt]
-        if len(exact):
-            return df.iloc[int(list(exact)[0])]
-        prior = times[times <= tt]
-        if len(prior):
-            return df.iloc[int(prior.index[-1])]
-    except Exception:
-        pass
-    return df.iloc[0]
+from ict_backtest._util import row_at_time as _row_at_time
 
 
 PHASE = ("IDLE", "SWEEP_DONE", "DISPLACE_DONE", "BOS_DONE")

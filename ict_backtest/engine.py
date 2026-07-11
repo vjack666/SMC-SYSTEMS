@@ -134,8 +134,23 @@ def build_signals_from_frames(
 
 
 def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
-                  max_hold_bars: int) -> tuple[ICTTrade | None, dict[str, Any]]:
-    """Simula UN trade vela a vela hasta SL/TP/hold_limit. (Rescatado legacy.)"""
+                  max_hold_bars: int, cost: dict | None = None) -> tuple[ICTTrade | None, dict[str, Any]]:
+    """Simula UN trade vela a vela hasta SL/TP/hold_limit. (Rescatado legacy.)
+
+    cost: dict opcional con costos de transaccion realistas:
+      - spread_pips:   medio spread en pips (EURUSD~1.0, XAUUSD~2-3)
+      - commission_pips: comision ida+vuelta en pips
+      - slippage_pips: slippage promedio en pips (adverso al trade)
+    Sin cost (cost=None) se conserva el comportamiento teorico anterior.
+    """
+    # tamaño de pip segun el rango de precios (FX 4 dec => 0.0001; XAU ~0.01)
+    ref_price = float(signal.entry)
+    pip = 0.01 if ref_price >= 10 else 0.0001
+
+    spread = (cost or {}).get("spread_pips", 0.0) * pip
+    comm = (cost or {}).get("commission_pips", 0.0) * pip
+    slip = (cost or {}).get("slippage_pips", 0.0) * pip
+
     times = frame["time"].astype(str)
     matches = list(frame.index[times == signal.time])
     if len(matches) == 0:
@@ -143,11 +158,14 @@ def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
 
     idx = int(matches[0])
     sl, tp = signal.stop_loss, signal.take_profit
-    risk = abs(signal.entry - sl)
+    # Entrada con slippage ADVERSO + medio spread (peor para el trader).
+    dirn = 1 if signal.direction == 1 else -1
+    entry_fill = signal.entry + dirn * (slip + spread / 2.0)
+    risk = abs(entry_fill - sl)
     if risk <= 0.0:
         return None, {"exit_reason": "invalid_risk", "mfe_r": 0.0, "mae_r": 0.0, "hold_bars": 0}
 
-    exit_idx, exit_price, exit_reason = idx, signal.entry, "hold_limit"
+    exit_idx, exit_price, exit_reason = idx, entry_fill, "hold_limit"
     mfe_r, mae_r = -1e9, 1e9
 
     for step in range(1, max_hold_bars + 1):
@@ -158,8 +176,8 @@ def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
         high, low = float(row["high"]), float(row["low"])
 
         if signal.direction == 1:
-            step_mfe = (high - signal.entry) / risk
-            step_mae = (low - signal.entry) / risk
+            step_mfe = (high - entry_fill) / risk
+            step_mae = (low - entry_fill) / risk
             if low <= sl:
                 exit_idx, exit_price, exit_reason = j, sl, "SL"
                 mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
@@ -169,8 +187,8 @@ def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
                 mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
                 break
         else:
-            step_mfe = (signal.entry - low) / risk
-            step_mae = (signal.entry - high) / risk
+            step_mfe = (entry_fill - low) / risk
+            step_mae = (entry_fill - high) / risk
             if high >= sl:
                 exit_idx, exit_price, exit_reason = j, sl, "SL"
                 mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
@@ -182,11 +200,13 @@ def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
         exit_idx, exit_price = j, float(row["close"])
         mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
 
-    pnl_r = (exit_price - signal.entry) / risk if signal.direction == 1 else (signal.entry - exit_price) / risk
+    # Salida con slippage adverso + comision (en unidades de riesgo).
+    pnl_price = (exit_price - entry_fill) if signal.direction == 1 else (entry_fill - exit_price)
+    pnl_r = pnl_price / risk - comm / risk
     trade = ICTTrade(
         symbol=signal.symbol, entry_time=signal.time,
         exit_time=str(frame.iloc[exit_idx]["time"]), direction=signal.direction,
-        entry=signal.entry, exit=exit_price, pnl_r=float(pnl_r),
+        entry=entry_fill, exit=exit_price, pnl_r=float(pnl_r),
     )
     hold_bars = max(0, int(exit_idx - idx))
     if mfe_r < -1e8:
@@ -235,24 +255,7 @@ def _build_estructura(frames: dict[str, pd.DataFrame], i: int,
     return est
 
 
-def _row_at_time(df: pd.DataFrame, t: Any) -> Any:
-    """Fila cuyo tiempo es == t; si no existe, la ULTIMA con tiempo <= t (asof).
-
-    El asof evita mirar el futuro: para una vela LTF en tiempo t, el contexto
-    HTF es la ultima vela HTF ya cerrada (<= t).
-    """
-    try:
-        tt = pd.to_datetime(t, utc=True, errors="coerce")
-        times = pd.to_datetime(df["time"], utc=True, errors="coerce")
-        exact = df.index[times == tt]
-        if len(exact):
-            return df.iloc[int(list(exact)[0])]
-        prior = times[times <= tt]
-        if len(prior):
-            return df.iloc[int(prior.index[-1])]
-    except Exception:
-        pass
-    return None
+from ict_backtest._util import row_at_time as _row_at_time  # noqa: E402
 
 
 def _tp_liquidity(row: pd.Series, direction: int) -> float | None:
@@ -272,6 +275,15 @@ def _tp_liquidity(row: pd.Series, direction: int) -> float | None:
     except (TypeError, ValueError, KeyError):
         pass
     return None
+
+
+def _coerce_ts(value: Any) -> pd.Timestamp | None:
+    if value is None:
+        return None
+    ts = pd.to_datetime(value, utc=True, errors="coerce")
+    if pd.isna(ts):
+        return None
+    return ts.tz_convert("UTC") if ts.tz else ts.tz_localize("UTC")
 
 
 def _invalidation_level(estructura: dict, direction: int, exec_tf: str = "M15") -> float | None:

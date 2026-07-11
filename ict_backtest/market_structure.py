@@ -43,12 +43,27 @@ class StructureConfig:
 
 
 def _swing_points(frame: pd.DataFrame, lookback: int) -> tuple[pd.Series, pd.Series]:
-    window = lookback * 2 + 1
-    rolling_high = frame["high"].rolling(window=window, center=True)
-    rolling_low = frame["low"].rolling(window=window, center=True)
-    swing_high = frame["high"].where(frame["high"] == rolling_high.max())
-    swing_low = frame["low"].where(frame["low"] == rolling_low.min())
-    return swing_high.ffill(), swing_low.ffill()
+    """Detecta swing high/low SIN look-ahead.
+
+    El swing en la fila i se confirma recién en i+lookback (hay que ver que
+    nada lo supere en las siguientes `lookback` velas). Usamos ventana NO
+    centrada (solo hacia atrás) y descartamos empates planos (donde el 'max'
+    no es estrictamente mayor al de la ventana previa) para no marcar toda
+    una serie plana como swing. Luego desplazamos `lookback` antes del ffill:
+    el valor solo se expone desde la vela de confirmación (hallazgo #1).
+    """
+    window = lookback + 1
+    roll_h = frame["high"].rolling(window=window, center=False, min_periods=window)
+    roll_l = frame["low"].rolling(window=window, center=False, min_periods=window)
+    max_h = roll_h.max()
+    min_l = roll_l.min()
+    # pico estricto: alto == max de su ventana Y ese max es estrictamente
+    # mayor que el max de la ventana inmediatamente anterior (descarta planos).
+    sh_raw = frame["high"].where(
+        (frame["high"] == max_h) & (max_h > max_h.shift(1).fillna(max_h)))
+    sl_raw = frame["low"].where(
+        (frame["low"] == min_l) & (min_l < min_l.shift(1).fillna(min_l)))
+    return sh_raw.shift(lookback).ffill(), sl_raw.shift(lookback).ffill()
 
 
 def _label_swings(swing_high: pd.Series, swing_low: pd.Series) -> pd.Series:
@@ -97,6 +112,14 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
     d["bos_status"], d["bos_age"] = _track_bos(d, config.bos_max_age)
     d["choch_status"], d["choch_age"] = _track_choch(d, config.choch_max_age)
     d["trend"] = _derive_trend(d)
+    # CHOCH real (hallazgo #2): rompe el swing que produjo el ÚLTIMO BOS,
+    # en dirección OPUESTA a ese BOS. No es una copia de BOS.
+    last_bos_dir = d["_last_bos_dir"].to_numpy()
+    last_bos_level = d["_last_bos_level"].to_numpy()
+    up_choch = (d["close"].to_numpy() > last_bos_level) & (last_bos_dir == -1)
+    dn_choch = (d["close"].to_numpy() < last_bos_level) & (last_bos_dir == 1)
+    d["choch_dir"] = np.select([up_choch, dn_choch], [1, -1], default=0)
+    d = d.drop(columns=["_last_bos_dir", "_last_bos_level"])
     return d
 
 
@@ -112,6 +135,8 @@ def _track_bos(d: pd.DataFrame, max_age: int) -> tuple[pd.Series, pd.Series]:
     high = d["high"].to_numpy()
     bd = d["bos_dir"].to_numpy()
     bl = d["bos_level"].to_numpy()
+    last_dir_col = np.zeros(n, dtype=int)
+    last_level_col = np.full(n, np.nan)
     for i in range(1, n):
         dr = int(bd[i])
         lvl = bl[i]
@@ -127,6 +152,11 @@ def _track_bos(d: pd.DataFrame, max_age: int) -> tuple[pd.Series, pd.Series]:
                 status.iloc[i], active = "aged", False
             else:
                 status.iloc[i] = "active"
+        last_dir_col[i] = last_dir
+        last_level_col[i] = last_level
+    # Columnas temporales para que el CHOCH real use el último BOS (hallazgo #2).
+    d["_last_bos_dir"] = last_dir_col
+    d["_last_bos_level"] = last_level_col
     return status, age
 
 

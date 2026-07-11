@@ -112,14 +112,49 @@ grafica la equidad (R acumulado) + drawdown por trade:
 3. (Opcional) Aumentar trials de Optuna a 30-60 para refinar aún más el óptimo.
 4. (Opcional) Curva barra-a-barra (cada 15 min) proyectando R no realizado.
 
-## ARCHIVOS
-- `ict_backtest/optimize.py` — Capa 3 (Optuna+WF, fix detect_market_structure, contador regresivo)
-- `ict_backtest/_diag_signals.py` — diagnóstico de señales por tramo
-- `ict_backtest/run_backtest.py` — +args --displace-gap/--bos-gap
-- `ict_backtest/plot_equity_curve.py` — curva de equidad (nuevo)
-- `run_capa3_optuna.bat` — launcher PowerShell -NoExit + Tee-Object
-- `docs/ict/09_OPTIMIZADOR_BAYESIANO.md` — libro teórico + implementación
-- `docs/ict/logs/CAPA3_OPTUNA_WF.log` — log Capa 3 exitosa
-- `docs/ict/logs/CAPA2_OPTPARAMS_RUN.log` — log punto 2
-- `docs/ict/plots/CAPA2_EQUITY_CURVE_OPT.png` — gráfica (nuevo)
-- `docs/AVANCES_ICT_BACKTEST_2026-07-11.md` — este archivo
+## (C) REFACCIÓN POR AUDITORÍA EXTERNA (Claude, 2026-07-11) — EN CURSO ⏳
+
+Auditoría externa sobre `ict_backtest/` (commits 91f24ad…3aafab7). Dos
+hallazgos CRÍTICOS VERIFICADOS empíricamente por el equipo antes de actuar:
+- #1 Look-ahead bias en `_swing_points` (ventana centrada + ffill desde el
+  pico). Confirmado: pico idx 10 aparecía en la fila 10 (debe ser 15).
+- #2 `choch_dir` = copia literal de `bos_dir`. Confirmado: `bos_dir==choch_dir`
+  en las 10.136 velas de EURUSD H4 (0 filas distintas).
+
+### Fixes aplicados (todos con test unitario sintético en tests/test_ict_backtest.py)
+- #1: `_swing_points` usa ventana NO centrada + `shift(lookback).ffill()` → el
+  swing solo se expone desde la vela de confirmación. Test: `test_swing_no_lookahead`.
+- #2: CHOCH real = rompe el swing que produjo el ÚLTIMO BOS, en dirección
+  opuesta (memoria de `_track_bos`). `choch_dir` ahora difiere de `bos_dir`
+  (7764 filas distintas en EURUSD H4). Test: `test_choch_differs_from_bos`.
+- #3: `tests/test_ict_backtest.py` (7 tests, <1s) cubre swing/CHOCH/engine/WF.
+- #4: `simulate_trade` acepta `cost={spread,commission,slippage}` (pips). Entry
+  con slippage adverso + spread/2; comisión restada en R. Test: `test_engine_spread_reduces_pnl`.
+- #5: walk-forward ROLLING multi-fold (`_split_windows`); dirección temporal
+  CORRECTA (pasado→futuro, sin invertir); reporte PF/WR/trades OOS promedio + std.
+  Test: `test_walkforward_multi_fold`, `test_walkforward_no_inverted`.
+- #7: `_row_at_time` extraído a `ict_backtest/_util.py` (único punto de verdad);
+  `engine.py` y `sequence.py` importan de ahí. `Any` importado.
+
+### Corridas de verificación (EN CURSO, background)
+- Capa 2 corregida (params 12/8, req_disp, liquidity) → `CAPA2_REFAC_CORRIDACORREGIDA.log`
+- Capa 3 walk-forward multi-fold (n_windows=4, 12 trials) → `CAPA3_REFAC_WF.log`
+- Por medir: PF real tras corregir #1/#2 (se espera < 2.0-2.6 previos).
+
+### Documentación
+- Libro: `docs/ict/10_AUDITORIA_REFACCION/` (carpeta=libro, archivos=temas 01-08)
+- SDD: `docs/ict/SDD_REFACCION_2026-07-11.md`
+
+---
+
+## ARCHIVOS (adición a los de arriba)
+- `ict_backtest/market_structure.py` — #1 (sin look-ahead) + #2 (CHOCH real)
+- `ict_backtest/engine.py` — #4 (costos) + #7 (dedup _row_at_time)
+- `ict_backtest/sequence.py` — #7 (dedup _row_at_time)
+- `ict_backtest/_util.py` — #7 (row_at_time compartido)
+- `ict_backtest/optimize.py` — #5 (walk-forward rolling multi-fold)
+- `tests/test_ict_backtest.py` — #3 (nuevo)
+- `docs/ict/10_AUDITORIA_REFACCION/` — libro (nuevo)
+- `docs/ict/SDD_REFACCION_2026-07-11.md` — SDD (nuevo)
+
+
