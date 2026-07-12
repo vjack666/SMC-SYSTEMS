@@ -69,27 +69,27 @@
     "agent_decision_total_weight"
   ],
   "schema_version": "v4",
-  "training_date": "2026-07-06T16:06:40.985000+00:00",
+  "training_date": "2026-07-12T17:14:17.654974+00:00",
   "model_name": "quality_filter",
-  "n_samples": 1320,
+  "n_samples": 1288,
   "metrics": {
     "model": "xgboost",
     "calibration_used": true,
     "calibration_method": "isotonic",
-    "n_train": 1320,
+    "n_train": 1288,
     "validation": {
-      "accuracy": 0.574468085106383,
-      "precision": 0.5758513931888545,
-      "recall": 0.9841269841269841,
-      "roc_auc": 0.551360544217687,
-      "n_samples": 329
+      "accuracy": 0.531055900621118,
+      "precision": 0.5333333333333333,
+      "recall": 0.9767441860465116,
+      "roc_auc": 0.4981395348837209,
+      "n_samples": 322
     },
     "holdout": {
-      "accuracy": 0.574468085106383,
-      "precision": 0.5758513931888545,
-      "recall": 0.9841269841269841,
-      "roc_auc": 0.551360544217687,
-      "n_samples": 329
+      "accuracy": 0.531055900621118,
+      "precision": 0.5333333333333333,
+      "recall": 0.9767441860465116,
+      "roc_auc": 0.4981395348837209,
+      "n_samples": 322
     }
   },
   "feature_importance": []
