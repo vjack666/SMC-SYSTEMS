@@ -49,17 +49,20 @@ class ScalpingConfig:
     use_ml_quality_filter: bool = False
     ml_model_path: str = "ml/models/quality_filter.pkl"
     # --- Item C: pesos de confluencia expuestos como config ---
-    # Claves validas hoy: trend, choch, ob_fvg, bos, swing, agents, sweep, ote
-    # (displacement, fvg, sweep, ote requieren Item D para existir como filtros)
+    # Claves: trend, choch, ob, fvg, displacement, bos, swing, agents, sweep, ote
+    # Valores del ICT_RULEBOOK.md (Appendix): MTF=3, CHOCH=3, Displacement=2,
+    # FVG=2, OB=2, Liquidity sweep=2, BOS=1, OTE=1. (Item D ya cableo sweep/ote.)
     confluence_weights: dict[str, float] = field(default_factory=lambda: {
-        "trend": 3.0,    # MTF (rulebook=3)
-        "choch": 3.0,    # CHOCH (rulebook=3)
-        "ob_fvg": 2.0,   # OB (rulebook=2); FVG separado queda en Item D
-        "bos": 1.0,      # BOS (rulebook=1)
-        "swing": 1.0,    # OTE estructural (rulebook=1)
-        "agents": 2.0,   # capa agentes (no en rulebook; peso conservador)
-        "sweep": 2.0,    # Item D: sweep de liquidez (rulebook=2)
-        "ote": 1.0,      # Item D: OTE/premium-discount (rulebook=1)
+        "trend": 3.0,         # MTF alignment (rulebook=3)
+        "choch": 3.0,         # CHOCH (rulebook=3)
+        "ob": 2.0,            # Order Block (rulebook=2)
+        "fvg": 2.0,           # FVG (rulebook=2)
+        "displacement": 2.0,  # Displacement (rulebook=2)
+        "bos": 1.0,           # BOS (rulebook=1)
+        "swing": 1.0,         # OTE estructural (rulebook=1)
+        "agents": 2.0,        # capa agentes (no en rulebook; peso conservador)
+        "sweep": 2.0,         # sweep de liquidez (rulebook=2)
+        "ote": 1.0,           # OTE/premium-discount (rulebook=1)
     })
     # --- Item D: sweep + OTE ---
     enable_sweep_filter: bool = True     # rechazar entradas de reversal sin sweep previo
@@ -180,26 +183,43 @@ def build_scalping_context(
 
     volume_filter = data["tick_volume"] >= (data["tick_volume"].rolling(20).mean().fillna(0.0) * 0.90)
 
+    ob_cond = (data["ob_status"].isin(["active", "none"]) if (config.enable_detector_invalidation and "ob_status" in data.columns) else True)
+
     bullish_anchor = _last_anchor(
         data["close"],
-        (data["fvg_bullish"] | data["ob_bullish"])
-        & (data["ob_status"].isin(["active", "none"]) if (config.enable_detector_invalidation and "ob_status" in data.columns) else True),
+        (data["fvg_bullish"] | data["ob_bullish"]) & ob_cond,
     )
     bearish_anchor = _last_anchor(
         data["close"],
-        (data["fvg_bearish"] | data["ob_bearish"])
-        & (data["ob_status"].isin(["active", "none"]) if (config.enable_detector_invalidation and "ob_status" in data.columns) else True),
+        (data["fvg_bearish"] | data["ob_bearish"]) & ob_cond,
     )
-    bull_near = ((data["close"] - bullish_anchor).abs() / data["atr"].replace(0.0, np.nan)).fillna(99.0) <= (
-        config.ob_fvg_proximity_atr
-    )
-    bear_near = ((data["close"] - bearish_anchor).abs() / data["atr"].replace(0.0, np.nan)).fillna(99.0) <= (
-        config.ob_fvg_proximity_atr
-    )
+    def _near(anchor):
+        return ((data["close"] - anchor).abs() / data["atr"].replace(0.0, np.nan)).fillna(99.0) <= config.ob_fvg_proximity_atr
+
+    bull_near = _near(bullish_anchor)
+    bear_near = _near(bearish_anchor)
     ob_fvg_filter = (
         ((data["macro_direction"] == "BULLISH") & bull_near)
         | ((data["macro_direction"] == "BEARISH") & bear_near)
     )
+
+    # --- Filtros separados FVG / OB (rulebook=2 cada uno; antes compartian ob_fvg=2.0) ---
+    fvg_bull_anchor = _last_anchor(data["close"], data["fvg_bullish"])
+    fvg_bear_anchor = _last_anchor(data["close"], data["fvg_bearish"])
+    ob_bull_anchor = _last_anchor(data["close"], data["ob_bullish"] & ob_cond)
+    ob_bear_anchor = _last_anchor(data["close"], data["ob_bearish"] & ob_cond)
+    fvg_bull_near = _near(fvg_bull_anchor)
+    fvg_bear_near = _near(fvg_bear_anchor)
+    ob_bull_near = _near(ob_bull_anchor)
+    ob_bear_near = _near(ob_bear_anchor)
+    data["filter_fvg"] = (
+        ((data["macro_direction"] == "BULLISH") & fvg_bull_near)
+        | ((data["macro_direction"] == "BEARISH") & fvg_bear_near)
+    ).to_numpy()
+    data["filter_ob"] = (
+        ((data["macro_direction"] == "BULLISH") & ob_bull_near)
+        | ((data["macro_direction"] == "BEARISH") & ob_bear_near)
+    ).to_numpy()
 
     recent_bearish_choch = (data["choch_signal"] == CHOCH_BEARISH).rolling(10, min_periods=1).max().astype(bool)
     recent_bullish_choch = (data["choch_signal"] == CHOCH_BULLISH).rolling(10, min_periods=1).max().astype(bool)
@@ -219,6 +239,14 @@ def build_scalping_context(
     swing_low_ref = data["low"].rolling(20, min_periods=5).min().shift(1)
     swing_dist = np.minimum((data["close"] - swing_high_ref).abs(), (data["close"] - swing_low_ref).abs())
     swing_filter = (swing_dist / data["atr"].replace(0.0, np.nan)).fillna(99.0) <= 1.5
+
+    # --- Displacement reciente (rulebook=2; antes no entraba al score) ---
+    recent_bullish_displacement = data["displacement_bullish"].rolling(10, min_periods=1).max().astype(bool)
+    recent_bearish_displacement = data["displacement_bearish"].rolling(10, min_periods=1).max().astype(bool)
+    data["filter_displacement"] = (
+        ((data["macro_direction"] == "BULLISH") & recent_bullish_displacement)
+        | ((data["macro_direction"] == "BEARISH") & recent_bearish_displacement)
+    ).to_numpy()
 
     trend_up = data["ema_fast"] > data["ema_slow"]
     trend_down = data["ema_fast"] < data["ema_slow"]
@@ -285,7 +313,9 @@ def build_scalping_context(
     active = {
         "trend": data["filter_trend"].astype(float),
         "bos": data["filter_bos"].astype(float),
-        "ob_fvg": data["filter_ob_fvg"].astype(float),
+        "ob": data["filter_ob"].astype(float),
+        "fvg": data["filter_fvg"].astype(float),
+        "displacement": data["filter_displacement"].astype(float),
         "choch": data["filter_choch"].astype(float),
         "swing": data["filter_swing"].astype(float),
         "agents": data["filter_agents"].astype(float) if orchestrator is not None else 0.0,
