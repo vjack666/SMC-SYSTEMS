@@ -89,6 +89,22 @@ def _has_displacement(row_ltf: pd.Series, direction: int) -> bool:
     return False
 
 
+def _has_choch(row_ltf: pd.Series, est_htf: dict, direction: int, counter_trend: bool) -> bool:
+    """CHOCH en la direccion del giro (aviso de cambio de caracter, libro 02 §3.1).
+
+    En contratendencia el CHOCH debe ir OPUESTO al HTF (es el paso 2 de la
+    secuencia canonica BOS->CHOCH->BOS). En a-favor no se exige (el BOS de
+    continuacion basta).
+    """
+    choch_dir = int(row_ltf.get("choch_dir", 0) or 0)
+    htf_trend = str(est_htf.get("trend", "RANGING"))
+    if counter_trend:
+        want = -1 if htf_trend == "BULLISH" else 1 if htf_trend == "BEARISH" else direction
+    else:
+        return False  # a-favor: el CHOCH no es requisito (ver _has_bos)
+    return choch_dir == want
+
+
 def _has_bos(row_ltf: pd.Series, est_htf: dict, direction: int, counter_trend: bool) -> bool:
     """BOS/CHOCH en la direccion del setup.
 
@@ -195,6 +211,10 @@ def run_sequence(ltf_df: pd.DataFrame, est_htf_fn, cfg: SequenceConfig):
                 state.reset()
                 continue
             if _has_bos(row, est_htf, target, cfg.counter_trend):
+                # Secuencia canonica BOS->CHOCH->BOS (libro 02 §3.1): en
+                # contratendencia exigir CHOCH (giro) ANTES del BOS de confirmacion.
+                if cfg.counter_trend and not _has_choch(row, est_htf, target, cfg.counter_trend):
+                    continue
                 state.phase = "BOS_DONE"
                 state.bos_idx = i
                 try:

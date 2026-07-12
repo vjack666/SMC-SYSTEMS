@@ -58,6 +58,67 @@ En SMC-SYSTEMS: `MSS = BOS tras CHoCH con desplazamiento`.
   pero *structure is king, volume is secondary*. Un CHoCH de baja convicción se
   mantiene "no probado" hasta que un BOS en la misma dirección lo confirma.
 
+### 3.1 — Secuencia canónica BOS → CHOCH → BOS (lo que dicta la teoría)
+
+La investigación de campo (TradingStrategyGuides "Day 7: BOS vs CHoCH",
+Alchemy Markets "Change of Character Guide", Justin Bennett / dailypriceaction)
+es UNANIME sobre el ORDEN. No es "BOS y CHOCH juntos": es una SECUENCIA de 3 pasos:
+
+1. **BOS (continuación):** el precio rompe el swing en la MISMA dirección de la
+   tendencia. La tendencia vive. Regla de TradingStrategyGuides: *"BOS = the trend
+   is still alive. Keep following it."*
+2. **CHOCH (aviso de giro):** el precio rompe el swing CONTRARIO, y — regla
+   crítica — **debe romper el swing que creó el ÚLTIMO BOS confirmado**, no un
+   mínimo/alto interno cualquiera (ese es el fake-out que para a todos). Es temprano,
+   NO confirmado. *"CHoCH = something may have changed. Pay attention."*
+3. **BOS de confirmación:** tras el CHOCH, el precio hace un NUEVO BOS en la
+   dirección del giro. AHÍ sí se acepta el cambio de tendencia. Alchemy lo dice
+   literal: *"A CHoCH followed by a BOS confirms that the shift is accepted by
+   participants. Without BOS confirmation, CHoCH should be treated with caution."*
+
+Diagrama canónico (TradingStrategyGuides):
+```
+uptrend:  BOS↑  BOS↑  ...  (HH/HL, la marea sigue)
+                     │
+                     └─ CHOCH↓ rompe el ÚLTIMO HL (el que creó el BOS↑)
+                            │
+                            └─ BOS↓  BOS↓  ...  (nueva downtrend, LL/LH)
+```
+O sea: **primero seguís por BOS (marea), hasta que un CHOCH te avisa "puede girar",
+y recién cuando ese giro se confirma con un NUEVO BOS en la dirección opuesta,
+aceptás la nueva tendencia.** El CHOCH va primero como aviso; el BOS (en la nueva
+dirección) va después, con paciencia, para confirmar.
+
+**Cómo lo modela SMC-SYSTEMS (verificado en código):**
+- El CHOCH real YA requiere el BOS previo: `market_structure.py:172-173`
+  `up_choch = (close > last_bos_level) & (last_bos_dir == -1)` — rompe el nivel del
+  ÚLTIMO BOS en dirección opuesta (fix #2 de la auditoría). ✅ coincide con el paso 2.
+- `pipeline.py`: CHOCH pesa 3.0 (evento de giro), BOS pesa 1.0 (continuación) —
+  el sistema valora más el aviso de giro que la continuación. ✅
+- **LO QUE FALTABA (ya cerrado, 2026-07-12):** el paso 3 (BOS de confirmación TRAS el
+  CHOCH) ahora está codificado como SECUENCIA en ambos motores:
+  - `signals/pipeline.py`: nuevo `filter_choch_bos_confirm` (CHOCH reciente opuesto al
+    macro AND BOS en dirección del giro en ventana `sequence_bos_gap=10`), con peso
+    `choch_bos_confirm=2.0` en `confluence_weights` (max teórico 21.0). Smoke test
+    EURUSD M15: 99/50000 barras lo cumplen (más estricto que choch solo 3829 o bos solo 2254).
+  - `ict_backtest/sequence.py`: en modo `counter_trend`, `run_sequence` exige CHOCH
+    (`_has_choch`, dirección opuesta al HTF) ANTES de aceptar el `BOS_DONE` (helper
+    `_has_choch` añadido; reusa `choch_dir` ya calculado, no re-detecta).
+  - Verificación: `py_compile` OK + `pytest tests/test_signal_pipeline.py` 16 passed
+    (2026-07-12). NOTA: `tests/test_ict_backtest.py::test_choch_differs_from_bos` está
+    ROTO de origen (pre-existente, no por este cambio — falla igual con `git stash`).
+- **MEDICIÓN (2026-07-12, scripts/compare_choch_bos_confirm.py, EURUSD M15, motor vivo
+  naive SL/TP 2xATR sin costs):** GATE activo vs GATE off.
+  - Señales: 1594 (off) → 1153 (on). El GATE elimina 441 señales de reversión sin
+    confirmación (funciona como filtro duro).
+  - PF: -0.466 (off) → -0.497 (on). WR: 34.8% → 33.5%. **Delta PF -0.031, WR -1.3pp.**
+  - Veredicto: en EURUSD M15 el GATE NO aporta edge (empeora leve). El motor vivo naive
+    es perdedor de por sí (no es el backtest optimizado Capa 2/3 con tp_mode=liquidity);
+    el filtro no lo arregla. Por eso `mandatory_choch_bos_confirm=False` por defecto:
+    queda cableado y disponible, pero OFF hasta validarse en otro par/contexto.
+  - `scripts/compare_choch_bos_confirm.bat` corre la comparación CON barra de progreso
+    + timers (no requiere mercado abierto: lee .parquet de disco).
+
 ## 4. La regla de contexto (a favor / contra tendencia)
 
 - CHoCH/MSS en TF menor se lee **siempre contra el contexto del TF mayor**
@@ -204,5 +265,7 @@ correr con costos reales (fix #4, flag `--cost` en `optimize.py`).
 - MQL5 "Integrating AI into SMC: OB, BOS, FVG" — `mql5.com/en/articles/22526`
 - FluxCharts "Break of Structure Explained" — `fluxcharts.com/articles/break-of-structure-bos-explained`
 - Alchemy Markets "Change of Character Guide" — `alchemymarkets.com/education/strategies/change-of-character-guide/`
+- TradingStrategyGuides "Day 7: BOS vs CHoCH" — `tradingstrategyguides.com/day-7-bos-vs-choch-how-to-tell-if-the-trend-is-continuing-or-breaking-down/`
+- Daily Price Action "SMC Market Structure" (Justin Bennett) — `dailypriceaction.com/blog/smc-market-structure/`
 - MetaTrader 5 Help — Chart Settings (Chart Shift) — `metatrader5.com/en/terminal/help/charts_advanced/charts_settings`
 - Auditoría interna: `docs/ict/10_AUDITORIA_REFACCION/` (00_INDICE, 02_CHOCH_REAL, 03_TESTS_FALTANTES)

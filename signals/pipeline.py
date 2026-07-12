@@ -61,13 +61,16 @@ class ScalpingConfig:
         "bos": 1.0,           # BOS (rulebook=1)
         "swing": 1.0,         # OTE estructural (rulebook=1)
         "agents": 2.0,        # capa agentes (no en rulebook; peso conservador)
-        "sweep": 2.0,         # sweep de liquidez (rulebook=2)
+        "sweep": 2.0,        # sweep de liquidez (rulebook=2)
         "ote": 1.0,           # OTE/premium-discount (rulebook=1)
+        "choch_bos_confirm": 2.0,  # CHOCH→BOS confirmación (libro 02 §3.1, SSES)
     })
     # --- Item D: sweep + OTE ---
     enable_sweep_filter: bool = True     # rechazar entradas de reversal sin sweep previo
     enable_ote_filter: bool = True       # requerir zona OTE/discount(premium) segun direccion
     sweep_lookback: int = 8              # ventana de reversal tras el sweep (coherente con INDUCEMENT_LOOKBACK)
+    sequence_bos_gap: int = 10           # ventana para el BOS de confirmación tras el CHOCH (libro 02 §3.1)
+    mandatory_choch_bos_confirm: bool = False  # GATE: en reversión exige CHOCH→BOS confirmado (libro 02 §3.1). OFF por defecto: medido en EURUSD M15 no aporta edge (PF/WR empeoran); activar solo tras validar en otro contexto.
     enable_detector_invalidation: bool = False  # Item E: degradar BOS/CHOCH/OB muertos (OFF=comportamiento actual)
 
 
@@ -286,6 +289,20 @@ def build_scalping_context(
     data["filter_choch"] = choch_filter
     data["filter_swing"] = swing_filter
 
+    # --- Secuencia canónica BOS→CHOCH→BOS (libro 02 §3.1, SSES): CHOCH (aviso de
+    # giro) SEGUIDO de BOS de confirmación en la dirección del giro. Reusa
+    # choch_signal (CHOCH_BULLISH/BEARISH) y bos_direction ya calculados (no re-detecta).
+    # CHOCH opuesto al macro = aviso de giro; BOS en la dirección del giro posterior
+    # en bos_gap velas = confirmación. Mantiene confirmación por cuerpo (market_structure)
+    # y caducidad ATR (Item E choch_status/bos_status).
+    recent_bos_bull = data["bos_direction"].rolling(config.sequence_bos_gap, min_periods=1).max() > 0
+    recent_bos_bear = data["bos_direction"].rolling(config.sequence_bos_gap, min_periods=1).min() < 0
+    choch_bos_confirm = (
+        ((data["macro_direction"] == "BULLISH") & recent_bearish_choch & recent_bos_bull & choch_alive)
+        | ((data["macro_direction"] == "BEARISH") & recent_bullish_choch & recent_bos_bear & choch_alive)
+    )
+    data["filter_choch_bos_confirm"] = choch_bos_confirm.to_numpy()
+
     if orchestrator is not None:
         data = orchestrator.analyze_context(data)
         decision_conf = data["agent_decision_confidence"].fillna(0.0)
@@ -321,6 +338,7 @@ def build_scalping_context(
         "agents": data["filter_agents"].astype(float) if orchestrator is not None else 0.0,
         "sweep": data["filter_sweep"].astype(float) if config.enable_sweep_filter else 0.0,
         "ote": data["filter_ote"].astype(float) if config.enable_ote_filter else 0.0,
+        "choch_bos_confirm": data["filter_choch_bos_confirm"].astype(float),
     }
     confluence_score = sum(active[k] * w.get(k, 1.0) for k in active)
     max_confluence = sum(w.get(k, 1.0) for k in active)
@@ -329,7 +347,16 @@ def build_scalping_context(
     data["signal_confidence"] = (0.40 + (confluence_score / max_confluence) * 0.55).clip(lower=0.40, upper=0.95)
 
     mandatory_pass = data["filter_session"] & data["filter_atr"]
-    signal_pass = mandatory_pass & (data["confluence_score"] >= config.min_confluence_score)
+
+    # --- GATE CHOCH→BOS (libro 02 §3.1): en setups de REVERSION (hay CHOCH reciente
+    # opuesto al macro = aviso de giro) la senal SOLO pasa si hay BOS de confirmacion
+    # en esa direccion de giro. En a-favor (sin CHOCH opuesto) el gate no aplica.
+    reversal_setup = recent_bearish_choch | recent_bullish_choch
+    choch_bos_gate = (~reversal_setup) | data["filter_choch_bos_confirm"].astype(bool)
+    if config.mandatory_choch_bos_confirm:
+        signal_pass = mandatory_pass & (data["confluence_score"] >= config.min_confluence_score) & choch_bos_gate
+    else:
+        signal_pass = mandatory_pass & (data["confluence_score"] >= config.min_confluence_score)
 
     data["signal_direction"] = 0
     data.loc[signal_pass & (data["macro_direction"] == "BULLISH"), "signal_direction"] = 1
