@@ -58,11 +58,12 @@ class StructureConfig:
     # Confirmacion: cuantos cierres CONSECUTIVOS deben romper el nivel.
     # 1 = una sola vela (comportamiento original); 2 = filtra fakeouts (LuxAlgo).
     confirm_bars: int = 2
-    # Caducidad por volatilidad: la estructura "aged" si el precio no se aleja
-    # al menos max_age_atr * ATR del nivel roto. Reemplaza el max_age fijo.
+    # Caducidad por volatilidad: la estructura "aged" si el precio lleva
+    # `max_age_bars` velas SEGUIDAS sin alejarse `max_age_atr` * ATR del nivel
+    # roto. Reemplaza el max_age fijo. 24 = paridad con el comportamiento
+    # previo a la caducidad ATR (bos_max_age=24 / choch_max_age=20).
     max_age_atr: float = 1.5
-    # [LEGACY] velas fijas adicionales; 0 = desactivado (solo ATR).
-    max_age_bars: int = 0
+    max_age_bars: int = 24
 
 
 def _atr(frame: pd.DataFrame, period: int) -> pd.Series:
@@ -232,10 +233,11 @@ def _track_structure(d: pd.DataFrame, config: StructureConfig, is_choch: bool = 
                 rest_bars += 1
             if crossed:
                 status.iloc[i], active = "invalidated", False
-            elif config.max_age_bars > 0 and rest_bars > config.max_age_bars:
-                status.iloc[i], active = "aged", False
-            elif config.max_age_bars == 0 and not progressed and age.iloc[i] > 1:
-                # sin tope de velas: caduca si nunca progresso tras el break
+            # Envejecimiento por volatilidad REAL: la estructura muere solo tras
+            # `max_age_bars` velas SEGUIDAS sin alejarse `max_age_atr`*ATR del
+            # nivel roto (no por una sola vela lenta). `rest_bars` acumula las
+            # velas de no-progress y se resetea en cuanto el precio progresa.
+            elif rest_bars > config.max_age_bars:
                 status.iloc[i], active = "aged", False
             else:
                 status.iloc[i] = "active"

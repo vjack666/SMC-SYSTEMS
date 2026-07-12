@@ -24,12 +24,26 @@ def _compute_atr(frame: pd.DataFrame, period: int) -> pd.Series:
 
 
 def _swing_points(frame: pd.DataFrame, lookback: int) -> tuple[pd.Series, pd.Series]:
-    window = lookback * 2 + 1
-    rolling_high = frame["high"].rolling(window=window, center=True)
-    rolling_low = frame["low"].rolling(window=window, center=True)
-    swing_high = frame["high"].where(frame["high"] == rolling_high.max())
-    swing_low = frame["low"].where(frame["low"] == rolling_low.min())
-    return swing_high.ffill(), swing_low.ffill()
+    """Detecta swing high/low SIN look-ahead.
+
+    CORREGIDO (hallazgo #2, 2026-07-12): el codigo original usaba ventana
+    CENTRADA (center=True) + ffill() sin delay, lo que exponia el swing en la
+    misma vela del pico -> look-ahead. Ahora usa ventana NO centrada (solo
+    hacia atras) + descarte de empates planos, y desplaza `lookback` antes del
+    ffill: el valor solo se expone desde la vela de confirmacion (igual que en
+    ict_backtest/market_structure._swing_points). Esto elimina la fuga que
+    inflaba el PF ~30% en Capa 2.
+    """
+    window = lookback + 1
+    roll_h = frame["high"].rolling(window=window, center=False, min_periods=window)
+    roll_l = frame["low"].rolling(window=window, center=False, min_periods=window)
+    max_h = roll_h.max()
+    min_l = roll_l.min()
+    sh_raw = frame["high"].where(
+        (frame["high"] == max_h) & (max_h > max_h.shift(1).fillna(max_h)))
+    sl_raw = frame["low"].where(
+        (frame["low"] == min_l) & (min_l < min_l.shift(1).fillna(min_l)))
+    return sh_raw.shift(lookback).ffill(), sl_raw.shift(lookback).ffill()
 
 
 def _label_swings(swing_high: pd.Series, swing_low: pd.Series) -> pd.Series:
