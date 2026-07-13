@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from app_observador.ui.noticias_widget import resumen_estructura
+from signals.po3 import evaluate_po3
 
 ROOT = Path(__file__).resolve().parents[3]
 GRAPH_JSON = ROOT / "graphify-out" / "graph.json"
@@ -293,6 +294,16 @@ def resumen_setup(estructura: dict, bias: str = "", votes: dict | None = None,
     # 4) Modo intradia / scalping
     lineas.append("")
     lineas += modo_ict(estructura, bias, votes)
+
+    # 4b) Estado PO3 (R1.3) — misma funcion que el backtest, sin duplicar logica.
+    lineas.append("")
+    lineas.append("ESTADO PO3 (A/M/D)")
+    po3 = evaluate_po3("po3", estructura, bias, votes, exec_tf="M15", htf="H4")
+    if po3["complete"]:
+        lineas.append(f"  PO3 COMPLETO ({po3['phases']}) -> ciclo cerrado; direccion {po3['direction']}.")
+    else:
+        falta = ", ".join(po3["incomplete_reason"]) if po3["incomplete_reason"] else "n/a"
+        lineas.append(f"  PO3 INCOMPLETO ({po3['phases']}) -> falta: {falta}")
 
     # 5) Setup armado
     lineas.append("")

@@ -6,7 +6,7 @@
 | **Versión** | 2.0 (10/10) |
 | **Fecha** | 2026-07-12 |
 | **Estándar** | ADR-021 / RFC-001 |
-| **Estado** | Stable (docs) · Needs-code (estado A/M/D) |
+| Estado | Stable (docs) · **A/M/D implementado (R1 2026-07-13)** |
 | **Métricas** | [METRICS_CANON](../METRICS_CANON.md) |
 | **Roadmap** | R1 prioritario — [ROADMAP_BIBLIOTECA_Y_APLICACION](../plan/ROADMAP_BIBLIOTECA_Y_APLICACION.md) |
 
@@ -124,10 +124,10 @@ complete = A and M and D and aligned
 | #1 | Look-ahead en swings afectaba “D” | ✅ Fix |
 | #2 | CHOCH real necesario para D genuino | ✅ Fix |
 | #5 | WF pasado→futuro | ✅ Fix dirección |
-| PO3-1 | No hay `complete` A/M/D en código | 🔴 R1 |
+| PO3-1 | No hay `complete` A/M/D en código | ✅ R1 (`signals/po3.py`) |
 | PO3-2 | Open del día no es filtro duro | 🔴 R3 |
 | PO3-3 | No hay métricas **aisladas** de PO3 | 🔴 R4 |
-| PO3-4 | Mezcla con Turtle en `intradia` | 🔴 R1.2 |
+| PO3-4 | Mezcla con Turtle en `intradia` | ✅ R1.2 (`evaluate(model="po3")` separado) |
 
 ---
 
@@ -140,14 +140,13 @@ Tras R4, añadir § “PO3 only” en METRICS_CANON.
 ---
 
 ## 7. Checklist de aplicación al sistema
-
-- [ ] Implementar `po3_state` (A/M/D/complete/direction)
-- [ ] `evaluate(model="po3")` separado de Turtle Soup
-- [ ] UI: “PO3 listo” vs “falta M/D”
-- [ ] Mapa o labels: A / M / D
-- [ ] Backtest solo-PO3 + costos → METRICS_CANON
-- [ ] Shadow en diario (“hubiera entrado PO3”)
-- [ ] Tests sintéticos sin look-ahead
+- [x] Implementar `po3_state` (A/M/D/complete/direction) — `signals/po3.py`
+- [x] `evaluate(model="po3")` separado de Turtle Soup — `ict_backtest/rules.py`
+- [x] UI: "PO3 listo" vs "falta M/D" — `app_observador/ui/resumen_widget.py`
+- [ ] Mapa o labels: A / M / D (R2+ visual)
+- [ ] Backtest solo-PO3 + costos → METRICS_CANON (R4)
+- [ ] Shadow en diario ("hubiera entrado PO3") (R5)
+- [x] Tests sintéticos sin look-ahead — `tests/test_po3.py`
 
 ---
 

@@ -20,6 +20,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from signals.po3 import evaluate_po3
+
 # Bandas killzone en UTC (aprox docs/ict/01_KILLZONES.md).
 # Clave -> (hora_ini, hora_fin) en horas decimales UTC.
 KILLZONES_UTC: dict[str, tuple[float, float]] = {
@@ -235,16 +237,19 @@ def evaluate(model: str, estructura: dict, bias: str, votes: dict | None,
              htf: str = "H4", counter_trend: bool = False) -> dict[str, Any]:
     """Evalua un modelo ICT y devuelve checklist + puntuacion.
 
-    model: "intradia" | "scalping"
+    model: "intradia" | "scalping" | "po3"
     exec_tf: TF de ejecucion (M15 en vivo; H4 en backtest opcion A).
     counter_trend: si True, setup opera contra la marea del HTF.
     Devuelve {"model":..., "checks":[...], "passed":int, "total":int,
               "ready":bool, "direction":"LONG"|"SHORT"|"NEUTRAL"}
+    Para model="po3" tambien incluye "phases", "complete", "incomplete_reason".
     """
     if model == "intradia":
         checks = checklist_intradia(estructura, bias, votes, ts, exec_tf, htf, counter_trend)
     elif model == "scalping":
         checks = checklist_scalping(estructura, bias, votes, ts)
+    elif model == "po3":
+        return evaluate_po3("po3", estructura, bias, votes, ts, exec_tf, htf, counter_trend)
     else:
         raise ValueError(f"modelo desconocido: {model}")
 

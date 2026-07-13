@@ -42,12 +42,12 @@
 
 | Tarea | Detalle | Archivos |
 |-------|---------|----------|
-| R1.1 | `po3_state` con A/M/D + `complete` + `direction` | nuevo `signals/po3.py` o `detectors/po3.py` |
-| R1.2 | `evaluate(model="po3")` **separado** de Turtle Soup | `ict_backtest/rules.py` |
-| R1.3 | Misma función importada por UI | `app_observador/ui/resumen_widget.py` |
-| R1.4 | Tests sintéticos: solo A, solo M, A+M+D, sin look-ahead | `tests/test_po3.py` |
+| R1.1 | `po3_state` con A/M/D + `complete` + `direction` | `signals/po3.py` ✅ |
+| R1.2 | `evaluate(model="po3")` **separado** de Turtle Soup | `ict_backtest/rules.py` ✅ |
+| R1.3 | Misma función importada por UI | `app_observador/ui/resumen_widget.py` ✅ |
+| R1.4 | Tests sintéticos: solo A, solo M, A+M+D, sin look-ahead | `tests/test_po3.py` ✅ |
 
-**Criterio de done:** pytest verde; UI muestra “PO3 completo / incompleto”.
+**Criterio de done:** pytest verde; UI muestra "PO3 completo / incompleto".  \n**Estado 2026-07-13:** R1 COMPLETO — 8/8 tests `tests/test_po3.py` pasan; UI muestra bloque "ESTADO PO3 (A/M/D)".
 
 ---
 
