@@ -141,3 +141,28 @@ def test_walkforward_no_inverted():
     windows = _split_windows(n, n_windows=3, min_train=200)
     tr_s0, tr_e0, te_s0, te_e0 = windows[0]
     assert tr_s0 == 0 and te_e0 < n, "el in-sample debe ser el pasado, no el final"
+
+
+# ---------------------------------------------------------------------------
+# R4 — look-ahead cross-timeframe: caso limite de apertura exacta de HTF
+# ---------------------------------------------------------------------------
+def test_row_at_time_exact_boundary_closed():
+    # Bug residual (2026-07-13, IA externa): una vela LTF en el limite exacto de
+    # apertura del HTF (ej M5 08:00 == open H4 08:00) devolvia la vela HTF SIN
+    # cerrar (close=3, cierra 12:00) en vez de la anterior ya cerrada (close=2).
+    # El match exacto tambien debe respetar el cierre (cutoff = tt - freq).
+    from ict_backtest._util import row_at_time
+    h4 = pd.DataFrame({
+        "time": ["2024-01-01 00:00", "2024-01-01 04:00",
+                 "2024-01-01 08:00", "2024-01-01 12:00"],
+        "close": [1.0, 2.0, 3.0, 4.0],
+    })
+    h4["time"] = pd.to_datetime(h4["time"], utc=True)
+    row = row_at_time(h4, "2024-01-01 08:00", freq="4h")
+    assert float(row["close"]) == 2.0, (
+        f"bug residual: devolvio vela HTF sin cerrar (close={row['close']}), "
+        f"esperaba la anterior ya cerrada (close=2.0)")
+    # Caso no-limite: M5 09:03 debe dar la vela 08:00 (cierra 12:00) -> anterior 04:00
+    row2 = row_at_time(h4, "2024-01-01 09:03", freq="4h")
+    assert float(row2["close"]) == 2.0, (
+        f"caso normal roto: close={row2['close']}, esperado 2.0")

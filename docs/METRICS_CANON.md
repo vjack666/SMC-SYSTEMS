@@ -172,6 +172,13 @@ Tras aplicar los 4 fixes de la IA externa (look-ahead HTF corregido en
 sequence.py). Silver Bullet corre **SIN `--require-displacement`** (ruptura
 rápida NY AM es incompatible con displacement en vela M5, ver AUDIT_BUG_SILVER_TF).
 
+⚠️ **v2.7 tenía look-ahead RESIDUAL (2.08% de velas en límite H4):** el primer
+parche solo descontaba `freq` en la rama asof, no en el match exacto. La IA lo
+detectó probando el propio parche (M5 08:00 devolvía H4 08:00 sin cerrar). Fix
+aplicado + test de regresión (`test_row_at_time_exact_boundary_closed`, 8/8
+passed). **v2.7 NO es "limpio confirmado"** — re-correr en **v2.8** con el fix
+residual para veredicto definitivo. Ver `AUDIT_LOOKAHEAD_HTF.md` (Fix residual).
+
 | Exp | Modelo | PF | WR | Trades | Total R | MaxDD R |
 |-----|--------|----|----|--------|---------|---------|
 | EURUSD | **Silver (M5, sin disp)** | **0.896** | 32.4% | **71** | -4.9 | -10.8 |

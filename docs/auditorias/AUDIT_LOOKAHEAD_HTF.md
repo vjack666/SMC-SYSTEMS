@@ -28,11 +28,30 @@ es el comportamiento por defecto del 97% del tiempo.
    `freq=TF_FREQ[tf]` para todo TF != LTF. El LTF actual usa match exacto
    (`freq=None`), no asof.
 
-## Impacto
-Todos los modelos que dependen del sesgo H4 (PO3, Turtle, intradía) medían sobre
-datos con fuga. Los números R4 v2/v2.5/v2.6 están CONTAMINADOS y NO son
-concluyentes. Tras el fix: re-correr R4 (v2.7) y comparar PF. Si cambia
-significativamente, confirma que se veía fuga, no edge.
+## Fix residual (IA externa, 2026-07-13 — SEGUNDO PASO)
+Mi primer parche solo descontaba `freq` en la rama `prior` (asof), pero la
+rama `exact` (`times == tt`) comparaba contra `tt` sin ajuste. Resultado:
+una vela LTF en el **limite exacto de apertura del HTF** (ej M5 08:00:00 ==
+open H4 08:00) devolvia la vela HTF SIN cerrar (close futuro) — mismo bug.
+**Reproducido con datos sinteticos** (close=3 en vez de 2). La IA lo detectó
+probando el propio parche; NO era teoria.
+
+Fix: `cutoff = tt - pd.Timedelta(freq)` se aplica TAMBIEN al match exacto.
+Test de regresion agregado: `test_row_at_time_exact_boundary_closed`
+(suite 8/8 passed).
+
+**Cuantificacion del residual en dataset real (EURUSD M5, 50k velas):**
+1042/50000 = **2.08%** de velas M5 caen exactamente en limite H4
+(hora multiplo de 4, minuto 0). Se concentra en 00/04/08/12/16/20 UTC, que
+toca London Open (07-10) y NY AM (12:5-15:0) — las killzones operativas.
+No es marginal, pero es menor al 97.4% original. v2.7 (corrida anterior)
+TAMBIEN tenia este 2.08% con fuga residual.
+
+## Impacto final
+- v2/v2.5/v2.6: contaminados por look-ahead masivo (97.4%) -> INVALIDADOS.
+- v2.7: correccion parcial (97.4% arreglado, pero 2.08% residual en limites).
+- **v2.8 (pendiente): corrida DEFINITIVA** con fix residual aplicado + test.
+  Solo sus numeros son "limpios confirmados" para decidir Optuna.
 
 ## Prioridad de trabajo (IA externa, acordada)
 1. look-ahead HTF (este) → 2. exec_tf explícito → 3. displacement en vela de

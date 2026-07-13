@@ -21,11 +21,15 @@ def row_at_time(df: pd.DataFrame, t: Any, freq: Any = None) -> Any:
     try:
         tt = pd.to_datetime(t, utc=True, errors="coerce")
         times = pd.to_datetime(df["time"], utc=True, errors="coerce")
-        exact = df.index[times == tt]
+        # Cierre de la barra: para exigir HTF ya cerrado usamos cutoff = tt - freq.
+        # El ajuste se aplica TAMBIEN al match exacto (no solo al asof), sino una
+        # vela LTF en el limite de apertura del HTF (ej M5 08:00 == open H4 08:00)
+        # devolveria la vela HTF sin cerrar (look-ahead residual). Ver AUDIT_LOOKAHEAD_HTF.md.
+        cutoff = tt - pd.Timedelta(freq) if freq is not None else tt
+        exact = df.index[times == cutoff]
         if len(exact):
             return df.iloc[int(list(exact)[0])]
-        upper = tt - pd.Timedelta(freq) if freq is not None else tt
-        prior = times[times <= upper]
+        prior = times[times <= cutoff]
         if len(prior):
             return df.iloc[int(prior.index[-1])]
     except Exception:
