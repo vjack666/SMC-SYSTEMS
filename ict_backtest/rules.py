@@ -172,16 +172,17 @@ def checklist_intradia(estructura: dict, bias: str, votes: dict | None,
 
 
 def checklist_scalping(estructura: dict, bias: str, votes: dict | None,
-                       ts: datetime | None = None) -> list[str]:
+                       ts: datetime | None = None, exec_tf: str = "M15") -> list[str]:
     """Checklist SCALPING (M1/M5, Silver Bullet). Items numerados.
 
     ts: timestamp de la vela para ventana NY AM historica.
+    exec_tf: TF de ejecucion cargado (M5/M15/M1). Lo pasa el engine de forma
+    explicita (no se adivina) para evitar desincronizacion con el backtest.
     """
     items: list[str] = []
-    # exec TF = el TF cargado que no sea HTF/D1 (M5/M15/M1, por prioridad).
-    _exec_tf = next((t for t in ("M15", "M5", "M1")
-                       if t in estructura and estructura[t]), None)
-    m15 = estructura.get(_exec_tf, {}) if _exec_tf else {}
+    # exec TF lo pasa el engine de forma explicita (no se adivina):
+    # evita la desincronizacion que silenciaba Silver Bullet (ver AUDIT_BUG_SILVER_TF.md).
+    m15 = estructura.get(exec_tf, {}) if exec_tf else {}
     dir_setup = _dir_setup(bias, votes, m15)
     kz = killzone_en(ts) if ts is not None else ""
 
@@ -197,16 +198,12 @@ def checklist_scalping(estructura: dict, bias: str, votes: dict | None,
     else:
         items.append(f"OK: Sesgo filtra setups: {bias}.")
 
-    # 3. Sweep en el TF cargado (M15/M5/M1, por prioridad del libro ICT).
-    # No hardcoded: el backtest de scalping corre con --ltf M5, asi que M15
-    # no existe en la estructura. Buscamos el primer TF disponible.
-    _sweep_tf = next((t for t in ("M15", "M5", "M1")
-                        if t in estructura and estructura[t]), None)
-    sw = _sweep_dir(estructura, (_sweep_tf,)) if _sweep_tf else "none"
+    # 3. Sweep en el TF de ejecucion (exec_tf, explicito).
+    sw = _sweep_dir(estructura, (exec_tf,)) if exec_tf else "none"
     if sw == "none":
         items.append("FALTA: sweep de SSL/BSL en el TF de ejecucion (previo al FVG M1/M5).")
     else:
-        items.append(f"OK: Sweep {_sweep_tf} ({sw}) presente.")
+        items.append(f"OK: Sweep {exec_tf} ({sw}) presente.")
 
     # 4. FVG M1/M5
     m5 = estructura.get("M5", {}) or {}
@@ -254,7 +251,7 @@ def evaluate(model: str, estructura: dict, bias: str, votes: dict | None,
     if model == "intradia":
         checks = checklist_intradia(estructura, bias, votes, ts, exec_tf, htf, counter_trend)
     elif model == "scalping":
-        checks = checklist_scalping(estructura, bias, votes, ts)
+        checks = checklist_scalping(estructura, bias, votes, ts, exec_tf)
     elif model == "po3":
         return evaluate_po3("po3", estructura, bias, votes, ts, exec_tf, htf, counter_trend)
     else:

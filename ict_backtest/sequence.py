@@ -81,11 +81,22 @@ def _has_sweep(row_ltf: pd.Series, est_htf: dict, direction: int) -> bool:
     return False
 
 
-def _has_displacement(row_ltf: pd.Series, direction: int) -> bool:
+def _has_displacement(row_ltf: pd.Series, direction: int, est_htf: dict | None = None) -> bool:
+    """Displacement de impulso fuerte en la direccion del setup.
+
+    Igual que el sweep, se acepta en LTF O HTF (la vela del sweep puede ser
+    HTF). Antes solo miraba la vela LTF exacta, lo que silenciaba setups de
+    ruptura rapida (Silver Bullet) donde la entrada M5 es pequena sobre el FVG.
+    Ver AUDIT_BUG_SILVER_TF.md (hallazgo IA externa: asimetria de diseno).
+    """
     if direction == 1:
-        return bool(row_ltf.get("displacement_bullish", False))
+        if bool(row_ltf.get("displacement_bullish", False)):
+            return True
+        return bool((est_htf or {}).get("displacement_bullish", False))
     if direction == -1:
-        return bool(row_ltf.get("displacement_bearish", False))
+        if bool(row_ltf.get("displacement_bearish", False)):
+            return True
+        return bool((est_htf or {}).get("displacement_bearish", False))
     return False
 
 
@@ -201,7 +212,7 @@ def run_sequence(ltf_df: pd.DataFrame, est_htf_fn, cfg: SequenceConfig):
             if i - state.sweep_idx > cfg.displace_gap:
                 state.reset()
                 continue
-            if (not cfg.require_displacement) or _has_displacement(row, target):
+            if (not cfg.require_displacement) or _has_displacement(row, target, est_htf):
                 state.phase = "DISPLACE_DONE"
                 state.displace_idx = i
                 state.note("DISPLACE", i)

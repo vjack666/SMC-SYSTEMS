@@ -103,6 +103,13 @@ Medición AISLADA de cada modelo ICT, separado del mix intradia. Fuente:
 `ict_backtest/run_backtest.py --model {intradia,scalping,po3}`, motor vela-a-vela.
 Reporte por experimento (E1–E5 del roadmap R4).
 
+> ⚠️ **ADVERTENCIA LOOK-AHEAD (2026-07-13):** Las corridas R4 v2 / v2.5 / v2.6
+> (§8.1 y §8.2 previo) estaban CONTAMINADAS por look-ahead cross-timeframe en
+> el join H4→M5 (`row_at_time` leía la barra H4 aún en formación: 97.4% de las
+> velas M5 afectadas, ver `docs/auditorias/AUDIT_LOOKAHEAD_HTF.md`). Sus PF NO
+> son concluyentes. La corrida LIMPIA es **R4 v2.7** (fix aplicado). Usar SOLO
+> v2.7 para decidir Optuna.
+
 | Exp | Qué | Comando | Estado |
 |-----|-----|---------|--------|
 | E1 | Baseline intradia mezcla | `--model intradia` | histórico (§3/§4) |
@@ -157,7 +164,30 @@ displacement ON, confirm_bars=2 (default motor). EURUSD+GBPUSD, M15.
 | | EURUSD | PO3+disp (M15) | **2.000** | 50% | 2 |
 | | GBPUSD | PO3+disp (M15) | 0.000 | 0% | 1 |
 
-### HALLAZGO CRITICO (investigacion automatica 2026-07-13)
+### 8.2b R4 v2.7 — CORRIDA LIMPIA (look-ahead fix, 2026-07-13)
+
+**v2.7** (`results/r4/r4v27_chain_20260713T201306Z.json`, 4 workers):
+Tras aplicar los 4 fixes de la IA externa (look-ahead HTF corregido en
+`row_at_time`, exec_tf explícito, choch_status mapeado, displacement HTF en
+sequence.py). Silver Bullet corre **SIN `--require-displacement`** (ruptura
+rápida NY AM es incompatible con displacement en vela M5, ver AUDIT_BUG_SILVER_TF).
+
+| Exp | Modelo | PF | WR | Trades | Total R | MaxDD R |
+|-----|--------|----|----|--------|---------|---------|
+| EURUSD | **Silver (M5, sin disp)** | **0.896** | 32.4% | **71** | -4.9 | -10.8 |
+| GBPUSD | **Silver (M5, sin disp)** | **0.639** | 25.0% | **72** | -19.5 | -20.5 |
+| EURUSD | PO3+disp (M15) | 0.000 | 0% | 2 | -2.0 | -2.0 |
+| GBPUSD | PO3+disp (M15) | 0.000 | 0% | 0 | 0.0 | 0.0 |
+
+**Veredicto (gate PF≥1.10, SOLO v2.7 válido — v2/v2.5/v2.6 contaminados):**
+- **Silver Bullet: RECHAZADO** — PF 0.896/0.639 con muestra REAL (71/72 trades).
+  No era bug de silenciamiento: al destaparlo da señales y **sigue perdiendo**.
+  Modelo sin edge (o mal calibrado en RR/SL). Archivar como "sin edge".
+- **PO3: INCONCLUSO** — 2/0 trades, insuficiente. Dispara poco en M15.
+- **Turtle Soup: PENDIENTE re-medir** — v2 (PF 1.143 EURUSD) estaba contaminado
+  por look-ahead. Re-correr en v2.8 para veredicto limpio.
+- El look-ahead NO hundía Silver (lo mataba el displacement); afecta más a
+  PO3/Turtle (sesgo H4 contaminado). Re-medir Turtle es prioritario.
 
 **Parches aplicados (autorizados por Ruben, SIN commit — regla de hierro):**
 1. `rules.checklist_scalping` l.198: sweep busca el TF cargado (M5/M15/M1),

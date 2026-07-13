@@ -52,17 +52,25 @@ def test_swing_planos_no_marcan():
 # R2 — CHOCH real distinto de BOS
 # ---------------------------------------------------------------------------
 def test_choch_differs_from_bos():
-    # Serie con BOS alcista (pico en idx 10, confirmado idx 15, break en 22)
-    # seguido de CHOCH bajista (valle en idx 30, confirmado 35, break en 42).
+    # Serie con BOS alcista (pico en idx 10, break en 22, confirmado por
+    # confirm_bars velas) seguido de CHOCH bajista (valle en 30, break en 42).
+    # Usa el confirm_bars REAL del motor (default 2): el break necesita N velas
+    # posteriores que NO reviertan para que el BOS se valide (ver AUDIT_CONFIRM_BARS_R4.md).
+    from ict_backtest.market_structure import StructureConfig
+    cb = StructureConfig().confirm_bars
     n = 60
     close = [100.0] * n
     high = [100.0] * n
     low = [100.0] * n
-    # pico alto (swing high) en idx 10 -> disponible en 15
+    # pico alto (swing high) en idx 10
     high[10] = 101.0
     # break alcista del swing high en idx 22 (sh.shift(1) ya poblado)
     close[22] = 101.5
     high[22] = 102.0
+    # confirmacion: cb velas posteriores mantienen el break (no revierten)
+    for k in range(1, cb + 1):
+        close[22 + k] = 101.6
+        high[22 + k] = 102.1
     # valle (swing low) en idx 30 -> disponible en 35
     low[30] = 99.0
     # break bajista del swing opuesto (CHOCH) en idx 42

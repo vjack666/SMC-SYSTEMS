@@ -237,11 +237,20 @@ def _build_estructura(frames: dict[str, pd.DataFrame], i: int,
     leyendo la fila i de cada TF (o la mas cercana en tiempo)."""
     est: dict[str, dict] = {}
     ltf_time = frames[ltf].iloc[i]["time"] if ltf in frames else None
+    # Frecuencia de cada TF para exigir cierre de la barra al hacer join
+    # cross-timeframe (evita look-ahead: ver AUDIT_LOOKAHEAD_HTF.md).
+    TF_FREQ = {
+        "M1": pd.Timedelta(minutes=1), "M5": pd.Timedelta(minutes=5),
+        "M15": pd.Timedelta(minutes=15), "H1": pd.Timedelta(hours=1),
+        "H4": pd.Timedelta(hours=4), "D1": pd.Timedelta(days=1),
+    }
     for tf, df in frames.items():
         if tf == ltf or len(df) == 0:
             pass
-        # indice por tiempo si es posible
-        row = _row_at_time(df, ltf_time) if ltf_time is not None else (df.iloc[i] if i < len(df) else None)
+        # indice por tiempo si es posible. El TF != LTF exige barra ya cerrada
+        # (freq) para no leer indicadores de una barra HTF aun en formacion.
+        freq = TF_FREQ.get(tf) if tf != ltf else None
+        row = _row_at_time(df, ltf_time, freq=freq) if ltf_time is not None else (df.iloc[i] if i < len(df) else None)
         if row is None:
             est[tf] = {}
             continue
