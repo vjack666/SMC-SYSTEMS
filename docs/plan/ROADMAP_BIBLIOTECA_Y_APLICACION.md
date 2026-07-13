@@ -53,13 +53,16 @@
 
 ### R2 — Alinear killzones y zona horaria (1 día)
 
-| Tarea | Detalle |
-|-------|---------|
-| R2.1 | Documentar y unificar: broker local vs ET vs UTC en un solo helper |
-| R2.2 | Backtest usa timestamp vela; vivo usa reloj → ambos llaman al **mismo** `killzone_en(ts)` |
-| R2.3 | Tests de bandas London/NY |
+| Tarea | Detalle | Archivos |
+|-------|---------|----------|
+| R2.1 | Documentar y unificar TZ: UTC canónico + display operador configurable (env SMC_TZ, default Ecuador) | `docs/plan/DECISION_TZ.md`, `app_observador/core/timezone.py` ✅ |
+| R2.2 | Vivo y backtest llaman al mismo `killzone_activa_ahora()` (UTC) | `resumen_widget.py` ✅ / `ict_backtest/rules.py` (ya UTC) |
+| R2.3 | UI muestra reloj en zona operador + bandas UTC y operador | `mt5_status.py`, `resumen_widget.py` ✅ |
+| R2.4 | Tests de bandas London/NY y override por env | `tests/test_timezone.py` ✅ |
 
-Libro: `01_KILLZONES.md`. Código: `detectors/killzones.py`, `rules.py`.
+**Criterio de done:** pytest verde; UI y backtest coinciden en "en killzone"; reloj mostrado en zona operador.  \n**Estado 2026-07-13:** R2 COMPLETO — 6/6 `tests/test_timezone.py` pasan; KZ-1 cerrado; helper único UTC + display Ecuador (o SMC_TZ). KZ-2 (unificar `detectors/killzones.py` del mapa) queda fuera de R2.
+
+---
 
 ---
 

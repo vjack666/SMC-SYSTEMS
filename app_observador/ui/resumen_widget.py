@@ -52,13 +52,15 @@ WYCKOFF_NODO = {
     "Upthrust": "agents_wyckoff_agent_wyckoffagent_detect_upthrust",
 }
 
-# Bandas de killzone (UTC) segun docs/ict/01_KILLZONES.md (aprox, horario estandar).
-# London 07-10 UTC, NY AM 12:30-15:00 UTC, NY PM 17:00-20:00 UTC.
-KILLZONES_UTC = {
-    "London Open": (7, 10),
-    "New York AM": (12, 15),
-    "New York PM": (17, 20),
-}
+# Bandas canonicas del proyecto en UTC (docs/ict/01_KILLZONES.md).
+# El calculo es SIEMPRE UTC (robusto en cualquier servidor); la zona del
+# operador solo se usa para mostrar (ver app_observador/core/timezone.py).
+from app_observador.core.timezone import (
+    KILLZONES_UTC,
+    killzone_activa_ahora,
+    operator_clock_str,
+    killzone_bandas_operador,
+)
 
 
 def _cargar_grafo() -> dict | None:
@@ -73,17 +75,9 @@ def _cargar_grafo() -> dict | None:
 _GRAFO = _cargar_grafo()
 
 
-def killzone_activa_ahora() -> str:
-    """Devuelve el nombre de la killzone activa ahora (UTC) o '' si ninguna.
-
-    Aproximacion de las bandas documentadas en docs/ict/01_KILLZONES.md.
-    """
-    ahora = datetime.now(timezone.utc)
-    h = ahora.hour + ahora.minute / 60.0
-    for nombre, (ini, fin) in KILLZONES_UTC.items():
-        if ini <= h < fin:
-            return nombre
-    return ""
+# killzone_activa_ahora() se importa de app_observador.core.timezone ( calculo
+# en UTC, robusto en cualquier servidor). Se re-exporta para no romper imports
+# locales que la usaban desde este modulo.
 
 
 def _detector_fase(fase: str) -> str:
@@ -369,11 +363,18 @@ def checklist_intradia(estructura: dict, bias: str, votes: dict | None) -> list[
     else:
         items.append(f"✓ Contexto: D1 {d1.get('trend','?')} / H4 {h4.get('trend','?')}.")
 
-    # 3. Killzone intradia activa
+    # 3. Killzone intradia activa (calculo en UTC; display en zona operador)
+    bandas_op = killzone_bandas_operador()
     if kz in ("London Open", "New York AM", "New York PM"):
-        items.append(f"✓ Killzone intradia activa: {kz} (UTC).")
+        ini_op, fin_op = bandas_op[kz]
+        items.append(
+            f"✓ Killzone intradia activa: {kz} "
+            f"(UTC {KILLZONES_UTC[kz][0]:.1f}-{KILLZONES_UTC[kz][1]:.1f}; "
+            f"operador {ini_op:.1f}-{fin_op:.1f})."
+        )
     else:
         items.append("✗ Fuera de killzone intradia (London/NY) -> esperar ventana.")
+    items.append(f"  Reloj operador: {operator_clock_str()} (calculo base UTC).")
 
     # 4. Sweep de liquidez en H4/M15
     sw = _sweep_dir(estructura, ("H4", "M15"))

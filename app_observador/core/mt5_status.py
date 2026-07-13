@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app_observador.core.blackbox import log_event, log_error
+from app_observador.core.timezone import operator_clock_str
 
 MT5_PATH = r"C:\Program Files\FundedNext MT5 Terminal\terminal64.exe"
 
@@ -51,6 +52,7 @@ def account_snapshot() -> dict:
             "riesgo_dia_pct": riesgo,
             "server": info.server,
             "clock_utc": datetime.now(timezone.utc).strftime("%H:%M UTC"),
+            "clock_operator": operator_clock_str(),
         }
     except Exception as e:
         return _desconectado(str(e))
@@ -67,7 +69,8 @@ def _desconectado(motivo: str) -> dict:
         "riesgo_dia_pct": None,
         "server": None,
         "clock_utc": datetime.now(timezone.utc).strftime("%H:%M UTC"),
-    }
+        "clock_operator": operator_clock_str(),
+        }
 
 
 def shutdown() -> None:

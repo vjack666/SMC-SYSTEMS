@@ -6,7 +6,7 @@
 | **Versión** | 2.0 (10/10) |
 | **Fecha** | 2026-07-12 |
 | **Estándar** | ADR-021 / RFC-001 |
-| **Estado** | Stable (docs) · Needs-code (unificar TZ) |
+| **Estado** | Stable (docs) · **TZ unificada en UTC (R2 2026-07-13)** |
 | **Métricas** | [METRICS_CANON](../METRICS_CANON.md) |
 
 > **Fuente de verdad:** código (`detectors/killzones.py`, `ict_backtest/rules.py`) + este contrato.  
@@ -99,7 +99,7 @@ Tres relojes → riesgo de desalineación UI ↔ backtest.
 
 | ID | Hallazgo | Estado |
 |----|----------|--------|
-| KZ-1 | Triple definición de zona (ET / broker / UTC) | 🔴 Abierto → R2 |
+| KZ-1 | Triple definición de zona (ET / broker / UTC) | ✅ R2 (UTC canónico + display operador vía `app_observador/core/timezone.py`, env SMC_TZ) |
 | #1 Look-ahead | No aplica a KZ puras | ✅ N/A |
 | Silver Bullet | Depende de KZ correcta | ⚠️ Acoplado a KZ-1 |
 
@@ -114,10 +114,11 @@ Métricas de cadena: [METRICS_CANON §3](../METRICS_CANON.md#3-ict_backtest-post
 
 ## 7. Checklist de aplicación al sistema
 
-- [ ] Helper único `killzone_en(ts, tz="UTC"|"broker"|"ET")`
-- [ ] UI y backtest importan el mismo helper
-- [ ] Tests de bandas London/NY
-- [ ] Lab Setup muestra “KZ: London Open (UTC)” explícito
+- [x] Helper único de zona horaria `app_observador/core/timezone.py` (UTC canónico + display operador)
+- [x] UI y backtest importan el mismo helper (`killzone_activa_ahora` en UTC)
+- [x] Tests de bandas London/NY (`tests/test_timezone.py`)
+- [x] UI muestra "KZ: London Open (UTC 7.0-10.0; operador 2.0-5.0)" explícito
+- [ ] `detectors/killzones.py` (mapa de velas) unificar visualmente con UTC — KZ-2 (fuera de R2)
 
 ---
 
