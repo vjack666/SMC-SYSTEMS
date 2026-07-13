@@ -1,20 +1,20 @@
-"""scripts/r4_chain.py — R4: medicion aislada EN PARALELO (E2 // E3 // E5).
+"""scripts/r4_chain.py — R4 v2: medicion aislada CON displacement + multi-simbolo.
 
-Corre los experimentos R4 de forma headless y vuelca PF/WR/expectancy a
-results/r4/<exp>.json. No imprime solo; deja artefactos para METRICS_CANON.
+Corrige la auditoria: las corridas R4 previas usaron Opcion A SIN
+--require-displacement, midiendo el modelo DESNUDO. La doc del backtest
+(SDD) define el edge ICT como sweep->displacement->BOS->retorno, asi que
+aqui se aplica displacement en TODOS los experimentos.
 
 Paralelismo SIN explotar el equipo:
-  - Los experimentos son independientes -> se lanzan concurrentes.
-  - max_workers = min(n_experimentos, cpu_count - 2): deja margen para el
-    loop MT5 en vivo y el sistema (NO se toca prioridad/affinity/plan de
-    energia; el equipo queda en Equilibrado).
-  - Cada `run_backtest.py` es vela-a-vela single-thread (1 nucleo), asi que
-    N workers => N nucleos usados en paralelo, no 20.
+  - Experimentos independientes -> concurrentes.
+  - max_workers = min(n_exps, cpu_count - 2): deja margen para el loop MT5
+    vivo y el sistema. Plan de energia Equilibrado intacto; no se toca
+    prioridad/affinity/config global.
 
-Modelos (ver roadmap R4):
-  E2  = Solo PO3 completo (model="po3", gating en engine.py)
-  E3  = Turtle Soup aislado (model="intradia" + counter_trend; proxy del libro 02)
-  E5  = E2 y E3 CON costos de mercado reales (EURUSD ~0.8/0.5/0.3 pips)
+Modelos (roadmap R4):
+  po3      = Solo PO3 completo (E2)
+  intradia --counter-trend = Turtle Soup aislado (E3)
+  scalping = Silver Bullet aislado (E4)
 
 Uso:
   python scripts/r4_chain.py
@@ -34,23 +34,29 @@ ROOT = Path(__file__).resolve().parent.parent
 RESULTS = ROOT / "results" / "r4"
 RESULTS.mkdir(parents=True, exist_ok=True)
 
-SYMBOL = "EURUSD"
 HTF = "H4"
 LTF = "M15"
 MAX_HOLD = 16
-COST = "0.8,0.5,0.3"  # spread,commission,slippage (pips) EURUSD
+# Costos por simbolo (spread,commission,slippage en pips).
+COST = {"EURUSD": "0.8,0.5,0.3", "GBPUSD": "1.0,0.6,0.3"}
 
 
-def _run(label: str, extra: list[str]) -> dict:
+def _run(label: str, symbol: str, model: str, counter: bool, cost_key: str | None) -> dict:
     cmd = [
         sys.executable, "ict_backtest/run_backtest.py",
-        "--symbol", SYMBOL, "--htf", HTF, "--ltf", LTF,
+        "--symbol", symbol, "--htf", HTF, "--ltf", LTF,
         "--max-hold", str(MAX_HOLD),
-    ] + extra
+        "--model", model, "--require-displacement",   # <-- clave R4 v2: displacement ON
+    ]
+    if counter:
+        cmd.append("--counter-trend")
+    if cost_key:
+        cmd += ["--cost", COST[cost_key]]
+
     print(f"\n##### {label} #####", flush=True)
     out = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
     txt = out.stdout + out.stderr
-    print(txt[-1500:], flush=True)
+    print(txt[-1200:], flush=True)
 
     m: dict = {"label": label, "cmd": " ".join(cmd), "ok": out.returncode == 0,
                "pf": None, "winrate": None, "trades": None,
@@ -78,39 +84,42 @@ def _run(label: str, extra: list[str]) -> dict:
 
 
 def main() -> None:
-    experiments = [
-        ("E2 PO3 aislado (sin cost)", ["--model", "po3"]),
-        ("E3 Turtle Soup aislado (sin cost)", ["--model", "intradia", "--counter-trend"]),
-        ("E5 PO3 aislado (CON cost)", ["--model", "po3", "--cost", COST]),
-        ("E5 Turtle Soup aislado (CON cost)", ["--model", "intradia", "--counter-trend", "--cost", COST]),
+    # 8 experimentos: 3 modelos x 2 simbolos (sin cost) + 2 con cost (EURUSD).
+    experiments: list[tuple[str, str, str, bool, str | None]] = [
+        ("EURUSD PO3+disp",       "EURUSD", "po3",      False, None),
+        ("EURUSD Turtle+disp",    "EURUSD", "intradia", True,  None),
+        ("EURUSD Silver+disp",    "EURUSD", "scalping", False, None),
+        ("GBPUSD PO3+disp",       "GBPUSD", "po3",      False, None),
+        ("GBPUSD Turtle+disp",    "GBPUSD", "intradia", True,  None),
+        ("GBPUSD Silver+disp",    "GBPUSD", "scalping", False, None),
+        ("EURUSD PO3+disp+cost",  "EURUSD", "po3",      False, "EURUSD"),
+        ("EURUSD Turtle+disp+cost","EURUSD", "intradia", True,  "EURUSD"),
     ]
 
-    # Paralelismo acotado: no usar todos los nucleos (dejar margen a MT5 vivo).
     n_workers = min(len(experiments), max(1, (os.cpu_count() or 4) - 2))
-    print(f"=== R4 chain PARALLELO: {len(experiments)} exps, {n_workers} workers "
-          f"(cpu_count={os.cpu_count()}) ===", flush=True)
+    print(f"=== R4 v2 chain PARALELO (disp ON): {len(experiments)} exps, "
+          f"{n_workers} workers (cpu={os.cpu_count()}) ===", flush=True)
 
     exps: list[dict] = []
     with ThreadPoolExecutor(max_workers=n_workers) as ex:
-        futs = [ex.submit(_run, label, extra) for label, extra in experiments]
+        futs = [ex.submit(_run, *exp) for exp in experiments]
         for f in futs:
-            exps.append(f.result())  # en orden de finalizacion; ok para reporte
+            exps.append(f.result())
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out_path = RESULTS / f"r4_chain_{stamp}.json"
+    out_path = RESULTS / f"r4v2_chain_{stamp}.json"
     summary = {
-        "generated": stamp,
-        "symbol": SYMBOL, "htf": HTF, "ltf": LTF, "max_hold": MAX_HOLD,
-        "cost_eurusd_pips": COST, "workers": n_workers,
-        "experiments": exps,
+        "generated": stamp, "htf": HTF, "ltf": LTF, "max_hold": MAX_HOLD,
+        "displacement": "ON (--require-displacement)", "cost_pips": COST,
+        "workers": n_workers, "experiments": exps,
+        "note": "R4 v2: corrige auditoria — displacement aplicado en todos los exps.",
     }
     out_path.write_text(json.dumps(summary, indent=2))
-    print(f"\n=== R4 chain guardado en {out_path} ===", flush=True)
-
+    print(f"\n=== R4 v2 guardado en {out_path} ===", flush=True)
     for e in exps:
         pf = f"{e['pf']:.3f}" if e["pf"] is not None else "n/a"
         wr = f"{e['winrate']*100:.1f}%" if e["winrate"] is not None else "n/a"
-        print(f"  {e['label']:42s} PF={pf}  WR={wr}  trades={e['trades']}", flush=True)
+        print(f"  {e['label']:32s} PF={pf}  WR={wr}  trades={e['trades']}", flush=True)
 
 
 if __name__ == "__main__":
