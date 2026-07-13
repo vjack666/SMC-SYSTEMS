@@ -31,7 +31,10 @@ TRADE_START_HOUR = 7      # 07:00 Ecuador (arranca temprano, operamos desde las 
 TRADE_END_HOUR = 20       # 20:00 Ecuador (compu prendida hasta las 8 PM)
 CYCLE_SECONDS = 5 * 60    # cada 5 minutos SIEMPRE
 ALWAYS_ON = True          # loop nunca duerme: corre 24/7 cada 5 min
-PY = r"C:\Python314\python.exe"
+# Preferir el mismo intérprete que está corriendo este script (portable).
+# Fallback a C:\Python314 solo si se invoca por un wrapper raro sin sys.executable.
+_PY314 = r"C:\Python314\python.exe"
+PY = sys.executable if sys.executable else _PY314
 
 # En Windows evita que subprocess abra una consola negra en cada subproceso.
 _NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0

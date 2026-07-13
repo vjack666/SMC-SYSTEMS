@@ -1,30 +1,70 @@
-# Biblioteca ICT — Índice
+# Biblioteca ICT — Índice (v2 · estándar 10/10)
 
-Colección de reglas ICT (Inner Circle Trader, Michael J. Huddleston) compiladas
-desde fuentes públicas especializadas para uso en SMC-SYSTEMS. Cada archivo es
-un "libro" de la biblioteca; Graphify los indexa para que la app pueda citarlos.
+Colección de reglas ICT (Inner Circle Trader) **operativas y trazables** para SMC-SYSTEMS.  
+Cada archivo es un “libro”. La app y los agentes deben poder **citar el contrato §0** y el código.
 
-> Nota de fuente: estos resúmenes son síntesis fiel de documentación ICT pública
-> (innercircletrader.net, fluxcharts.com, fxopen.com, alchemymarkets.com, litefinance.org).
-> No sustituyen el ICT Mentorship de pago; son reglas operativas verificables.
+> **Fuentes externas** (innercircletrader.net, fluxcharts, MQL5, alchemy, etc.) son respaldo.  
+> **Fuente de verdad:** código del repo + auditorías + [METRICS_CANON](../METRICS_CANON.md).  
+> No sustituyen el ICT Mentorship de pago.
 
-## Libros
-- `01_KILLZONES.md` — Sesiones de alta actividad institucional (Asian/London/NY) y horarios.
-- `02_MSS_CHOCH.md` — Market Structure Shift (MSS), Change of Character (CHoCH), Break of Structure (BOS). **Extendido 2026-07-11:** cómo lo usan traders en la práctica (entrada/gestión, MTF, sesiones), cómo lo calculan apps automáticas (MQL5 Sentinel/USA, XGBoost+SMC de MetaQuotes), y el impacto de **Chart Shift** + **profundidad de histórico** + **look-ahead** (conectado a la auditoría #1/#2).
-- `03_FVG.md` — Fair Value Gaps. **Extendido 2026-07-12:** teoría (3 velas, mitigado/no mitigado) → práctica (sweep + retroceso, multi-TF, killzone) → algoritmo (shift(2), sin look-ahead, Chart Shift + profundidad) → código (`detectors/fvg.py`, `signals/pipeline.py`, `ict_backtest/`) → auditoría (#1 look-ahead NO aplica al FVG; #6 performance) → resultados (PF 2.003→1.548, OOS 3.389±2.303).
-- `04_ORDER_BLOCKS.md` — Order Blocks y Breaker Blocks. **Extendido 2026-07-12:** teoría (OB válido, breaker) → práctica (retroceso, confluencia OB+FVG+CHoCH, multi-TF) → algoritmo (cuerpo grande + followthrough, riesgo shift(-1)) → código (`detectors/ob.py` Item E validación, `signals/pipeline.py`, `ict_backtest/`) → auditoría (#1 look-ahead en followthrough, #2 CHOCH real = breaker) → resultados medidos.
-- `05_LIQUIDEZ.md` — Buyside/Sellside Liquidity (BSL/SSL) y liquidity sweeps. **Extendido 2026-07-12:** teoría (BSL/SSL, sweep como manipulación) → práctica (sweep + esperar confirmación, no entrar contra) → algoritmo (cluster atr/margin, sweep por ruptura+reversión) → código (`detectors/liquidity.py` solo pinta; `detectors/bos.py` + `signals/pipeline.py` filtran sweep) → HUECO REAL: liquidez decorativa desacoplada del sweep de señal → resultados medidos.
-- `06_TURTLE_SOUP.md` — Turtle Soup (reversión contra tendencia). **Extendido 2026-07-12:** teoría (sweep + MSS opuesto) → práctica (SSL/BSL en HTF, entrada en retorno) → código (`ict_backtest/rules.py` checklist intradia contra tendencia: sweep M15 + FVG M1/M5 + SL FVG/OB + RR 1:2) → auditoría (#1 look-ahead en MSS, #2 CHOCH real) → resultados medidos.
-- `07_SILVER_BULLET.md` — Silver Bullet (intradía/scalping). **Extendido 2026-07-12:** teoría (sweep + FVG en killzone) → práctica (sesgo del día, 1:2 Stellar) → código (`detectors/killzones.py` horas broker vs ET del mentorsip; `fvg.py`; `rutina_eurusd.py`) → salvedad de zona horaria + auditoría → resultados medidos.
-- `08_POWER_OF_THREE.md` — Power of Three / AMD. **Extendido 2026-07-12:** teoría (acumulación→manipulación→distribución) → práctica (sesgo D1, open del día, CHoCH) → código (PO3 = unión sweep+CHoCH+zonas+sesgo en `rules.py` intradia) → auditoría (#1/#2/#5) → resultados medidos.
-- `09_OPTIMIZADOR_BAYESIANO.md` — Optimizador bayesiano para el backtest (Capa 3): qué es, overfitting, walk-forward, Optuna. [No es regla ICT; es algoritmo de validación del backtest.]
-- `10_SWEEP_OTE_FILTRO.md` — Sweep de liquidez + OTE como filtros de señal (Ítem D). **Creado 2026-07-12:** teoría ICT (caza de BSL/SSL + OTE 62-79%) → código (`detectors/liquidity.py` + `signals/pipeline.py` ya cableados con pesos sweep=2.0/ote=1.0) → evidencia medida EURUSD M15 (sweep 66% activo, OTE 1% no-op) → HUECO REAL: bandas OTE inalcanzables en M15 (fix propuesto, pendiente walk-forward OOS).
-- `11_SWEEP_OTE_MANUAL_VS_AUTO.md` — Sweep + OTE: Manual vs Automático vs nuestro híbrido. **Creado 2026-07-12 (investigación internet):** manual (Bennett/arongroups: HTF→OTE 62-79%→sweep+esperar→M15) vs EA MQL5 "ICT EA" (H1 bias→sweep→MSS→displacement→FVG→liquidez target) vs SMC-SYSTEMS (tabla cerebro idéntico al EA) → GAP futuro 100% auto: no hay ejecutor MT5 en repo + TP 2×ATR fijo (no liquidez opuesta).
+**Estándar de escritura:** [ADR-021](../plan/ADR-021_filosofia_documentacion_ict.md) · plantilla [`_PLANTILLA_LIBRO.md`](_PLANTILLA_LIBRO.md).  
+**Aplicación al sistema:** [ROADMAP_BIBLIOTECA_Y_APLICACION](../plan/ROADMAP_BIBLIOTECA_Y_APLICACION.md).
+
+---
+
+## Libros de setup (ICT)
+
+| ID | Libro | Contrato clave | Estado docs |
+|----|-------|----------------|-------------|
+| 01 | [Killzones](01_KILLZONES.md) | Ventana horaria unificada | ✅ 2.0 · Needs-code TZ |
+| 02 | [MSS / CHoCH / BOS](02_MSS_CHOCH.md) | Secuencia BOS→CHOCH→BOS | ✅ 2.0 |
+| 03 | [FVG](03_FVG.md) | 3 velas + unfilled | ✅ 2.0 |
+| 04 | [Order Blocks](04_ORDER_BLOCKS.md) | Huella + followthrough post-cierre | ✅ 2.0 |
+| 05 | [Liquidez / Sweep](05_LIQUIDEZ.md) | Sweep = filtro; unificar fuente | ✅ 2.0 · Needs-code |
+| 06 | [Turtle Soup](06_TURTLE_SOUP.md) | Contratrend + sweep + giro | ✅ 2.0 · Needs model split |
+| 07 | [Silver Bullet](07_SILVER_BULLET.md) | KZ + sweep + FVG + sesgo | ✅ 2.0 |
+| 08 | [**Power of Three (pasado/presente/futuro)**](08_POWER_OF_THREE.md) | **A+M+D complete** | ✅ 2.0 · **Prioridad R1** |
+
+## Libros de integración / validación
+
+| ID | Libro | Notas |
+|----|-------|-------|
+| 09 | [Optimizador bayesiano](09_OPTIMIZADOR_BAYESIANO.md) | **Anexo** de validación, no setup ICT |
+| 10 | [Sweep + OTE filtros](10_SWEEP_OTE_FILTRO.md) | Ítem D; OTE casi no-op |
+| 11 | [Manual vs Auto](11_SWEEP_OTE_MANUAL_VS_AUTO.md) | Política híbrida / automation-ready |
+
+## Auditoría y SDD (no “libros de setup”, pero del pack ICT)
+
+- `10_AUDITORIA_REFACCION/` — hallazgos #1–#7  
+- `SDD_ICT_BACKTEST.md`, `SDD_REFACCION_2026-07-11.md`  
+- `API_SPEC.md`, `TEST_PLAN.md`  
+- `logs/` — corridas Capa 2/3  
+
+---
 
 ## Cómo se usa en SMC-SYSTEMS
-- `detectors/` ya implementa BOS/CHOCH (bos.py, choch.py), OB (ob.py), FVG (fvg.py),
-  liquidez (liquidity.py), killzones (killzones.py). Estos libros son la REFERENCIA
-  de reglas que esos detectores materializan.
-- La pestaña "Principal" (resumen_widget.py) cita estos libros para explicar el setup.
-- El grafo Graphify (graphify-out/graph.json) indexa el CÓDIGO; estos .md indexan la
-  TEORÍA. Juntos dan trazabilidad: regla -> detector -> código.
+
+| Capa | Rol |
+|------|-----|
+| `detectors/` | Materializa reglas (BOS, CHOCH, OB, FVG, liquidez, KZ) |
+| `signals/pipeline.py` | Confluencia / filtros |
+| `ict_backtest/` | Misma lógica de checklist que el observador (objetivo) |
+| `app_observador` | Cita libros y checklist en pestaña Principal |
+| Graphify | Indexa **código**; estos `.md` indexan **teoría** |
+
+Trazabilidad: **regla (§0) → detector → pipeline → backtest → métrica (METRICS_CANON)**.
+
+---
+
+## Orden de lectura recomendado
+
+1. `01` + `02` + `05` (tiempo, estructura, liquidez)  
+2. `03` + `04` (zonas)  
+3. **`08` PO3** (ciclo completo del trade)  
+4. `06` / `07` (variantes contratrend / scalping)  
+5. `10` + `11` + `09` (filtros, política, optimización)  
+6. Roadmap de aplicación → código  
+
+---
+
+*Biblioteca reescrita 2026-07-12 para calidad 10/10 documental. Los checkboxes de código viven en el roadmap de aplicación.*

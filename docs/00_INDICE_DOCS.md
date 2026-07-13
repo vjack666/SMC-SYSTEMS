@@ -25,9 +25,14 @@ en carpetas temáticas dentro de `docs/`.
 - `PRD.md` — Product Requirements Document.
 - `SRS.md` — Software Requirements Specification.
 - `SAD.md` — Software Architecture Document.
-- `CRONOGRAMA_Y_ROADMAP.md` — cronograma y roadmap.
-- `HOJA_DE_RUTA_SMC-SYSTEMS.md` — hoja de ruta del sistema.
+- `CRONOGRAMA_Y_ROADMAP.md` — cronograma y roadmap (hitos A6/A12).
+- `ROADMAP_BIBLIOTECA_Y_APLICACION.md` — **roadmap 10/10 docs → código** (PO3, KZ, modelos).
+- `ADR-021_filosofia_documentacion_ict.md` — estándar Teoría→…→Resultados.
+- `HOJA_DE_RUTA_SMC-SYSTEMS.md` — hoja de ruta del sistema (histórica).
 - `STRATEGY_IMPROVEMENT_PLAN.md` — plan de mejora de estrategia.
+
+### Métricas canónicas (raíz de `docs/`)
+- `METRICS_CANON.md` — **única fuente** de PF/WR/gates; los libros enlazan aquí.
 
 ### `prompts/` — prompts del sistema
 - `PROMPTS.md` — prompts de agentes/sistema.
@@ -52,9 +57,9 @@ en carpetas temáticas dentro de `docs/`.
 ### `analisis/` — contexto de mercado
 - `TREND_CONTEXT.md` — contexto de tendencia.
 
-## Carpetas temáticas ya existentes (no tocadas)
-- `ict/` — biblioteca de reglas ICT (libros 01–09). Ver `ict/00_INDICE.md`.
-- `wyckoff/` — biblioteca Wyckoff. Ver `wyckoff/00_indice.md`.
+## Carpetas temáticas
+- `ict/` — biblioteca ICT **v2 10/10** (libros 01–11 + plantilla). Ver `ict/00_INDICE.md`.
+- `wyckoff/` — biblioteca Wyckoff v2 (índices + cruce ICT). Ver `wyckoff/00_indice.md`.
 - `diario/` — registro diario.
 - `specs/` — especificaciones técnicas.
 - `proposals/` — propuestas.

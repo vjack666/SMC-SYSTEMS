@@ -1,79 +1,158 @@
-# ICT — Power of Three (PO3 / AMD model)
+# ICT — Power of Three (PO3 / AMD) — pasado · presente · futuro
 
-> Tesis (RFC-001 / ADR-021): Teoría → Práctica del trader → Algoritmo →
-> Código SMC-SYSTEMS → Auditoría → Resultados medidos. Fuente de verdad: el
-> código y las auditorías del repo.
+| Campo | Valor |
+|-------|-------|
+| **ID** | `08_POWER_OF_THREE.md` |
+| **Versión** | 2.0 (10/10) |
+| **Fecha** | 2026-07-12 |
+| **Estándar** | ADR-021 / RFC-001 |
+| **Estado** | Stable (docs) · Needs-code (estado A/M/D) |
+| **Métricas** | [METRICS_CANON](../METRICS_CANON.md) |
+| **Roadmap** | R1 prioritario — [ROADMAP_BIBLIOTECA_Y_APLICACION](../plan/ROADMAP_BIBLIOTECA_Y_APLICACION.md) |
+
+> **Fuente de verdad:** este contrato + código futuro `po3_state` + `ict_backtest/rules.py`.  
+> PO3 es el libro del **ciclo del trade en el gráfico**: lo que ya pasó, lo que está pasando y lo que se espera que pague.
+
+---
+
+## 0. Contrato operativo — fases A / M / D
+
+| Tiempo del gráfico | Fase | Condición medible | Obligatorio |
+|--------------------|------|-------------------|:-----------:|
+| **Pasado** | **A — Accumulation** | Sesgo HTF (D1 o H4) ∈ {BULLISH, BEARISH} **o** rango explícito con high/low de sesión/Asian marcados | Sí |
+| **Presente** | **M — Manipulation** | Sweep de liquidez **en contra** del sesgo (caza de stops) con ruptura + cierre de vuelta (regla sweep de `05`) | Sí |
+| **Futuro** | **D — Distribution / expansión** | CHoCH o BOS **a favor** del sesgo **después** del sweep + zona de entrada FVG u OB en LTF | Sí |
+| Gestión | RR | SL fuera del extremo de manipulación; TP ≥ 1:2 o liquidez opuesta | Sí |
+| Dirección | A-favor | `direction` del setup **alineada** al sesgo HTF (si no → es Turtle Soup, no PO3) | Sí |
+
+### Definiciones de estado
+
+```
+po3.complete  = A and M and D and aligned
+po3.direction = LONG | SHORT | NEUTRAL
+po3.incomplete_reason = lista de fases faltantes
+```
+
+| Estado | Significado en UI |
+|--------|-------------------|
+| `complete=True` | **PO3 listo** — ciclo cerrado; candidato a entrada |
+| Solo A | Contexto listo; esperar manipulación |
+| A+M sin D | Trampa hecha; esperar expansión / CHoCH |
+| M sin A | Sweep sin sesgo → no etiquetar PO3 |
+| Alineación fallida | Puede ser Turtle Soup (`06`) |
+
+**Regla dura:** score alto sin `complete` **no** es entrada PO3.
+
+---
 
 ## 1. Teoría
-Modelo que describe el ciclo del precio en 3 fases (también AMD:
-Accumulation-Manipulation-Distribution). Explica POR QUÉ el precio barre
-liquidez antes del movimiento real.
 
-**Fases:**
-1. **Accumulation (acumulación):** rango lateral de baja volatilidad cerca de
-   soporte/resistencia. Se construye la liquidez (stops se apilan fuera del rango).
-2. **Manipulation (manipulación / liquidity sweep):** el precio rompe el rango
-   para cazar stops (stop hunt / false breakout) y cierra de vuelta adentro.
-   - Alcista: sumerge bajo el rango (barre SSL).
-   - Bajista: dispara sobre el rango (barre BSL).
-3. **Distribution (expansión):** el precio rompe la estructura y se extiende en la
-   dirección real con velas fuertes. Es el movimiento que paga.
+El **Power of Three (PO3)** / modelo **AMD** describe por qué el precio suele:
 
-## 2. Práctica del trader (uso real)
-1. Definir **sesgo del día** en TF mayor (H4/D1).
-2. Marcar el **open del día** como nivel de referencia.
-3. Identificar la **manipulación** más allá del open/rango (barrido de liquidez).
-4. Confirmar entrada en TF menor (M5/M15) con **CHoCH** o ruptura de estructura.
-5. Gestionar con SL por fuera del extremo de manipulación.
+1. **Acumular** (construir causa / rango / sesgo),  
+2. **Manipular** (barrer liquidez en falso),  
+3. **Distribuir / expandir** (movimiento real que paga).
 
-**Confirmación de distribución:** velas direccionales de cuerpo grande, ruptura
-decisiva del rango, expansión de volumen, alineación con TF mayor.
+Es la “réplica” del ciclo en el gráfico:
 
-## 3. Algoritmo (detección automática)
-PO3 no es un detector aislado: es el "relato" que une tres detectores ya
-existentes:
-- **Manipulation** = sweep de liquidez (`detectors/liquidity.py` para zonas;
-  `detectors/bos.py` + `pipeline.py` para el sweep filtrado).
-- **Confirmación de entrada** = CHoCH/MSS (`detectors/choch.py`, `bos.py`).
-- **Zona de retorno** = FVG / Order Block (`detectors/fvg.py`, `ob.py`).
-- **Sesgo** = tendencia HTF (EMA / `trend.py`).
+| Fase | Lectura humana |
+|------|----------------|
+| A | “¿Dónde se construyó el interés?” (pasado) |
+| M | “¿Dónde cazaron stops ahora?” (presente) |
+| D | “¿Hacia dónde se expande el movimiento?” (futuro del trade) |
 
-Riesgo de look-ahead: la confirmación de distribución (CHoCH) debe usar velas
-cerradas (fix #1); no anticipar la ruptura.
+No es un patrón de una sola vela: es un **relato de secuencia**.
 
-## 4. Código SMC-SYSTEMS (implementación real)
-- **Detectores:** `choch.py` (CHoCH), `bos.py` (BOS + sweep), `fvg.py`/`ob.py`
-  (zonas), `trend.py` (sesgo), `liquidity.py` (BSL/SSL).
-- **Regla de backtest:** `ict_backtest/rules.py`
-  - `evaluate(model="intradia", counter_trend=...)` agrupa **PO3 / Turtle Soup**
-    (H1/H4/M15). El checklist intradia requiere sweep M15 + FVG M1/M5 + dirección
-    + SL en FVG/OB + RR 1:2. O sea PO3 se materializa como la misma secuencia que
-    Turtle Soup, pero con énfasis en la manipulación previa al open del día.
-- **En vivo:** la pestaña Principal narra "sesgo D1 + sweep de SSL + CHoCH M15 =
-  PO3 alcista". El motor ya calcula sesgo D1/H4 (`rutina_eurusd.py`) + sweep +
-  CHoCH.
+---
 
-## 5. Auditoría (cómo los hallazgos afectaron la implementación)
-- **#1 Look-ahead (crítico):** la fase de distribución (CHoCH que confirma PO3)
-  sufría el bug de `_swing_points`. Tras el fix (ventana NO centrada + desplazar
-  `lookback`), la confirmación de expansión ya no se anticipa. PF 2.003 → 1.548.
-- **#2 CHOCH real:** PO3 necesita un CHoCH genuino tras la manipulación. Antes
-  `choch_dir = bos_dir` (copia), así que la "expansión" podía ser continuación
-  disfrazada. Al corregir, el PO3 alcista tras barrido de SSL es real.
-- **#5 Walk-forward real:** la dirección temporal del walk-forward se corrigió
-  para ir de pasado→futuro; PO3 se valida en esa ventana, no en datos vistos.
+## 2. Práctica del trader
 
-## 6. Resultados medidos
-- PF Capa 2: **2.003 → 1.548** (corregir #1 y #2). PO3 es la narrativa de la
-  cadena completa; hereda la limpieza.
-- Walk-forward OOS (4 folds, EURUSD M15, SIN costos): PF prom **3.389 ± 2.303**,
-  21 trades OOS. PO3 participa de la cadena intradia; falta aislar contribución
-  con costos (fix #4 `--cost`, no aplicado).
+1. **Sesgo del día** en D1/H4 (o rango del día / open).  
+2. Marcar **open del día** y liquidez Asian si aplica.  
+3. Esperar **manipulación** más allá del open/rango (sweep).  
+4. Confirmar en M15/M5 con **CHoCH/BOS a favor** + FVG/OB.  
+5. SL fuera del extremo de M; TP en liquidez opuesta o ≥1:2.  
+6. Preferir killzone London/NY (`01`).
+
+**PO3 ≠ Turtle Soup:** PO3 es **continuación a favor** tras la trampa.  
+Turtle Soup es **reversión contra** el HTF (`06`).
+
+---
+
+## 3. Algoritmo
+
+```
+A = has_htf_bias OR has_session_range
+M = recent_sweep AND sweep_opposes_bias
+D = (choch_or_bos_with_bias) AND (fvg_or_ob_zone) AND after(M)
+aligned = setup_dir == bias_dir
+complete = A and M and D and aligned
+```
+
+**Riesgos**
+
+| Riesgo | Mitigación |
+|--------|------------|
+| Marcar D antes de confirmar swing | Solo velas cerradas; fix #1 |
+| CHOCH = copia de BOS | Fix #2 — CHOCH real |
+| Mezclar con contratrend | Flag `aligned` obligatorio |
+| Look-ahead en open del día | Open = precio de la vela de apertura ya cerrada / known |
+
+---
+
+## 4. Código SMC-SYSTEMS
+
+| Pieza | Ruta | Rol hoy |
+|-------|------|---------|
+| Sesgo / trend | motor observador, `trend_context` | Fase A parcial |
+| Sweep | `bos.py` + `pipeline.py` / flags estructura | Fase M |
+| CHoCH/BOS | `choch.py`, `bos.py` | Fase D parcial |
+| FVG/OB | `fvg.py`, `ob.py` | Zona D |
+| Score UI | `resumen_widget.py` → `modelo_ict` PO3 | Score suelto, **no** `complete` |
+| Checklist | `rules.py` `checklist_intradia` | Mezcla PO3 + Turtle |
+| Target | `signals/po3.py` (pendiente R1) | Estado A/M/D canónico |
+
+**Hoy:** PO3 es **narrativa + puntos**.  
+**Óptimo (R1):** `po3_state` + `evaluate(model="po3")` importado por UI y backtest.
+
+---
+
+## 5. Auditoría y huecos
+
+| ID | Tema | Estado |
+|----|------|--------|
+| #1 | Look-ahead en swings afectaba “D” | ✅ Fix |
+| #2 | CHOCH real necesario para D genuino | ✅ Fix |
+| #5 | WF pasado→futuro | ✅ Fix dirección |
+| PO3-1 | No hay `complete` A/M/D en código | 🔴 R1 |
+| PO3-2 | Open del día no es filtro duro | 🔴 R3 |
+| PO3-3 | No hay métricas **aisladas** de PO3 | 🔴 R4 |
+| PO3-4 | Mezcla con Turtle en `intradia` | 🔴 R1.2 |
+
+---
+
+## 6. Resultados
+
+PO3 participa de la cadena intradía; **no** tiene aún fila propia aislada.  
+Ver [METRICS_CANON §3](../METRICS_CANON.md#3-ict_backtest-post-auditoría-2026-07-11) (Capa 2/3, edge frágil).  
+Tras R4, añadir § “PO3 only” en METRICS_CANON.
+
+---
+
+## 7. Checklist de aplicación al sistema
+
+- [ ] Implementar `po3_state` (A/M/D/complete/direction)
+- [ ] `evaluate(model="po3")` separado de Turtle Soup
+- [ ] UI: “PO3 listo” vs “falta M/D”
+- [ ] Mapa o labels: A / M / D
+- [ ] Backtest solo-PO3 + costos → METRICS_CANON
+- [ ] Shadow en diario (“hubiera entrado PO3”)
+- [ ] Tests sintéticos sin look-ahead
+
+---
 
 ## En resumen
-Power of Three explica el ciclo acumulación→manipulación→distribución. En
-SMC-SYSTEMS no es un detector aparte: es la unión de sweep (`bos.py`/`pipeline`),
-CHoCH (`choch.py`), zonas (`fvg.py`/`ob.py`) y sesgo (`trend.py`), materializada
-en `ict_backtest/rules.py` como modelo intradia. Su validez depende del fix de
-look-ahead (#1) y del CHOCH real (#2): sin ellos, la "distribución" era
-continuación anticipada.
+
+PO3 es el libro de **pasado (A) → presente (M) → futuro (D)** del movimiento.  
+La documentación 10/10 fija el **contrato `complete`**.  
+El sistema óptimo nace cuando ese contrato es **código único** en observador y backtest, medido en OOS con costos — no cuando el score “parece” PO3.

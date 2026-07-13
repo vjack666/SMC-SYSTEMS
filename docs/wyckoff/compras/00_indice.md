@@ -1,18 +1,16 @@
-# Wyckoff para Compras — Índice del libro
+# Wyckoff COMPRAS — índice
 
-**Acumulación** = cómo las instituciones compran masivamente *dentro* de un rango lateral
-en el fondo del mercado, absorbiento la oferta de los vendedores asustados, antes del
-**markup** (la subida sostenida). Es el espejo exacto de la distribución (ventas).
+**Acumulación** → **markup** (subida). Espejo de la distribución (ventas).
 
-La acumulación se forma tras una tendencia bajista extendida. El rango parece
-"consolidación antes de otro tramo abajo", pero en realidad la demanda absorbe la oferta
-en cada caída. Quien vende el rango es absorbido por smart money; quien la lee opera el long.
+Tras tendencia bajista extendida, el rango de acumulación es la *causa* del markup.
 
-## Temas
-- `00_indice.md` — este mapa.
-- `01_leyes.md` — Las 3 leyes de Wyckoff (Oferta/Demanda, Causa/Efecto, Esfuerzo/Resultado).
-- `02_fases_buyside.md` — Fases A–E de la acumulación (estructura completa).
-- `03_eventos.md` — Eventos clave: PS, SC, AR, ST, Spring, Test, SOS, LPS.
-- `04_volumen.md` — Volumen y Esfuerzo vs Resultado: las firmas de acumulación activa.
-- `05_operar_compras.md` — Cómo operar el long: entradas, stop, objetivo, gestión de riesgo.
-- `06_relacion_ict.md` — Cruce con ICT/SMC del proyecto (BOS/CHoCH, sweep SSL, Power of Three).
+| Libro | Contenido | Estado |
+|-------|-----------|--------|
+| [01_leyes](01_leyes.md) | 3 leyes en acumulación | ✅ |
+| [02_fases_buyside](02_fases_buyside.md) | Fases A–E | ✅ + § código |
+| [03_eventos](03_eventos.md) | PS, SC, AR, ST, Spring… | ✅ |
+| [04_volumen](04_volumen.md) | Esfuerzo vs resultado | ✅ |
+| [05_operar_compras](05_operar_compras.md) | Cómo operar el markup | ✅ |
+| [06_relacion_ict](06_relacion_ict.md) | Mapeo ICT + código | ✅ 2.0 |
+
+**Contrato de uso en el sistema:** Wyckoff en D1/H4 define sesgo alcista; ICT M15 da el entry (sweep SSL + CHoCH/BOS). Ver `06`.

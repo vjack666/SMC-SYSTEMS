@@ -46,5 +46,20 @@ sostenida cuya profundidad es típicamente proporcional al tiempo en el rango (L
 Causa y Efecto). Quien leyó la distribución temprano está posicionado; el resto persigue la salida.
 
 ---
+
+## En SMC-SYSTEMS (código)
+
+| Fase | Señal en sistema | ICT equivalente |
+|------|------------------|-----------------|
+| A–B | Sesgo bajista / rango HTF | PO3 A (causa) |
+| C UTAD | Exhaustion sobrecompra + sweep BSL | PO3 M |
+| D SOW/LPSY | BOS bajista + OB | PO3 D / short |
+| E Markdown | Tendencia BEARISH D1/H4 | Continuación short |
+
+- Agente: `agents/wyckoff_agent.py`  
+- Cruce: `06_relacion_ict.md` (mapeo Phase B corregido en v2)  
+- UI fases: pendiente R7
+
+---
 *Espejo:* la acumulación (compras) es idéntica pero invertida — Spring abajo en vez de
 UTAD arriba, y el resultado es Markup (alcista), no Markdown.

@@ -1,17 +1,16 @@
-# Wyckoff para Ventas — Índice del libro
+# Wyckoff VENTAS — índice
 
-**Distribución** = cómo las instituciones venden masivamente *dentro* de un rango lateral
-en la cima del mercado, sin hundir el precio prematuramente, antes del **markdown**
-(la caída sostenida). Es el espejo exacto de la acumulación (compras).
+**Distribución** → **markdown** (bajada). Espejo de la acumulación (compras).
 
-La distribución se forma tras una tendencia alcista extendida. El rango parece
-"consolidación antes del próximo tramo arriba", pero en realidad la oferta vence a la
-demanda en cada rebote. Quien compra el rango queda atrapado; quien la lee opera el short.
+Tras tendencia alcista extendida, el rango de distribución es la *causa* del markdown.
 
-## Temas
-- `01_leyes.md` — Las 3 leyes de Wyckoff (Oferta/Demanda, Causa/Efecto, Esfuerzo/Resultado).
-- `02_fases_sellside.md` — Fases A–E de la distribución (estructura completa).
-- `03_eventos.md` — Eventos clave: PSY, BC, AR, ST, UT, UTAD, SOW, LPSY.
-- `04_volumen.md` — Volumen y Esfuerzo vs Resultado: las firmas de distribución activa.
-- `05_operar_ventas.md` — Cómo operar el short: entradas, stop, objetivo, gestión de riesgo.
-- `06_relacion_ict.md` — Cruce con ICT/SMC del proyecto (BOS/CHoCH, sweep BSL, Power of Three).
+| Libro | Contenido | Estado |
+|-------|-----------|--------|
+| [01_leyes](01_leyes.md) | 3 leyes en distribución | ✅ |
+| [02_fases_sellside](02_fases_sellside.md) | Fases A–E | ✅ + § código |
+| [03_eventos](03_eventos.md) | PSY, BC, AR, ST, UTAD… | ✅ |
+| [04_volumen](04_volumen.md) | Esfuerzo vs resultado | ✅ |
+| [05_operar_ventas](05_operar_ventas.md) | Cómo operar el markdown | ✅ |
+| [06_relacion_ict](06_relacion_ict.md) | Mapeo ICT + código | ✅ 2.0 |
+
+**Contrato de uso en el sistema:** Wyckoff en D1/H4 define sesgo bajista; ICT M15 da el entry (sweep BSL + CHoCH/BOS). Ver `06`.

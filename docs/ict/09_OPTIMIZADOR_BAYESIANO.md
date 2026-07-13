@@ -1,260 +1,98 @@
-# 09 — Optimizador Bayesiano (para el backtest ICT)
+# Anexo — Optimizador bayesiano (validación del backtest)
 
-Libro de referencia del proyecto SMC-SYSTEMS. Explica qué es el optimizador
-bayesiano, por qué se usa en el backtest, el riesgo de overfitting y cómo se
-aplica en nuestra Capa 3 (ict_backtest). Fundamentado en investigación web
-(ver Fuentes al final) y contrastado con las decisiones de diseño ya acordadas
-en `docs/AVANCES_ICT_BACKTEST_2026-07-10.md`.
-
----
-
-## 0. Índice de este libro
-
-1. El problema: encontrar la mejor configuración de parámetros
-2. Las malas soluciones: Grid Search y Random Search
-3. Qué es el optimizador bayesiano (en simple)
-4. Cómo funciona por dentro (el modelo surrogate)
-5. Por qué sirve para trading (funciones caras, ruidosas, no-convexas)
-6. El riesgo central: OVERFITTING
-7. La defensa estándar: WALK-FORWARD OPTIMIZATION
-8. Librerías: Optuna vs scikit-optimize
-9. Aplicación en SMC-SYSTEMS (nuestra Capa 3)
-10. Por qué la opción (A) viene antes que la (B)
-11. Glosario
-12. Fuentes
+| Campo | Valor |
+|-------|-------|
+| **ID** | `09_OPTIMIZADOR_BAYESIANO.md` |
+| **Versión** | 2.0 (10/10) |
+| **Fecha** | 2026-07-12 |
+| **Estándar** | ADR-021 (adaptado: no es regla ICT) |
+| **Estado** | Stable |
+| **Tipo** | **ANEXO DE VALIDACIÓN** — no es libro de setup ICT |
+| **Métricas** | [METRICS_CANON](../METRICS_CANON.md) §3 |
+| **Ubicación ideal** | `docs/plan/` o `docs/avances/` (se mantiene aquí por enlaces históricos) |
 
 ---
 
-## 1. El problema: encontrar la mejor configuración
+## 0. Contrato de uso (sí / no)
 
-Nuestro motor de la Capa 2 (`ict_backtest/sequence.py`) tiene parámetros de
-ajuste que hoy están puestos a mano (criterio propio):
+| # | Condición | Obligatorio |
+|---|-----------|:-----------:|
+| 1 | El **modelo de setup** ya está definido (PO3/Turtle/SB) y medido sin tunear de más | Sí |
+| 2 | Optimización solo sobre **pocos** hiperparámetros (≤6) | Sí |
+| 3 | Validación **walk-forward** multi-fold, pasado→futuro | Sí |
+| 4 | Reportar con **costos** cuando se declare PF “final” | Sí |
+| 5 | Si un fold OOS tiene PF&lt;1 → edge **frágil**, no “listo live” | Sí |
 
-- `displace_gap`     → cuántas velas de separación exige entre el displacement
-                       y el BOS.
-- `bos_gap`          → separación entre el sweep de liquidez y el BOS.
-- `require_displacement` → si exige displacement confirmatorio o no.
-- `tp_mode`          → cómo calcula el take profit (2R fijo, al swing, etc.).
-
-La pregunta es: ¿CUÁL es la combinación de esos valores que da el mejor
-Profit Factor (PF)?
-
-Probar combinaciones a ojo es lento y no garantiza el óptimo. Por eso existe
-la optimización de hiperparámetros.
+**Prohibido:** Optuna sobre 20 knobs antes de R4 (roadmap biblioteca).
 
 ---
 
-## 2. Las malas soluciones: Grid Search y Random Search
+## 1. Teoría (simple)
 
-**Grid Search (búsqueda en rejilla):** probar TODAS las combinaciones posibles.
-Si cada parámetro tiene 10 opciones y tenemos 4 parámetros → 10^4 = 10.000
-backtests. Con miles de velas cada uno, esto tarda horrores y quema CPU.
+Buscamos parámetros del motor (`displace_gap`, `bos_gap`, `require_displacement`, `tp_mode`, …) que maximicen una métrica (PF) **sin memorizar ruido**.
 
-**Random Search (búsqueda aleatoria):** muestrear combinaciones al azar.
-Más eficiente que Grid en espacios grandes, pero NO aprende de los resultados:
-trata cada backtest como un evento independiente. Pura suerte.
-
-Fuentes coinciden: ambos son "ciegos" — no usan la información de los backtests
-ya hechos para elegir el siguiente.
+- **Grid/Random:** caros o ciegos.  
+- **Bayesiano (Optuna TPE):** modelo surrogate que propone trials prometedores.  
+- **Riesgo central:** overfitting in-sample.
 
 ---
 
-## 3. Qué es el optimizador bayesiano (en simple)
+## 2. Práctica en trading research
 
-Es una forma INTELIGENTE y EFICIENTE de encontrar la mejor configuración de
-parámetros SIN probar todas las combinaciones, aprendiendo de cada prueba.
-
-Analogía: buscar el mejor café de una ciudad. En vez de probar todos los
-locales (Grid) o locales al azar (Random), vas afinando por dónde huele bien.
-Usa teoría de Bayes para actualizar tu "creencia" con cada prueba.
-
-En nuestro caso: afinar la Capa 2 para que el PF>1 sea REAL y no suerte de
-pocas muestras.
+1. Fijar definición del setup (libros 06–08).  
+2. Baseline sin optimizar.  
+3. Optuna **in-sample** de una ventana.  
+4. Evaluar OOS en folds siguientes.  
+5. Publicar media ± std de PF OOS + N trades.  
+6. Solo entonces hablar de paper.
 
 ---
 
-## 4. Cómo funciona por dentro (el modelo surrogate)
+## 3. Algoritmo en el repo
 
-El optimizador bayesiano itera y refina su entendimiento de la función objetivo:
+Capa 3: `ict_backtest/optimize.py` + `sequence.py`.  
+Log: `docs/ict/logs/CAPA3_REFAC_WF.log`.
 
-1. **Muestras iniciales:** prueba unas pocas combinaciones al azar (backtests).
-2. **Modelo surrogate (sustituto):** construye un modelo PROBABILÍSTICO que
-   aproxima la función real "parámetros → Profit Factor". Este modelo da una
-   PREDICCIÓN y una INCERTIDUMBRE (qué tan seguro está).
-   - El método clásico usa un Gaussian Process (GP) como surrogate.
-3. **Función de adquisición:** decide la SIGUIENTE combinación equilibrando:
-   - *Exploitation* (probar donde el modelo predice alto PF) y
-   - *Exploration* (probar donde hay mucha incertidumbre, por si hay un óptimo
-     mejor escondido).
-4. **Repite** ~50–200 veces en vez de 10.000.
-
-Resultado: llega al óptimo con muchísimas menos evaluaciones caras.
+Params tipicos buscados: `displace_gap`, `bos_gap`, `require_displacement`, `tp_mode`.
 
 ---
 
-## 5. Por qué sirve para trading
+## 4. Código
 
-La literatura lo justifica: el optimizador bayesiano es ideal para funciones
-que son:
-
-- **Caras de evaluar:** correr un backtest completo puede tardar segundos,
-  minutos u horas (sobre todo con estrategias complejas o datasets grandes).
-- **Ruidosas:** los mercados financieros son inherentemente ruidosos; el PF de
-  una configuración puede variar un poco entre corridas.
-- **No-convexas:** la relación entre parámetros y rendimiento rara vez es una
-  curva suave; hay múltiples óptimos locales, difíciles de encontrar.
-
-El bayesiano está diseñado exactamente para "cajas negras" caras, ruidosas y
-no-convexas — que es precisamente lo que es un backtest.
+| Pieza | Ruta |
+|-------|------|
+| Optimización | `ict_backtest/optimize.py` |
+| Secuencia | `ict_backtest/sequence.py` |
+| Stats ML (DSR, PBO, …) | `ml/stats_validator.py` (estándar A7/A12) |
 
 ---
 
-## 6. El riesgo central: OVERFITTING
+## 5. Auditoría
 
-Todas las fuentes coinciden en esto. Si optimás los parámetros SOBRE los mismos
-datos con los que luego medís el resultado, el optimizador "memoriza" esos
-datos y te entrega una configuración que parece perfecta (PF alto) pero NO
-funciona en datos nuevos. Eso es overfitting (sobre-ajuste).
-
-En nuestro proyecto esto es crítico: con solo 11 trades (los que tiene hoy la
-Capa 2 en H4), un optimizador bayesiano sobre-ajustaría al instante y nos daría
-un PF falso. Por eso el volumen de muestras es requisito previo.
+| ID | Estado |
+|----|--------|
+| #5 WF dirección | ✅ corregida |
+| Capa 3 veredicto | Edge frágil (METRICS §3) |
+| Costos en corrida final | ⚠️ pendiente |
 
 ---
 
-## 7. La defensa estándar: WALK-FORWARD OPTIMIZATION
+## 6. Resultados
 
-La industria (QuantInsti y otras) usa Walk-Forward Optimization (WFO) para
-evitar el overfit:
-
-- En vez de un solo split optimizar→validar, WFO hace ciclos ROLLING:
-  1. Optimizás los parámetros en una ventana IN-SAMPLE (ej. 5 años).
-  2. Aplicás esos parámetros a la ventana OUT-OF-SAMPLE siguiente (ej. 1 año)
-     y registrás el rendimiento REAL en datos nunca vistos.
-  3. Corrés la ventana un paso y repetís.
-- Así la estrategia se valida en datos verdaderamente nuevos, no en los que se
-  optimizó. Refleja mejor el trading real (donde el mercado cambia).
-
-En SMC-SYSTEMS YA TENEMOS la base: `ml/walk_forward.py` existe en el repo.
-La Capa 3 debe usar WFO sobre sequence.py para validar sin overfit.
+[METRICS_CANON §3](../METRICS_CANON.md#3-ict_backtest-post-auditoría-2026-07-11):  
+mejores params in-sample y PF OOS 3.389±2.303 con **21 trades** — insuficiente para live.
 
 ---
 
-## 8. Librerías: Optuna vs scikit-optimize
+## 7. Checklist de aplicación
 
-- **Optuna** (RECOMENDADA, estándar 2025/26):
-  - `pip install optuna`.
-  - Usa TPE sampler (Tree-structured Parzen Estimator) + pruning (corta trials
-    que van mal para ahorrar tiempo).
-  - API simple: `study = optuna.create_study(direction="maximize")`,
-    `study.optimize(objective, n_trials=N)`. El `objective(trial)` encapsula el
-    backtest y devuelve el PF.
-  - Madura, activamente mantenida, bien documentada.
-- **scikit-optimize** (bayes-opt, Gaussian Process):
-  - Más simple conceptualmente, pero MENOS mantenida que Optuna.
-  - Útil si se quiere el GP "puro", pero Optuna es la opción segura hoy.
-
-Decisión del proyecto: usar **Optuna** para la Capa 3.
+- [ ] No lanzar Optuna hasta R4 (modelos aislados)  
+- [ ] Re-run con `--cost`  
+- [ ] A6 datos antes de A12  
+- [ ] Publicar solo en METRICS_CANON  
 
 ---
 
-## 9. Aplicación en SMC-SYSTEMS (nuestra Capa 3)
+## En resumen
 
-IMPLEMENTADO el 2026-07-11 en `ict_backtest/optimize.py` (Capa 3 real, no solo
-propuesta). Decisiones de diseño respecto al flujo teórico:
-
-1. **Walk-forward propio sobre el backtest**, NO reusar `ml/walk_forward.py`.
-   Ese módulo está acoplado a un clasificador ML (`train_model`, `load_dataset`,
-   `PurgedKFold`) y no aplica a sequence.py. La Capa 3 hace walk-forward DIVIDIENDO
-   el LTF en ventanas rolling: optimiza en la ventana IN-SAMPLE (ventana 0) y
-   valida los mejores parámetros en cada ventana OUT-OF-SAMPLE. El PF promedio
-   out-of-sample es la prueba de fuego contra el overfit.
-
-2. **Espacio de búsqueda** (4 parámetros de sequence.py):
-   - `displace_gap`: int 1..12
-   - `bos_gap`: int 1..16
-   - `require_displacement`: categorical [True, False]
-   - `tp_mode`: categorical ["fixed2r", "liquidity"]
-
-3. **Función objetivo**: corre `run_sequence` + `simulate_trade` sobre la
-   ventana in-sample y devuelve el PF. Penaliza con -1.0 si hay <5 trades o PF<=0
-   (así Optuna no "premía" configuraciones sin señales).
-
-4. **Optuna 4.9.0 ya estaba instalado** en el entorno (no hizo falta instalar).
-   Se usa `TPESampler(seed=42)` para reproducibilidad.
-
-5. **Alineación HTF/LTF robusta**: el estimator de HTF busca por TIEMPO
-   (`_row_at_time`), no por índice de posición, para que los slices de
-   walk-forward no se desalineen (bug corregido en la primera prueba).
-
-Comando de corrida seria:
-`python ict_backtest/optimize.py --symbol EURUSD --ltf M15 --trials 12 --n-windows 2 --max-hold 96`
-
-Comando rapido (validacion de pipeline, menos datos):
-`python ict_backtest/optimize.py --symbol EURUSD --ltf M15 --trials 2 --n-windows 2 --window-bars 12000`
-
-Flujo teórico original (de referencia):
-```
-objective(trial):
-    displace_gap       = trial.suggest_int("displace_gap", 1, 10)
-    bos_gap            = trial.suggest_int("bos_gap", 1, 10)
-    require_displacement = trial.suggest_categorical(..., [True, False])
-    tp_mode            = trial.suggest_categorical(..., ["2r", "swing", ...])
-    pf = run_sequence_backtest(params)
-    return pf
-study = optuna.create_study(direction="maximize")
-study.optimize(objective, n_trials=100)
-```
-
-Esto CONFIRMA (no contradice) lo acordado ayer:
-"ML = optimizador bayesiano + walk-forward anti-overfit. NO clasificador sobre
-señales (frágil, pocas muestras M15)."
-
----
-
-## 10. Por qué la opción (A) viene antes que la (B)
-
-Orden correcto según la evidencia:
-
-- **(A) Capa 2 en M15:** ganar volumen. M15 tiene ~50k velas (2 años) → cientos
-  de secuencias/trades, suficientes para que el optimizador aprenda algo que
-  GENERALICE.
-- **(B) Capa 3 (Optuna + walk-forward):** solo cuando ya hay volumen. Si la
-  metemos sobre 11 trades H4, el bayesiano sobre-ajusta (overfit) y el PF es
-  falso.
-
-La web lo dice textual: el overfitting ocurre al optimizar sobre pocas muestras.
-
----
-
-## 11. Glosario
-
-- **Profit Factor (PF):** ratio ingresos / pérdidas. PF>1 = rentable.
-- **Overfitting:** el modelo "memoriza" los datos de entrenamiento y falla con
-  datos nuevos.
-- **In-sample / Out-of-sample:** datos donde optimizás / datos donde validás.
-- **Walk-forward:** validación rolling in-sample→out-of-sample.
-- **Surrogate model:** modelo aproximado de la función real, barato de evaluar.
-- **Gaussian Process (GP):** modelo probabilístico clásico del surrogate.
-- **TPE:** Tree-structured Parzen Estimator, el sampler que usa Optuna.
-- **Pruning:** cortar trials que van mal para ahorrar tiempo de cómputo.
-
----
-
-## 12. Fuentes
-
-- Onepagecode — "Optimizing Trading Strategies with Bayesian Optimization"
-  (substack, feb 2026). Explicación de Grid/Random vs Bayes, modelo surrogate,
-  riesgo de overfitting.
-- QuantInsti (Ajay Pawar) — "Walk-Forward Optimization: How It Works, Its
-  Limitations, and Backtesting Implementation" (2025). Base de WFO anti-overfit.
-- MachineLearningMastery (Iván Palomares) — "Hyperparameter Optimization with
-  Optuna" (abril 2025). API de Optuna, `objective(trial)`, `study.optimize`.
-
----
-
-> Nota de trazabilidad: este libro se generó a partir de la investigación web
-> pedida por Ruben el 2026-07-11, previo a cualquier cambio de código en la
-> Capa 3. Estado del repo al escribirlo: main == origin/main (commit 7f06f48),
-> ict_backtest/ con Capa 2 (PF 1.132, 11 trades H4). Aún no se implementa
-> código de Capa 3.
+Este “libro” es el **manual de no mentirse con el optimizador**. El 10/10 no es más trials: es **definición de setup → medición limpia → WF → costos → decisión**.

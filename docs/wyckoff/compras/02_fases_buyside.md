@@ -50,5 +50,20 @@ La fase explosiva:
 El público recién identifica la tendencia aquí — usualmente tarde.
 
 ---
+
+## En SMC-SYSTEMS (código)
+
+| Fase | Señal en sistema | ICT equivalente |
+|------|------------------|-----------------|
+| A–B | Sesgo / rango HTF, agente Wyckoff | PO3 A |
+| C Spring | Stochastic exhaustion + sweep SSL | PO3 M / Turtle long |
+| D SOS/LPS | BOS alcista + OB | PO3 D / entrada |
+| E Markup | Tendencia BULLISH D1/H4 | Continuación |
+
+- Agente: `agents/wyckoff_agent.py`  
+- Cruce completo: `06_relacion_ict.md`  
+- Checklist aplicación: labels de fase en UI (pendiente R7)
+
+---
 *Espejo:* la distribución (ventas) es idéntica pero invertida — UTAD arriba en vez de
 Spring abajo, y el resultado es Markdown (bajista), no Markup.

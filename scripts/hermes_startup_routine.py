@@ -20,7 +20,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PY = r"C:\Python314\python.exe"
+_PY314 = r"C:\Python314\python.exe"
+PY = sys.executable if sys.executable else _PY314
 
 # Sin esta flag, cada subprocess.run abre su PROPIA consola negra al correr
 # desde la ventana de Hermes. CREATE_NO_WINDOW la suprime (Windows solo).
