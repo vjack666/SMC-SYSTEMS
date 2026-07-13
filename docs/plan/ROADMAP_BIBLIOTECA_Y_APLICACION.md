@@ -84,12 +84,12 @@
 | Experimento | Qué |
 |-------------|-----|
 | E1 | Baseline intradia mezcla (actual) |
-| E2 | Solo PO3 `complete=True` a-favor |
-| E3 | Solo Turtle Soup `counter_trend=True` |
-| E4 | Solo Silver Bullet (kz + sweep + FVG) |
-| E5 | Con `--cost` en todos |
+| E2 | Solo PO3 `complete=True` a-favor | ✅ E2 corrido: PF 0.286 (8 trades, muestra minima) — sin edge |
+| E3 | Solo Turtle Soup `counter_trend=True` | ✅ E3 corrido: PF 0.689 (466 trades) — pierde sistematicamente |
+| E4 | Solo Silver Bullet (kz + sweep + FVG) | ⏳ pendiente (sugerido antes de descartar ICT intradia M15) |
+| E5 | Con `--cost` en todos | ✅ E5 corrido: empeora (PO3 0.194, Turtle 0.511) |
 
-Reportar en `METRICS_CANON` § nuevo “Modelos aislados”.  
+**Estado 2026-07-13:** E2/E3/E5 completados y reportados en METRICS_CANON §8.1.  \n**Veredicto:** NINGUN modelo aislado supera el gate (PF ≥1.10). PO3 aislado = muestra  \nminima (8 trades), no concluyente; Turtle aislado = PF 0.689 concluyente sin edge.  \n**Decision:** NO Optuna sobre estos modelos; documentado "sin edge en EURUSD M15".  \nFalta E4 (Silver Bullet) para cerrar el analisis del stack ICT intradia en M15.
 **Gate:** no Optuna hasta que E2 o el modelo elegido tenga PF OOS medio ≥1.10 **y** ningún fold <1 **o** se documente “frágil aceptado para paper”.
 
 ---

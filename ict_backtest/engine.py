@@ -91,6 +91,10 @@ def build_signals_from_frames(
                            htf=htf, counter_trend=counter_trend)
         if not verdict["ready"]:
             continue
+        # R4 E2 — Medicion AISLADA de PO3: solo el ciclo COMPLETO (A+M+D),
+        # no señales parciales. Aisla el modelo PO3 del resto del intradia.
+        if model == "po3" and not verdict.get("complete"):
+            continue
         direction = 1 if verdict["direction"] == "LONG" else -1 if verdict["direction"] == "SHORT" else 0
         if direction == 0:
             continue

@@ -95,7 +95,45 @@ Fuente: `docs/ict/10_SWEEP_OTE_FILTRO.md`.
 
 ---
 
-## 7. Cómo citar desde un libro
+## 8. Modelos aislados (R4 — 2026-07-13)
+
+Medición AISLADA de cada modelo ICT, separado del mix intradia. Fuente:
+`ict_backtest/run_backtest.py --model {intradia,scalping,po3}`, motor vela-a-vela.
+Reporte por experimento (E1–E5 del roadmap R4).
+
+| Exp | Qué | Comando | Estado |
+|-----|-----|---------|--------|
+| E1 | Baseline intradia mezcla | `--model intradia` | histórico (§3/§4) |
+| E2 | **Solo PO3 `complete=True` a-favor** | `--model po3 --htf H4 --ltf M15` | 🔄 corriendo (EURUSD M15) |
+| E3 | Solo Turtle Soup `counter_trend=True` | `--model intradia --counter-trend` | ⏳ pendiente E2 |
+| E4 | Solo Silver Bullet (kz + sweep + FVG) | `--model scalping` | ⏳ pendiente |
+| E5 | Con `--cost` en todos | `+ --cost` | ⏳ pendiente |
+
+**Gate R4:** no Optuna hasta que E2 (o el modelo elegido) tenga **PF OOS medio ≥ 1.10**
+**y** ningún fold < 1, **o** se documente "frágil aceptado para paper".
+
+### 8.1 E2 / E3 / E5 — PO3 y Turtle aislados (EURUSD M15, H4 sesgo, 2024-07→2026-07)
+
+Fuente: `results/r4/r4_chain_20260713T161349Z.json` (`scripts/r4_chain.py`, 4 workers).
+
+| Exp | Modelo | Cost | PF | WR | Trades | Exp(R) | Total R | MaxDD R |
+|-----|--------|------|----|----|--------|--------|---------|---------|
+| E2 | PO3 completo a-favor | sin | **0.286** | 12.5% | 8 | -0.625 | -5.0 | -6.0 |
+| E3 | Turtle Soup (CT) | sin | **0.689** | 26.4% | 466 | -0.228 | -106.4 | -112.8 |
+| E5 | PO3 completo a-favor | con (0.8/0.5/0.3) | **0.194** | 12.5% | 8 | -0.745 | -6.0 | -6.3 |
+| E5 | Turtle Soup (CT) | con (0.8/0.5/0.3) | **0.511** | 26.4% | 466 | -0.386 | -180.0 | -181.6 |
+
+**Veredicto R4 (gate):** NINGUNO supera PF ≥ 1.10. PO3 aislado además tiene
+**muestra minima (8 trades / 2 anos)** → no concluyente, pero claramente sin edge.
+Turtle Soup aislado (466 trades) es concluyente: **PF 0.689 sin cost, 0.511 con
+cost → pierde sistematicamente**. Con costos empeora (esperable: mas friccion).
+
+**Decision:** NO Optuna sobre estos modelos aislados (no cumplen el gate). Se
+documenta como **"modelos aislados sin edge en EURUSD M15 — no promovidos"**.
+El PF 1.61 del §4 era del pipeline ML combinado, NO de PO3/Turtle puros.
+
+**Siguiente paso sugerido:** probar E4 (Silver Bullet, `--model scalping`, otro
+regimen de killzone) antes de descartar el stack ICT intradia en M15.
 
 ```markdown
 Métricas: ver [METRICS_CANON §3](../METRICS_CANON.md#3-ict_backtest-post-auditoría-2026-07-11).

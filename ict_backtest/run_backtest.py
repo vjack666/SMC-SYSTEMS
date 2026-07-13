@@ -59,7 +59,8 @@ def _metrics(pnls: list[float]) -> dict[str, float]:
 def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            counter_trend: bool = False, tp_mode: str = "fixed2r",
                            require_displacement: bool = True,
-                           displace_gap: int = 6, bos_gap: int = 10) -> dict:
+                           displace_gap: int = 6, bos_gap: int = 10,
+                           cost: dict | None = None) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden)."""
     tfs = tuple(dict.fromkeys([htf, ltf, "D1"]))
     tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
@@ -120,7 +121,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     exits: dict[str, int] = {}
     total = len(signals)
     for k, sig in enumerate(signals, 1):
-        trade, meta = simulate_trade(ltf_df, sig, max_hold)
+        trade, meta = simulate_trade(ltf_df, sig, max_hold, cost=cost)
         if trade is not None:
             pnls.append(trade.pnl_r)
             exits[meta["exit_reason"]] = exits.get(meta["exit_reason"], 0) + 1
@@ -144,7 +145,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
 
 def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
         counter_trend: bool = False, tp_mode: str = "fixed2r",
-        require_displacement: bool = False) -> dict:
+        require_displacement: bool = False, cost: dict | None = None) -> dict:
     tfs = tuple(dict.fromkeys([htf, ltf, "D1"]))  # unicos, D1 para contexto
     tag = f"{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
     print(f"[1/3] Cargando frames {symbol} {tfs} + features ICT ...", flush=True)
@@ -167,7 +168,7 @@ def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
     exits: dict[str, int] = {}
     total = len(signals)
     for k, sig in enumerate(signals, 1):
-        trade, meta = simulate_trade(ltf_df, sig, max_hold)
+        trade, meta = simulate_trade(ltf_df, sig, max_hold, cost=cost)
         if trade is not None:
             pnls.append(trade.pnl_r)
             exits[meta["exit_reason"]] = exits.get(meta["exit_reason"], 0) + 1
@@ -194,11 +195,15 @@ def main() -> None:
     ap.add_argument("--symbol", default="XAUUSD")
     ap.add_argument("--htf", default="D1")
     ap.add_argument("--ltf", default="H4")
-    ap.add_argument("--model", default="intradia", choices=["intradia", "scalping"])
+    ap.add_argument("--model", default="intradia", choices=["intradia", "scalping", "po3"],
+                    help="po3 = SOLO ciclo PO3 completo (R4 E2, medicion aislada)")
     ap.add_argument("--max-hold", type=int, default=16)
     ap.add_argument("--counter-trend", action="store_true")
     ap.add_argument("--tp-mode", default="fixed2r", choices=["fixed2r", "liquidity"])
     ap.add_argument("--require-displacement", action="store_true")
+    ap.add_argument("--cost", default=None,
+                    help="costos en pips 'spread,commission,slippage' "
+                         "(ej 0.8,0.5,0.3). Si se omite, sin costos (teorico).")
     ap.add_argument("--no-displacement", action="store_true",
                     help="no exigir vela de displacement (sequence engine)")
     ap.add_argument("--sweep", action="store_true",
@@ -211,11 +216,17 @@ def main() -> None:
                     help="checklist=mini-check dashboard (PARTE 2); sequence=event-sequence (Capa 2)")
     args = ap.parse_args()
 
+    cost = None
+    if args.cost:
+        sp, cp, slp = (float(x) for x in args.cost.split(","))
+        cost = {"spread_pips": sp, "commission_pips": cp, "slippage_pips": slp}
+
     if args.engine == "sequence":
         run_sequence_backtest(args.symbol, args.htf, args.ltf, args.max_hold,
                               counter_trend=args.counter_trend, tp_mode=args.tp_mode,
                               require_displacement=not args.no_displacement,
-                              displace_gap=args.displace_gap, bos_gap=args.bos_gap)
+                              displace_gap=args.displace_gap, bos_gap=args.bos_gap,
+                              cost=cost)
         return
 
     if args.sweep:
@@ -228,13 +239,13 @@ def main() -> None:
         print("### SWEEP PARTE 2.1 (XAUUSD D1->H4) ###")
         for name, kw in variants:
             print(f"\n----- {name} -----")
-            m = run(args.symbol, args.htf, args.ltf, args.model, args.max_hold, **kw)
+            m = run(args.symbol, args.htf, args.ltf, args.model, args.max_hold, cost=cost, **kw)
             print(f">>> {name}: PF={m['pf']:.3f} WR={m['winrate']*100:.1f}% trades={m['trades']} R={m['total_r']:.1f}")
         return
 
     run(args.symbol, args.htf, args.ltf, args.model, args.max_hold,
         counter_trend=args.counter_trend, tp_mode=args.tp_mode,
-        require_displacement=args.require_displacement)
+        require_displacement=args.require_displacement, cost=cost)
 
 
 if __name__ == "__main__":
