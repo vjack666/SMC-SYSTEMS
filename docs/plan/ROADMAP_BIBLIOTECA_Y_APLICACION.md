@@ -32,7 +32,7 @@
 
 ### R0 — Congelar contratos (0.5 día) · docs only
 - [x] Contratos §0 en libros (PO3 A/M/D, FVG, OB, Sweep, Turtle, Silver Bullet, Killzones).
-- [ ] Revisar con operador (Ruben/Eva): ¿aceptamos el “PO3 completo” tal cual?
+- [x] Revisar con operador (Ruben/Eva): ¿aceptamos el "PO3 completo" tal cual? **DECIDIDO 2026-07-13: SÍ, PO3 completo (A+M+D obligatorias) aprobado tal cual por libro 08. Base para R1 `po3_state`.**
 
 **Criterio de done:** checklist firmado o “approved” en este archivo.
 
