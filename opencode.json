@@ -10,10 +10,20 @@
     }
   },
   "instructions": [
-    "harness/README.md",
-    "COMPLETION_REPORT.md"
+    "docs/plan/PROJECT_PROTOCOL.md",
+    "docs/plan/VISION.md",
+    "docs/plan/PRD.md",
+    "docs/plan/SRS.md",
+    "docs/plan/SAD.md",
+    "docs/plan/RFC-001_actualizacion_biblioteca_ict.md",
+    "docs/plan/ADR-021_filosofia_documentacion_ict.md",
+    "docs/plan/ROADMAP_BIBLIOTECA_Y_APLICACION.md",
+    "docs/METRICS_CANON.md",
+    "AGENTS.md",
+    "README.md",
+    "COMPLETION_REPORT.md",
+    "harness/README.md"
   ],
-
   "skills": {
     "paths": [".opencode/skills"]
   }

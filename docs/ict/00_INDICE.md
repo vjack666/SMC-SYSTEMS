@@ -68,3 +68,9 @@ Trazabilidad: **regla (§0) → detector → pipeline → backtest → métrica 
 ---
 
 *Biblioteca reescrita 2026-07-12 para calidad 10/10 documental. Los checkboxes de código viven en el roadmap de aplicación.*
+
+---
+
+## Inventario de estrategias materializadas (código ↔ grafo)
+
+- `12_ESTRATEGIAS_COMPLETAS.md` — Inventario real de TODAS las estrategias ICT ya materializadas en código (PO3, Turtle Soup, Silver Bullet, motor event-sequence, pipeline en vivo), anclado al código + grafo. **Creado 2026-07-12:** corrige que el TP/RR YA está implementado en `engine.py` (`fixed2r`/`liquidity`), no es hueco; documenta la fragmentación en 4 islas del grafo (comunidades 0/25/27/197, 0 aristas). [Pendiente revisión Ruben — sin commit.]
