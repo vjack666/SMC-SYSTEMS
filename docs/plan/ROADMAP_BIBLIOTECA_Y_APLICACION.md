@@ -70,12 +70,12 @@
 
 | Hueco (libro) | Acción |
 |---------------|--------|
-| Liquidez pinta ≠ sweep filtra (`05`) | Unificar o documentar adapter único `liquidity_context` consumido por pipeline |
-| OTE ~1% no-op (`10`) | Ajustar bandas o desactivar peso hasta WF OOS del test propuesto |
+| Liquidez pinta ≠ sweep filtra (`05`) | Unificar o documentar adapter único `liquidity_context` consumido por pipeline | ✅ R3: `detectors/liquidity_context.py` (`canonical_sweep`); `detect_bos` + `signals/pipeline.py` delegan |
+| OTE ~1% no-op (`10`) | Ajustar bandas o desactivar peso hasta WF OOS del test propuesto | 🔶 R4 (decisión + walk-forward; no es código) |
 | Open del día en PO3 (`08`) | Feature `session_open` + filtro manipulación vs open | ✅ PO3-2 (R3): `compute_session_open` + filtro duro en `signals/po3.py` |
-| CHOCH→BOS gate off (`02`) | Re-medir en XAUUSD + costos; no forzar en EURUSD naive |
+| CHOCH→BOS gate off (`02`) | Re-medir en XAUUSD + costos; no forzar en EURUSD naive | ✅ gate cableado (default OFF); re-medición en XAUUSD = R4 |
 
-**Criterio de done:** cada hueco = issue cerrado o “wontfix” con razón en METRICS/ libro.
+**Criterio de done:** cada hueco = issue cerrado o "wontfix" con razón en METRICS/ libro.  \n**Estado 2026-07-13:** R3 completo en arquitectura — PO3-2 y Liquidez (05) cerrados con código + tests; OTE (10) y CHOCH-gate (02) resueltos como trabajo de R4 (medición/decisiones, no arquitectura).
 
 ---
 

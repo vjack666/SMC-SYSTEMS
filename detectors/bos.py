@@ -71,10 +71,13 @@ def detect_bos(frame: pd.DataFrame, config: BosConfig | None = None) -> pd.DataF
     data["swing_high"], data["swing_low"] = _swing_points(data, config.swing_lookback)
     data["swing_label"] = _label_swings(data["swing_high"], data["swing_low"])
 
-    prior_low = data["low"].rolling(config.liquidity_lookback).min().shift(1)
-    prior_high = data["high"].rolling(config.liquidity_lookback).max().shift(1)
-    data["liquidity_sweep_down"] = (data["low"] < prior_low) & (data["close"] > prior_low)
-    data["liquidity_sweep_up"] = (data["high"] > prior_high) & (data["close"] < prior_high)
+    # Sweep canonico compartido (libro 05 §0 #3) via detectors.liquidity_context.
+    # detect_bos delega en la UNICA fuente de verdad del repo.
+    from detectors.liquidity_context import canonical_sweep
+
+    swept = canonical_sweep(data, lookback=config.liquidity_lookback, min_periods=None)
+    data["liquidity_sweep_down"] = swept["liquidity_sweep_down"]
+    data["liquidity_sweep_up"] = swept["liquidity_sweep_up"]
 
     data["recent_sweep_down"] = (
         data["liquidity_sweep_down"].astype(int).rolling(config.followthrough_bars, min_periods=1).max().astype(bool)

@@ -260,11 +260,14 @@ def build_scalping_context(
 
     # --- Item D: sweep + OTE (macro_direction ya existe) ---
     _step(10, "sweep + OTE filters...")
-    sh = data.get("swing_high", data["high"].rolling(5, min_periods=2).max().shift(1))
-    sl = data.get("swing_low", data["low"].rolling(5, min_periods=2).min().shift(1))
-    bearish_sweep = (data["high"] > sh) & (data["close"] < sh)
-    bullish_sweep = (data["low"] < sl) & (data["close"] > sl)
-    data["liquidity_sweep_detected"] = (bearish_sweep | bullish_sweep).to_numpy()
+    # Sweep canonico compartido (libro 05 §0 #3) via detectors.liquidity_context.
+    # Mismo horizonte (5) y ventana minima (2) que antes; la LOGICA ahora es unica.
+    from detectors.liquidity_context import canonical_sweep
+
+    swept = canonical_sweep(data, lookback=5, min_periods=2)
+    data["liquidity_sweep_detected"] = (
+        swept["liquidity_sweep_down"] | swept["liquidity_sweep_up"]
+    ).to_numpy()
     data["recent_liquidity_sweep"] = (
         data["liquidity_sweep_detected"].rolling(config.sweep_lookback, min_periods=1).max().astype(bool).to_numpy()
     )

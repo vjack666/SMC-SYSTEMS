@@ -6,7 +6,7 @@
 | **Versión** | 2.0 (10/10) |
 | **Fecha** | 2026-07-12 |
 | **Estándar** | ADR-021 |
-| **Estado** | Stable (docs) · Needs-code (unificar fuente) |
+| **Estado** | Stable (docs) · ✅ fuente única de liquidez unificada (R3 2026-07-13) |
 | **Métricas** | [METRICS_CANON](../METRICS_CANON.md) |
 
 ---
@@ -82,7 +82,7 @@ La señal **sí** usa sweep; la “fuente de liquidez” visual **no** es la mis
 
 | ID | Estado |
 |----|--------|
-| Hueco pinta≠filtra | 🔴 R3 |
+| Hueco pinta≠filtra | ✅ R3 (`detectors/liquidity_context.py`: `canonical_sweep` única fuente; `detect_bos` y `signals/pipeline.py` delegan) |
 | #1 pivots | ✅ sin fuga en diseño actual |
 | Prevalencia sweep ~66% M15 | ver METRICS §6 |
 
@@ -95,10 +95,11 @@ La señal **sí** usa sweep; la “fuente de liquidez” visual **no** es la mis
 ---
 
 ## 7. Checklist de aplicación
-
-- [ ] Unificar o envolver liquidez+sweep en un contexto  
-- [ ] UI: “sweep de señal” vs “zona pintada” etiquetados  
-- [ ] Tests de definición única de sweep  
+- [x] Unificar o envolver liquidez+sweep en un contexto  (R3: `detectors/liquidity_context.py`)
+- [x] UI/backtest/pipeline usan la misma `canonical_sweep`  (`detect_bos` y `signals/pipeline.py` delegan)
+- [x] Tests de definición única de sweep  (`tests/test_liquidity_context.py`)
+- [ ] Mapa (`scripts/mapa_precio.py`) importar zonas BSL/SSL desde `build_liquidity_context` (pendiente KZ-2-like; no bloquea R3)
+- [ ] `adapters/feature_enrichment_adapter._detect_liquidity_sweeps` (swing-based, para el agente) documentar como excepción señalada: usa swings, no prior-extreme; revisar en R3.5 si se unifica al agente
 
 ---
 
