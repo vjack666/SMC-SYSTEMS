@@ -40,6 +40,7 @@ class PO3State:
     complete: bool = False
     direction: str = "NEUTRAL"
     aligned: bool = False
+    broke_open: bool = False
     incomplete_reason: list[str] = field(default_factory=list)
 
     def phases_present(self) -> str:
@@ -115,22 +116,64 @@ def _phase_a(estructura: dict, bias: str, htf: str) -> bool:
     return _has_htf_bias(bias) or _has_session_range(estructura, htf)
 
 
-def _phase_m(estructura: dict, bias: str, htf: str, exec_tf: str) -> bool:
+def _phase_m(estructura: dict, bias: str, htf: str, exec_tf: str) -> tuple[bool, bool]:
     """M — Manipulation: sweep EN CONTRA del sesgo (caza de stops).
 
     sweep_opposes_bias:
       - sesgo BULLISH  -> el sweep debe ser BAJISTA (sweep_down, barre SSL)
       - sesgo BEARISH  -> el sweep debe ser ALCISTA (sweep_up, barre BSL)
     Si no hay sesgo (NEUTRAL) no hay manipulacion en contra definible -> False.
+
+    Filtro duro del OPEN DEL DIA (R3 / PO3-2, docs/ict/08_POWER_OF_THREE.md
+    paso 3): si el llamador pobló `estructura["D1"]["session_open"]` (precio de
+    la vela D1 YA CERRADA, sin look-ahead), la manipulacion debe romper ese
+    open. Es decir: el sweep en contra ademas debe haber quebrado el open del
+    día (low < open si es sweep bajista; high > open si es alcista). Si NO hay
+    session_open en el dict, se degrada al comportamiento R1 (solo sweep en
+    contra) para no romper pipelines que aun no lo calculan.
+
+    Devuelve (presente, broke_open) para que la UI informe si la trampa fue
+    mas alla del open del dia.
     """
     if not _has_htf_bias(bias):
-        return False
+        return False, False
     sw = _sweep_dir(estructura, (htf, exec_tf))
+    opposes = (bias == "BULLISH" and sw == "down") or (bias == "BEARISH" and sw == "up")
+    if not opposes:
+        return False, False
+
+    session_open = estructura.get("D1", {}).get("session_open")
+    if session_open is None:
+        # Sin ancla de open del dia: comportamiento R1 (sweep en contra basta).
+        return True, False
+
+    # Con ancla: exigir que el sweep haya roto el open del dia.
+    m15 = estructura.get(exec_tf, {})
     if bias == "BULLISH":
-        return sw == "down"
-    if bias == "BEARISH":
-        return sw == "up"
-    return False
+        # Manipulacion bajista: el low del TF de ejecucion debe haber roto el open.
+        low = m15.get("sweep_low") if m15.get("sweep_low") is not None else m15.get("low")
+        broke = low is not None and float(low) < float(session_open)
+    else:
+        high = m15.get("sweep_high") if m15.get("sweep_high") is not None else m15.get("high")
+        broke = high is not None and float(high) > float(session_open)
+    return broke, broke
+
+
+def compute_session_open(d1_df) -> float | None:
+    """Precio de apertura del dia ANTERIOR ya cerrado (sin look-ahead).
+
+    Recibe un DataFrame D1 ordenado cronologicamente. Usa la ULTIMA vela del
+    DataFrame asumiendo que el llamador YA dejo fuera la vela del dia en curso
+    (regla dura del libro 08: open = vela ya cerrada, no la del dia en curso).
+    Si el DataFrame tiene la vela en curso, el llamador debe pasar el slice
+    hasta iloc[-2]. Devuelve None si no hay datos.
+    """
+    if d1_df is None or len(d1_df) == 0:
+        return None
+    try:
+        return float(d1_df["open"].iloc[-1])
+    except (KeyError, IndexError, ValueError, TypeError):
+        return None
 
 
 def _phase_d(estructura: dict, bias: str, exec_tf: str, m_present: bool) -> tuple[bool, str]:
@@ -178,7 +221,7 @@ def build_po3_state(
     exec_tf, htf : timeframes de ejecucion y contexto
     """
     a = _phase_a(estructura, bias, htf)
-    m = _phase_m(estructura, bias, htf, exec_tf)
+    m, broke_open = _phase_m(estructura, bias, htf, exec_tf)
     d, _ = _phase_d(estructura, bias, exec_tf, m)
 
     dir_setup = _dir_setup(bias, votes, estructura.get(exec_tf, {}), counter_trend=False)
@@ -207,6 +250,7 @@ def build_po3_state(
         complete=complete,
         direction=dir_setup,
         aligned=aligned,
+        broke_open=broke_open,
         incomplete_reason=reasons,
     )
 
@@ -233,7 +277,7 @@ def evaluate_po3(
     st = build_po3_state(estructura, bias, votes, exec_tf=exec_tf, htf=htf)
     checks = [
         f"OK: Sesgo HTF: {bias}." if st.A else "FALTA: A (sesgo HTF o rango de sesion).",
-        f"OK: Sweep en contra del sesgo (M)." if st.M else "FALTA: M (sweep en contra del sesgo).",
+        f"OK: Sweep en contra del sesgo (M){' + roto open del dia' if st.broke_open else ''}." if st.M else "FALTA: M (sweep en contra del sesgo).",
         f"OK: CHOCH/BOS a favor + FVG/OB (D)." if st.D else "FALTA: D (CHOCH/BOS a favor + zona tras M).",
         f"OK: Direccion alineada ({st.direction})." if st.aligned else "FALTA: alineacion a-favor (seria Turtle Soup).",
     ]
@@ -244,6 +288,7 @@ def evaluate_po3(
         "complete": st.complete,
         "direction": st.direction,
         "aligned": st.aligned,
+        "broke_open": st.broke_open,
         "incomplete_reason": st.incomplete_reason,
         "checks": checks,
         "passed": passed,

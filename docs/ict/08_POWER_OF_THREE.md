@@ -125,7 +125,7 @@ complete = A and M and D and aligned
 | #2 | CHOCH real necesario para D genuino | ✅ Fix |
 | #5 | WF pasado→futuro | ✅ Fix dirección |
 | PO3-1 | No hay `complete` A/M/D en código | ✅ R1 (`signals/po3.py`) |
-| PO3-2 | Open del día no es filtro duro | 🔴 R3 |
+| PO3-2 | Open del día no es filtro duro | ✅ R3 (`signals/po3.py`: `compute_session_open` + filtro duro en M) |
 | PO3-3 | No hay métricas **aisladas** de PO3 | 🔴 R4 |
 | PO3-4 | Mezcla con Turtle en `intradia` | ✅ R1.2 (`evaluate(model="po3")` separado) |
 
@@ -147,6 +147,7 @@ Tras R4, añadir § “PO3 only” en METRICS_CANON.
 - [ ] Backtest solo-PO3 + costos → METRICS_CANON (R4)
 - [ ] Shadow en diario ("hubiera entrado PO3") (R5)
 - [x] Tests sintéticos sin look-ahead — `tests/test_po3.py`
+- [x] Open del día como filtro duro de M (`session_open` + `broke_open`) — R3 `signals/po3.py`
 
 ---
 

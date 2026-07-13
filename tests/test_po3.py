@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from signals.po3 import build_po3_state, evaluate_po3  # noqa: E402
+from signals.po3 import build_po3_state, evaluate_po3, compute_session_open  # noqa: E402
 from ict_backtest.rules import evaluate  # noqa: E402
 
 
@@ -167,3 +167,98 @@ def test_evaluate_po3_separado_de_turtle():
     st = build_po3_state(est, "BULLISH")
     assert st.aligned is False  # seria Turtle Soup
     assert st.complete is False
+
+
+# ---------------------------------------------------------------------------
+# R3 — PO3-2: open del dia como filtro duro de la manipulacion (M)
+# ---------------------------------------------------------------------------
+
+def test_m_sin_session_open_degrada_a_r1():
+    """Sin session_open en el dict, M = solo sweep en contra (comportamiento R1)."""
+    est = _est(
+        bias="BULLISH",
+        d1_trend="BULLISH",
+        h4_trend="BULLISH",
+        m15={"sweep_down": True},  # sweep en contra pero sin ancla de open
+    )
+    st = build_po3_state(est, "BULLISH")
+    assert st.M is True
+    assert st.broke_open is False  # no hay ancla -> no puede saber si rompio el open
+
+
+def test_m_requiere_romper_open_cuando_presente():
+    """Con session_open, M exige que el sweep haya roto el open del dia."""
+    est = _est(
+        bias="BULLISH",
+        d1_trend="BULLISH",
+        h4_trend="BULLISH",
+        m15={"sweep_down": True, "low": 1.0900},  # low por debajo del open
+    )
+    est["D1"]["session_open"] = 1.0950
+    st = build_po3_state(est, "BULLISH")
+    assert st.M is True
+    assert st.broke_open is True
+
+
+def test_m_no_rompe_open_incompleto():
+    """Sweep en contra pero NO rompe el open -> M False (filtro duro)."""
+    est = _est(
+        bias="BULLISH",
+        d1_trend="BULLISH",
+        h4_trend="BULLISH",
+        m15={"sweep_down": True, "low": 1.0980},  # low por encima del open
+    )
+    est["D1"]["session_open"] = 1.0950
+    st = build_po3_state(est, "BULLISH")
+    assert st.M is False
+    assert st.broke_open is False
+
+
+def test_m_rompe_open_short():
+    """Sesgo bajista: el sweep alcista debe superar el open del dia."""
+    est = _est(
+        bias="BEARISH",
+        d1_trend="BEARISH",
+        h4_trend="BEARISH",
+        m15={"sweep_up": True, "high": 1.1020},
+    )
+    est["D1"]["session_open"] = 1.1000
+    st = build_po3_state(est, "BEARISH")
+    assert st.M is True
+    assert st.broke_open is True
+
+
+def test_compute_session_open_ultima_vela_cerrada():
+    """compute_session_open usa la ultima vela (ya cerrada) del DataFrame D1."""
+    import pandas as pd
+
+    d1 = pd.DataFrame({"open": [1.0900, 1.0950, 1.1000]})
+    assert compute_session_open(d1) == 1.1000
+
+
+def test_compute_session_open_vacio():
+    assert compute_session_open(None) is None
+    import pandas as pd
+
+    assert compute_session_open(pd.DataFrame({"open": []})) is None
+
+
+def test_complete_requiere_open_roto_si_presente():
+    """Ciclo A+M+D pero M no rompio el open -> incomplete cuando hay ancla."""
+    est = _est(
+        bias="BULLISH",
+        d1_trend="BULLISH",
+        h4_trend="BULLISH",
+        m15={
+            "sweep_down": True,
+            "low": 1.0980,           # NO rompe el open (filtro duro)
+            "bos_dir": 1,
+            "bos_status": "active",
+            "fvg_state": "bullish",
+        },
+    )
+    est["D1"]["session_open"] = 1.0950
+    st = build_po3_state(est, "BULLISH")
+    assert st.M is False
+    assert st.complete is False
+    assert "M" in "".join(st.incomplete_reason)

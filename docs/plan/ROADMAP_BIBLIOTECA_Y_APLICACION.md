@@ -72,7 +72,7 @@
 |---------------|--------|
 | Liquidez pinta ≠ sweep filtra (`05`) | Unificar o documentar adapter único `liquidity_context` consumido por pipeline |
 | OTE ~1% no-op (`10`) | Ajustar bandas o desactivar peso hasta WF OOS del test propuesto |
-| Open del día en PO3 (`08`) | Feature `session_open` + filtro manipulación vs open |
+| Open del día en PO3 (`08`) | Feature `session_open` + filtro manipulación vs open | ✅ PO3-2 (R3): `compute_session_open` + filtro duro en `signals/po3.py` |
 | CHOCH→BOS gate off (`02`) | Re-medir en XAUUSD + costos; no forzar en EURUSD naive |
 
 **Criterio de done:** cada hueco = issue cerrado o “wontfix” con razón en METRICS/ libro.
