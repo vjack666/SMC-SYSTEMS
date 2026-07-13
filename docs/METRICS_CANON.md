@@ -3,8 +3,10 @@
 **Única fuente de números de performance para la documentación.**  
 Los libros ICT/Wyckoff **no inventan** PF/WR: enlazan aquí o a reportes crudos.
 
-**Actualizado:** 2026-07-12  
+**Actualizado:** 2026-07-13  
 **Regla:** si un número cambia en código/corrida, se actualiza **solo este archivo** (+ el reporte crudo). Los libros citan la sección, no copian cifras sueltas.
+
+> **Pendiente R6 (reloj profesional):** tras cerrar HTF closed-only + next-open + costs default (`docs/plan/PLAN_BACKTEST_PROFESIONAL.md`), re-medir Capa 2/3 y **reemplazar** las cifras de §3 si cambian. Hasta entonces, §3 sigue siendo post-auditoría swing/CHOCH (2026-07-11), **sin** fix multi-TF incompleto.
 
 ---
 
@@ -123,17 +125,72 @@ Fuente: `results/r4/r4_chain_20260713T161349Z.json` (`scripts/r4_chain.py`, 4 wo
 | E5 | PO3 completo a-favor | con (0.8/0.5/0.3) | **0.194** | 12.5% | 8 | -0.745 | -6.0 | -6.3 |
 | E5 | Turtle Soup (CT) | con (0.8/0.5/0.3) | **0.511** | 26.4% | 466 | -0.386 | -180.0 | -181.6 |
 
-**Veredicto R4 (gate):** NINGUNO supera PF ≥ 1.10. PO3 aislado además tiene
-**muestra minima (8 trades / 2 anos)** → no concluyente, pero claramente sin edge.
-Turtle Soup aislado (466 trades) es concluyente: **PF 0.689 sin cost, 0.511 con
-cost → pierde sistematicamente**. Con costos empeora (esperable: mas friccion).
+### 8.2 R4 v2 / v2.5 — displacement ON + re-medicion (2026-07-13)
 
-**Decision:** NO Optuna sobre estos modelos aislados (no cumplen el gate). Se
-documenta como **"modelos aislados sin edge en EURUSD M15 — no promovidos"**.
-El PF 1.61 del §4 era del pipeline ML combinado, NO de PO3/Turtle puros.
+**v2** (`results/r4/r4v2_chain_20260713T172623Z.json`, 8 workers):
+displacement ON, confirm_bars=2 (default motor). EURUSD+GBPUSD, M15.
 
-**Siguiente paso sugerido:** probar E4 (Silver Bullet, `--model scalping`, otro
-regimen de killzone) antes de descartar el stack ICT intradia en M15.
+| Exp | Modelo | PF | WR | Trades | Total R |
+|-----|--------|----|----|--------|---------|
+| EURUSD | Turtle+disp | **1.143** | 36.4% | 11 | +1.0 |
+| GBPUSD | Turtle+disp | 0.533 | 21.1% | 19 | -7.0 |
+| EURUSD | PO3+disp | 0.000 | 0% | 1 | -1.0 |
+| GBPUSD | PO3+disp | 0.000 | 0% | 0 | 0 |
+| EURUSD | Silver+disp (M15) | 0.000 | 0% | 0 | 0 |
+| GBPUSD | Silver+disp (M15) | 0.000 | 0% | 0 | 0 |
+| EURUSD | PO3+disp+cost | 0.000 | 0% | 1 | -1.1 |
+| EURUSD | Turtle+disp+cost | 0.920 | 36.4% | 11 | -0.6 |
+
+| **v2.5** (`results/r4/r4v25_chain_20260713T182942Z.json`, 4 workers):
+| Silver Bullet con M5 reales (50k bajadas via MT5) + PO3 remedir.
+| (ANTES de los parches de TF/mapeo — Silver/PO3 silenciados).
+| | EURUSD | Silver+disp (M5) | 0.000 | 0% | 0 |
+| | GBPUSD | Silver+disp (M5) | 0.000 | 0% | 0 |
+| | EURUSD | PO3+disp (M15) | 0.000 | 0% | 1 |
+| | GBPUSD | PO3+disp (M15) | 0.000 | 0% | 0 |
+|
+| **v2.6** (`results/r4/r4v26_chain_20260713T192129Z.json`, 4 workers):
+| MISMOS experimentos PERO con los 3 parches aplicados (TF dinamico +
+| choch_status mapeado). displacement ON.
+| | EURUSD | Silver+disp (M5) | 0.000 | 0% | **0** |
+| | GBPUSD | Silver+disp (M5) | 0.000 | 0% | **0** |
+| | EURUSD | PO3+disp (M15) | **2.000** | 50% | 2 |
+| | GBPUSD | PO3+disp (M15) | 0.000 | 0% | 1 |
+
+### HALLAZGO CRITICO (investigacion automatica 2026-07-13)
+
+**Parches aplicados (autorizados por Ruben, SIN commit — regla de hierro):**
+1. `rules.checklist_scalping` l.198: sweep busca el TF cargado (M5/M15/M1),
+   no "M15" hardcoded.
+2. `rules.checklist_scalping` l.181: direccion usa el exec TF cargado.
+3. `engine._build_estructura` l.251: `choch_status` mapeado desde
+   `choch_signal` (el PO3 en backtest ignoraba el CHOCH).
+
+**Resultado de los parches:**
+- Silver Bullet paso de 0 → **122 senales "ready"** en EURUSD M5 (50k velas).
+  El backtest SÍ lo detecta ahora. PERO el filtro `require_displacement`
+  (R4 v2, que SI mejoro Turtle 0.689→1.143) **mata TODAS las 122**:
+  0 de las 122 velas ready tienen displacement en M5. Silver Bullet (ruptura
+  rapida NY AM) es INCOMPATIBLE con el filtro displacement. R4 v2.6 Silver = 0
+  trades NO es bug ni "sin edge": es régimen incompatible.
+  (Siguiente paso: re-medir Silver SIN --require-displacement.)
+- PO3 paso de 1→2 senales EURUSD, PF 0.000→**2.000** (50% WR). El
+  mapeo choch funciono: el PO3 ahora ve el CHOCH. PERO 2 trades = muestra
+  INSUFICIENTE (requiere >=30 para conclusion). GBPUSD: 1 trade.
+
+**Veredicto R4 (gate) — FINAL:**
+- **Turtle Soup: UNICO medido honestamente.** EURUSD PF 1.143 (11t, roza
+  gate ligero) / GBPUSD PF 0.533 (19t, PIERDE). NO cumple gate robusto.
+- **PO3:** parche choch funciono (PF 2.000 EURUSD) PERO muestra insuficiente
+  (2-3 trades). No concluyente. Necesita mas simbolos o ventana mas larga.
+- **Silver Bullet:** 122 setups teoricos, 0 ejecutables con displacement. El
+  filtro displacement (que ayudo a Turtle) lo anula. Re-medir SIN displacement.
+- El PF 1.61 del §4 era del pipeline ML combinado, NO de modelos puros.
+
+**Decision actual:** NO Optuna sobre modelos aislados. Turtle no cumple gate
+robusto; PO3 muestra insuficiente; Silver pendiente de re-medicion sin
+displacement. Parches de backtest aplicados y verificados (smoke 122 ready),
+SIN commit por regla de hierro de Ruben.
 
 ```markdown
 Métricas: ver [METRICS_CANON §3](../METRICS_CANON.md#3-ict_backtest-post-auditoría-2026-07-11).

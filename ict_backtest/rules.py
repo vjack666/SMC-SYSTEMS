@@ -178,7 +178,10 @@ def checklist_scalping(estructura: dict, bias: str, votes: dict | None,
     ts: timestamp de la vela para ventana NY AM historica.
     """
     items: list[str] = []
-    m15 = estructura.get("M15", {})
+    # exec TF = el TF cargado que no sea HTF/D1 (M5/M15/M1, por prioridad).
+    _exec_tf = next((t for t in ("M15", "M5", "M1")
+                       if t in estructura and estructura[t]), None)
+    m15 = estructura.get(_exec_tf, {}) if _exec_tf else {}
     dir_setup = _dir_setup(bias, votes, m15)
     kz = killzone_en(ts) if ts is not None else ""
 
@@ -194,12 +197,16 @@ def checklist_scalping(estructura: dict, bias: str, votes: dict | None,
     else:
         items.append(f"OK: Sesgo filtra setups: {bias}.")
 
-    # 3. Sweep M15
-    sw = _sweep_dir(estructura, ("M15",))
+    # 3. Sweep en el TF cargado (M15/M5/M1, por prioridad del libro ICT).
+    # No hardcoded: el backtest de scalping corre con --ltf M5, asi que M15
+    # no existe en la estructura. Buscamos el primer TF disponible.
+    _sweep_tf = next((t for t in ("M15", "M5", "M1")
+                        if t in estructura and estructura[t]), None)
+    sw = _sweep_dir(estructura, (_sweep_tf,)) if _sweep_tf else "none"
     if sw == "none":
-        items.append("FALTA: sweep de SSL/BSL en M15 (previo al FVG M1/M5).")
+        items.append("FALTA: sweep de SSL/BSL en el TF de ejecucion (previo al FVG M1/M5).")
     else:
-        items.append(f"OK: Sweep M15 ({sw}) presente.")
+        items.append(f"OK: Sweep {_sweep_tf} ({sw}) presente.")
 
     # 4. FVG M1/M5
     m5 = estructura.get("M5", {}) or {}
