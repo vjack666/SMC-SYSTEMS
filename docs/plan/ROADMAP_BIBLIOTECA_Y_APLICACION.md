@@ -91,6 +91,8 @@
 
 **Acción documental inmediata (esta sesión):**
 - [x] Libros 14/15/16/17/20 creados y en `00_INDICE.md` (SL estructural, intradía, temporalidad, scalping, tesis).
+- [x] **Libro 18 `EJECUCION_OPTIMA_TF_SL_ENTRY.md`** — REGLA DURA 3 capas HTF/ITF/exec, SL/entry SIEMPRE en exec TF, RR 1:3, 3 killzones, M5 estándar / M1 avanzado. Creado 2026-07-14 (commit `46b074e`).
+- [x] Libros 15/16/17/20 corregidos a la regla 18 (ITF agregado, RR 1:3, M3, killzones London/NY PM).
 - [ ] Crear libros 21 (SMT), 22 (Breaker/MMXM), 23 (OTE) y enlazarlos a la tesis 20.
 - [ ] Actualizar tesis 20 § con los 3 huecos como "pendiente de integración".
 
@@ -118,8 +120,54 @@
 | E4 | Solo Silver Bullet (kz + sweep + FVG) | ⏳ pendiente (sugerido antes de descartar ICT intradia M15) |
 | E5 | Con `--cost` en todos | ✅ E5 corrido: empeora (PO3 0.194, Turtle 0.511) |
 
-**Estado 2026-07-13:** E2/E3/E5 completados y reportados en METRICS_CANON §8.1.  \n**Veredicto:** NINGUN modelo aislado supera el gate (PF ≥1.10). PO3 aislado = muestra  \nminima (8 trades), no concluyente; Turtle aislado = PF 0.689 concluyente sin edge.  \n**Decision:** NO Optuna sobre estos modelos; documentado "sin edge en EURUSD M15".  \nFalta E4 (Silver Bullet) para cerrar el analisis del stack ICT intradia en M15.
-**Gate:** no Optuna hasta que E2 o el modelo elegido tenga PF OOS medio ≥1.10 **y** ningún fold <1 **o** se documente “frágil aceptado para paper”.
+**Estado 2026-07-13:** E2/E3/E5 completados y reportados en METRICS_CANON §8.1.  \
+**Veredicto:** NINGUN modelo aislado supera el gate (PF ≥1.10). PO3 aislado = muestra  \
+mínima (8 trades), no concluyente; Turtle aislado = PF 0.689 concluyente sin edge.  \
+**Decision:** NO Optuna sobre estos modelos; documentado "sin edge en EURUSD M15".  \
+Falta E4 (Silver Bullet) para cerrar el analisis del stack ICT intradia en M15.
+
+**ACTUALIZACIÓN 2026-07-14 (post-auditoría look-ahead):**
+- **Look-ahead CRÍTICO corregido** (`6d4b158`/`07afc0e`): el join H4→M5 leía velas sin cerrar. Medido: 97.4% de velas M15/M5 contaminadas por HTF futuro. Los PF de v2.7 (Turtle 1.14) eran FALSO positivo.
+- **Re-medición v2.7 tras limpiar look-ahead:** E4 Silver Bullet PF 0.896/0.639 → **RECHAZADO**; PO3+displacement 2/0 trades → INCONCLUSO; **Turtle Soup PENDIENTE v2.8** (único que rozó el gate).
+- **SL Estructural v29** (`e2a9c11`): SL anclado a mecha del sweep. EURUSD PF 1.128 / GBPUSD PF 2.101 PERO sostenido en `hold_limit` (7/11 y 11/13 cerraron por hold, no TP). Rentable pero el éxito vive del hold.
+
+**Gate:** no Optuna hasta que E2 o el modelo elegido tenga PF OOS medio ≥1.10 **y** ningún fold <1 **o** se documente "frágil aceptado para paper".
+
+---
+
+### R4-tesis — Tesis de ejecución óptima (libro 18) · docs ✅ · código ⏳ (2026-07-14)
+
+**Fuente:** `docs/ict/18_EJECUCION_OPTIMA_TF_SL_ENTRY.md` (regla dura, commit `46b074e`).
+
+| Tarea código | Detalle | Archivos | Estado |
+|--------------|---------|----------|--------|
+| `exec_tf` explícito | `build_signals_from_frames` recibe `exec_tf`/`itf` separados de `ltf` | `ict_backtest/engine.py:44` | ❌ R4-tesis/v30 |
+| `calc_structural_sl` por exec TF | leer row del exec TF (no ltf) | `ict_backtest/engine.py:316` | ❌ R4-tesis/v30 |
+| M3 en `TF_FREQ` | agregar M3 (intermedio M5→M1) | `ict_backtest/engine.py:250` | ❌ R4-tesis/v30 |
+| Killzones London/NY PM | cablear las 3 KZ (hoy solo NY AM en algunos modelos) | `ict_backtest/rules.py`, `detectors/killzones.py` | ❌ R4-tesis/v30 |
+| Filtro RR ≥ 1:3 | rechazar setups que no sostengan 1:3 | `ict_backtest/engine.py` | ❌ R4-tesis/v30 |
+
+**Criterio de done:** el motor produce SL/entry en el exec TF correcto (M5 scalping / M15 intradía) y la tesis 18 deja de depender de la coincidencia `exec_tf==ltf`.
+
+---
+
+### R7 — Unificar motores ICT (anti-islas del grafo) · 🔴 pendiente (deuda)
+
+**Fuente:** `graphify-out/graph.json` @ `46b074e` (auditoría 2026-07-14, `scripts/check_separation.py`).
+
+| Módulo | Comunidad(es) | Aristas cruzadas |
+|--------|---------------|------------------|
+| `signals/pipeline.py` | 1 / 2 / 5 / 73 | 0 (isla) |
+| `agents/ict_agent.py` | 39 / 62 | 0 (isla) |
+| `ict_backtest/sequence.py` | 36 / 70 | 0 (isla) |
+| `ict_backtest/rules.py` | 57 | solo con engine (2) |
+| `ict_backtest/engine.py` | 18 | solo con rules (2) |
+
+**Hallazgo:** 5 módulos ICT en 6 comunidades distintas. **Solo 2 aristas cruzadas en todo el sistema** (`engine.py ↔ rules.py`). `pipeline.py`, `ict_agent.py`, `sequence.py` son islas totales. Backtest (`sequence`/`engine`) y señales en vivo (`pipeline`) salen de motores distintos con pesos que divergen → riesgo de "backtest bueno, vivo malo".
+
+**Acción:** refactor a **single source of truth** — una sola función `evaluate()` llamada por backtest, UI y agente (patrón ya aplicado en R1 para PO3; extender a todos los modelos).
+
+**Criterio de done:** `scripts/check_separation.py` reporta >0 aristas entre pipeline/ict_agent/sequence/rules/engine; una sola función de evaluación ICT.
 
 ---
 

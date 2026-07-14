@@ -1,11 +1,12 @@
 # Mapa de Arquitectura — SMC-SYSTEMS
 
-Generado con graphify sobre el grafo de código (3171 nodos, 6244 edges, 240 comunidades).
-Grafo construido 2026-07-13 desde commit `c7ab4544`. Este documento es un resumen
+Generado con graphify sobre el grafo de código (3463 nodos, 6338 edges, 240 comunidades).
+Grafo construido 2026-07-14 desde commit `46b074e`. Este documento es un resumen
 de navegación: para el grafo interactivo ver `graphify-out/graph.html`.
 
 > Fuente de verdad de la topología: `graphify-out/graph.json`. Para refrescar tras
 > cambios de código: `graphify update .` (sin costo de API, AST puro).
+> Auditoría de separación ICT: `scripts/check_separation.py`.
 
 ## Composición del grafo por módulo raíz (nodos)
 
@@ -86,19 +87,28 @@ backtest/engine.run_combined_backtest()         [legacy motor]  ← motor combin
 | 16 | 32 | detectors + scripts | Detectores ICT + launchers |
 | 7 | 32 | integration | Puente MT5 ZeroMQ |
 
-## Fragmentación observada (deuda de arquitectura)
+## Fragmentación observada (deuda de arquitectura) — MEDICIÓN 2026-07-14
 
-El grafo confirma que la "misma estrategia ICT" vive en **islas separadas** con
-**0 aristas entre ellas** (ver `docs/ict/12_ESTRATEGIAS_COMPLETAS.md` §6):
+El grafo confirma que la "misma estrategia ICT" vive en **islas separadas**. Medido
+con `scripts/check_separation.py` sobre `graphify-out/graph.json` @ `46b074e`:
 
-- `signals/pipeline.py` (Comunidad 27) — confluencia en vivo (pesos en `ScalpingConfig`).
-- `agents/ict_agent.py` (Comunidad 0) — pesos propios, no los de `ScalpingConfig`.
-- `ict_backtest/sequence.py` (Comunidad 25) — motor event-sequence (params propios).
-- `ict_backtest/rules.py` (Comunidad 197) — checklists intradia/scalping aparte.
+| Módulo | Comunidad(es) | Aristas cruzadas |
+|--------|---------------|------------------|
+| `signals/pipeline.py` | 1 / 2 / 5 / 73 | 0 (isla) |
+| `agents/ict_agent.py` | 39 / 62 | 0 (isla) |
+| `ict_backtest/sequence.py` | 36 / 70 | 0 (isla) |
+| `ict_backtest/rules.py` | 57 | solo con engine (2) |
+| `ict_backtest/engine.py` | 18 | solo con rules (2) |
 
-Consecuencia: cambiar el rulebook mueve solo el pipeline; los otros 3 no se enteran.
-El roadmap de aplicación (`docs/plan/ROADMAP_BIBLIOTECA_Y_APLICACION.md`, R1/R3)
-planea unificar en una sola función `evaluate(model=...)`.
+**Hallazgo:** 5 módulos ICT en 6 comunidades distintas. **Solo 2 aristas cruzadas en
+todo el sistema**: `engine.py ↔ rules.py` (el motor llama a los checklists). `pipeline.py`,
+`ict_agent.py`, `sequence.py` son islas totales (0 aristas cruzadas entre sí y con el resto).
+
+Consecuencia: backtest (`sequence.py`/`engine.py`) y señales en vivo (`pipeline.py`)
+salen de motores distintos con pesos que divergen → riesgo de "backtest bueno, vivo malo".
+
+El roadmap (`docs/plan/ROADMAP_BIBLIOTECA_Y_APLICACION.md`, **R7**) planea unificar en
+una sola función `evaluate(model=...)` (single source of truth). R1 ya lo hizo para PO3.
 
 ## Estado de integridad
 
@@ -108,7 +118,7 @@ planea unificar en una sola función `evaluate(model=...)`.
 
 ## Cómo ampliar / refrescar
 
-- Grafo fresco al 2026-07-13 (commit `c7ab4544`); tras cambios de código:
+- Grafo fresco al 2026-07-14 (commit `46b074e`); tras cambios de código:
   `graphify update .` (sin costo de API).
 - Query interactivo: `graphify query "<pregunta>"` (usa `graphify-out/graph.json`).
 - HTML interactivo: `graphify-out/graph.html`.
