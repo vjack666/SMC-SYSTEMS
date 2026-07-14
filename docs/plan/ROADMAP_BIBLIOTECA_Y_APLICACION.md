@@ -79,6 +79,35 @@
 
 ---
 
+### R3.5 — Cerrar huecos del canon ICT en la TESIS (URGENTE · 2026-07-13)
+
+**Fuente:** `20_TESIS_ICT.md` § investigación de gaps (2026-07-13). La tesis unifica PO3/estructura/liquidez/temporalidad/SL, pero se escapa de 3 capas del canon ICT que separan un setup "ok" de uno "institucional". El backtest v29 ya probó que el SL estructural da edge (PF>1); el siguiente cuello es la CALIDAD de la entrada, no el stop.
+
+| Hueco (canon ICT) | Por qué es urgente | Estado repo | Tarea |
+|-------------------|-------------------|-------------|-------|
+| **SMT Divergence** (filtrar manipulación real vs continuación) | Sin SMT el robot entra en sweeps que pueden ser continuación, no caza de stops. Es el filtro de entrada más fuerte de ICT. | ❌ Sin detector; ningún libro lo cubre a fondo | Libro `21_SMT_DIVERGENCIA.md` + detector `detectors/smt.py` (par correlacionado EURUSD/DXY, mismo TF) |
+| **Breaker Block / MMXM** (zona de entry alternativa al FVG) | El robot solo entra en FVG; ICT usa breaker como falla de OB que se vuelve resistencia. MMXM es el "mapa" del ciclo. | ❌ `ob.py` existe pero no breaker/MMXM | Libro `22_BREAKER_MMXM.md` + extender `detectors/ob.py` con breaker state |
+| **OTE (Optimal Trade Entry)** | Entry por retrace a 62–79% Fib del swing, no solo "retorno a FVG". `detectors/fib.py` YA existe pero no integrado en la tesis ni en entry. | ⚠️ `fib.py` existe; libro 10 dice OTE ~no-op; tesis no lo integra | Libro `23_OTE_FIB.md` + cablear OTE como zona de entry en `build_signals_from_frames` |
+
+**Acción documental inmediata (esta sesión):**
+- [x] Libros 14/15/16/17/20 creados y en `00_INDICE.md` (SL estructural, intradía, temporalidad, scalping, tesis).
+- [ ] Crear libros 21 (SMT), 22 (Breaker/MMXM), 23 (OTE) y enlazarlos a la tesis 20.
+- [ ] Actualizar tesis 20 § con los 3 huecos como "pendiente de integración".
+
+**Acción de código (bloquea R4 honesto):**
+- [ ] `detectors/smt.py`: divergencia EURUSD vs DXY (o par correlacionado) en mismo TF.
+- [ ] `detectors/ob.py`: breaker block state tras falla de OB.
+- [ ] `build_signals_from_frames`: entry requiere SMT confirmando el sweep + OTE/Breaker como zona (no solo FVG).
+- [ ] Re-correr R4 v30 CON SMT+OTE+Breaker antes de declarar edge.
+
+**Prioridad:** URGENTE. Sin SMT, la medición de R4 (v30) sobre-estima el edge (entra en manipulaciones falsas). El SL estructural (v29) ya resolvió el stop; estos 3 resuelven la entrada.
+
+**Criterio de done:** libros 21/22/23 en índice + detectores smt/breaker cableados + tesis 20 actualizada + R4 v30 incluye los 3 filtros.
+
+---
+
+---
+
 ### R4 — Medición aislada (2–3 días)
 
 | Experimento | Qué |
@@ -98,6 +127,27 @@
 
 - [ ] Descargar ≥3–4 años M15 XAUUSD (+ EURUSD)
 - [ ] Rebuild contextos harness si aplica (`_ctx/*.pkl`)
+
+---
+
+### R6 — Backtest profesional: reloj, fill, costos (2–4 días) · docs ✅ · código ⏳
+
+**Libro:** `docs/ict/13_BACKTEST_PROFESIONAL/`  
+**Plan detallado:** `docs/plan/PLAN_BACKTEST_PROFESIONAL.md`  
+**Motivación:** auditoría 2026-07-13 — el LTF es reloj correcto, pero HTF se lee incompleto; fill al close; costos no default.
+
+| Tarea | Detalle | Estado |
+|-------|---------|--------|
+| R6.0 | Congelar contrato libro 13 + review operador (`next_open` default) | 📄 docs ✅ · review ⏳ |
+| R6.1 | HTF **closed-only** (`row_at_time` + merge_asof) + test multi-TF | ⏳ G1 |
+| R6.2 | `fill_mode=next_open` default producción | ⏳ G2 |
+| R6.3 | Cost pack ON por default en runners (`--no-cost` = theory) | ⏳ G3 |
+| R6.4 | Re-medir Capa 2/3 (ablation reloj) → **METRICS_CANON** | ⏳ |
+| R6.5 | DSR/PBO / veredicto auto en optimize ICT (opcional) | ⏳ G6–G7 |
+| R6.6 | Gaps sesión, portafolio prop, régimen (post R5) | ⏳ no bloquea sello v1 |
+
+**Criterio de done (sello v1 profesional):** G1+G2+G3 + tests + METRICS actualizado.  
+**Gate:** no Optuna agresivo ni declarar edge de producción hasta R6.4.
 - [ ] Actualizar `METRICS_CANON` tras re-run
 
 Scripts: `download_multiyear.py`, `download_xauusd_m15.bat`.  

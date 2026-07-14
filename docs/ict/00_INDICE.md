@@ -24,6 +24,9 @@ Cada archivo es un “libro”. La app y los agentes deben poder **citar el cont
 | 06 | [Turtle Soup](06_TURTLE_SOUP.md) | Contratrend + sweep + giro | ✅ 2.0 · Needs model split |
 | 07 | [Silver Bullet](07_SILVER_BULLET.md) | KZ + sweep + FVG + sesgo | ✅ 2.0 |
 | 08 | [**Power of Three (pasado/presente/futuro)**](08_POWER_OF_THREE.md) | **A+M+D complete** | ✅ 2.0 · **Prioridad R1** |
+| 15 | [Intradía: entry/SL/TP](15_INTRADIA_ENTRADA_SL_TP.md) | Retorno a zona M15; TP cercano | 📝 1.0 · Propuesta v30 |
+| 17 | [Scalping (Silver Bullet) entry/SL/TP](17_SCALPING_ENTRADA_SL_TP.md) | exec M5/M1; TP inmediato | 📝 1.0 · Propuesta v30 |
+| 20 | [**TESIS ICT COMPLETA**](20_TESIS_ICT.md) | Unifica PO3+liquidez+temporalidad | 📝 1.0 · Síntesis |
 
 ## Libros de integración / validación
 
@@ -32,10 +35,14 @@ Cada archivo es un “libro”. La app y los agentes deben poder **citar el cont
 | 09 | [Optimizador bayesiano](09_OPTIMIZADOR_BAYESIANO.md) | **Anexo** de validación, no setup ICT |
 | 10 | [Sweep + OTE filtros](10_SWEEP_OTE_FILTRO.md) | Ítem D; OTE casi no-op |
 | 11 | [Manual vs Auto](11_SWEEP_OTE_MANUAL_VS_AUTO.md) | Política híbrida / automation-ready |
+| 13 | [**Backtest profesional**](13_BACKTEST_PROFESIONAL/00_INDICE.md) | Reloj MTF, fill, costos, OOS, **gap G1–G12** · Plan R6 |
+| 14 | [Stop Loss Estructural](14_STOP_LOSS_ESTRUCTURAL.md) | SL = mecha sweep, no ATR · aplicado v29 |
+| 16 | [Temporalidad de ejecución](16_TEMPORALIDAD_EJECUCION.md) | HTF→LTF→exec; marco v30 | 📝 1.0 |
 
 ## Auditoría y SDD (no “libros de setup”, pero del pack ICT)
 
 - `10_AUDITORIA_REFACCION/` — hallazgos #1–#7  
+- `13_BACKTEST_PROFESIONAL/` — estándar de veracidad del backtest (2026-07-13)  
 - `SDD_ICT_BACKTEST.md`, `SDD_REFACCION_2026-07-11.md`  
 - `API_SPEC.md`, `TEST_PLAN.md`  
 - `logs/` — corridas Capa 2/3  
@@ -63,7 +70,9 @@ Trazabilidad: **regla (§0) → detector → pipeline → backtest → métrica 
 3. **`08` PO3** (ciclo completo del trade)  
 4. `06` / `07` (variantes contratrend / scalping)  
 5. `10` + `11` + `09` (filtros, política, optimización)  
-6. Roadmap de aplicación → código  
+6. **`13` Backtest profesional** (antes de creer cualquier PF)  \
+7. **`20` TESIS ICT COMPLETA** (síntesis unificadora de 01–17)  \
+8. Roadmap de aplicación → código (incl. **R6**) 
 
 ---
 

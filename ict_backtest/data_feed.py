@@ -60,7 +60,30 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     liq = detect_liquidity(d)  # bsl_price, ssl_price (pools de liquidez)
     d["bsl_price"] = liq["bsl_price"].values
     d["ssl_price"] = liq["ssl_price"].values
+    # Niveles de la MECHA del sweep (libro 14_STOP_LOSS_ESTRUCTURAL).
+    # canonical_sweep ya existe en detectors/liquidity_context.py; exponemos
+    # el low/high de la vela que barrio la liquidez, con .shift(1) -> sin
+    # look-ahead (la vela ya cerro). El motor los usa como ancla del SL
+    # estructural en lugar del ATR.
+    from detectors.liquidity_context import canonical_sweep, DEFAULT_SWEEP_LOOKBACK
+    from typing import cast
+    swept = canonical_sweep(d, lookback=DEFAULT_SWEEP_LOOKBACK)
+    d["sweep_low"] = _sweep_level(cast(pd.Series, swept["liquidity_sweep_down"]),
+                                  cast(pd.Series, d["low"]))
+    d["sweep_high"] = _sweep_level(cast(pd.Series, swept["liquidity_sweep_up"]),
+                                   cast(pd.Series, d["high"]))
     return d
+
+
+def _sweep_level(flag: pd.Series, price: pd.Series) -> pd.Series:
+    """Devuelve el nivel (low/high) de la vela que barrio la liquidez.
+
+    flag: booleano de sweep (ya con logica canonica, sin look-ahead en si
+    mismo, pero la señal vive EN la vela del sweep). Aplicamos .shift(1)
+    para que el nivel que el motor lea en la vela de entrada sea el del
+    sweep YA CERRADO (no la vela en formacion). Donde no hubo sweep -> NaN.
+    """
+    return price.where(flag).shift(1)
 
 
 def load_tf(symbol: str, timeframe: str, data_dir: Path | str = DATA_DIR) -> pd.DataFrame:

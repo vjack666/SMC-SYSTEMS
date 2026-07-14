@@ -109,10 +109,18 @@ def build_signals_from_frames(
         if not np.isfinite(atr) or atr <= 0:
             continue
 
-        sl_level = _invalidation_level(estructura, direction, ltf)
-        sl = sl_level if sl_level is not None else (entry - atr if direction == 1 else entry + atr)
+        # SL ESTRUCTURAL (libro 14_STOP_LOSS_ESTRUCTURAL). Ya NO usa ATR como
+        # fallback: el stop se ancla a la mecha del sweep (o al swing roto).
+        # Si no hay nivel estructural -> None -> NO operar (no degradar a ATR).
+        sl = calc_structural_sl(row, direction, atr)
+        if sl is None:
+            continue
         risk = abs(entry - sl)
         if risk <= 0:
+            continue
+        # Filtro de tamaño (P5): si el SL estructural queda muy ancho (sweep
+        # gigante en tendencia), el RR se rompe -> SALTAR, no comprimir stop.
+        if risk > STRUCT_SL_MAX_ATR * atr:
             continue
 
         if tp_mode == "liquidity":
@@ -300,8 +308,57 @@ def _coerce_ts(value: Any) -> pd.Timestamp | None:
     return ts.tz_convert("UTC") if ts.tz else ts.tz_localize("UTC")
 
 
+# Maximo ancho del SL estructural en ATR. Si el sweep fue gigante y el SL
+# queda mas alla de esto, el RR se rompe -> el motor SALTA el trade (P5).
+STRUCT_SL_MAX_ATR = 6.0
+
+
+def calc_structural_sl(row: pd.Series, direction: int, atr: float) -> float | None:
+    """Stop-loss estructural ICT (libro 14_STOP_LOSS_ESTRUCTURAL).
+
+    Ancla el SL al NIVEL donde la tesis del trade se cae, NO a la volatilidad.
+    Prioridad (ICT mistake #4: usar buffer, no 1 pip):
+      1. Mechas del sweep (sweep_low/sweep_high) +- buffer (la fuente madre).
+      2. Si no hay sweep: swing roto (swing_low/swing_high de BOS/CHOCH).
+      3. Si tampoco: None -> el motor NO opera (no degrada a ATR).
+    El buffer evita que el spike post-sweep toque el stop por 1 pip.
+    """
+    from typing import cast
+    buf = STRUCT_SL_BUFFER_ATR * atr
+
+    def _lvl(col: str) -> float | None:
+        v = row.get(col, np.nan)
+        fv = cast(float, v)
+        if pd.isna(fv) or fv <= 0:
+            return None
+        return float(fv)
+
+    if direction == 1:  # long: SL bajo la mecha que barrio la SSL
+        sweep = _lvl("sweep_low")
+        if sweep is not None:
+            return sweep - buf
+        swing = _lvl("swing_low")
+        if swing is not None:
+            return swing - buf
+    else:  # short: SL sobre la mecha que barrio la BSL
+        sweep = _lvl("sweep_high")
+        if sweep is not None:
+            return sweep + buf
+        swing = _lvl("swing_high")
+        if swing is not None:
+            return swing + buf
+    return None
+
+
+# Buffer del SL estructural en ATR (ICT mistake #4: stops 1 pip past the
+# level get tagged on the spike). 0.3 ATR da aire sin romper el RR.
+STRUCT_SL_BUFFER_ATR = 0.3
+
+
 def _invalidation_level(estructura: dict, direction: int, exec_tf: str = "M15") -> float | None:
-    """SL = nivel de invalidacion del TF de ejecucion. Si hay, usarlo; sino None."""
+    """DEPRECADO: usado antes de calc_structural_sl. Conservado para
+    referencia; el motor ya no lo llama (columna 'invalidation' nunca
+    existio en el pipeline)."""
     m15 = estructura.get(exec_tf, {})
     inv = m15.get("invalidation") if isinstance(m15, dict) else None
     if inv is not None:
