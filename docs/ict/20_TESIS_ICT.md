@@ -66,17 +66,15 @@ Los tres son el mismo ciclo PO3 visto desde distinto ángulo temporal y direccio
 
 ---
 
-## 5. Temporalidad de ejecución: la clave olvidada (libros 15, 16, 17)
+## 5. Temporalidad de ejecución: la clave olvidada (libros 16, 18)
 
-Toda operación ICT tiene 3 capas (`16_TEMPORALIDAD_EJECUCION.md`):
+Toda operación ICT tiene **3 capas funcionales** (HTF / ITF / exec TF), no 2 (ver `18_EJECUCION_OPTIMA_TF_SL_ENTRY.md`, contrato §0):
 
-1. **HTF** (sesgo): H4 intradía, M15/H1 scalping. Dónde quiere ir el precio.
-2. **LTF** (zonas): M15 intradía, M5 scalping. Dónde marcar estructura y niveles.
-3. **exec TF** (disparo): M15 intradía, M5/M1 scalping. Dónde entra el trade.
+1. **HTF** (Bias / sesgo): H1 intradía, M15/H1 scalping, D1 swing. Dónde quiere ir el precio.
+2. **ITF** (Zona): M15 intradía, M5 scalping, H4 swing. Dónde marcar estructura y PD Arrays.
+3. **exec TF** (Disparo): M15 intradía, M1/M3/M5 scalping, H1 swing. Dónde entra el trade y se ancla el SL.
 
-El motor ya soporta esto (`TF_FREQ` engine.py 251; `build_signals_from_frames(htf=, ltf=)`). El error de v28/v29 fue usar el LTF grueso (M15) como exec TF y resolver entry/SL/TP ahí. Eso infla distancias y corre el TP lejos.
-
-**Tesis central de temporalidad:** el humano ICT marca en M15 (parent chart) y ejecuta en M5/M1. El robot debe imitar eso: marcar zonas en LTF, disparar en exec TF fino.
+El motor ya soporta parte (`TF_FREQ` engine.py 251; `checklist_scalping` con `exec_tf`) pero `build_signals_from_frames` aún no recibe `exec_tf`/`itf` separados de `ltf` (hoy `exec_tf == ltf`). El error de v28/v29 fue resolver entry/SL/TP en el LTF grueso con ATR. La regla dura (libro 18): **SL y entry SIEMPRE en el exec TF; HTF/ITF solo sesgo y zonas; nunca anclar el SL a un TF mayor que el exec.**
 
 ---
 
@@ -123,7 +121,7 @@ El libro 06 viejo decía "TP liquidez opuesta HTF" — eso es justo lo que fall�
 ## 9. Gestión: hold, RR y regimes (libros 13, 15, 17)
 
 - **Max hold**: v29 usó 16 velas M15 → corto para un TP en liquidez. v30 debe usar ≥40 velas M15 (intradía) o pocas velas M5 (scalping). El hold corto dormía trades rentables.
-- **RR**: 1:2 mínimo (ICT). El TP en liquidez cercana lo sostiene sin inflar el hold.
+- **RR**: **1:3 mínimo** (ICT modelo 2022 / Silver Bullet, ver libro 18 y libro 15 §0 #6). El TP en liquidez cercana debe sostener al menos 1:3 sin inflar el hold. El backtest v29 forzaba 1:2 (fixed2r); el motor debe exigir ≥1:3 al menos como filtro de calidad.
 - **Regime filter**: `STRUCT_SL_MAX_ATR` salta sweeps gigantes. Para mayor robustez, operar Turtle Soup solo en rango (ICT: el setup vive en rango, no tendencia).
 
 ---
@@ -146,8 +144,12 @@ El libro 06 viejo decía "TP liquidez opuesta HTF" — eso es justo lo que fall�
 | SL estructural | `calc_structural_sl` (engine.py, v29) | ✅ medido |
 | Entrada en retorno a zona | `build_signals_from_frames` entra en `close` | ❌ pendiente v30 |
 | TP liquidez cercana | `_tp_liquidity` usa cluster | ❌ pendiente v30 |
-| Exec TF fino (M5/M1) | `TF_FREQ` soporta M1/M5 | ✅ infra; ❌ no usado en scalping |
+| Exec TF fino (M1/M3/M5) | `TF_FREQ` soporta M1/M5; **falta M3** | ✅ infra; ❌ no usado en scalping |
+| **3 capas HTF/ITF/exec** | `build_signals_from_frames(htf=, ltf=)` sin `exec_tf`/`itf` separados | ❌ pendiente v30 (libro 18) |
+| **SL/entry siempre en exec TF** | hoy `exec_tf == ltf` (coincidencia) | ❌ parametrizar `exec_tf` (libro 18) |
+| **RR mínimo 1:3** | v29 forzaba fixed2r (1:2) | ❌ filtro pendiente (libro 18) |
 | Killzone NY AM | `checklist_scalping` (rules.py 174) | ✅ lógica; ⚠ TZ pendiente |
+| **Killzones London + NY PM** | no cableadas | ❌ pendiente (libro 18) |
 
 ---
 

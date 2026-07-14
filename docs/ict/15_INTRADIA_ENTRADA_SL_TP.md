@@ -17,8 +17,9 @@
 1. Intradía = HTF **H4** para sesgo + **M15** como TF de ejecución (entry, SL, TP). No bajar a M1/M5 salvo para confirmar el FVG (ver `16_TEMPORALIDAD_EJECUCION.md`).
 2. **Entrada**: en el RETORNO a la zona (FVG/OB del displacement) tras el sweep confirmado que falla (cierra adentro). NUNCA en el close de la vela del BOS.
 3. **SL**: mecha del sweep ± buffer (0.3 ATR). NUNCA ATR fijo. (Base ya implementada en `calc_structural_sl`, v29.)
-4. **TP**: primera liquidez opuesta del LTF M15 MÁS CERCANA al entry (nivel, no cluster). Si no hay, fellback a la zona, pero el nivel cercano es prioridad.
+4. **TP**: primera liquidez opuesta del LTF M15 MÁS CERCANA al entry (nivel, no cluster). Si no hay, fallback a la zona, pero el nivel cercano es prioridad.
 5. **Max hold**: suficiente para que el TP cercano madure (≥ 40 velas M15, no 16). El hold corto mata trades rentables (ver evidencia v29).
+6. **RR mínimo 1:3** (modelo 2022 / Silver Bullet, ver libro 18). No forzar 1:2. El TP en liquidez cercana debe sostener al menos 1:3 sin inflar el hold.
 
 ---
 

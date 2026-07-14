@@ -14,11 +14,12 @@
 
 ## §0 Contrato operativo (CITABLE)
 
-1. Scalping = HTF **M15/H1** para sesgo + **M5/M1** como TF de ejecución. Killzone **NY AM 10:00–11:00 ET** (Silver Bullet).
-2. **Entrada**: retorno al FVG M5/M1 creado por el displacement tras el sweep en el exec TF. Rápido, en ventana de 1h.
-3. **SL**: sobre/bajo el swing protegido (la mecha del sweep o el borde del FVG/OB). Buffer pequeño (0.2–0.3 ATR del exec TF).
-4. **TP**: liquidez opuesta INMEDIATA (el primer BSL/SSL que el precio toca yendo a favor). RR 1:2 rápido, salida en minutos.
-5. **No confundir con intradía**: el scalping NO usa H4→M15 para ejecutar; usa M15 para sesgo y M5/M1 para disparar.
+1. Scalping = HTF **M15/H1** para sesgo + **M5** como ITF (zona) + **M1/M3/M5** como exec TF (disparo). Killzones **London 03:00–04:00, NY AM 10:00–11:00, NY PM 02:00–03:00 ET** (las 3 ventanas Silver Bullet, no solo NY AM).
+2. **Entrada**: retorno al FVG del exec TF (M1/M3/M5) creado por el displacement tras el sweep. Rápido, dentro de la ventana de 1h.
+3. **SL**: sobre/bajo la vela que creó el FVG del exec TF ± buffer pequeño (0.2–0.3 ATR del exec TF). **Nunca en M15 ni H4** (esos son solo lectura de sesgo/liquidez).
+4. **TP**: liquidez opuesta INMEDIATA del exec TF (primer BSL/SSL que el precio toca yendo a favor). RR **1:3** rápido, salida en minutos.
+5. **No confundir con intradía**: el scalping NO usa H4→M15 para ejecutar; usa M15/H1 para sesgo, M5 para zona, M1/M3/M5 para disparar.
+6. **M5 vs M1**: M5 es el exec TF **estándar** (legible, menos ruido). M1/M3 es exec TF **fino para veteranos** (entrada quirúrgica, mejor R, más ruido). ICT: *"no uses el 1m hasta haber logueado al menos 100 setups en 5m"*. Arrancar en M5; migrar a M1/M3 con experiencia. El SL SIEMPRE en la vela del FVG del exec TF elegido.
 
 ---
 
@@ -34,14 +35,14 @@ El fix no es nuevo código de detección: es **correr el motor con `ltf=M5` (o M
 
 ## 2. Entrada scalping (Silver Bullet, fuente ICT)
 
-Secuencia (innercircletrader.net Silver Bullet):
-1. Killzone NY AM 10:00–11:00 ET.
+Secuencia (innercircletrader.net Silver Bullet, las 3 ventanas):
+1. Killzone (London 03:00–04:00, NY AM 10:00–11:00 o NY PM 02:00–03:00 ET).
 2. Sesgo del día filtra dirección (solo setups a favor del sesgo).
-3. Sweep de SSL/BSL en M5 (o M1).
-4. FVG se forma en M5/M1 por el displacement.
-5. **Entrada**: retorno al FVG M5/M1 (la zona de imbalance).
-6. SL: sobre/bajo el swing protegido (mecha del sweep o borde del FVG).
-7. TP: liquidez opuesta inmediata, RR 1:2, salida en minutos.
+3. Sweep de SSL/BSL en el exec TF (M1/M3/M5).
+4. FVG se forma en el exec TF por el displacement.
+5. **Entrada**: retorno al FVG del exec TF (la zona de imbalance).
+6. SL: sobre/bajo la vela que creó el FVG del exec TF ± buffer (nunca M15/H4).
+7. TP: liquidez opuesta inmediata del exec TF, RR 1:3, salida en minutos.
 
 `checklist_scalping` (rules.py 174) ya valida esto ítem por ítem. El motor debe usar `exec_tf=M5` y leer el FVG de M5/M1.
 
@@ -73,14 +74,15 @@ Esto mata el hold_limit: el TP está a pocas velas M5 del entry.
 
 | Dimensión | Intradía (libro 15) | Scalping (este libro) |
 |-----------|---------------------|------------------------|
-| HTF sesgo | H4 | M15 / H1 |
-| Exec TF | M15 | M5 / M1 |
-| Killzone | London/NY (amplio) | NY AM 10–11 ET (estrecho) |
-| Entrada | retorno a FVG/OB M15 | retorno a FVG M5/M1 |
-| SL | mecha sweep M15 ± 0.3 ATR | mecha sweep M5 ± 0.2 ATR |
-| TP | liquidez opuesta M15 cercana | liquidez opuesta M5 inmediata |
-| Hold | ≥ 40 velas M15 | pocas velas M5 (minutos) |
-| RR | 1:2 a 1:3 | 1:2 rápido |
+| HTF sesgo | H1 / H4 | M15 / H1 |
+| ITF zona | M15 | M5 |
+| Exec TF | M15 | M1 / M3 / M5 |
+| Killzone | London / NY (amplio) | London 03–04, NY AM 10–11, NY PM 02–03 ET |
+| Entrada | retorno a FVG/OB M15 | retorno a FVG del exec TF (M1/M3/M5) |
+| SL | mecha sweep M15 ± 0.3 ATR | vela del FVG del exec TF ± 0.2 ATR (nunca M15/H4) |
+| TP | liquidez opuesta M15 cercana | liquidez opuesta del exec TF inmediata |
+| Hold | ≥ 40 velas M15 | pocas velas del exec TF (minutos) |
+| RR | 1:3 | 1:3 rápido |
 
 ---
 

@@ -24,8 +24,9 @@ Cada archivo es un “libro”. La app y los agentes deben poder **citar el cont
 | 06 | [Turtle Soup](06_TURTLE_SOUP.md) | Contratrend + sweep + giro | ✅ 2.0 · Needs model split |
 | 07 | [Silver Bullet](07_SILVER_BULLET.md) | KZ + sweep + FVG + sesgo | ✅ 2.0 |
 | 08 | [**Power of Three (pasado/presente/futuro)**](08_POWER_OF_THREE.md) | **A+M+D complete** | ✅ 2.0 · **Prioridad R1** |
-| 15 | [Intradía: entry/SL/TP](15_INTRADIA_ENTRADA_SL_TP.md) | Retorno a zona M15; TP cercano | 📝 1.0 · Propuesta v30 |
-| 17 | [Scalping (Silver Bullet) entry/SL/TP](17_SCALPING_ENTRADA_SL_TP.md) | exec M5/M1; TP inmediato | 📝 1.0 · Propuesta v30 |
+| 16 | [Temporalidad de ejecución](16_TEMPORALIDAD_EJECUCION.md) | HTF→ITF→exec; marco v30 | 📝 1.0 |
+| 17 | [Scalping (Silver Bullet) entry/SL/TP](17_SCALPING_ENTRADA_SL_TP.md) | exec M1/M3/M5; TP inmediato | 📝 1.0 · Propuesta v30 |
+| 18 | [**Ejecución óptima: 3 capas + SL/Entry por TF**](18_EJECUCION_OPTIMA_TF_SL_ENTRY.md) | **Regla dura**: SL/entry SIEMPRE en exec TF; RR 1:3; 3 killzones | 📝 1.0 · Marco v30 |
 | 20 | [**TESIS ICT COMPLETA**](20_TESIS_ICT.md) | Unifica PO3+liquidez+temporalidad | 📝 1.0 · Síntesis |
 
 ## Libros de integración / validación
@@ -71,8 +72,9 @@ Trazabilidad: **regla (§0) → detector → pipeline → backtest → métrica 
 4. `06` / `07` (variantes contratrend / scalping)  
 5. `10` + `11` + `09` (filtros, política, optimización)  
 6. **`13` Backtest profesional** (antes de creer cualquier PF)  \
-7. **`20` TESIS ICT COMPLETA** (síntesis unificadora de 01–17)  \
-8. Roadmap de aplicación → código (incl. **R6**) 
+7. **`18` EJECUCIÓN ÓPTIMA** (regla dura: 3 capas HTF/ITF/exec, SL/entry en exec TF, RR 1:3)  \
+8. **`20` TESIS ICT COMPLETA** (síntesis unificadora de 01–18)  \
+9. Roadmap de aplicación → código (incl. **R6**) 
 
 ---
 
