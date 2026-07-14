@@ -19,13 +19,16 @@ import time
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ict_backtest.data_feed import load_frames  # noqa: E402
-from ict_backtest.engine import build_signals_from_frames, simulate_trade, ICTSignal  # noqa: E402
+from ict_backtest.engine import (build_signals_from_frames, simulate_trade, ICTSignal,  # noqa: E402
+                                 calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_ATR)  # noqa: E402
+from ict_backtest.rules import killzone_en  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
 from ict_backtest.sequence import run_sequence, SequenceConfig, _row_at_time  # noqa: E402
 
@@ -94,25 +97,44 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     print(f"      fases: {phases}", flush=True)
     print(f"      {len(raw_sigs)} senales en {time.time()-t0:.1f}s", flush=True)
 
-    # Convertir a ICTSignal con SL/TP y simular
+    # Convertir a ICTSignal con SL/TP y simular (ALINEADO A TESIS 18)
     print(f"[3/3] Simulando trades vela a vela (max_hold={max_hold}) ...", flush=True)
     signals = []
     for s in raw_sigs:
         direction = s["direction"]
+        entry_at = s["entry_at"]
+        entry_row = ltf_df.iloc[entry_at]
         entry = s["entry"]
-        atr = float(ltf_df.iloc[s["entry_at"]].get("atr", 0.0) or 0.0)
+        atr = float(entry_row.get("atr", 0.0) or 0.0)
         if not (atr > 0):
             continue
-        # SL = invalidacion: cruce del nivel BOS en sentido contrario
-        bos_lvl = s.get("bos_level", float("nan"))
-        if direction == 1:
-            sl = bos_lvl - 0.5 * atr if np.isfinite(bos_lvl) else entry - atr
-        else:
-            sl = bos_lvl + 0.5 * atr if np.isfinite(bos_lvl) else entry + atr
+        # Filtro killzone (tesis #8): solo London Open / NY AM / NY PM.
+        kz = killzone_en(pd.to_datetime(entry_row["time"], utc=True))
+        if kz not in ("London Open", "New York AM", "New York PM"):
+            continue
+        # SL ESTRUCTURAL (tesis #3 / libro 14): anclado a la MECHA del sweep,
+        # no a BOS+-ATR ni ATR ciego. Lee el row de la vela del sweep (exec TF).
+        sweep_row = ltf_df.iloc[s["sweep_at"]]
+        sl = calc_structural_sl(sweep_row, direction, atr)
+        if sl is None:
+            continue  # tesis: sin nivel estructural -> NO operar
         risk = abs(entry - sl)
         if risk <= 0:
             continue
-        tp = entry + 2.0 * risk if direction == 1 else entry - 2.0 * risk
+        # Filtro de tamaño (engine STRUCT_SL_MAX_ATR): sweep gigante rompe RR.
+        if risk > STRUCT_SL_MAX_ATR * atr:
+            continue
+        # TP con RR 1:3 (tesis #7): liquidez opuesta del exec TF si existe.
+        liq = _tp_liquidity(entry_row, direction)
+        if liq is not None:
+            tp = liq
+        else:
+            tp = entry + 3.0 * risk if direction == 1 else entry - 3.0 * risk
+        # Garantizar RR >= 1:3 (TP mas alla del SL en la direccion correcta).
+        if direction == 1 and tp <= entry + 2.0 * risk:
+            tp = entry + 3.0 * risk
+        if direction == -1 and tp >= entry - 2.0 * risk:
+            tp = entry - 3.0 * risk
         signals.append(ICTSignal(symbol=symbol, time=s["time"], direction=direction,
                                  entry=entry, stop_loss=sl, take_profit=tp,
                                  model="sequence"))

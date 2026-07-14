@@ -32,7 +32,7 @@
 - Tras limpiar look-ahead, modelos R4 re-medidos (v2.7):
   - Silver Bullet: PF 0.896 / 0.639 → **RECHAZADO** (el modelo de verdad pierde).
   - PO3 + displacement: 2 y 0 trades → INCONCLUSO.
-  - Turtle Soup: **PENDIENTE re-medir limpio (v2.8)** — es el único que rozó el gate.
+- **Turtle Soup v2.8 ALINEADO A TESIS 18 (2026-07-14):** `run_backtest.py` camino sequence usa SL mecha sweep + RR 1:3 + killzone. EURUSD M15 H4→M15: **0 señales** (1787 sweep → 170 displace → 92 BOS → 0 entry). El retorno al cuadro (mitigation) no ocurre tras el BOS con el SL estructural; el modelo no llega a operar. Veredicto: **no concluyente** (no PF<1.10, sino 0 trades). Requiere diagnóstico de por qué el `_touches_zone` no se cumple (cuadro fallback o killzone). GBPUSD pendiente.
 
 ### SL Estructural (v29, commit `e2a9c11` 2026-07-13)
 - El SL ahora se ancla a la **mecha del sweep** (no ATR de fallback). Filtro `STRUCT_SL_MAX_ATR`.
@@ -41,7 +41,7 @@
 ### Tesis de ejecución óptima (2026-07-14, commit `46b074e`)
 - **Libro 18** fija la regla dura: 3 capas HTF/ITF/exec; **SL y entry SIEMPRE en exec TF**; RR mínimo 1:3; 3 killzones (London/NY AM/NY PM); M5 estándar / M1 avanzado.
 - Libros 15/16/17/20 corregidos a esa regla (ITF agregado, RR 1:3, M3, killzones completas).
-- **Hueco de código pendiente (v30):** `build_signals_from_frames` aún no recibe `exec_tf`/`itf` separados de `ltf` (hoy `exec_tf == ltf`). El SL sale del ltf por coincidencia.
+- **Hueco de código (v30) PARCIALMENTE cerrado (2026-07-14):** el camino `sequence`/Turtle Soup en `run_backtest.py` YA usa SL estructural de mecha de sweep (`calc_structural_sl`), RR 1:3 y filtro killzone (alineado a libro 18). Falta: `build_signals_from_frames` recibir `exec_tf`/`itf` separados de `ltf` (hoy `exec_tf == ltf`) para el camino checklist/scalping y agregar M3 en `TF_FREQ`.
 
 ### Fragmentación confirmada por grafo (2026-07-14, graph.json @ 46b074e)
 - 5 módulos ICT en **6 comunidades distintas** (pipeline=1/2/5/73, ict_agent=39/62, sequence=36/70, rules=57, engine=18).
@@ -83,7 +83,7 @@
 
 ## 4. Fases Futuras
 
-- **Fase R4-clean:** Turtle Soup v2.8 SIN look-ahead + con costos. Veredicto final del único modelo que rozó el gate. Si PF<1.10, R4 se documenta "sin edge para live".
+- **Fase R4-clean:** Turtle Soup v2.8 SIN look-ahead + YA ALINEADO A TESIS 18 (SL mecha sweep, RR 1:3, killzone) en `run_backtest.py` camino sequence. Veredicto final del único modelo que rozó el gate. Si PF<1.10, R4 se documenta "sin edge para live".
 - **Fase R3.5-libros:** escribir 21 (SMT), 22 (Breaker/MMXM), 23 (OTE) y cablear detectores (bloquea R4-honesto v30).
 - **Fase R6 WF/OOS:** re-run A12 tras R5.
 - **Fase R7 unificación:** un solo motor de evaluación ICT (matar las 4 islas del grafo) antes de cualquier live.
@@ -104,9 +104,9 @@
 
 ## 6. Próximos Pasos Inmediatos
 
-1. **R4-clean:** Turtle Soup v2.8 limpio (sin look-ahead + costos) → veredicto final.
+1. **R4-clean:** Turtle Soup v2.8 limpio YA ALINEADO a tesis 18 → veredicto final (corriendo EURUSD/GBPUSD en fondo).
 2. **R3.5:** libros 21/22/23 (SMT/Breaker/OTE) + detectores.
-3. **R4-tesis→código (v30):** parametrizar `exec_tf` en `build_signals_from_frames` + `calc_structural_sl` leyendo del exec TF + M3 en TF_FREQ. Cierra la regla dura del libro 18.
+3. **R4-tesis→código (v30, resto):** `build_signals_from_frames` con `exec_tf`/`itf` explícitos + M3 en `TF_FREQ` (el camino sequence/Turtle Soup YA usa SL estructural+RR1:3+killzone). Cierra la regla dura del libro 18 para scalping/checklist.
 4. **R7:** unificar motores ICT (anti-islas del grafo).
 5. **A6/R5:** expandir datos para A12.
 6. Cualquier nuevo desarrollo pasa por harness actualizado.

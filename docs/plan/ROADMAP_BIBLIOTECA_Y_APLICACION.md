@@ -131,23 +131,26 @@ Falta E4 (Silver Bullet) para cerrar el analisis del stack ICT intradia en M15.
 - **Re-medición v2.7 tras limpiar look-ahead:** E4 Silver Bullet PF 0.896/0.639 → **RECHAZADO**; PO3+displacement 2/0 trades → INCONCLUSO; **Turtle Soup PENDIENTE v2.8** (único que rozó el gate).
 - **SL Estructural v29** (`e2a9c11`): SL anclado a mecha del sweep. EURUSD PF 1.128 / GBPUSD PF 2.101 PERO sostenido en `hold_limit` (7/11 y 11/13 cerraron por hold, no TP). Rentable pero el éxito vive del hold.
 
+**Turtle Soup v2.8 ALINEADO A TESIS 18 (2026-07-14):** `run_backtest.py` camino sequence usa SL mecha sweep + RR 1:3 + killzone. EURUSD M15 H4→M15 = **0 señales** (1787→170→92→0). El retorno al cuadro no ocurre tras el BOS con SL estructural. Veredicto: **no concluyente** (0 trades, no PF<1.10). GBPUSD pendiente.
+
 **Gate:** no Optuna hasta que E2 o el modelo elegido tenga PF OOS medio ≥1.10 **y** ningún fold <1 **o** se documente "frágil aceptado para paper".
 
 ---
 
-### R4-tesis — Tesis de ejecución óptima (libro 18) · docs ✅ · código ⏳ (2026-07-14)
+### R4-tesis — Tesis de ejecución óptima (libro 18) · docs ✅ · código 🟡 (2026-07-14)
 
 **Fuente:** `docs/ict/18_EJECUCION_OPTIMA_TF_SL_ENTRY.md` (regla dura, commit `46b074e`).
 
 | Tarea código | Detalle | Archivos | Estado |
 |--------------|---------|----------|--------|
+| SL estructural (mecha sweep) en sequence | `run_backtest.run_sequence_backtest` usa `calc_structural_sl` (no BOS±ATR) | `ict_backtest/run_backtest.py` | ✅ R4-clean |
+| RR 1:3 en sequence | TP = liquidez opuesta o entry±3R | `ict_backtest/run_backtest.py` | ✅ R4-clean |
+| Killzone en sequence | filtro London/NY AM/NY PM | `ict_backtest/run_backtest.py` | ✅ R4-clean |
 | `exec_tf` explícito | `build_signals_from_frames` recibe `exec_tf`/`itf` separados de `ltf` | `ict_backtest/engine.py:44` | ❌ R4-tesis/v30 |
-| `calc_structural_sl` por exec TF | leer row del exec TF (no ltf) | `ict_backtest/engine.py:316` | ❌ R4-tesis/v30 |
 | M3 en `TF_FREQ` | agregar M3 (intermedio M5→M1) | `ict_backtest/engine.py:250` | ❌ R4-tesis/v30 |
-| Killzones London/NY PM | cablear las 3 KZ (hoy solo NY AM en algunos modelos) | `ict_backtest/rules.py`, `detectors/killzones.py` | ❌ R4-tesis/v30 |
-| Filtro RR ≥ 1:3 | rechazar setups que no sostengan 1:3 | `ict_backtest/engine.py` | ❌ R4-tesis/v30 |
+| Killzones London/NY PM en checklist | cablear las 3 KZ en camino checklist/scalping | `ict_backtest/rules.py` | ❌ R4-tesis/v30 |
 
-**Criterio de done:** el motor produce SL/entry en el exec TF correcto (M5 scalping / M15 intradía) y la tesis 18 deja de depender de la coincidencia `exec_tf==ltf`.
+**Criterio de done:** el motor produce SL/entry en el exec TF correcto (M5 scalping / M15 intradía) y la tesis 18 deja de depender de la coincidencia `exec_tf==ltf`. Camino sequence/Turtle Soup YA alineado; falta checklist/scalping (v30).
 
 ---
 
