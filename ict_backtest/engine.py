@@ -28,6 +28,11 @@ class ICTSignal:
     take_profit: float
     model: str = ""         # "intradia" | "scalping"
     confidence: float = 0.0
+    # Metadatos de indices de la secuencia canonica (R7 T3.1): permiten
+    # trazabilidad de la senal sin alterar la simulacion (entry/SL/TP).
+    sweep_at: int | None = None
+    bos_at: int | None = None
+    entry_at: int | None = None
 
 
 @dataclass
@@ -39,111 +44,6 @@ class ICTTrade:
     entry: float
     exit: float
     pnl_r: float            # PnL en unidades de riesgo (RR)
-
-
-def build_signals_from_frames(
-    symbol: str,
-    frames: dict[str, pd.DataFrame],
-    bias_by_tf: dict[str, str],
-    votes: dict | None = None,
-    model: str = "intradia",
-    min_confidence: float = 0.0,
-    htf: str = "H4",
-    ltf: str = "M15",
-    counter_trend: bool = False,
-    tp_mode: str = "fixed2r",
-    require_displacement: bool = False,
-) -> list[ICTSignal]:
-    """Construye senales ICT evaluando el mini-check del dashboard por vela.
-
-    frames: {"D1": df, "H4": df, "M15": df, ...} alineados por indice/tiempo.
-    Recorre el LTF barra por barra (event-driven). En cada vela, arma el dict
-    `estructura` por TF y llama a ict_backtest.rules.evaluate. Si el check pasa
-    (ready) y la direccion es LONG/SHORT, genera ICTSignal con SL/TP.
-
-    counter_trend: setup opera contra la marea del HTF.
-    tp_mode: "fixed2r" (entry +/- 2R) | "liquidity" (BSL/SSL mas cercano).
-    require_displacement: exige vela de displacement fuerte en el exec TF.
-
-    SL  = nivel de invalidacion (structural) o ATR si no hay.
-    TP  = entry +/- 2*ATR (RR 1:2) o liquidez opuesta (tp_mode).
-    """
-    from ict_backtest.rules import evaluate
-
-    ltf_df = frames.get(ltf)
-    if ltf_df is None or len(ltf_df) == 0:
-        return []
-
-    atr_col = "atr" if "atr" in ltf_df.columns else None
-    results: list[ICTSignal] = []
-
-    for i in range(len(ltf_df)):
-        row = ltf_df.iloc[i]
-        ts = _coerce_ts(row.get("time"))
-        estructura = _build_estructura(frames, i, ltf)
-        # Sesgo POR VELA desde la tendencia del HTF (backtest honesto, sin mirar futuro).
-        htf_trend = str(estructura.get(htf, {}).get("trend", "NEUTRAL"))
-        bias = htf_trend if htf_trend in ("BULLISH", "BEARISH") else "NEUTRAL"
-        if bias_by_tf.get(htf) in ("BULLISH", "BEARISH") and htf not in frames:
-            bias = bias_by_tf[htf]
-
-        verdict = evaluate(model, estructura, bias, votes, ts, exec_tf=ltf,
-                           htf=htf, counter_trend=counter_trend)
-        if not verdict["ready"]:
-            continue
-        # R4 E2 — Medicion AISLADA de PO3: solo el ciclo COMPLETO (A+M+D),
-        # no señales parciales. Aisla el modelo PO3 del resto del intradia.
-        if model == "po3" and not verdict.get("complete"):
-            continue
-        direction = 1 if verdict["direction"] == "LONG" else -1 if verdict["direction"] == "SHORT" else 0
-        if direction == 0:
-            continue
-        if require_displacement:
-            disp_ok = bool(row.get("displacement_bullish", False)) if direction == 1 \
-                else bool(row.get("displacement_bearish", False))
-            if not disp_ok:
-                continue
-
-        entry = float(row["close"])
-        atr = float(row[atr_col]) if atr_col else 0.0
-        if not np.isfinite(atr) or atr <= 0:
-            continue
-
-        # SL ESTRUCTURAL (libro 14_STOP_LOSS_ESTRUCTURAL). Ya NO usa ATR como
-        # fallback: el stop se ancla a la mecha del sweep (o al swing roto).
-        # Si no hay nivel estructural -> None -> NO operar (no degradar a ATR).
-        sl = calc_structural_sl(row, direction, atr)
-        if sl is None:
-            continue
-        risk = abs(entry - sl)
-        if risk <= 0:
-            continue
-        # Filtro de tamaño (P5): si el SL estructural queda muy ancho (sweep
-        # gigante en tendencia), el RR se rompe -> SALTAR, no comprimir stop.
-        if risk > STRUCT_SL_MAX_ATR * atr:
-            continue
-
-        if tp_mode == "liquidity":
-            liq = _tp_liquidity(row, direction)
-            if liq is not None:
-                tp = liq
-            else:
-                tp = entry + 2.0 * risk if direction == 1 else entry - 2.0 * risk
-        else:
-            tp = entry + 2.0 * risk if direction == 1 else entry - 2.0 * risk
-        # Garantizar RR >= 1 (TP mas alla del SL en la direccion correcta)
-        if direction == 1 and tp <= entry:
-            tp = entry + 2.0 * risk
-        if direction == -1 and tp >= entry:
-            tp = entry - 2.0 * risk
-
-        results.append(ICTSignal(
-            symbol=symbol, time=str(row["time"]), direction=direction,
-            entry=entry, stop_loss=sl, take_profit=tp,
-            model=model, confidence=verdict["passed"] / max(1, verdict["total"]),
-        ))
-    return results
-
 
 def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
                   max_hold_bars: int, cost: dict | None = None) -> tuple[ICTTrade | None, dict[str, Any]]:

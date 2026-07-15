@@ -1,0 +1,131 @@
+# PRINCIPIOS ARQUITECTÓNICOS — SMC SYSTEMS
+
+**Estado:** VIGENTE desde 2026-07-15. Autoridad: Ruben (radiólogo / dueño del proyecto).
+Scribe: Hermes. **Jerarquía:** por ENCIMA de R7. R7 es refactor puro congelado;
+estos principios NO se aplican dentro de R7, gobiernan R10/R11 en adelante.
+
+Objective: SMC SYSTEMS debe ser un **motor de interpretación del mercado**, no un
+bot de reglas fijas. El mercado describe significado; el algoritmo se adapta a él.
+
+---
+
+## PRINCIPIO 1 — Interpretación, nunca constante arbitraria
+
+> Toda decisión del sistema debe derivarse del estado e interpretación del mercado,
+> nunca de constantes arbitrarias (número de velas, lookback fijo, distancia fija,
+> tiempo fijo o parámetros equivalentes).
+
+Las constantes numéricas solo podrán existir como:
+- mecanismos internos de estabilidad,
+- buffers matemáticos,
+- límites de seguridad,
+- adaptación estadística,
+- parámetros derivados de los datos.
+
+**Nunca** podrán representar el significado del mercado ni ser la fuente primaria
+de una decisión ICT.
+
+Si durante una implementación aparece un parámetro como `bos_gap`, `lookback`,
+"20 velas", "50 barras", "X minutos", "X pips", Hermes deberá preguntarse primero:
+
+> **¿Qué concepto del mercado intenta representar este número?**
+
+Si existe un concepto estructural equivalente (contexto, narrativa, estado,
+liquidez, desplazamiento, intención, MarketObject, etc.), deberá proponerse una
+solución basada en dicho concepto para **R10+**.
+
+Si la sustitución modifica el comportamiento de una fase congelada (como R7), NO
+deberá implementarse inmediatamente. Deberá documentarse como mejora arquitectónica
+para una versión posterior.
+
+---
+
+## PRINCIPIO 2 — Modelamos el mercado, no las velas
+
+> SMC SYSTEMS no modela velas. Modela el mercado.
+
+Las velas, OHLC, ATR, indicadores y cualquier representación temporal son
+**únicamente una fuente de observación**.
+
+El motor de decisión deberá operar sobre entidades semánticas (`MarketObjects`),
+relaciones entre ellas y el contexto estructural vigente.
+
+La IA aprenderá sobre dichas entidades y relaciones, **nunca directamente sobre
+velas o indicadores**.
+
+Jerarquía objetivo del motor:
+
+```
+Datos del mercado  ->  Representación matemática (MarketObjects)
+                   ->  Contexto estructural
+                   ->  Narrativa del mercado
+                   ->  Interpretación
+                   ->  Decisión
+                   ->  Ejecución
+```
+
+La decisión nace del significado del mercado, no de "10 velas", "50 barras" o
+"ATR × 2". Esos valores pueden existir internamente como herramientas de
+implementación, pero la arquitectura los trata como detalles técnicos, no como la
+explicación de por qué el sistema decidió actuar.
+
+---
+
+## PRINCIPIO 3 — Las 4 preguntas obligatorias antes de cualquier parámetro
+
+Antes de introducir cualquier parámetro nuevo, Hermes deberá responder
+**obligatoriamente** cuatro preguntas:
+
+1. ¿Este número representa un concepto del mercado o es un valor arbitrario?
+2. ¿Puede derivarse automáticamente del estado del mercado?
+3. ¿Puede representarse mediante `MarketObjects` o relaciones estructurales?
+4. Si el mercado cambia de régimen, ¿el parámetro sigue siendo válido o debería
+   adaptarse?
+
+Si alguna respuesta indica que el parámetro es arbitrario, Hermes **no debe
+implementarlo** sin antes documentar por qué no puede eliminarse.
+
+---
+
+## PRINCIPIO 4 — Interpretación contextual sobre regla fija (con límite auditable)
+
+> SMC SYSTEMS deberá aproximarse al razonamiento de un trader institucional experto
+> mediante modelos matemáticos auditables.
+
+Cuando exista un conflicto entre una regla fija y una interpretación contextual
+equivalente, se preferirá la **interpretación contextual**, siempre que pueda
+expresarse de forma **objetiva, medible, reproducible y verificable mediante
+pruebas**.
+
+Diferencia clave: no imitamos la *intuición* humana, imitamos el *razonamiento*
+humano transformado en matemáticas y reglas auditables. Eso mantiene el sistema
+científico y reproducible, en lugar de un conjunto de heurísticas imposibles de
+validar.
+
+---
+
+## CASO PILOTO — `bos_gap` (deuda R10+)
+
+El primer caso detectado bajo estos principios: discrepancia de `bos_gap` entre
+`ict_backtest/sequence.py:66` (`SequenceConfig.bos_gap = 40`) y
+`ict_backtest/run_backtest.py:67` (`generate_sequence_signals(..., bos_gap = 10)`).
+
+- Es un **número mágico sin concepto estructural** (Principio 1): no deriva de
+  mercado, no es buffer/seguridad, no está anclado a la tesis.
+- La "ventana de confirmación BOS" debería representar "¿cuándo una estructura
+  deja de ser relevante?" (estado del `MarketObject`), no una cuenta fija de velas.
+- **NO se implementa en R7** (congelado). Documentado como **PRIMER CANDIDATO R10**
+  (registro 2026-07-15, tras T3.2B).
+- Estado 2026-07-15: T3.2B (eliminar `build_signals_from_frames`) se completó como
+  borrado MECÁNICO de código muerto SIN tocar `bos_gap`. La divergencia de
+  equivalencia 2-vs-5 que motivó el bloqueo original NO se resuelve en R7: queda
+  como deuda de R10, donde `bos_gap` se derivará de estado estructural (no se
+  unifica el literal 40/10).
+
+## PROCESO DE CUMPLIMIENTO
+
+1. Ante un parámetro nuevo/observable, Hermes aplica el Principio 3 (4 preguntas).
+2. Si es arbitrario → propone sustitución por concepto para R10+; documenta.
+3. Si afecta fase congelada (R7) → documenta, NO implementa.
+4. El `grep`-equivalente de "constantes arbitrarias" (estilo test T3.2A) puede
+   usarse como guarda arquitectónico en R10+.

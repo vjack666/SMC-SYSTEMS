@@ -12,7 +12,10 @@ import numpy as np
 import pandas as pd
 
 from ict_backtest.structure import classify_structure
-from ict_backtest.engine import build_signals_from_frames, simulate_trade
+from ict_backtest.market_structure import detect_market_structure
+from ict_backtest.engine import simulate_trade, ICTSignal, calc_structural_sl
+from ict_backtest.sequence import run_sequence, SequenceConfig, _row_at_time
+from ict_backtest.rules import killzone_en
 
 # --- PARTE 1: clasificar estructura por TF ---
 labels_h4 = ["HH", "HL", "HH", "HL", "HH", "HL"]
@@ -66,7 +69,50 @@ frames = {"H4": h4, "M15": m15}
 bias_by_tf = {"H4": "BULLISH"}
 votes = {"LONG": 3, "SHORT": 1}
 
-signals = build_signals_from_frames("XAUUSD", frames, bias_by_tf, votes, model="intradia")
+# R7 T3.2A: motor canonico (EVENT-SEQUENCE), no build_signals_from_frames.
+ms_m15 = detect_market_structure(m15)
+ms_h4 = detect_market_structure(h4)
+
+
+def _est_fn(i):
+    t = m15.iloc[i]["time"]
+    r = _row_at_time(ms_h4, t)
+    return {"trend": str(r.get("trend", "RANGING")),
+            "sweep_up": bool(r.get("liquidity_sweep_up", False)),
+            "sweep_down": bool(r.get("liquidity_sweep_down", False))}
+
+
+raw_sigs, _ = run_sequence(ms_m15, _est_fn, SequenceConfig(), ltf_tf="M15")
+signals = []
+for s in raw_sigs:
+    direction = s["direction"]
+    entry_at = s["entry_at"]
+    entry_row = ms_m15.iloc[entry_at]
+    entry = s["entry"]
+    atr = float(entry_row.get("atr", 0.0) or 0.0)
+    if not (atr > 0):
+        continue
+    kz = killzone_en(pd.to_datetime(entry_row["time"], utc=True))
+    if kz not in ("London Open", "New York AM", "New York PM"):
+        continue
+    sweep_row = ms_m15.iloc[s["sweep_at"]]
+    sl = calc_structural_sl(sweep_row, direction, atr)
+    if sl is None:
+        continue
+    risk = abs(entry - sl)
+    if risk <= 0:
+        continue
+    tp = entry + 3.0 * risk if direction == 1 else entry - 3.0 * risk
+    if direction == 1 and tp <= entry + 2.0 * risk:
+        tp = entry + 3.0 * risk
+    if direction == -1 and tp >= entry - 2.0 * risk:
+        tp = entry - 3.0 * risk
+    signals.append(ICTSignal(symbol="XAUUSD", time=s["time"], direction=direction,
+                             entry=entry, stop_loss=sl, take_profit=tp,
+                             model="sequence",
+                             sweep_at=s["sweep_at"], bos_at=s["bos_at"],
+                             entry_at=s["entry_at"]))
+
 print(f"[ENGINE] senales generadas: {len(signals)}")
 if signals:
     sig = signals[0]

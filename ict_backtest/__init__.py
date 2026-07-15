@@ -8,10 +8,10 @@ Modulos:
 
 from ict_backtest.structure import classify_structure, classify_multi_tf, momentum_direction
 from ict_backtest.rules import evaluate, checklist_intradia, checklist_scalping, killzone_en
-from ict_backtest.engine import ICTSignal, ICTTrade, build_signals_from_frames, simulate_trade
+from ict_backtest.engine import ICTSignal, ICTTrade, simulate_trade
 
 __all__ = [
     "classify_structure", "classify_multi_tf", "momentum_direction",
     "evaluate", "checklist_intradia", "checklist_scalping", "killzone_en",
-    "ICTSignal", "ICTTrade", "build_signals_from_frames", "simulate_trade",
+    "ICTSignal", "ICTTrade", "simulate_trade",
 ]

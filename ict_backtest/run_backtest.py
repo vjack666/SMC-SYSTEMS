@@ -26,7 +26,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ict_backtest.data_feed import load_frames  # noqa: E402
-from ict_backtest.engine import (build_signals_from_frames, simulate_trade, ICTSignal,  # noqa: E402
+from ict_backtest.engine import (simulate_trade, ICTSignal,  # noqa: E402
                                  calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_ATR)  # noqa: E402
 from ict_backtest.rules import killzone_en  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
@@ -59,23 +59,28 @@ def _metrics(pnls: list[float]) -> dict[str, float]:
     }
 
 
-def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
-                           counter_trend: bool = False, tp_mode: str = "fixed2r",
-                           require_displacement: bool = True,
-                           displace_gap: int = 6, bos_gap: int = 10,
-                           cost: dict | None = None) -> dict:
-    """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden)."""
-    tfs = tuple(dict.fromkeys([htf, ltf, "D1"]))
-    tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
-    print(f"[1/3] Cargando frames {symbol} {tfs} + market_structure ...", flush=True)
-    t0 = time.time()
-    frames = load_frames(symbol, tfs)
-    for tf, df in frames.items():
-        print(f"      {tf}: {len(df)} velas", flush=True)
+def generate_sequence_signals(symbol: str, htf: str, ltf: str,
+                               counter_trend: bool = False,
+                               tp_mode: str = "fixed2r",
+                               require_displacement: bool = True,
+                               displace_gap: int = 6,
+                               bos_gap: int = 10,
+                               frames: dict | None = None) -> list:
+    """Motor canonico (EVENT-SEQUENCE): genera senales ICTSignal completas.
+
+    R7 (fuente unica de verdad): es el unico generador de senales del repo.
+    `build_signals_from_frames` (isla engine) queda eliminado en T3.2B; los
+    consumidores (scripts, _smoke, runner) redirigen AQUI en T3.2A.
+
+    Si `frames` es None, carga con load_frames (comportamiento de backtest
+    real). Si se pasa (datos ya recortados/synteticos), lo usa directo (caso
+    _smoke / tests). Devuelve list[ICTSignal] SIN simular.
+    """
+    if frames is None:
+        tfs = tuple(dict.fromkeys([htf, ltf, "D1"]))
+        frames = load_frames(symbol, tfs)
     # Market structure con memoria (BOS/CHOCH canonicos) en cada TF
     ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
-    print(f"      features en {time.time()-t0:.1f}s", flush=True)
-
     ltf_df = ms[ltf]
     htf_df = ms.get(htf, ltf_df)
 
@@ -86,19 +91,15 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                 "sweep_up": bool(r.get("liquidity_sweep_up", False)),
                 "sweep_down": bool(r.get("liquidity_sweep_down", False))}
 
-    print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
-    t0 = time.time()
-    raw_sigs, phases = run_sequence(ltf_df, est_htf_fn,
-                                    SequenceConfig(counter_trend=counter_trend,
-                                                   tp_mode=tp_mode,
-                                                   require_displacement=require_displacement,
-                                                   displace_gap=displace_gap,
-                                                   bos_gap=bos_gap))
-    print(f"      fases: {phases}", flush=True)
-    print(f"      {len(raw_sigs)} senales en {time.time()-t0:.1f}s", flush=True)
+    raw_sigs, _ = run_sequence(ltf_df, est_htf_fn,
+                               SequenceConfig(counter_trend=counter_trend,
+                                              tp_mode=tp_mode,
+                                              require_displacement=require_displacement,
+                                              displace_gap=displace_gap,
+                                              bos_gap=bos_gap),
+                               ltf_tf=ltf)
 
     # Convertir a ICTSignal con SL/TP y simular (ALINEADO A TESIS 18)
-    print(f"[3/3] Simulando trades vela a vela (max_hold={max_hold}) ...", flush=True)
     signals = []
     for s in raw_sigs:
         direction = s["direction"]
@@ -112,8 +113,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         kz = killzone_en(pd.to_datetime(entry_row["time"], utc=True))
         if kz not in ("London Open", "New York AM", "New York PM"):
             continue
-        # SL ESTRUCTURAL (tesis #3 / libro 14): anclado a la MECHA del sweep,
-        # no a BOS+-ATR ni ATR ciego. Lee el row de la vela del sweep (exec TF).
+        # SL ESTRUCTURAL (tesis #3 / libro 14): anclado a la MECHA del sweep.
         sweep_row = ltf_df.iloc[s["sweep_at"]]
         sl = calc_structural_sl(sweep_row, direction, atr)
         if sl is None:
@@ -121,7 +121,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         risk = abs(entry - sl)
         if risk <= 0:
             continue
-        # Filtro de tamaño (engine STRUCT_SL_MAX_ATR): sweep gigante rompe RR.
+        # Filtro de tamano (engine STRUCT_SL_MAX_ATR): sweep gigante rompe RR.
         if risk > STRUCT_SL_MAX_ATR * atr:
             continue
         # TP con RR 1:3 (tesis #7): liquidez opuesta del exec TF si existe.
@@ -137,8 +137,35 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
             tp = entry - 3.0 * risk
         signals.append(ICTSignal(symbol=symbol, time=s["time"], direction=direction,
                                  entry=entry, stop_loss=sl, take_profit=tp,
-                                 model="sequence"))
+                                 model="sequence",
+                                 sweep_at=s["sweep_at"], bos_at=s["bos_at"],
+                                 entry_at=s["entry_at"]))
+    return signals
 
+
+def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
+                           counter_trend: bool = False, tp_mode: str = "fixed2r",
+                           require_displacement: bool = True,
+                           displace_gap: int = 6, bos_gap: int = 10,
+                           cost: dict | None = None) -> dict:
+    """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden)."""
+    tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
+    print(f"[1/3] Cargando frames {symbol} + market_structure ...", flush=True)
+    t0 = time.time()
+    frames = load_frames(symbol, tuple(dict.fromkeys([htf, ltf, "D1"])))
+    ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
+    ltf_df = ms[ltf]
+    signals = generate_sequence_signals(symbol, htf, ltf,
+                                        counter_trend=counter_trend,
+                                        tp_mode=tp_mode,
+                                        require_displacement=require_displacement,
+                                        displace_gap=displace_gap,
+                                        bos_gap=bos_gap, frames=frames)
+    print(f"      features en {time.time()-t0:.1f}s", flush=True)
+    print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
+    print(f"      {len(signals)} senales", flush=True)
+
+    print(f"[3/3] Simulando trades vela a vela (max_hold={max_hold}) ...", flush=True)
     pnls: list[float] = []
     exits: dict[str, int] = {}
     total = len(signals)
@@ -168,48 +195,19 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
 def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
         counter_trend: bool = False, tp_mode: str = "fixed2r",
         require_displacement: bool = False, cost: dict | None = None) -> dict:
-    tfs = tuple(dict.fromkeys([htf, ltf, "D1"]))  # unicos, D1 para contexto
-    tag = f"{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
-    print(f"[1/3] Cargando frames {symbol} {tfs} + features ICT ...", flush=True)
-    t0 = time.time()
-    frames = load_frames(symbol, tfs)
-    for tf, df in frames.items():
-        print(f"      {tf}: {len(df)} velas ({df['time'].min()} -> {df['time'].max()})", flush=True)
-    print(f"      features en {time.time()-t0:.1f}s", flush=True)
+    """Backtest POR DEFECTO (sin --engine) sobre el motor canonico sequence.
 
-    print(f"[2/3] Generando senales (modelo={model}, htf={htf}, ltf={ltf}, {tag}) ...", flush=True)
-    t0 = time.time()
-    signals = build_signals_from_frames(symbol, frames, bias_by_tf={}, model=model,
-                                        htf=htf, ltf=ltf, counter_trend=counter_trend,
-                                        tp_mode=tp_mode, require_displacement=require_displacement)
-    print(f"      {len(signals)} senales en {time.time()-t0:.1f}s", flush=True)
-
-    print(f"[3/3] Simulando trades vela a vela (max_hold={max_hold}) ...", flush=True)
-    ltf_df = frames[ltf]
-    pnls: list[float] = []
-    exits: dict[str, int] = {}
-    total = len(signals)
-    for k, sig in enumerate(signals, 1):
-        trade, meta = simulate_trade(ltf_df, sig, max_hold, cost=cost)
-        if trade is not None:
-            pnls.append(trade.pnl_r)
-            exits[meta["exit_reason"]] = exits.get(meta["exit_reason"], 0) + 1
-        if total and (k % max(1, total // 20) == 0 or k == total):
-            pct = 100 * k // total
-            bar = "#" * (pct // 5) + "-" * (20 - pct // 5)
-            print(f"      [{bar}] {pct}% ({k}/{total})", flush=True)
-
-    m = _metrics(pnls)
-    print(f"\n===== RESULTADO [{tag}] =====", flush=True)
-    print(f"  simbolo      : {symbol}  |  modelo: {model}  |  {htf}->{ltf}", flush=True)
-    print(f"  trades       : {m['trades']}", flush=True)
-    print(f"  winrate      : {m['winrate']*100:.1f}%", flush=True)
-    print(f"  profit factor: {m['pf']:.3f}", flush=True)
-    print(f"  expectancy   : {m['expectancy']:.3f} R/trade", flush=True)
-    print(f"  total        : {m['total_r']:.1f} R", flush=True)
-    print(f"  max drawdown : {m['max_dd_r']:.1f} R", flush=True)
-    print(f"  salidas      : {exits}", flush=True)
-    return m
+    R7 T3.1 (DoD #2 / H12): el camino por defecto delega en `run_sequence`
+    (motor canonico), NO en `build_signals_from_frames` (isla engine
+    divergente: entry en close, RR 1:2). El parametro `model` se portara a
+    `SequenceConfig` en T3.3; aqui el motor canonico es event-sequence
+    (tesis 18: entry en retorno al cuadro, RR 1:3, SL estructural).
+    """
+    return run_sequence_backtest(symbol, htf, ltf, max_hold,
+                                 counter_trend=counter_trend,
+                                 tp_mode=tp_mode,
+                                 require_displacement=require_displacement,
+                                 cost=cost)
 
 
 def main() -> None:

@@ -95,9 +95,8 @@
 | A8 | Deployment Guide (F8) | VPS, systemd/NSSM | 🔴 Pendiente | Baja |
 | **R5** | **Datos A6 (bloqueante A12)** | ≥3-4 años M15 XAUUSD/EURUSD | 🟡 En curso | Alta |
 | **R6** | **Backtest profesional (reloj/fill/costos)** | Libro 13 + plan; código G1-G3 pendiente | 🔶 Docs ✅ / Código ⏳ | Alta |
-| **R7** | **Unificar motores ICT (anti-islas)** | pipeline/ict_agent/sequence/rules/engine → single source of truth | 🔴 Pendiente (deuda grafo) | Alta |
-| **R8** | **Migración event-driven (borrar "aged")** | Fases 0→F completas; A' PF 1.511 > baseline 1.424; POI HTF como filtro duro RECHAZADO (0.900) | ✅ Código + Fase F | Alta |
-| **R9** | **Libro 21 POI (ontología→biblioteca→código)** | 21_POI.md ✅ + tesis §5b + índice; falta anclar POI a narrativa en código | 🔶 Docs ✅ / Código ⏳ | Alta |
+| **R9** | **Migración del motor a MarketObject (R9)** | ✅ COMPLETADO (2026-07-15). Representación canónica MarketObject; sequence 100% migrado; equivalencia 15/15 tests; compatibilidad vía adapter intacta. NO incluía eliminar engine.py (deuda R7). | ✅ Cerrado | Alta |
+| **R7** | **Unificar motor de decisión (single source of truth)** | 🔒 Fase 1+2 CONGELADAS + AMPLIADAS post-auditoría (R7_UNIFICACION_MOTOR.md): inventario ahora incluye ict_agent/legacy/ml + consumidores build_signals_from_frames; DoD fortalecido (default runner en sequence, check_separation con islas). Contrato oficial. Fase 3-6 (impl/TDD) PENDIENTE de autorización. Sin código. | 🔒 Arquitectura congelada ⏳ | Alta |
 
 **Criterio de completitud:** A1-A11 + R0-R4 + libro 18 en 🟢. Harness 100%. A12 validado con datos suficientes. Solo entonces production-ready para bot.
 
@@ -108,8 +107,9 @@
 - **Fase R4-clean:** Turtle Soup v2.8 SIN look-ahead + YA ALINEADO A TESIS 18 (SL mecha sweep, RR 1:3, killzone) en `run_backtest.py` camino sequence. Veredicto final del único modelo que rozó el gate. Si PF<1.10, R4 se documenta "sin edge para live".
 - **Fase R3.5-libros:** escribir 21 (SMT), 22 (Breaker/MMXM), 23 (OTE) y cablear detectores (bloquea R4-honesto v30).
 - **Fase R6 WF/OOS:** re-run A12 tras R5.
-- **Fase R7 unificación:** un solo motor de evaluación ICT (matar las 4 islas del grafo) antes de cualquier live.
+- **Fase R7 unificación:** un solo motor de evaluación ICT canónico (`sequence.py`) para backtest, UI y agente. El contrato R7 (R7_UNIFICACION_MOTOR.md) es la autoridad: `engine.py` queda degradado a helpers puros; `ict_agent` delega en `sequence`; `legacy/backtest` y `ml/dataset_builder` quedan DOCUMENTADOS FUERA de alcance de R7 (deuda a resolver post-R7, con decisión explícita). No se promete "matar todas las islas" en R7: el DoD de R7 exige que no haya motor ICT paralelo INVISIBLE, no la migración del legacy/ML en esta fase.
 - **Fase Live (A8):** ÚLTIMA, solo con OK humano.
+- **Fase R10/R11 — PRINCIPIOS ARQUITECTÓNICOS (motor de interpretación del mercado):** NUEVA dirección de nivel superior a R7, establecida 2026-07-15 (docs/plan/PRINCIPIOS_ARQUITECTONICOS.md). 4 reglas: (1) decisión SIEMPRE del estado/interpretación del mercado, NUNCA constante arbitraria; (2) modelamos mercado no velas (motor sobre MarketObjects+relaciones+contexto; IA sobre entidades); (3) 4 preguntas obligatorias antes de cualquier parámetro arbitrario; (4) interpretación contextual sobre regla fija, SI es objetiva/medible/reproducible/verificable. **NO se aplica dentro de R7 (congelado).** **PRIMER CANDIDATO R10 (registro 2026-07-15):** `bos_gap` (sequence.py=40 vs run_backtest.py=10) es número mágico antipatrón → derivar ventana de confirmación BOS de estado estructural del MarketObject, NO unificar el literal. T3.2B completado como borrado mecánico de isla sin tocar bos_gap; la divergencia 2-vs-5 queda como deuda R10.
 
 ---
 

@@ -24,9 +24,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from ict_backtest.data_feed import load_frames  # noqa: E402
-from ict_backtest.engine import (  # noqa: E402
-    build_signals_from_frames, simulate_trade,
-)
+from ict_backtest.run_backtest import generate_sequence_signals  # noqa: E402
+from ict_backtest.engine import simulate_trade  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
 
 SYMBOL = "EURUSD"
@@ -47,11 +46,10 @@ def main() -> None:
     htf_df = ms[HTF]
     print(f"      M15: {len(ltf_df)} velas", flush=True)
 
-    print("[2/4] Generando senales (CT, tp-mode liquidity) ...", flush=True)
-    signals = build_signals_from_frames(
-        SYMBOL, frames, bias_by_tf={}, model="intradia", htf=HTF, ltf=LTF,
-        counter_trend=True, tp_mode="liquidity", require_displacement=True,
-    )
+    print(f"[2/4] Generando senales (CT, tp-mode liquidity) — motor canonico ...", flush=True)
+    signals = generate_sequence_signals(SYMBOL, HTF, LTF,
+                                        counter_trend=True, tp_mode="liquidity",
+                                        require_displacement=True, frames=frames)
     print(f"      {len(signals)} senales", flush=True)
     if not signals:
         print("Sin senales en el recorte. Aumenta NVELAS.")

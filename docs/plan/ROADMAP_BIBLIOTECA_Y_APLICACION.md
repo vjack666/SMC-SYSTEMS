@@ -157,25 +157,69 @@ Falta E4 (Silver Bullet) para cerrar el analisis del stack ICT intradia en M15.
 
 ---
 
-### R7 — Unificar motores ICT (anti-islas del grafo) · 🔴 pendiente (deuda)
+### R7 — Unificar motor de decisión (single source of truth) · 🔒 Fase 1+2 CONGELADAS + AMPLIADAS post-auditoría
 
-**Fuente:** `graphify-out/graph.json` @ `46b074e` (auditoría 2026-07-14, `scripts/check_separation.py`).
+**Reabierto como proyecto INDEPENDIENTE de R9** (R9 cerrado 2026-07-15: su
+contrato era la representación MarketObject, NO eliminar engine.py). Ver
+**`docs/plan/R7_UNIFICACION_MOTOR.md`** (contrato oficial + auditoría R7).
 
-| Módulo | Comunidad(es) | Aristas cruzadas |
-|--------|---------------|------------------|
-| `signals/pipeline.py` | 1 / 2 / 5 / 73 | 0 (isla) |
-| `agents/ict_agent.py` | 39 / 62 | 0 (isla) |
-| `ict_backtest/sequence.py` | 36 / 70 | 0 (isla) |
-| `ict_backtest/rules.py` | 57 | solo con engine (2) |
-| `ict_backtest/engine.py` | 18 | solo con rules (2) |
+**Contrato oficial (2026-07-15, ampliado tras auditoría crítica):**
+- Motor canónico = **sequence.py** (sobre MarketObject[]).
+- engine.py degradado a helpers puros (`simulate_trade`, `calc_structural_sl`,
+  `_tp_liquidity`); ubicación física diferida a implementación.
+- `build_signals_from_frames` eliminado; consumidores documentados (1.4 del doc).
+- **Default del runner en sequence** (no opt-in).
+- **ict_agent delega en sequence** (H1); **legacy/backtest y ml/dataset_builder
+  DOCUMENTADOS fuera de alcance** con decisión explícita (H2/H3).
+- **DoD fortalecido**: no se declara "una sola fuente" mientras exista motor ICT
+  paralelo o consumidor no redirigido; check_separation incluye ict_agent/
+  legacy/ml (H10).
+- **Anti-lookahead HTF** preservado como requisito arquitectónico (H8).
 
-**Hallazgo:** 5 módulos ICT en 6 comunidades distintas. **Solo 2 aristas cruzadas en todo el sistema** (`engine.py ↔ rules.py`). `pipeline.py`, `ict_agent.py`, `sequence.py` son islas totales. Backtest (`sequence`/`engine`) y señales en vivo (`pipeline`) salen de motores distintos con pesos que divergen → riesgo de "backtest bueno, vivo malo".
+**Fase 3 (TDD) — COMPLETADA (2026-07-15):**
+- **T3.1:** el runner por defecto (`run_backtest.run`) delega en `run_sequence_backtest` (motor canónico); ya no usa `build_signals_from_frames`. API pública intacta.
+- **T3.2A:** consumidores secundarios (`scripts/_smoke.py`, `scripts/plot_trade_structsl.py`, `__init__.py`, `ict_backtest/_smoke.py`) redirigidos al motor canónico → 0 consumidores vivos (ver `tests/test_r7_t32a_consumers.py`).
+- **T3.2B:** `build_signals_from_frames` BORRADA de `engine.py` (isla eliminada); test consumidor `test_r4_po3_isolated.py` eliminado. Eliminación mecánica de código muerto, SIN tocar lógica ICT ni `bos_gap`. `simulate_trade`/`calc_structural_sl`/`_tp_liquidity`/`ICTSignal` preservados como helpers puros.
+- **Cobertura TDD:** `test_r7_runner_default.py` (T3.1), `test_r7_t32a_consumers.py` (T3.2A), `test_r7_t32b_elimination.py` (T3.2B), `test_r7_divergence_investigation.py`, `test_r7_bosgap_rootcause.py`, `test_r7_ms_mutation.py`.
+- **Batería:** 378 passed / 3 failed (los 3 failures son áreas fuera de alcance R7: POI en `sequence.py:182`, `ml/dataset_builder`, `ml_trainer` sklearn). Cero regresiones.
+- **Deuda documentada → R10:** divergencia `bos_gap` (sequence.py=40 vs run_backtest.py=10) es número mágico antipatrón (PRINCIPIOS_ARQUITECTONICOS.md). No se unifica en R7; se derivará de estado estructural en R10.
 
-**Acción:** refactor a **single source of truth** — una sola función `evaluate()` llamada por backtest, UI y agente (patrón ya aplicado en R1 para PO3; extender a todos los modelos).
+**Estado:** R7 Fase 3 cerrada como refactor mecánico. Fases 4-6 (portar rules/po3/killzone a sequence, eliminar build_signals legacy, redirigir runner/agent/ml) DEFERIDAS; legacy/backtest y ml/dataset_builder siguen DOCUMENTADOS fuera de alcance.
 
-**Criterio de done:** `scripts/check_separation.py` reporta >0 aristas entre pipeline/ict_agent/sequence/rules/engine; una sola función de evaluación ICT.
+### R9 — Migración del motor a MarketObject (refactor de tipo de dato) · ✅ COMPLETADO (2026-07-15)
 
----
+**Principio:** R9 es una REFACTORIZACIÓN PURA. NO cambia ninguna regla ICT (POI, quality_score, narrativa, sweep, BOS, MSS, entry, risk). Solo cambia el tipo de dato interno: de columnas sueltas de pandas a `MarketObject[]` + `MarketNarrative` como representación canónica, manteniendo la interfaz legacy vía `translation.py`.
+
+**Hecho (Paso 1 + 2 + 3, 2026-07-15):**
+- `ict_backtest/object_adapter.py`: `objects_view(frames)` pasa `{tf: df}` por `build_objects` → `df_to_objects` (sella capa `origin_tf` + rol + `bar_index`/`bar_time`) → `objects_to_legacy_df` (FIEL: carga columnas del detector en `meta` y las devuelve tal cual) → reensambla por `bar_index` sobre el df original.
+- `MarketObject` ahora lleva `bar_index`/`bar_time` (ancla a su vela de origen) + `ObjectType.CANDLE` (vista de vela para sequence).
+- `tests/test_r9_object_adapter.py` (TDD): verifica sobre XAUUSD real recortado que `run_sequence(frames)` == `run_sequence(objects_view(frames))`: **16==16 señales, mismos trades, mismo PF/WR/expectancy**. Y `test_sequence_consumes_marketobject_equivalent`: `run_sequence(df)` == `run_sequence(MarketObject[])` → mismas señales/time/direction/entry/sweep_at/bos_at/entry_at. Baseline de equivalencia establecido y VERDE (15 tests).
+- **Paso 3 (sequence.py migrado a MarketObject):** todas las funciones internas leen `MarketObject.meta` en lugar de `row_ltf[col]`. `run_sequence` acepta DataFrame O `list[MarketObject]`; convierte al inicio vía `_candle_objects` (NO toca translation.py). HTF context (`est_htf`) sigue como dict (no es columna LTF). `run_sequence_backtest` end-to-end verificado sin error.
+
+**Matriz de migración (sequence.py — DataFrame → MarketObject):** ver tabla en versión previa (sin cambios: `_has_sweep`, `_has_displacement`, `_has_choch`, `_has_bos`, `_latest_fvg_zone`, `_latest_ob_zone`, `_touches_zone`, `run_sequence`, `_candle_objects`).
+
+**Dependencias legacy restantes (fuera de alcance R9 Paso 3):**
+1. `run_backtest.py` sigue pasando `ltf_df` (DataFrame) a `run_sequence`; sequence lo convierte internamente. Las columnas legacy siguen disponibles para `run_backtest` (lee `ltf_df.iloc[sweep_at]` para SL/sweep) y para `engine.simulate_trade`.
+2. `engine.py` (`simulate_trade`, `ICTSignal`, `calc_structural_sl`, `_tp_liquidity`) consume DataFrame (`ltf_df.iloc[...]`). NO migrado en R9 (otro módulo; columnas legacy intactas).
+3. `est_htf_fn(i)` devuelve dict del HTF (contexto de capa superior, no columna LTF). No es DataFrame.
+4. `translation.py` / `objects_to_legacy_df()` / `object_adapter.py` → INTACTOS (capa de compatibilidad).
+
+**Criterio de done (R9 COMPLETADO):** el motor de decisión `sequence.py` piensa 100% en `MarketObject[]` (no en columnas sueltas); la equivalencia de señales/trades/PF/WR/expectancy está probada y en verde; la capa de compatibilidad (translation/adapter) queda intacta. Ninguna métrica de baseline cambia por el refactor. **R9 NO incluía eliminar `engine.py` ni cablear `MarketNarrative`/POI bonus:** esos quedan fuera de alcance (deuda R7 y trabajo de narrativa posterior, respectivamente).**
+
+**Aclaración de alcance (resuelve aparente tensión con la ontología):**
+- `MarketNarrative` (MARKET_OBJECT_MODEL.md) es la VISIÓN DE LARGO PLAZO de la arquitectura objetivo; NO forma parte del alcance de R9 ni de R7. Su ausencia en `sequence.py` hoy no invalida el contrato: R9/R7 operan sobre `MarketObject` sin exigir la capa narrativa.
+- `quality_score` y `POI bonus` son CAPACIDADES FUTURAS contempladas en la ontología. Empíricamente, el filtro duro POI HTF empeoró los resultados (Fase F: A'' PF 0.900 vs A' PF 1.511) y fue EXCLUIDO del alcance de R9 por decisión expresa. No son requisito para cerrar R9.
+| Función | Antes (DataFrame) | Ahora (MarketObject) | Campo leído en obj.meta |
+|---|---|---|---|
+| `_has_sweep` | `row_ltf["liquidity_sweep_*"]` | `obj.meta["liquidity_sweep_*"]` | liquidity_sweep_down/up |
+| `_has_displacement` | `row_ltf["displacement_*"]` | `obj.meta["displacement_*"]` | displacement_bullish/bearish |
+| `_has_choch` | `row_ltf["choch_dir"]` | `obj.meta["choch_dir"]` | choch_dir |
+| `_has_bos` | `row_ltf["bos_dir"]`/`choch_dir` | `obj.meta["bos_dir"]`/`choch_dir` | bos_dir, choch_dir |
+| `_latest_fvg_zone` | `row_ltf["fvg_*"]`/`high`/`low` | `obj.meta[...]` | fvg_bullish/bearish, high, low |
+| `_latest_ob_zone` | `row_ltf["ob_direction"]`/`open`/`close` | `obj.meta[...]` | ob_direction, open, close |
+| `_touches_zone` | `row_ltf["low"]`/`high` | `obj.meta["low"]`/`high` | low, high |
+| `run_sequence` | `ltf_df.iloc[i][col]` | itera `objs` (MarketObject[]) | time, close, bos_level, atr |
+| `_candle_objects` (nueva) | — | DataFrame → `list[MarketObject(CANDLE)]` | TODOS los campos ICT por vela |
 
 ### R5 — Datos A6 (bloqueante A12) (1–N días, MT5)
 
