@@ -14,7 +14,7 @@
 
 ## §0 Tesis en una frase (CITABLE)
 
-> El mercado intradía es un ciclo repetible de **acumulación → manipulación → distribución** (PO3/AMD) donde el precio caza liquidez (stops) para financiar su expansión real; la ventaja del trader consiste en **identificar la manipulación (sweep), esperar la confirmación de estructura (BOS/CHOCH/MSS), y ejecutar la entrada, el SL y el TP en la temporalidad de ejecución correcta**, anclados a la estructura y no a medidas estadísticas (ATR).
+> El mercado intradía es un ciclo repetible de **acumulación → manipulación → distribución** (PO3/AMD) donde el precio caza liquidez (stops) para financiar su expansión real; la ventaja del trader consiste en **identificar la manipulación (sweep), esperar la confirmación de estructura (BOS/CHOCH/MSS), y ejecutar la entrada, el SL y el TP en la temporalidad de ejecución correcta**, anclados a la estructura y no a medidas estadísticas (ATR). La zona de entrada (POI) debe ser un **PD Array en la zona premium/discount correcta, alineado con el sesgo HTF y con respaldo institucional** — no cualquier FVG/OB suelto.
 
 El error que mató la rentabilidad en R4 v28 fue resolver el ciclo completo (entry + SL + TP) en el TF grueso (M15/H4) con medidas estadísticas (ATR). La corrección (v29→v30) es bajar la ejecución a la temporalidad fina donde ICT opera y anclar todo a la estructura.
 
@@ -75,6 +75,23 @@ Toda operación ICT tiene **3 capas funcionales** (HTF / ITF / exec TF), no 2 (v
 3. **exec TF** (Disparo): M15 intradía, M1/M3/M5 scalping, H1 swing. Dónde entra el trade y se ancla el SL.
 
 El motor ya soporta parte (`TF_FREQ` engine.py 251; `checklist_scalping` con `exec_tf`) pero `build_signals_from_frames` aún no recibe `exec_tf`/`itf` separados de `ltf` (hoy `exec_tf == ltf`). El error de v28/v29 fue resolver entry/SL/TP en el LTF grueso con ATR. La regla dura (libro 18): **SL y entry SIEMPRE en el exec TF; HTF/ITF solo sesgo y zonas; nunca anclar el SL a un TF mayor que el exec.**
+
+---
+
+## 5b. Point of Interest (POI): la zona de entrada anclada a narrativa (libro 21)
+
+El POI es el eslabón que faltaba entre la estructura (§2) y la entrada (§6). Definición canónica en `21_POI.md`:
+
+- **POI ≠ un tipo de estructura. Es un ROL** que adquiere un PD Array (OB/FVG/Breaker/Mitigation/BPR) cuando cumple 3 condiciones: (1) está en la zona correcta del dealing range (discount para long, premium para short), (2) se alinea con el sesgo HTF confirmado, (3) fue creado por desplazamiento institucional real (cuerpo >70%).
+- **Jerarquía de tiers:** T1 = BPR (OB+FVG superpuestos) > T2 = OB o FVG standalone con desplazamiento fuerte > T3 = rejection/mitigation block. SKIP = POI en zona wrong-side o en EQ.
+- **Multi-temporalidad / stacking:** el POI vive en el **ITF** (M15 intradía, M5 scalping, H4 swing) y gana autoridad cuando apila PD Arrays de varios TF en el mismo nivel (OB M15 dentro de FVG H1 = POI T1 apilado). El HTF da sesgo; el ITF marca el POI; el exec TF dispara.
+- **POI como nodo de NARRATIVA:** un POI suelto no es POI ICT. Debe estar anclado a un desplazamiento estructural HTF (BOS/CHOCH en su dirección). Sin ancla = geometría suelta.
+- **POI = BONUS de calidad, NO filtro duro.** La auditoría empírica (`tests/AUDITORIA_POI_REPORT.md`, 10.669 zonas; `tests/FASE_F_REPORT.md`) demostró:
+  - El sistema anterior marcaba "POI" = cualquier FVG/OB en ventana de 20 velas H4 → 100% sin respaldo HTF.
+  - Usar POI HTF como filtro duro destruye el edge: **A'' PF 0.900** (perdedor) vs **A' PF 1.511** (rentable).
+  - Por tanto el POI entra como `quality_score += 20` (según ontología `MARKET_OBJECT_MODEL.md`), no como gate que anula la señal.
+
+> Corolario: el error de la Fase E fue tratar el POI como filtro duro y sin ancla narrativa. El contrato correcto (libro 21 + ontología) es POI como bonus de calidad anclado a narrativa HTF, elevado por stacking multi-TF. Esto es lo que el código debe implementar en v30+.
 
 ---
 
@@ -150,12 +167,16 @@ El libro 06 viejo decía "TP liquidez opuesta HTF" — eso es justo lo que fall�
 | **RR mínimo 1:3** | v29 forzaba fixed2r (1:2) | ❌ filtro pendiente (libro 18) |
 | Killzone NY AM | `checklist_scalping` (rules.py 174) | ✅ lógica; ⚠ TZ pendiente |
 | **Killzones London + NY PM** | no cableadas | ❌ pendiente (libro 18) |
+| **POI = PD Array en zona + sesgo + respaldo (libro 21)** | `market_object.py` tiene `role=POI` pero SIN filtros de zona/sesgo/respaldo | ❌ pendiente v30 (libro 21) |
+| **POI anclado a narrativa HTF (no filtro duro)** | Fase E lo usó como filtro duro → A'' PF 0.900 | ❌ corregir a bonus `quality_score += 20` (libro 21 + ontología) |
+| **Dealing range / premium-discount (50% EQ)** | no existe en código | ❌ nuevo módulo (libro 21) |
+| **Stacking multi-TF eleva tier del POI** | `_htf_has_poi` usa ventana ciega 20 velas H4 sin ancla | ❌ reemplazar por ancla narrativa + stacking (libro 21) |
 
 ---
 
 ## 12. Conclusión
 
-La tesis ICT de SMC-SYSTEMS es coherente y trazable: el ciclo PO3/AMD explica por qué el precio caza liquidez y luego expande; los detectores ya materializan sweep/estructura/liquidez; el SL estructural ya está probado rentable. El eslabón débil era la **temporalidad de ejecución**: resolver entry/SL/TP en TF grueso con ATR mataba el edge. La corrección (v30) es bajar la ejecución al exec TF fino, anclar entry al retorno a zona y TP a la liquidez cercana. Eso cierra el ciclo PO3 de forma operativa.
+La tesis ICT de SMC-SYSTEMS es coherente y trazable: el ciclo PO3/AMD explica por qué el precio caza liquidez y luego expande; los detectores ya materializan sweep/estructura/liquidez; el SL estructural ya está probado rentable. El eslabón débil era la **temporalidad de ejecución**: resolver entry/SL/TP en TF grueso con ATR mataba el edge. La corrección (v30) es bajar la ejecución al exec TF fino, anclar entry al retorno a zona y TP a la liquidez cercana. El **POI** (libro 21) cierra el ciclo: la zona de entrada debe ser un PD Array en la zona premium/discount correcta, alineado con sesgo HTF y con respaldo institucional, rankeado por tier y elevado por stacking multi-TF — y actúa como **bonus de calidad anclado a narrativa**, no como filtro duro (la auditoría empírica lo probó: POI duro = PF 0.900, POI bonus = mantiene PF 1.511). Eso cierra el ciclo PO3 de forma operativa y coherente con la biblioteca ICT real.
 
 > **Veracidad**: los números de v29 son medidos (log `R4V29_STRUCTSL.log`). Los de v30/scalping se miden en el re-run, no se afirman antes. La tesis unifica teoría (libros 01–08) y aplicación (14–17); no inventa conceptos fuera del canon ICT del repo.
 

@@ -47,12 +47,23 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     t = detect_trend(d)        # trend, trend_int
     d["trend"] = t["trend"].values
     d["macro_direction"] = t["trend"].values
-    f = detect_fvg(d)          # fvg_bullish, fvg_bearish, ...
-    d["fvg_state"] = f.apply(_fvg_state, axis=1).values
-    o = detect_order_blocks(d)  # ob_bullish, ob_bearish, ...
-    d["ob_direction"] = o.apply(_ob_dir, axis=1).values
-    c = detect_choch(d)        # choch_signal (CHOCH_BULLISH/BEARISH)
+    f = detect_fvg(d)          # fvg_bullish, fvg_bearish, fvg_mid, ...
+    d = f                      # PRESERVA las booleanas (antes se descartaban)
+    d["fvg_state"] = d.apply(_fvg_state, axis=1).values
+    o = detect_order_blocks(d)  # ob_bullish, ob_bearish, ob_top/bottom, ...
+    d = o                      # PRESERVA las booleanas (antes se descartaban)
+    d["ob_direction"] = d.apply(_ob_dir, axis=1).values
+    c = detect_choch(d)        # choch_signal, choch_status, choch_age
     d["choch_signal"] = c["choch_signal"].values
+    # Mapear choch_signal -> choch_dir (int) que el motor de secuencia espera.
+    # CHOCH_BULLISH = +1 (giro alcista), CHOCH_BEARISH = -1, NONE = 0.
+    d["choch_dir"] = c["choch_signal"].replace(
+        {"CHOCH_BULLISH": 1, "CHOCH_BEARISH": -1, "NONE": 0}
+    ).fillna(0).astype(int).values
+    # Mapear bos_direction -> bos_dir (int) que _has_bos espera (BOS clasico).
+    d["bos_dir"] = d["bos_direction"].replace(
+        {"BULLISH": 1, "BEARISH": -1}
+    ).fillna(0).astype(int).values
     disp = detect_displacement(d)  # displacement_bullish/bearish, magnitude
     d["displacement_bullish"] = disp["displacement_bullish"].values
     d["displacement_bearish"] = disp["displacement_bearish"].values
@@ -112,6 +123,28 @@ def bias_from_trend(frames: dict[str, pd.DataFrame], htf: str) -> str:
     if df is None or len(df) == 0 or "trend" not in df.columns:
         return "NEUTRAL"
     return str(df["trend"].iloc[-1])
+
+
+def build_objects(frames: dict[str, pd.DataFrame],
+                 symbol: str = "") -> list:
+    """Produce MarketObjects desde {tf: df} sellando la capa (origen + rol).
+
+    NO borra columnas: build_features sigue devolviendo el df con las columnas
+    que leen sequence/rules/engine/pipeline/ML/UI. Solo AGREGA la vista de
+    objetos como fuente canonica, via translation.df_to_objects.
+
+    Garantiza NO-ROMPER: los consumidores existentes siguen recibiendo las
+    columnas de siempre (ver tests/test_compat_consumidores.py).
+    """
+    feature_frames: dict[str, pd.DataFrame] = {}
+    for tf, df in frames.items():
+        # Si ya trae features (columna bos_direction), no las recalcula.
+        if "bos_direction" in df.columns:
+            feature_frames[tf] = df
+        else:
+            feature_frames[tf] = build_features(df.copy())
+    from ict_backtest.translation import df_to_objects
+    return df_to_objects(feature_frames, symbol=symbol)
 
 
 if __name__ == "__main__":

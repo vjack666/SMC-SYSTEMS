@@ -1,0 +1,218 @@
+{
+  "summary": {
+    "symbol": "EURUSD",
+    "total_zonas_poi": 10669,
+    "por_tipo": {
+      "FVG": 9682,
+      "OB": 987
+    },
+    "con_narrativa": 0,
+    "sin_narrativa": 10669,
+    "pct_sin_narrativa": 100.0,
+    "edad_mediana_h4": 6.0,
+    "frescos_edad_<=5": 5071,
+    "hipotesis_a_auditar": "Si pct_sin_narrativa es ALTO, el sistema marca como POI geometria suelta (FVG/OB cualquiera) sin narrativa ICT -> coincide con la sospecha: 'todo FVG H4 = POI'."
+  },
+  "ejemplos": [
+    {
+      "ltf_idx": 28,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 7,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-09 03:00:00+00:00"
+    },
+    {
+      "ltf_idx": 29,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 7,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-09 03:15:00+00:00"
+    },
+    {
+      "ltf_idx": 30,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 7,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-09 03:30:00+00:00"
+    },
+    {
+      "ltf_idx": 31,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 7,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-09 03:45:00+00:00"
+    },
+    {
+      "ltf_idx": 32,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 8,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-09 04:00:00+00:00"
+    },
+    {
+      "ltf_idx": 33,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 8,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-09 04:15:00+00:00"
+    },
+    {
+      "ltf_idx": 34,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 8,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-09 04:30:00+00:00"
+    },
+    {
+      "ltf_idx": 35,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 8,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-09 04:45:00+00:00"
+    },
+    {
+      "ltf_idx": 110,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 12,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-09 23:30:00+00:00"
+    },
+    {
+      "ltf_idx": 111,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 12,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-09 23:45:00+00:00"
+    },
+    {
+      "ltf_idx": 112,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 13,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-10 00:00:00+00:00"
+    },
+    {
+      "ltf_idx": 113,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 13,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-10 00:15:00+00:00"
+    },
+    {
+      "ltf_idx": 114,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 13,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-10 00:30:00+00:00"
+    },
+    {
+      "ltf_idx": 115,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 13,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-10 00:45:00+00:00"
+    },
+    {
+      "ltf_idx": 116,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 13,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-10 01:00:00+00:00"
+    },
+    {
+      "ltf_idx": 125,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 13,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-10 03:15:00+00:00"
+    },
+    {
+      "ltf_idx": 126,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 13,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-10 03:30:00+00:00"
+    },
+    {
+      "ltf_idx": 127,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 13,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-10 03:45:00+00:00"
+    },
+    {
+      "ltf_idx": 128,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 14,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-10 04:00:00+00:00"
+    },
+    {
+      "ltf_idx": 129,
+      "htf_idx": 7032,
+      "tipo": "OB",
+      "dir": "bearish",
+      "precio": 1.08337,
+      "edad_h4": 14,
+      "tiene_narrativa": false,
+      "fecha_ltf": "2024-07-10 04:15:00+00:00"
+    }
+  ]
+}

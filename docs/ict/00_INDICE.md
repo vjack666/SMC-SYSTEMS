@@ -27,7 +27,8 @@ Cada archivo es un “libro”. La app y los agentes deben poder **citar el cont
 | 16 | [Temporalidad de ejecución](16_TEMPORALIDAD_EJECUCION.md) | HTF→ITF→exec; marco v30 | 📝 1.0 |
 | 17 | [Scalping (Silver Bullet) entry/SL/TP](17_SCALPING_ENTRADA_SL_TP.md) | exec M1/M3/M5; TP inmediato | 📝 1.0 · Propuesta v30 |
 | 18 | [**Ejecución óptima: 3 capas + SL/Entry por TF**](18_EJECUCION_OPTIMA_TF_SL_ENTRY.md) | **Regla dura**: SL/entry SIEMPRE en exec TF; RR 1:3; 3 killzones | 📝 1.0 · Marco v30 |
-| 20 | [**TESIS ICT COMPLETA**](20_TESIS_ICT.md) | Unifica PO3+liquidez+temporalidad | 📝 1.0 · Síntesis |
+| 20 | [**TESIS ICT COMPLETA**](20_TESIS_ICT.md) | Unifica PO3+liquidez+temporalidad+POI | 📝 1.0 · Síntesis |
+| 21 | [**Point of Interest (POI)**](21_POI.md) | POI = PD Array en zona correcta + sesgo + respaldo; tiers; stacking MTF; **bonus, no filtro duro** | 📝 1.0 · Marco v30+ |
 
 ## Libros de integración / validación
 
@@ -74,7 +75,8 @@ Trazabilidad: **regla (§0) → detector → pipeline → backtest → métrica 
 6. **`13` Backtest profesional** (antes de creer cualquier PF)  \
 7. **`18` EJECUCIÓN ÓPTIMA** (regla dura: 3 capas HTF/ITF/exec, SL/entry en exec TF, RR 1:3)  \
 8. **`20` TESIS ICT COMPLETA** (síntesis unificadora de 01–18)  \
-9. Roadmap de aplicación → código (incl. **R6**) 
+9. **`21` POI** (zona de entrada anclada a narrativa; cierra ontología→biblioteca→código)  \
+10. Roadmap de aplicación → código (incl. **R6**)
 
 ---
 

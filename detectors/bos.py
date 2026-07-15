@@ -12,7 +12,8 @@ class BosConfig:
     atr_period: int = 14
     followthrough_bars: int = 8
     liquidity_lookback: int = 20
-    max_age: int = 24  # Item E: invalidar BOS tras N barras sin follow-through
+    # NOTE (Fase D, event-driven): se ELIMINO max_age. El BOS vive por
+    # EVENTO (cruce del nivel = invalidated), no por contador de velas.
 
 
 def _compute_atr(frame: pd.DataFrame, period: int) -> pd.Series:
@@ -101,13 +102,13 @@ def detect_bos(frame: pd.DataFrame, config: BosConfig | None = None) -> pd.DataF
         np.where(data["bos_direction"] == -1, data["swing_low"].shift(1), np.nan),
     )
 
-    # --- Item E: invalidacion + envejecimiento (patron _track_fvg_fill) ---
-    data["bos_status"], data["bos_age"] = _track_bos_validity(data, max_age=config.max_age)
+    # --- Item E: invalidacion por EVENTO (sin envejecimiento) ---
+    data["bos_status"], data["bos_age"] = _track_bos_validity(data)
 
     return data
 
 
-def _track_bos_validity(data: pd.DataFrame, max_age: int) -> tuple[pd.Series, pd.Series]:
+def _track_bos_validity(data: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
     n = len(data)
     status = pd.Series(["none"] * n, index=data.index, dtype=object)
     age = pd.Series([0] * n, index=data.index, dtype=int)
@@ -132,8 +133,8 @@ def _track_bos_validity(data: pd.DataFrame, max_age: int) -> tuple[pd.Series, pd
             )
             if crossed:
                 status.iloc[i], active = "invalidated", False
-            elif age.iloc[i] > max_age:
-                status.iloc[i], active = "aged", False
             else:
+                # EVENT-DRIVEN: vive por EVENTO (cruce), no por tiempo.
+                # Sin aged: nunca muere por contador de velas.
                 status.iloc[i] = "active"
     return status, age

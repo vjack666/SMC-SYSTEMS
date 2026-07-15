@@ -36,12 +36,12 @@ def detect_order_blocks(frame: pd.DataFrame) -> pd.DataFrame:
     data["ob_distance"] = np.where(mask, np.minimum(high_dist, low_dist), 0.0)
 
     # --- Item E: invalidacion + envejecimiento ---
-    data["ob_status"], data["ob_age"] = _track_ob_validity(data, max_age=20)
+    data["ob_status"], data["ob_age"] = _track_ob_validity(data)
 
     return data
 
 
-def _track_ob_validity(data: pd.DataFrame, max_age: int) -> tuple[pd.Series, pd.Series]:
+def _track_ob_validity(data: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
     n = len(data)
     status = pd.Series(["none"] * n, index=data.index, dtype=object)
     age = pd.Series([0] * n, index=data.index, dtype=int)
@@ -71,8 +71,7 @@ def _track_ob_validity(data: pd.DataFrame, max_age: int) -> tuple[pd.Series, pd.
             )
             if broke:
                 status.iloc[i], active = "invalidated", False
-            elif age.iloc[i] > max_age:
-                status.iloc[i], active = "aged", False
             else:
+                # EVENT-DRIVEN: vive por EVENTO (cruce), no por tiempo.
                 status.iloc[i] = "active"
     return status, age

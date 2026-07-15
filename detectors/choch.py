@@ -23,15 +23,15 @@ def detect_choch(frame: pd.DataFrame) -> pd.DataFrame:
     data.loc[bearish_context & bullish_break, "choch_signal"] = CHOCH_BULLISH
     data.loc[bullish_context & bearish_break, "choch_signal"] = CHOCH_BEARISH
 
-    # --- Item E: invalidacion + envejecimiento ---
+    # --- Item E: invalidacion por EVENTO (sin envejecimiento) ---
     data["choch_status"], data["choch_age"] = _track_choch_validity(
-        data, max_age=20, swing_lookback=20
+        data, swing_lookback=20
     )
     return data
 
 
 def _track_choch_validity(
-    data: pd.DataFrame, max_age: int, swing_lookback: int = 20
+    data: pd.DataFrame, swing_lookback: int = 20
 ) -> tuple[pd.Series, pd.Series]:
     n = len(data)
     status = pd.Series(["none"] * n, index=data.index, dtype=object)
@@ -55,8 +55,7 @@ def _track_choch_validity(
             )
             if failed:
                 status.iloc[i], active = "invalidated", False
-            elif age.iloc[i] > max_age:
-                status.iloc[i], active = "aged", False
             else:
+                # EVENT-DRIVEN: vive por EVENTO (cruce), no por tiempo.
                 status.iloc[i] = "active"
     return status, age

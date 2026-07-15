@@ -35,7 +35,8 @@ PHASE = ("IDLE", "SWEEP_DONE", "DISPLACE_DONE", "BOS_DONE")
 class SequenceConfig:
     sweep_lookback: int = 8        # el sweep debe verse en las ultimas N velas
     displace_gap: int = 6          # ventana para el displacement tras el sweep
-    bos_gap: int = 10              # ventana para el BOS tras el displacement
+    bos_gap: int = 40          # ventana para el BOS/retorno tras el displacement
+                            # (40 velas M15 ~ 10h: cubre la sesion/killzone)
     require_displacement: bool = True
     counter_trend: bool = False
     tp_mode: str = "fixed2r"
@@ -132,6 +133,24 @@ def _has_bos(row_ltf: pd.Series, est_htf: dict, direction: int, counter_trend: b
     return (bos_dir == want) or (choch_dir == want)
 
 
+def _htf_has_poi(est_htf: dict, target: int) -> bool:
+    """¿El HTF tiene un POI (FVG/OB) en la direccion del setup?
+
+    Ontologia (MARKET_OBJECT_MODEL.md): el POI institucional SOLO existe en
+    HTF (D1/H4/H1). La zona de entrada del LTF (FVG/OB) solo cuenta si
+    hay un POI de HTF que la respalde. Sin esto, un FVG M15 suelto se
+    usa como entrada (error conceptual que la tesis 18 corrige).
+
+    `est_htf` puede traer las columnas de detectores del HTF; si no las trae,
+    se asume que NO hay POI (comportamiento conservador).
+    """
+    if target == 1:
+        return bool(est_htf.get("fvg_bullish", False)) or bool(est_htf.get("ob_bullish", False))
+    if target == -1:
+        return bool(est_htf.get("fvg_bearish", False)) or bool(est_htf.get("ob_bearish", False))
+    return False
+
+
 def _latest_fvg_zone(row_ltf: pd.Series, direction: int) -> tuple[float, float] | None:
     """Cuadro del FVG mas reciente en la direccion del setup.
 
@@ -146,12 +165,17 @@ def _latest_fvg_zone(row_ltf: pd.Series, direction: int) -> tuple[float, float] 
 
 
 def _latest_ob_zone(row_ltf: pd.Series, direction: int) -> tuple[float, float] | None:
-    """Cuerpo del order block (vela de displacement previa) como cuadro."""
-    ob_dir = str(row_ltf.get("ob_dir", "-"))
-    if direction == 1 and ob_dir == "BULLISH":
+    """Cuerpo del order block (vela de displacement previa) como cuadro.
+
+    La columna del dataframe es 'ob_direction' (values 'bullish'/'bearish'),
+    NO 'ob_dir'. Se corrige el nombre y el case para que el OB se use de
+    verdad como zona de entrada.
+    """
+    ob_dir = str(row_ltf.get("ob_direction", "-")).lower()
+    if direction == 1 and ob_dir == "bullish":
         o, c = float(row_ltf.get("open")), float(row_ltf.get("close"))
         return (max(o, c), min(o, c))
-    if direction == -1 and ob_dir == "BEARISH":
+    if direction == -1 and ob_dir == "bearish":
         o, c = float(row_ltf.get("open")), float(row_ltf.get("close"))
         return (max(o, c), min(o, c))
     return None
@@ -171,10 +195,14 @@ def _direction_from_bias(bias: str, counter_trend: bool) -> int:
     return 0
 
 
-def run_sequence(ltf_df: pd.DataFrame, est_htf_fn, cfg: SequenceConfig):
+def run_sequence(ltf_df: pd.DataFrame, est_htf_fn, cfg: SequenceConfig, htf_poi_fn=None):
     """Recorre el LTF vela a vela y devuelve lista de dicts de senal.
 
     est_htf_fn(i) -> dict con trend/sweep_up/sweep_down del HTF en la vela i.
+    htf_poi_fn(i, target) -> bool OPCIONAL: si se pasa, la zona de entrada del
+        LTF (FVG/OB) SOLO se memoriza cuando el HTF tiene un POI en esa
+        direccion (fidelidad ICT, tesis 18). Si es None (default), el
+        comportamiento es el historico (no rompe llamadores existentes).
     Cada senal: {time, direction, entry, phase_log}.
     """
     state = SequenceState()
@@ -200,6 +228,22 @@ def run_sequence(ltf_df: pd.DataFrame, est_htf_fn, cfg: SequenceConfig):
         # Si la secuencia en curso es de distinta direccion, reinicia
         if state.phase != "IDLE" and state.direction != target:
             state.reset()
+
+        # Memoria de zona: recordar la ULTIMA vela con FVG/OB entre el sweep y
+        # el BOS (el FVG/OB NO esta en la vela del BOS). Se congela en BOS_DONE
+        # para que el cuadro no se mueva mientras se espera el retorno.
+        if state.phase in ("SWEEP_DONE", "DISPLACE_DONE"):
+            # Fidelidad ICT (tesis 18): la zona LTF (FVG/OB) solo se traza como
+            # cuadro de entrada si el HTF tiene un POI en esa direccion. Sin
+            # guarda (htf_poi_fn=None) el comportamiento es el historico.
+            poi_ok = (htf_poi_fn is None) or bool(htf_poi_fn(i, target))
+            if poi_ok:
+                _fvg = _latest_fvg_zone(row, target)
+                _ob = _latest_ob_zone(row, target)
+                if _fvg is not None:
+                    state.zone_high, state.zone_low = _fvg
+                elif _ob is not None:
+                    state.zone_high, state.zone_low = _ob
 
         if state.phase == "IDLE":
             if _has_sweep(row, est_htf, target):
@@ -232,16 +276,11 @@ def run_sequence(ltf_df: pd.DataFrame, est_htf_fn, cfg: SequenceConfig):
                     state.bos_level = float(row.get("bos_level", np.nan))
                 except (TypeError, ValueError):
                     state.bos_level = float("nan")
-                # TRAZAR EL CUADRO: FVG mas reciente (prioridad) o OB.
-                # El trader marca este cuadro y ESPERA el retorno (mitigation).
-                fvg = _latest_fvg_zone(row, target)
-                ob = _latest_ob_zone(row, target)
-                if fvg is not None:
-                    state.zone_high, state.zone_low = fvg
-                elif ob is not None:
-                    state.zone_high, state.zone_low = ob
-                else:
-                    # sin cuadro claro: usar nivel del BOS +- 0.5 ATR
+                # TRAZAR EL CUADRO: usar la zona cacheada (FVG/OB del tramo
+                # sweep->displacement, memoria arriba), NO la vela del BOS donde
+                # el imbalance ya no esta. El trader marca ese cuadro y ESPERA
+                # el retorno (mitigation). Fallback: nivel del BOS +- 0.5 ATR.
+                if not (np.isfinite(state.zone_high) and np.isfinite(state.zone_low)):
                     atr = float(row.get("atr", np.nan))
                     if np.isfinite(atr) and np.isfinite(state.bos_level):
                         state.zone_high = state.bos_level + 0.5 * atr

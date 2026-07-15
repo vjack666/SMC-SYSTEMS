@@ -2,9 +2,9 @@
 
 **Proyecto:** SMC-SYSTEMS (renombrado desde SMC_SUCCESSOR)
 **Repositorio:** https://github.com/vjack666/SMC-SYSTEMS
-**Versión del Roadmap:** 2.3 (post-R4 audit + SL estructural + tesis ejecución 3 capas + libro 18)
-**Fecha de Actualización:** 2026-07-14
-**Estado General:** 🟢 Modo observador FundedNext operativo 24/7. R4 (ICT puro) auditado: backtests previos contaminados por look-ahead (97%), corregidos; modelos re-medidos sin edge real salvo Turtle Soup limpio pendiente. Tesis de ejecución óptima documentada (libro 18). Pendiente: Turtle Soup v2.8 limpio, libros 21/22/23 (SMT/Breaker/OTE), cablear exec_tf en motor (v30).
+**Versión del Roadmap:** 2.4 (post-R4 audit + SL estructural + tesis ejecución 3 capas + libro 18 + **migración event-driven + libro 21 POI**)
+**Fecha de Actualización:** 2026-07-15
+**Estado General:** 🟢 Modo observador FundedNext operativo 24/7. R4 (ICT puro) auditado: backtests previos contaminados por look-ahead (97%), corregidos. Tesis de ejecución óptima documentada (libro 18). **Migración event-driven COMPLETA y probada (A' PF 1.511 > baseline 1.424). Libro 21 POI escrito (ontología→biblioteca→código cerrado). Pendiente: aplicar POI como bonus de quality_score en código (Fase E corregida) y turtle v2.8 limpio.**
 
 ---
 
@@ -48,6 +48,26 @@
 - **Solo 2 aristas cruzadas** en todo el sistema: `engine.py ↔ rules.py` (el motor llama a los checklists). `pipeline.py`, `ict_agent.py`, `sequence.py` son **islas totales** (0 aristas cruzadas).
 - Consecuencia: backtest (`sequence.py`/`engine.py`) y señales en vivo (`pipeline.py`) salen de motores distintos con pesos que divergen. Deuda de arquitectura (ver R7).
 
+### Migración event-driven (borrar concepto "aged") — COMPLETA (2026-07-15)
+- **Fase 0 (baseline con aged):** EURUSD medido = 28 trades, PF 1.424. GBPUSD NO medible (OOM del host en load_frames — límite de RAM transitoria, no de código).
+- **Fase A (MarketObject):** `ict_backtest/market_object.py` creado. Exige `origin_tf`; prohíbe POI en LTF por construcción. TEST OK.
+- **Fase B (translation.py):** capa de convivencia DataFrame↔objetos. TEST OK.
+- **Fase C (data_feed.build_objects):** envuelve build_features. TEST OK.
+- **Fase D (borrar aged):** CONFIRMADO MUERTO en código. En `market_structure.py` la rama de caducidad por tiempo fue eliminada; los detectores (bos/choch/ob) solo tienen comentarios de "Fase D". Tests test_no_aged fallaban antes y ahora pasan.
+- **Fase E (POI HTF en sequence.py):** IMPLEMENTADO + testeado por unidad. PERO desactivado por defecto (`htf_poi_fn=None` en todo el sistema vivo). Solo lo activan el test y el script de auditoría.
+- **Fase F (backtest A vs A' vs A''):** CORRIDO con datos reales.
+    - A  (con aged, baseline):        28 trades | PF 1.424 | +5.7R
+    - A' (sin aged, real):            37 trades | PF 1.511 | +8.9R  ← el validado
+    - A'' (POI HTF como FILTRO DURO): 31 trades | PF 0.900 | -1.7R  ← PERDEDOR
+- **Veredicto:** la migración event-driven es SEGURA y mejora el edge (A' 1.511 > baseline 1.424). El POI HTF como filtro duro destruye el edge (A'' 0.900) → queda DESACTIVADO; su rol real (bonus de quality_score, no gate) es el siguiente paso.
+
+### Libro 21 POI (ontología → biblioteca → código) — 2026-07-15
+- Escrito `docs/ict/21_POI.md` tras investigación en fuentes ICT reales (InnerCircleTrader PD Array Matrix, ictkillzone.com, fxopen, tradingstrategyguides).
+- Definición canónica: POI = **PD Array en zona correcta (discount/premium) + alineado con sesgo HTF + creado por flujo institucional real**; ROL, no tipo; jerarquía por TIERS (BPR > OB/FVG > breaker); elevado por STACKING multi-TF (OB M15 dentro de FVG H1 = POI T1 apilado).
+- **Corrección a nuestra interpretación previa:** el POI NO es exclusivo de HTF. Vive en la ZONA del ITF (M15 intradía); el stacking multi-TF lo eleva. Eso explica por qué forzar "POI HTF como filtro duro" daba PF 0.900.
+- Tesis `20_TESIS_ICT.md` actualizada (§5b POI: rol, tiers, stacking, ancla narrativa, BONUS no filtro duro). Índice `00_INDICE.md` actualizado.
+- Auditoría empírica (`scripts/auditoria_poi.py`, 10.669 zonas medidas): el POI actual del código detecta "cualquier FVG/OB en ventana" SIN narrativa → 100% sin respaldo estructural HTF. El código aún marca POI sin anclarlo a su BOS/CHOCH. Falta: anclar POI a narrativa en el código.
+
 ---
 
 ## 3. Hitos y Objetivos
@@ -68,7 +88,7 @@
 | **R1** | **Capa de estado PO3** | `po3_state`, tests, UI | ✅ | Alta |
 | **R2** | **Killzones + TZ unificadas** | UTC canónico, helper único | ✅ | Alta |
 | **R3** | **Huecos arquitectura (liquidez, open día, CHOCH-gate)** | canonical_sweep, PO3-2 | ✅ | Alta |
-| **R3.5** | **Huecos canon ICT en tesis (SMT/Breaker/OTE)** | Libros 14-17/20 hechos; **21/22/23 pendientes** | 🔶 Parcial | Alta |
+| **R3.5** | **Huecos canon ICT en tesis (SMT/Breaker/OTE)** | Libros 14-17/20 hechos; **21 (POI) ✅ 22/23 pendientes** | 🔶 Parcial | Alta |
 | **R4** | **Auditoría + medición ICT puro** | Look-ahead corregido; Silver Bullet/PO3 sin edge; **Turtle limpio pendiente** | 🔶 En curso | Alta |
 | **R4-tesis** | **Tesis ejecución óptima (libro 18)** | 3 capas + SL/entry exec TF + RR 1:3 | ✅ | Alta |
 | A12 | Walk-forward OOS celda ganadora | `no_session`×XAUUSD falló 1er pase (PF -0.058, N bajo). **Re-evaluar tras R4 limpio** | 🔴 Pendiente (re-run) | Alta |
@@ -76,6 +96,8 @@
 | **R5** | **Datos A6 (bloqueante A12)** | ≥3-4 años M15 XAUUSD/EURUSD | 🟡 En curso | Alta |
 | **R6** | **Backtest profesional (reloj/fill/costos)** | Libro 13 + plan; código G1-G3 pendiente | 🔶 Docs ✅ / Código ⏳ | Alta |
 | **R7** | **Unificar motores ICT (anti-islas)** | pipeline/ict_agent/sequence/rules/engine → single source of truth | 🔴 Pendiente (deuda grafo) | Alta |
+| **R8** | **Migración event-driven (borrar "aged")** | Fases 0→F completas; A' PF 1.511 > baseline 1.424; POI HTF como filtro duro RECHAZADO (0.900) | ✅ Código + Fase F | Alta |
+| **R9** | **Libro 21 POI (ontología→biblioteca→código)** | 21_POI.md ✅ + tesis §5b + índice; falta anclar POI a narrativa en código | 🔶 Docs ✅ / Código ⏳ | Alta |
 
 **Criterio de completitud:** A1-A11 + R0-R4 + libro 18 en 🟢. Harness 100%. A12 validado con datos suficientes. Solo entonces production-ready para bot.
 

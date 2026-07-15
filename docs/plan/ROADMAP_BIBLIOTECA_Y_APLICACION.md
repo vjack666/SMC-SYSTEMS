@@ -94,12 +94,15 @@
 - [x] **Libro 18 `EJECUCION_OPTIMA_TF_SL_ENTRY.md`** — REGLA DURA 3 capas HTF/ITF/exec, SL/entry SIEMPRE en exec TF, RR 1:3, 3 killzones, M5 estándar / M1 avanzado. Creado 2026-07-14 (commit `46b074e`).
 - [x] Libros 15/16/17/20 corregidos a la regla 18 (ITF agregado, RR 1:3, M3, killzones London/NY PM).
 - [ ] Crear libros 21 (SMT), 22 (Breaker/MMXM), 23 (OTE) y enlazarlos a la tesis 20.
+- [x] **Libro `21_POI.md` CREADO (2026-07-15):** POI = PD Array en zona correcta + sesgo + respaldo; tiers; stacking MTF; **bonus, no filtro duro**. Investigado en fuentes ICT reales (InnerCircleTrader, ictkillzone, fxopen). Tesis §5b + índice actualizados.
+- [ ] Crear libros 22 (Breaker/MMXM), 23 (OTE).
 - [ ] Actualizar tesis 20 § con los 3 huecos como "pendiente de integración".
 
 **Acción de código (bloquea R4 honesto):**
 - [ ] `detectors/smt.py`: divergencia EURUSD vs DXY (o par correlacionado) en mismo TF.
 - [ ] `detectors/ob.py`: breaker block state tras falla de OB.
 - [ ] `build_signals_from_frames`: entry requiere SMT confirmando el sweep + OTE/Breaker como zona (no solo FVG).
+- [ ] **Fase E (POI) corregida (2026-07-15):** POI del libro 21 = PD Array ITF en zona correcta + sesgo + respaldo + ancla narrativa HTF. Aplicar como **BONUS de quality_score**, NO como filtro duro (A'' filtro duro = PF 0.900, rechazado). Pendiente cablear en `sequence.py`/`engine.py`.
 - [ ] Re-correr R4 v30 CON SMT+OTE+Breaker antes de declarar edge.
 
 **Prioridad:** URGENTE. Sin SMT, la medición de R4 (v30) sobre-estima el edge (entra en manipulaciones falsas). El SL estructural (v29) ya resolvió el stop; estos 3 resuelven la entrada.

@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "descripcion": "Baseline del sistema ACTUAL (con caducidad por velas / aged) ANTES de la migracion event-driven. Fase 0.",
+    "htf": "H4",
+    "ltf": "M15",
+    "max_hold": 16,
+    "config": {
+      "counter_trend": true,
+      "tp_mode": "fixed2r",
+      "require_displacement": true,
+      "modelo": "sequence (run_sequence_backtest, el backtest real del sistema)"
+    },
+    "nota_medicion": "EURUSD = MEDICION REAL via run_sequence_backtest sobre 50000 velas M15 (diag del host). GBPUSD, barras-hasta-entrada, y conteo de estructuras CHOCH/OB/FVG/Liquidity quedaron NO MEDIBLES en esta corrida porque el host mato por OOM (RAM insuficiente) cualquier proceso que cargara los frames (load_frames), incluso recortando por row groups. Los scripts fase0_baseline.py y fase0_one.py tienen la logica verificada (corrigio el error de modelo 'sequence' y run_sequence vive segun el diag) y estan listos para re-correr en un host con mas RAM para completar GBPUSD + aged_impact + barras-hasta-entrada.",
+    "fuente_euridus": "diag run_sequence_backtest EURUSD H4->M15 (exit 0, 28 trades)"
+  },
+  "symbols": {
+    "EURUSD": {
+      "trades": 28,
+      "profit_factor": 1.424,
+      "win_rate": 50.0,
+      "expectancy_r": 0.203,
+      "max_drawdown_r": -3.4,
+      "total_r": 5.7,
+      "n_senales": 76,
+      "fases_secuencia": {
+        "SWEEP": 1809,
+        "DISPLACE": 169,
+        "BOS": 90,
+        "ENTRY": 76
+      },
+      "exit_reasons": {
+        "SL": 17,
+        "hold_limit": 9,
+        "TP": 2
+      },
+      "estructuras_creadas": {
+        "BOS_secuencia": 90,
+        "CHOCH": "NO_MEDIBLE_POR_RAM (requiere df de features)",
+        "Order_Blocks": "NO_MEDIBLE_POR_RAM (requiere df de features)",
+        "FVG": "NO_MEDIBLE_POR_RAM (requiere df de features)",
+        "Liquidity_BSL_SSL": "NO_MEDIBLE_POR_RAM (requiere df de features)"
+      },
+      "avg_barras_hasta_entrada": "NO_MEDIBLE_POR_RAM (requiere senales con idx)",
+      "nota": "Solo BOS de la secuencia es medible desde el diag. CHOCH/OB/FVG/Liquidity y barras-hasta-entrada requieren recargar el df de features (bloqueado por OOM en este host)."
+    },
+    "GBPUSD": {
+      "status": "NO_MEDIBLE_EN_ESTE_HOST",
+      "razon": "OOM en load_frames (RAM del host insuficiente al momento de la corrida). Re-correr fase0_one.py GBPUSD en host con mas RAM."
+    }
+  }
+}
