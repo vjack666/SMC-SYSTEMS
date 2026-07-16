@@ -138,7 +138,7 @@ Se puede decir **v1 profesional (mínimo)** cuando:
 - [x] G2 default next_open + test
 - [x] G3 costs ON en runners de referencia
 - [x] METRICS_CANON actualizado con corrida M2
-- [ ] Libro 13 §06 refleja estados ✅
+- [x] Libro 13 §06 refleja estados ✅ (actualizado 2026-07-16)
 
 **No requiere** G4–G12 para el sello v1.
 
