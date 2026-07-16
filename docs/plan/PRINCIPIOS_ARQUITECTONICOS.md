@@ -148,6 +148,18 @@ empírica REAL con `scripts/calibrate_bos_window.py` sobre el histórico del rep
 (hoy el test usa tabla sintética determinista); eso es R10.B. Tampoco se toca
 `displace_gap` / `sweep_lookback` / reglas ICT.
 
+**ESTADO 2026-07-16 (tras auditoría vs Principios):** R10 Propuesta A
+commiteada (057a44d, TDD, sin indicadores). La auditoría determinó que
+`confirmation_window` sigue siendo, en el fondo, una ventana en NÚMERO DE
+VELAS (`int`, usos `índice - índice > N`): cumple P3 100%, P1/P2/P4 solo
+parcial. R10.B queda EN PAUSA. El diseño que elimina la caducidad por timer y la
+reemplaza por EVENTO semántico (StateMachine + Invalidators + ObjectGraph +
+MarketNarrative + EventEngine) está en `docs/plan/DISENO_R10C_R11.md` como
+BORRADOR PENDIENTE DE APROBACIÓN del usuario. Sin código hasta que se apruebe
+toda la arquitectura. Restricción dura del usuario: ningún componente nuevo puede
+ser "un número mágico más inteligente"; toda constante debe justificarse como
+derivable de contexto/MarketObjects/narrativa.
+
 ## PROCESO DE CUMPLIMIENTO
 
 1. Ante un parámetro nuevo/observable, Hermes aplica el Principio 3 (4 preguntas).
