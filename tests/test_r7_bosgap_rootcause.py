@@ -26,7 +26,8 @@ import pytest
 
 from ict_backtest.data_feed import load_frames
 from ict_backtest.market_structure import detect_market_structure
-from ict_backtest.sequence import run_sequence, SequenceConfig, _row_at_time
+from ict_backtest.sequence import run_sequence, SequenceConfig
+from ict_backtest._util import closed_row_at_time, tf_duration
 from ict_backtest.run_backtest import generate_sequence_signals
 from ict_backtest.engine import (calc_structural_sl, _tp_liquidity,
                                  STRUCT_SL_MAX_ATR)
@@ -47,7 +48,7 @@ def _frames():
 def _est(ltf_df, htf_df):
     def fn(i):
         t = ltf_df.iloc[i]["time"]
-        r = _row_at_time(htf_df, t)
+        r = closed_row_at_time(htf_df, t, tf_duration(HTF))
         return {"trend": str(r.get("trend", "RANGING")),
                 "sweep_up": bool(r.get("liquidity_sweep_up", False)),
                 "sweep_down": bool(r.get("liquidity_sweep_down", False))}

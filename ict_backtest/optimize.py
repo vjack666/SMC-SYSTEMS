@@ -39,7 +39,8 @@ if str(ROOT) not in sys.path:
 
 from ict_backtest.data_feed import load_frames  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
-from ict_backtest.sequence import run_sequence, SequenceConfig, _row_at_time  # noqa: E402
+from ict_backtest.sequence import run_sequence, SequenceConfig  # noqa: E402
+from ict_backtest._util import closed_row_at_time, infer_tf_duration  # noqa: E402
 from ict_backtest.engine import simulate_trade, ICTSignal  # noqa: E402
 
 # Helper global: mapea indice del LTF -> timestamp, usado por el estimator HTF
@@ -83,11 +84,15 @@ def _metrics(pnls: list[float]) -> dict[str, float]:
 
 
 def _build_htf_estimator(htf_df: pd.DataFrame):
+    htf_dur = infer_tf_duration(htf_df)
+
     def est_htf_fn(i: int) -> dict:
         # Busca por TIEMPO, no por indice de posicion: asi funciona aunque el
         # LTF y el HTF esten recortados a distinto rango (walk-forward slices).
+        # CLOSED-ONLY (R6.1): la barra HTF debe haber cerrado antes de leerse;
+        # sino se usa precio futuro (look-ahead cross-timeframe).
         t = ltf_time_fn(i)
-        r = _row_at_time(htf_df, t)
+        r = closed_row_at_time(htf_df, t, htf_dur)
         return {"trend": str(r.get("trend", "RANGING")),
                 "sweep_up": bool(r.get("liquidity_sweep_up", False)),
                 "sweep_down": bool(r.get("liquidity_sweep_down", False))}

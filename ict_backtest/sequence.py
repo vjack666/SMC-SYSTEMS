@@ -43,7 +43,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ict_backtest._util import row_at_time as _row_at_time
+from ict_backtest._util import closed_row_at_time
 from ict_backtest.market_object import MarketObject, ObjectType, Role
 
 
@@ -451,7 +451,7 @@ if __name__ == "__main__":
 
     def est_htf_fn(i):
         t = h4.iloc[i]["time"]
-        d1row = _row_at_time(d1, t)
+        d1row = closed_row_at_time(d1, t, "1D")
         return {"trend": str(d1row.get("trend", "RANGING")),
                 "sweep_up": bool(d1row.get("liquidity_sweep_up", False)),
                 "sweep_down": bool(d1row.get("liquidity_sweep_down", False))}

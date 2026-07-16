@@ -22,7 +22,8 @@ if str(ROOT) not in sys.path:
 
 from ict_backtest.data_feed import load_frames
 from ict_backtest.market_structure import detect_market_structure
-from ict_backtest.sequence import run_sequence, SequenceConfig, _row_at_time
+from ict_backtest.sequence import run_sequence, SequenceConfig
+from ict_backtest._util import closed_row_at_time, infer_tf_duration
 
 
 # Mapea indice del LTF -> timestamp (busqueda por tiempo, robusta a slices).
@@ -30,9 +31,11 @@ _ltf_time_fn = lambda i: i
 
 
 def _est(htf_df):
+    htf_dur = infer_tf_duration(htf_df)
+
     def f(i):
         t = _ltf_time_fn(i)
-        r = _row_at_time(htf_df, t)
+        r = closed_row_at_time(htf_df, t, htf_dur)
         return {"trend": str(r.get("trend", "RANGING")),
                 "sweep_up": bool(r.get("liquidity_sweep_up", False)),
                 "sweep_down": bool(r.get("liquidity_sweep_down", False))}

@@ -22,7 +22,8 @@ if str(ROOT) not in sys.path:
 
 from ict_backtest.data_feed import load_frames  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
-from ict_backtest.sequence import run_sequence, SequenceConfig, _row_at_time  # noqa: E402
+from ict_backtest.sequence import run_sequence, SequenceConfig  # noqa: E402
+from ict_backtest._util import closed_row_at_time, tf_duration  # noqa: E402
 from ict_backtest.engine import simulate_trade, ICTSignal  # noqa: E402
 
 SYMBOL, HTF, LTF = "EURUSD", "H4", "M15"
@@ -41,7 +42,7 @@ def main() -> None:
 
     def est_htf_fn(i):
         t = ltf_df.iloc[i]["time"]
-        r = _row_at_time(htf_df, t)
+        r = closed_row_at_time(htf_df, t, tf_duration(HTF))
         return {"trend": str(r.get("trend", "RANGING")),
                 "sweep_up": bool(r.get("liquidity_sweep_up", False)),
                 "sweep_down": bool(r.get("liquidity_sweep_down", False))}

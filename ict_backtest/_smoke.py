@@ -14,7 +14,8 @@ import pandas as pd
 from ict_backtest.structure import classify_structure
 from ict_backtest.market_structure import detect_market_structure
 from ict_backtest.engine import simulate_trade, ICTSignal, calc_structural_sl
-from ict_backtest.sequence import run_sequence, SequenceConfig, _row_at_time
+from ict_backtest.sequence import run_sequence, SequenceConfig
+from ict_backtest._util import closed_row_at_time, tf_duration
 from ict_backtest.rules import killzone_en
 
 # --- PARTE 1: clasificar estructura por TF ---
@@ -76,7 +77,7 @@ ms_h4 = detect_market_structure(h4)
 
 def _est_fn(i):
     t = m15.iloc[i]["time"]
-    r = _row_at_time(ms_h4, t)
+    r = closed_row_at_time(ms_h4, t, tf_duration("H4"))
     return {"trend": str(r.get("trend", "RANGING")),
             "sweep_up": bool(r.get("liquidity_sweep_up", False)),
             "sweep_down": bool(r.get("liquidity_sweep_down", False))}

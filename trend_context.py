@@ -8,6 +8,7 @@ import pandas as pd
 from data import load_frame
 from indicators import add_atr, add_ema
 from regime import detect_regimes
+from ict_backtest._util import closed_merge_asof
 
 
 def _clip(series: pd.Series, low: float = -1.0, high: float = 1.0) -> pd.Series:
@@ -132,8 +133,10 @@ def build_trend_context_frame(
     base = pd.DataFrame({"time": pd.to_datetime(ltf_frame["time"].values.astype("datetime64[ns]"), utc=True)})
     d1_state["time"] = pd.to_datetime(d1_state["time"].values.astype("datetime64[ns]"), utc=True)
     h4_state["time"] = pd.to_datetime(h4_state["time"].values.astype("datetime64[ns]"), utc=True)
-    base = pd.merge_asof(base.sort_values("time"), d1_state.sort_values("time"), on="time", direction="backward")
-    base = pd.merge_asof(base.sort_values("time"), h4_state.sort_values("time"), on="time", direction="backward")
+    # CLOSED-ONLY (R6.1.4 / G1): el merge_asof backward debe caer en la vela
+    # HTF YA CERRADA, no en la que esta en formacion (look-ahead cross-TF).
+    base = closed_merge_asof(base, d1_state, "1D")
+    base = closed_merge_asof(base, h4_state, "4h")
 
     htf_score = _clip((base["d1_score"].fillna(0.0) * 0.60) + (base["h4_score"].fillna(0.0) * 0.40))
     htf_strength = ((base["d1_strength"].fillna(0.0) * 0.60) + (base["h4_strength"].fillna(0.0) * 0.40)).clip(0.0, 100.0)

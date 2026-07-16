@@ -30,7 +30,8 @@ from ict_backtest.engine import (simulate_trade, ICTSignal,  # noqa: E402
                                  calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_ATR)  # noqa: E402
 from ict_backtest.rules import killzone_en  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
-from ict_backtest.sequence import run_sequence, SequenceConfig, _row_at_time  # noqa: E402
+from ict_backtest.sequence import run_sequence, SequenceConfig  # noqa: E402
+from ict_backtest._util import closed_row_at_time, tf_duration  # noqa: E402
 
 
 def _metrics(pnls: list[float]) -> dict[str, float]:
@@ -87,7 +88,7 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
 
     def est_htf_fn(i):
         t = ltf_df.iloc[i]["time"]
-        r = _row_at_time(htf_df, t)
+        r = closed_row_at_time(htf_df, t, tf_duration(htf))
         return {"trend": str(r.get("trend", "RANGING")),
                 "sweep_up": bool(r.get("liquidity_sweep_up", False)),
                 "sweep_down": bool(r.get("liquidity_sweep_down", False))}

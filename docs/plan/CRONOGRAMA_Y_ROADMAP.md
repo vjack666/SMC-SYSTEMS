@@ -94,7 +94,7 @@
 | A12 | Walk-forward OOS celda ganadora | `no_session`×XAUUSD falló 1er pase (PF -0.058, N bajo). **Re-evaluar tras R4 limpio** | 🔴 Pendiente (re-run) | Alta |
 | A8 | Deployment Guide (F8) | VPS, systemd/NSSM | 🔴 Pendiente | Baja |
 | **R5** | **Datos A6 (bloqueante A12)** | ≥3-4 años M15 XAUUSD/EURUSD | 🟡 En curso | Alta |
-| **R6** | **Backtest profesional (reloj/fill/costos)** | Libro 13 + plan; código G1-G3 pendiente | 🔶 Docs ✅ / Código ⏳ | Alta |
+| **R6** | **Backtest profesional (reloj/fill/costos)** | G1 closed-only ✅ (2026-07-16); G2-G3 pendientes | 🔶 Docs ✅ / Código 🟡 G1 done | Alta |
 | **R9** | **Migración del motor a MarketObject (R9)** | ✅ COMPLETADO (2026-07-15). Representación canónica MarketObject; sequence 100% migrado; equivalencia 15/15 tests; compatibilidad vía adapter intacta. NO incluía eliminar engine.py (deuda R7). | ✅ Cerrado | Alta |
 | **R7** | **Unificar motor de decisión (single source of truth)** | 🔒 Fase 1+2 CONGELADAS + AMPLIADAS post-auditoría (R7_UNIFICACION_MOTOR.md): inventario ahora incluye ict_agent/legacy/ml + consumidores build_signals_from_frames; DoD fortalecido (default runner en sequence, check_separation con islas). Contrato oficial. Fase 3-6 (impl/TDD) PENDIENTE de autorización. Sin código. | 🔒 Arquitectura congelada ⏳ | Alta |
 
