@@ -122,6 +122,32 @@ El primer caso detectado bajo estos principios: discrepancia de `bos_gap` entre
   como deuda de R10, donde `bos_gap` se derivará de estado estructural (no se
   unifica el literal 40/10).
 
+### Implementación R10 — Propuesta A (SIN INDICADORES, 2026-07-15)
+
+Arrancada bajo TDD estricto (test rojo → verde, sin commit sin auth). Diseño
+consensuado con el usuario: **sin ATR ni indicadores técnicos**; la ventana de
+confirmación BOS se deriva del ESTADO del mercado por MATEMÁTICA PURA +
+
+PROBABILIDAD EMPÍRICA del backtest:
+
+- `SequenceConfig.bos_gap: int | None = 40` (default 40 = comportamiento
+  histórico canónico, compatible R7). `bos_gap=None` => dinámico.
+- `confirmation_window(bos_obj, ctx, ctx_len, bos_table)` (sequence.py):
+  `r = rango_bos / rango_promedio_contexto` (rango = high−low, promedio simple,
+  SIN ATR). Mapea `r` a un bucket 1..5 y lo busca en `bos_table` (tabla empírica
+  P(mitigación en N velas | fuerza r), pre-calculada del backtest). Sin tabla =>
+  fallback 40 (determinista).
+- Cableado en `run_sequence` (DISPLACE_DONE y BOS_DONE) vía `_effective_bos_gap`.
+- `generate_sequence_signals` / `run_sequence_backtest` aceptan `bos_table` y
+  `bos_gap: int | None` (sin romper llamadores: default 10 fijo en runner).
+- Tests: `tests/test_r10_bos_gap_dynamic.py` (unitario de confirmation_window +
+  no-regresión de integración). El test R7 rootcause (`== 40`) sigue verde.
+
+Pendiente (NO hecho en este paso, alcance estricto R10): calibrar la tabla
+empírica REAL con `scripts/calibrate_bos_window.py` sobre el histórico del repo
+(hoy el test usa tabla sintética determinista); eso es R10.B. Tampoco se toca
+`displace_gap` / `sweep_lookback` / reglas ICT.
+
 ## PROCESO DE CUMPLIMIENTO
 
 1. Ante un parámetro nuevo/observable, Hermes aplica el Principio 3 (4 preguntas).

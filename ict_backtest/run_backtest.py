@@ -64,7 +64,8 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
                                tp_mode: str = "fixed2r",
                                require_displacement: bool = True,
                                displace_gap: int = 6,
-                               bos_gap: int = 10,
+                               bos_gap: int | None = 10,
+                               bos_table: dict | None = None,
                                frames: dict | None = None) -> list:
     """Motor canonico (EVENT-SEQUENCE): genera senales ICTSignal completas.
 
@@ -97,7 +98,7 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
                                               require_displacement=require_displacement,
                                               displace_gap=displace_gap,
                                               bos_gap=bos_gap),
-                               ltf_tf=ltf)
+                               ltf_tf=ltf, bos_table=bos_table)
 
     # Convertir a ICTSignal con SL/TP y simular (ALINEADO A TESIS 18)
     signals = []
@@ -146,7 +147,8 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
 def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            counter_trend: bool = False, tp_mode: str = "fixed2r",
                            require_displacement: bool = True,
-                           displace_gap: int = 6, bos_gap: int = 10,
+                           displace_gap: int = 6, bos_gap: int | None = 10,
+                           bos_table: dict | None = None,
                            cost: dict | None = None) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden)."""
     tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
@@ -160,7 +162,8 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                                         tp_mode=tp_mode,
                                         require_displacement=require_displacement,
                                         displace_gap=displace_gap,
-                                        bos_gap=bos_gap, frames=frames)
+                                        bos_gap=bos_gap, frames=frames,
+                                        bos_table=bos_table)
     print(f"      features en {time.time()-t0:.1f}s", flush=True)
     print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
     print(f"      {len(signals)} senales", flush=True)
