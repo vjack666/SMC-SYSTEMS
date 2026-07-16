@@ -26,8 +26,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ict_backtest.data_feed import load_frames  # noqa: E402
+from ict_backtest.costs import resolve_cost  # noqa: E402
 from ict_backtest.engine import (simulate_trade, ICTSignal,  # noqa: E402
-                                 calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_ATR)  # noqa: E402
+                                 calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_ATR,
+                                 fill_entry_price)  # noqa: E402
 from ict_backtest.rules import killzone_en  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
 from ict_backtest.sequence import run_sequence, SequenceConfig  # noqa: E402
@@ -67,7 +69,8 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
                                displace_gap: int = 6,
                                bos_gap: int | None = 10,
                                bos_table: dict | None = None,
-                               frames: dict | None = None) -> list:
+                               frames: dict | None = None,
+                               fill_mode: str = "next_open") -> list:
     """Motor canonico (EVENT-SEQUENCE): genera senales ICTSignal completas.
 
     R7 (fuente unica de verdad): es el unico generador de senales del repo.
@@ -107,7 +110,9 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
         direction = s["direction"]
         entry_at = s["entry_at"]
         entry_row = ltf_df.iloc[entry_at]
-        entry = s["entry"]
+        # Fill: default produccion = next_open (open de la vela siguiente a la
+        # senal, fill realista). signal_close solo es modo teoria (sobre-estima).
+        entry = fill_entry_price(ltf_df, entry_at, fill_mode)
         atr = float(entry_row.get("atr", 0.0) or 0.0)
         if not (atr > 0):
             continue
@@ -150,7 +155,8 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            require_displacement: bool = True,
                            displace_gap: int = 6, bos_gap: int | None = 10,
                            bos_table: dict | None = None,
-                           cost: dict | None = None) -> dict:
+                           cost: dict | None = None,
+                           fill_mode: str = "next_open") -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden)."""
     tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
     print(f"[1/3] Cargando frames {symbol} + market_structure ...", flush=True)
@@ -164,7 +170,8 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                                         require_displacement=require_displacement,
                                         displace_gap=displace_gap,
                                         bos_gap=bos_gap, frames=frames,
-                                        bos_table=bos_table)
+                                        bos_table=bos_table,
+                                        fill_mode=fill_mode)
     print(f"      features en {time.time()-t0:.1f}s", flush=True)
     print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
     print(f"      {len(signals)} senales", flush=True)
@@ -227,7 +234,10 @@ def main() -> None:
     ap.add_argument("--require-displacement", action="store_true")
     ap.add_argument("--cost", default=None,
                     help="costos en pips 'spread,commission,slippage' "
-                         "(ej 0.8,0.5,0.3). Si se omite, sin costos (teorico).")
+                         "(ej 0.8,0.5,0.3). Override de la tabla por simbolo. "
+                         "Por defecto usa COST_BY_SYMBOL del simbolo (costos ON).")
+    ap.add_argument("--no-cost", action="store_true",
+                    help="modo teoria: SIN costos (no usar en produccion).")
     ap.add_argument("--no-displacement", action="store_true",
                     help="no exigir vela de displacement (sequence engine)")
     ap.add_argument("--sweep", action="store_true",
@@ -240,10 +250,7 @@ def main() -> None:
                     help="checklist=mini-check dashboard (PARTE 2); sequence=event-sequence (Capa 2)")
     args = ap.parse_args()
 
-    cost = None
-    if args.cost:
-        sp, cp, slp = (float(x) for x in args.cost.split(","))
-        cost = {"spread_pips": sp, "commission_pips": cp, "slippage_pips": slp}
+    cost = resolve_cost(args.symbol, override=args.cost, no_cost=args.no_cost)
 
     if args.engine == "sequence":
         run_sequence_backtest(args.symbol, args.htf, args.ltf, args.max_hold,

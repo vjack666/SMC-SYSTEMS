@@ -79,7 +79,7 @@ Este plan **no inventa** un proceso nuevo. Sigue lo ya definido:
 | R6.2.2 | Default producción = `next_open`; theory_mode = `signal_close` | `run_backtest.py`, `optimize.py` |
 | R6.2.3 | Test: entry_price == open[i+1] cuando next_open | tests |
 
-**Done:** flag documentado; default next_open en scripts de producción.
+**Done:** pytest verde (tests/test_r6_fill_next_open.py, 4 tests); fill_entry_price(next_open=open[i+1], signal_close=close[i]); default next_open en generate_sequence_signals + optimize. ✅ R6.2 COMPLETADA (2026-07-16).
 
 ---
 
@@ -91,7 +91,7 @@ Este plan **no inventa** un proceso nuevo. Sigue lo ya definido:
 | R6.3.2 | Runners pasan cost salvo `--no-cost` (theory) | `run_backtest.py`, `optimize.py` |
 | R6.3.3 | Actualizar PROMPTS anti-patrón (ya existe: no PF sin costos) | verificación |
 
-**Done:** una corrida de referencia con costs en METRICS_CANON.
+**Done:** COST_BY_SYMBOL (XAUUSD/EURUSD/GBPUSD) en ict_backtest/costs.py; resolve_cost(symbol, override, no_cost); runners pasan cost por defecto salvo --no-cost. FIX G3: commisa en precio (no /risk) + piso risk 1 pip evita R absurdos por SL mal ubicado (ver test_cost_does_not_inflate_pnl_with_small_risk). ✅ R6.3 COMPLETADA (2026-07-16).
 
 ---
 
@@ -103,7 +103,7 @@ Este plan **no inventa** un proceso nuevo. Sigue lo ya definido:
 | M2 | Igual con G1 only / G1+G2 / G1+G2+G3 (ablation de reloj) |
 | M3 | Capa 3 WF 4 folds con costs (si tiempo) |
 
-**Done:** sección nueva en METRICS_CANON (fecha 2026-07-xx); avance en `docs/avances/`.  
+**Done:** M2 ablation ejecutada (scripts/r6_ablation.py, motor real recortado 8000 velas). Veredicto EURUSD M15 H4: G1 PF=-2.49 / G1+G2 PF=-2.52 / G1+G2+G3 PF=-4.89 (WR 38.9%, 18 trades). **GATE R6 NO PASA en EURUSD M15** (PF<1.10). M1/M3 pendientes (requieren R5: mas datos para N>=200/fold). Resultado en METRICS_CANON. 🔴 R6.4 M2 COMPLETADA (2026-07-16), M1/M3 BLOQUEADAS por datos.
 **Gate:** no Optuna nuevo hasta M2 reportado.
 
 ---
@@ -135,10 +135,10 @@ No bloquean el sello “reloj profesional” de R6.1–R6.4.
 Se puede decir **v1 profesional (mínimo)** cuando:
 
 - [x] G1 cerrado + test
-- [ ] G2 default next_open + test
-- [ ] G3 costs ON en runners de referencia  
-- [ ] METRICS_CANON actualizado con corrida M2  
-- [ ] Libro 13 §06 refleja estados ✅  
+- [x] G2 default next_open + test
+- [x] G3 costs ON en runners de referencia
+- [x] METRICS_CANON actualizado con corrida M2
+- [ ] Libro 13 §06 refleja estados ✅
 
 **No requiere** G4–G12 para el sello v1.
 

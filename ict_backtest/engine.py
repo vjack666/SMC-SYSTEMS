@@ -45,6 +45,28 @@ class ICTTrade:
     exit: float
     pnl_r: float            # PnL en unidades de riesgo (RR)
 
+def fill_entry_price(frame: pd.DataFrame, entry_at: int, fill_mode: str) -> float:
+    """Precio de ENTRADA segun el modo de fill (R6.2 / G2).
+
+    - 'next_open'  (default produccion): open de la vela SIGUIENTE a la senal.
+      Es el fill realista: no puedes entrar al close de la vela que acaba de
+      cerrar; la orden se ejecuta al abrir la siguiente.
+    - 'signal_close' (theory/paper): close de la vela de senal. Sobre-estima el
+      fill (la trampa del R4). Solo para modo teoria con --no-cost.
+
+    Levanta ValueError si el modo es desconocido (contrato cerrado, no 'modo
+    abierto' silencioso).
+    """
+    if fill_mode == "next_open":
+        nxt = entry_at + 1
+        if nxt >= len(frame):
+            raise ValueError("fill next_open: no hay vela siguiente al entry_at")
+        return float(frame.iloc[nxt]["open"])
+    if fill_mode == "signal_close":
+        return float(frame.iloc[entry_at]["close"])
+    raise ValueError(f"fill_mode desconocido: {fill_mode!r} (use 'next_open'|'signal_close')")
+
+
 def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
                   max_hold_bars: int, cost: dict | None = None) -> tuple[ICTTrade | None, dict[str, Any]]:
     """Simula UN trade vela a vela hasta SL/TP/hold_limit. (Rescatado legacy.)
@@ -73,9 +95,14 @@ def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
     # Entrada con slippage ADVERSO + medio spread (peor para el trader).
     dirn = 1 if signal.direction == 1 else -1
     entry_fill = signal.entry + dirn * (slip + spread / 2.0)
-    risk = abs(entry_fill - sl)
-    if risk <= 0.0:
+    # Risk respecto al entry REAL (antes del empuje de costo): si el SL queda
+    # a <1 pip del entry, el trade es invalido (SL mal ubicado del motor:
+    # evita R absurdos por division por risk ~0 en hold_limit lejano).
+    risk_real = abs(signal.entry - sl)
+    min_risk = 1.0 * pip
+    if risk_real <= min_risk:
         return None, {"exit_reason": "invalid_risk", "mfe_r": 0.0, "mae_r": 0.0, "hold_bars": 0}
+    risk = abs(entry_fill - sl)
 
     exit_idx, exit_price, exit_reason = idx, entry_fill, "hold_limit"
     mfe_r, mae_r = -1e9, 1e9
@@ -111,10 +138,10 @@ def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
                 break
         exit_idx, exit_price = j, float(row["close"])
         mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
-
-    # Salida con slippage adverso + comision (en unidades de riesgo).
+    # Salida: pnl en R. El costo de comision se resta en PRECIO (no /risk),
+    # para no inflar pnl_r cuando risk es pequeño (FIX R6.3).
     pnl_price = (exit_price - entry_fill) if signal.direction == 1 else (entry_fill - exit_price)
-    pnl_r = pnl_price / risk - comm / risk
+    pnl_r = (pnl_price - comm) / risk
     trade = ICTTrade(
         symbol=signal.symbol, entry_time=signal.time,
         exit_time=str(frame.iloc[exit_idx]["time"]), direction=signal.direction,

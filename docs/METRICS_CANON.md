@@ -3,10 +3,39 @@
 **Única fuente de números de performance para la documentación.**  
 Los libros ICT/Wyckoff **no inventan** PF/WR: enlazan aquí o a reportes crudos.
 
-**Actualizado:** 2026-07-13  
+**Actualizado:** 2026-07-16  (R6.4 M2: ablation honesta EURUSD M15) 
 **Regla:** si un número cambia en código/corrida, se actualiza **solo este archivo** (+ el reporte crudo). Los libros citan la sección, no copian cifras sueltas.
 
 > **Pendiente R6 (reloj profesional):** tras cerrar HTF closed-only + next-open + costs default (`docs/plan/PLAN_BACKTEST_PROFESIONAL.md`), re-medir Capa 2/3 y **reemplazar** las cifras de §3 si cambian. Hasta entonces, §3 sigue siendo post-auditoría swing/CHOCH (2026-07-11), **sin** fix multi-TF incompleto.
+
+---
+
+## 0. R6.4 M2 — Ablation de reloj (2026-07-16) · RESULTADO HONESTO
+
+**Motor:** EVENT-SEQUENCE canónico (generate_sequence_signals: SL estructural + RR 1:3 + killzone + HTF closed-only).
+**Datos:** EURUSD M15, HTF H4, últimas 8000 velas (~3 meses). Params por defecto.
+**Script:** `scripts/r6_ablation.py` (motor real recortado).
+
+| Modo | Fill | Costos | PF | WR | Trades |
+|------|------|--------|---:|---:|-------:|
+| G1 (teoría) | signal_close | OFF | **-2.49** | 38.9% | 18 |
+| G1+G2 | next_open | OFF | **-2.52** | 38.9% | 18 |
+| G1+G2+G3 (prod) | next_open | ON | **-4.89** | 38.9% | 18 |
+
+**Veredicto:** 🔴 **GATE R6 NO PASA en EURUSD M15** (PF<1.10 incluso en teoría).
+- El reloj (G1) y el fill (G2) apenas cambian el PF (el motor ya genera señales donde open≈close).
+- Los costos (G3) hunden ~2R adicionales (de -2.5 a -4.9), como dicta la física.
+- N=18 es muestra pequeña (requiere R5: más datos para N≥200/fold en M3).
+
+**Bug G3 encontrado y corregido:** `simulate_trade` dividía la comisión por `risk`
+(inflaba pnl_r cuando risk~0 por SL mal ubicado a <1 pip del entry en hold_limit
+lejano → PF falsamente -70). Fix: comisión en precio + piso risk 1 pip. Test:
+`test_cost_does_not_inflate_pnl_with_small_risk`.
+
+**Conclusión:** EURUSD M15 con el motor canónico actual NO tiene edge. No es un
+bug de R6 — es el veredicto honesto del backtest. Próximo paso sugerido: R5
+(más datos) + probar otro símbolo/TF (XAUUSD H1) antes de declarar el stack
+intradía inviable.
 
 ---
 

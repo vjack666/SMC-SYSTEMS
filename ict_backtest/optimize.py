@@ -41,7 +41,8 @@ from ict_backtest.data_feed import load_frames  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
 from ict_backtest.sequence import run_sequence, SequenceConfig  # noqa: E402
 from ict_backtest._util import closed_row_at_time, infer_tf_duration  # noqa: E402
-from ict_backtest.engine import simulate_trade, ICTSignal  # noqa: E402
+from ict_backtest.costs import resolve_cost  # noqa: E402
+from ict_backtest.engine import simulate_trade, ICTSignal, fill_entry_price  # noqa: E402
 
 # Helper global: mapea indice del LTF -> timestamp, usado por el estimator HTF
 # (busqueda por tiempo, robusta a recortes de walk-forward).
@@ -115,7 +116,8 @@ def sequence_pf_on_slice(ltf_df: pd.DataFrame, htf_df: pd.DataFrame,
     signals = []
     for s in raw_sigs:
         direction = s["direction"]
-        entry = s["entry"]
+        # Fill default produccion = next_open (open vela siguiente). R6.2 G2.
+        entry = fill_entry_price(ltf_df, s["entry_at"], "next_open")
         atr = float(ltf_df.iloc[s["entry_at"]].get("atr", 0.0) or 0.0)
         if not (atr > 0):
             continue
@@ -182,20 +184,21 @@ def main() -> None:
                          "varios pares y agregar metricas OOS. Si se omite usa --symbol.")
     ap.add_argument("--cost", default=None,
                     help="costos en pips 'spread,commission,slippage' "
-                         "(ej 0.8,0.5,0.3). Si se omite, sin costos (teorico).")
+                         "(ej 0.8,0.5,0.3). Override de la tabla por simbolo. "
+                         "Por defecto usa COST_BY_SYMBOL (costos ON).")
+    ap.add_argument("--no-cost", action="store_true",
+                    help="modo teoria: SIN costos (no usar en produccion).")
     ap.add_argument("--n-jobs", type=int, default=-1,
                     help="nucleos para Optuna (trials en paralelo). "
                          "-1 = todos los nucleos logicos (default). "
                          "1 = secuencial. Reduce RAM si bajas el numero.")
     args = ap.parse_args()
 
-    # Costos de mercado reales (fix #4 auditoria). None = modo teorico.
-    cost = None
-    if args.cost:
-        sp, cp, slp = (float(x) for x in args.cost.split(","))
-        cost = {"spread_pips": sp, "commission_pips": cp, "slippage_pips": slp}
+    # Costos de mercado reales (fix #4 auditoria). Default ON (produccion);
+    # --no-cost = modo teoria. Referencia por simbolo principal.
+    cost = resolve_cost(args.symbol, override=args.cost, no_cost=args.no_cost)
     symbols = [s.strip() for s in (args.symbols or args.symbol).split(",") if s.strip()]
-    print(f"[C3] Costos: {cost if cost else 'SIN COSTOS (teorico)'}", flush=True)
+    print(f"[C3] Costos: {cost if cost else 'SIN COSTOS (teoria, --no-cost)'}", flush=True)
     print(f"[C3] Simbolos: {symbols}", flush=True)
 
     import optuna
