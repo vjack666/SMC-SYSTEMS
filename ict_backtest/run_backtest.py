@@ -14,6 +14,8 @@ NO ejecuta nada pesado en import; solo al correr como script.
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -25,15 +27,41 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+
+def _write_runner_progress(
+    *,
+    current: str,
+    done: int | None = None,
+    total: int | None = None,
+    unit: str = "items",
+) -> None:
+    """Real progress for Hermes Runner Monitor (HERMES_PROGRESS_FILE).
+
+    No fake %: only write when we know done/total or at least a current stage.
+    """
+    path = (os.environ.get("HERMES_PROGRESS_FILE") or "").strip()
+    if not path:
+        return
+    payload: dict = {"current": current, "unit": unit}
+    if done is not None:
+        payload["done"] = int(done)
+    if total is not None:
+        payload["total"] = int(total)
+    try:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(payload), encoding="utf-8")
+    except OSError:
+        pass
+
 from ict_backtest.data_feed import load_frames  # noqa: E402
 from ict_backtest.costs import resolve_cost  # noqa: E402
-from ict_backtest.engine import (simulate_trade, ICTSignal,  # noqa: E402
-                                 calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_ATR,
-                                 fill_entry_price)  # noqa: E402
-from ict_backtest.rules import killzone_en  # noqa: E402
+from ict_backtest.engine import simulate_trade, ICTSignal  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
-from ict_backtest.sequence import run_sequence, SequenceConfig  # noqa: E402
-from ict_backtest._util import closed_row_at_time, tf_duration  # noqa: E402
+from ict_backtest.canonical import (  # noqa: E402
+    evaluate_signals,
+    load_bos_table,
+)
 
 
 def _metrics(pnls: list[float]) -> dict[str, float]:
@@ -71,83 +99,20 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
                                bos_table: dict | None = None,
                                frames: dict | None = None,
                                fill_mode: str = "next_open") -> list:
-    """Motor canonico (EVENT-SEQUENCE): genera senales ICTSignal completas.
-
-    R7 (fuente unica de verdad): es el unico generador de senales del repo.
-    `build_signals_from_frames` (isla engine) queda eliminado en T3.2B; los
-    consumidores (scripts, _smoke, runner) redirigen AQUI en T3.2A.
-
-    Si `frames` es None, carga con load_frames (comportamiento de backtest
-    real). Si se pasa (datos ya recortados/synteticos), lo usa directo (caso
-    _smoke / tests). Devuelve list[ICTSignal] SIN simular.
-    """
-    if frames is None:
-        tfs = tuple(dict.fromkeys([htf, ltf, "D1"]))
-        frames = load_frames(symbol, tfs)
-    # Market structure con memoria (BOS/CHOCH canonicos) en cada TF
-    ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
-    ltf_df = ms[ltf]
-    htf_df = ms.get(htf, ltf_df)
-
-    def est_htf_fn(i):
-        t = ltf_df.iloc[i]["time"]
-        r = closed_row_at_time(htf_df, t, tf_duration(htf))
-        return {"trend": str(r.get("trend", "RANGING")),
-                "sweep_up": bool(r.get("liquidity_sweep_up", False)),
-                "sweep_down": bool(r.get("liquidity_sweep_down", False))}
-
-    raw_sigs, _ = run_sequence(ltf_df, est_htf_fn,
-                               SequenceConfig(counter_trend=counter_trend,
-                                              tp_mode=tp_mode,
-                                              require_displacement=require_displacement,
-                                              displace_gap=displace_gap,
-                                              bos_gap=bos_gap),
-                               ltf_tf=ltf, bos_table=bos_table)
-
-    # Convertir a ICTSignal con SL/TP y simular (ALINEADO A TESIS 18)
-    signals = []
-    for s in raw_sigs:
-        direction = s["direction"]
-        entry_at = s["entry_at"]
-        entry_row = ltf_df.iloc[entry_at]
-        # Fill: default produccion = next_open (open de la vela siguiente a la
-        # senal, fill realista). signal_close solo es modo teoria (sobre-estima).
-        entry = fill_entry_price(ltf_df, entry_at, fill_mode)
-        atr = float(entry_row.get("atr", 0.0) or 0.0)
-        if not (atr > 0):
-            continue
-        # Filtro killzone (tesis #8): solo London Open / NY AM / NY PM.
-        kz = killzone_en(pd.to_datetime(entry_row["time"], utc=True))
-        if kz not in ("London Open", "New York AM", "New York PM"):
-            continue
-        # SL ESTRUCTURAL (tesis #3 / libro 14): anclado a la MECHA del sweep.
-        sweep_row = ltf_df.iloc[s["sweep_at"]]
-        sl = calc_structural_sl(sweep_row, direction, atr)
-        if sl is None:
-            continue  # tesis: sin nivel estructural -> NO operar
-        risk = abs(entry - sl)
-        if risk <= 0:
-            continue
-        # Filtro de tamano (engine STRUCT_SL_MAX_ATR): sweep gigante rompe RR.
-        if risk > STRUCT_SL_MAX_ATR * atr:
-            continue
-        # TP con RR 1:3 (tesis #7): liquidez opuesta del exec TF si existe.
-        liq = _tp_liquidity(entry_row, direction)
-        if liq is not None:
-            tp = liq
-        else:
-            tp = entry + 3.0 * risk if direction == 1 else entry - 3.0 * risk
-        # Garantizar RR >= 1:3 (TP mas alla del SL en la direccion correcta).
-        if direction == 1 and tp <= entry + 2.0 * risk:
-            tp = entry + 3.0 * risk
-        if direction == -1 and tp >= entry - 2.0 * risk:
-            tp = entry - 3.0 * risk
-        signals.append(ICTSignal(symbol=symbol, time=s["time"], direction=direction,
-                                 entry=entry, stop_loss=sl, take_profit=tp,
-                                 model="sequence",
-                                 sweep_at=s["sweep_at"], bos_at=s["bos_at"],
-                                 entry_at=s["entry_at"]))
-    return signals
+    """R7 thin wrapper — all decision logic lives in ``ict_backtest.canonical``."""
+    return evaluate_signals(
+        symbol,
+        htf,
+        ltf,
+        counter_trend=counter_trend,
+        tp_mode=tp_mode,
+        require_displacement=require_displacement,
+        displace_gap=displace_gap,
+        bos_gap=bos_gap,
+        bos_table=bos_table,
+        frames=frames,
+        fill_mode=fill_mode,
+    )
 
 
 def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
@@ -160,10 +125,22 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden)."""
     tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
     print(f"[1/3] Cargando frames {symbol} + market_structure ...", flush=True)
+    _write_runner_progress(
+        current=f"[1/3] load+structure {symbol} {htf}->{ltf}",
+        done=0,
+        total=3,
+        unit="stages",
+    )
     t0 = time.time()
     frames = load_frames(symbol, tuple(dict.fromkeys([htf, ltf, "D1"])))
     ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
     ltf_df = ms[ltf]
+    _write_runner_progress(
+        current=f"[2/3] sequence signals {symbol}",
+        done=1,
+        total=3,
+        unit="stages",
+    )
     signals = generate_sequence_signals(symbol, htf, ltf,
                                         counter_trend=counter_trend,
                                         tp_mode=tp_mode,
@@ -180,17 +157,37 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     pnls: list[float] = []
     exits: dict[str, int] = {}
     total = len(signals)
+    _write_runner_progress(
+        current=f"[3/3] simulate trades {symbol}",
+        done=0,
+        total=max(total, 1),
+        unit="signals",
+    )
+    # Update monitor ~20 times max (same cadence as console bar)
+    step = max(1, total // 20) if total else 1
     for k, sig in enumerate(signals, 1):
         trade, meta = simulate_trade(ltf_df, sig, max_hold, cost=cost)
         if trade is not None:
             pnls.append(trade.pnl_r)
             exits[meta["exit_reason"]] = exits.get(meta["exit_reason"], 0) + 1
-        if total and (k % max(1, total // 20) == 0 or k == total):
+        if total and (k % step == 0 or k == total):
             pct = 100 * k // total
             bar = "#" * (pct // 5) + "-" * (20 - pct // 5)
             print(f"      [{bar}] {pct}% ({k}/{total})", flush=True)
+            _write_runner_progress(
+                current=f"[3/3] simulate {symbol} {k}/{total}",
+                done=k,
+                total=total,
+                unit="signals",
+            )
 
     m = _metrics(pnls)
+    _write_runner_progress(
+        current=f"done {symbol} PF={m['pf']:.3f} n={m['trades']}",
+        done=total if total else 1,
+        total=total if total else 1,
+        unit="signals",
+    )
     print(f"\n===== RESULTADO [{tag}] =====", flush=True)
     print(f"  simbolo      : {symbol}  |  Capa2 sequence  |  {htf}->{ltf}", flush=True)
     print(f"  trades       : {m['trades']}", flush=True)
@@ -246,20 +243,13 @@ def main() -> None:
                     help="ventana displacement tras sweep (sequence engine)")
     ap.add_argument("--bos-gap", type=int, default=10,
                     help="ventana BOS tras displacement (sequence engine)")
-    ap.add_argument("--engine", default="checklist", choices=["checklist", "sequence"],
-                    help="checklist=mini-check dashboard (PARTE 2); sequence=event-sequence (Capa 2)")
+    ap.add_argument("--engine", default="sequence", choices=["sequence", "checklist"],
+                    help="R7: only sequence is canonical. 'checklist' is an alias to sequence.")
     args = ap.parse_args()
 
     cost = resolve_cost(args.symbol, override=args.cost, no_cost=args.no_cost)
 
-    if args.engine == "sequence":
-        run_sequence_backtest(args.symbol, args.htf, args.ltf, args.max_hold,
-                              counter_trend=args.counter_trend, tp_mode=args.tp_mode,
-                              require_displacement=not args.no_displacement,
-                              displace_gap=args.displace_gap, bos_gap=args.bos_gap,
-                              cost=cost)
-        return
-
+    # R7: checklist alias removed — always sequence.
     if args.sweep:
         variants = [
             ("V1 AT fixed2r",        dict(counter_trend=False, tp_mode="fixed2r", require_displacement=False)),
@@ -267,16 +257,20 @@ def main() -> None:
             ("V3 CT liquidity+disp", dict(counter_trend=True,  tp_mode="liquidity", require_displacement=True)),
             ("V4 CT fixed2r",        dict(counter_trend=True,  tp_mode="fixed2r",  require_displacement=False)),
         ]
-        print("### SWEEP PARTE 2.1 (XAUUSD D1->H4) ###")
+        print("### SWEEP (R7 sequence only) ###")
         for name, kw in variants:
             print(f"\n----- {name} -----")
             m = run(args.symbol, args.htf, args.ltf, args.model, args.max_hold, cost=cost, **kw)
             print(f">>> {name}: PF={m['pf']:.3f} WR={m['winrate']*100:.1f}% trades={m['trades']} R={m['total_r']:.1f}")
         return
 
-    run(args.symbol, args.htf, args.ltf, args.model, args.max_hold,
+    run_sequence_backtest(
+        args.symbol, args.htf, args.ltf, args.max_hold,
         counter_trend=args.counter_trend, tp_mode=args.tp_mode,
-        require_displacement=args.require_displacement, cost=cost)
+        require_displacement=not args.no_displacement,
+        displace_gap=args.displace_gap, bos_gap=args.bos_gap,
+        cost=cost,
+    )
 
 
 if __name__ == "__main__":
