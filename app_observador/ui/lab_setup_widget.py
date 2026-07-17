@@ -14,12 +14,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGridLayout, QLabel, QGroupBox, QScrollArea,
-    QFrame, QTextBrowser,
+    QFrame, QTextBrowser, QPushButton, QHBoxLayout, QMessageBox,
 )
 
 from app_observador.ui.resumen_widget import modelo_ict
+from app_observador.core.position_sizer_bridge import (
+    extract_levels,
+    send_and_place_limit,
+    send_result_to_position_sizer,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 RULEBOOK = ROOT / "docs" / "WYCKOFF_RULEBOOK.md"
@@ -125,12 +131,57 @@ class LabSetupWidget(QWidget):
         grid.addWidget(self.g_veredicto, 1, 1)
 
         scroll.setWidget(inner)
+
+        # Action bar OUTSIDE scroll — always visible (was easy to miss below the 2x2 grid).
+        action = QHBoxLayout()
+        action.setContentsMargins(14, 8, 14, 10)
+        self.btn_ps = QPushButton("Colocar orden LIMIT (Entry+SL+TP)")
+        self.btn_ps.setMinimumHeight(40)
+        self.btn_ps.setToolTip(
+            "Coloca una orden pendiente LIMIT en MT5 demo con Entry/SL/TP del setup.\n"
+            "También escribe el handoff al Position Sizer (settings + archivo)."
+        )
+        from app_observador.ui.theme import btn_primary
+        self.btn_ps.setStyleSheet(btn_primary() + " QPushButton { font-size: 13px; min-height: 36px; }")
+        self.btn_ps.clicked.connect(self._on_send_to_position_sizer)
+        action.addWidget(self.btn_ps)
+        self.lbl_ps_status = QLabel("Sin plan cargado.")
+        self.lbl_ps_status.setStyleSheet("color: #aaa; font-size: 11px;")
+        self.lbl_ps_status.setWordWrap(True)
+        action.addWidget(self.lbl_ps_status, 1)
+
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(scroll)
+        outer.setSpacing(0)
+        outer.addWidget(scroll, 1)
+        outer.addLayout(action)
+
+        self._last_result: dict | None = None
 
     # ------------------------------------------------------------------ update
     def update_state(self, result: dict | None = None) -> None:
+        self._last_result = result
+        # Skip heavy HTML rebuild when tab is not visible (caller may still set _last_result)
+        if result is not None and not self.isVisible():
+            # Still keep LIMIT button state for top bar when parent asks via extract_levels
+            levels = None
+            try:
+                from app_observador.core.position_sizer_bridge import extract_levels
+
+                levels = extract_levels(result)
+            except Exception:
+                levels = None
+            if levels is None:
+                self.btn_ps.setEnabled(False)
+                self.lbl_ps_status.setText("Plan en memoria (abrí Lab para ver detalle).")
+            else:
+                self.btn_ps.setEnabled(True)
+                flag = "R:R ok" if levels.valid_rr else "R:R bajo (demo ok)"
+                self.lbl_ps_status.setText(
+                    f"Listo: {levels.side} E={levels.entry:.5f} SL={levels.sl:.5f} "
+                    f"TP={levels.tp:.5f} (1:{levels.rr:.2f}, {flag})"
+                )
+            return
         if not result or not result.get("estructura"):
             self.lbl_modelo.setHtml(
                 "<span style='color:#ff8a80'>Sin datos del motor (MT5 no disponible). "
@@ -138,6 +189,8 @@ class LabSetupWidget(QWidget):
             self.lbl_wyk.setHtml("")
             self.lbl_logica.setHtml("")
             self.lbl_veredicto.setHtml("")
+            self.btn_ps.setEnabled(False)
+            self.lbl_ps_status.setText("Sin plan cargado.")
             return
 
         estructura = result["estructura"]
@@ -253,4 +306,119 @@ class LabSetupWidget(QWidget):
             + (f"<p style='color:#cfcfcf;'>{nota_color}</p>" if nota_color else "")
             + "<p style='color:#888;'>El semaforo solo dice VERDE cuando hay un setup BUENO y el R:R sirve. "
             "Si dice AMARILLO, el mapa esta limpio pero el setup no conviene hoy.</p>"
+            + "<p style='color:#7fb3ff;'>Demo: botón "
+            "<b>Colocar orden LIMIT</b> envía Entry/SL/TP a MT5 como pendiente "
+            "(y actualiza archivos del Position Sizer).</p>"
         )
+
+        levels = extract_levels(result)
+        if levels is None:
+            self.btn_ps.setEnabled(False)
+            self.lbl_ps_status.setText(
+                "Botón desactivado: falta LONG/SHORT + OTE + SL + TP en el veredicto."
+            )
+        else:
+            self.btn_ps.setEnabled(True)
+            flag = "R:R ok" if levels.valid_rr else "R:R bajo (demo ok)"
+            self.lbl_ps_status.setText(
+                f"Listo: {levels.side} E={levels.entry:.5f} SL={levels.sl:.5f} "
+                f"TP={levels.tp:.5f} (1:{levels.rr:.2f}, {flag})"
+            )
+
+    def _on_send_to_position_sizer(self) -> None:
+        """Write PS handoff + place pending LIMIT with SL/TP on MT5 (demo)."""
+        try:
+            levels = extract_levels(self._last_result)
+        except Exception as e:
+            QMessageBox.warning(self, "Colocar orden", f"Error leyendo plan: {e}")
+            return
+        if levels is None:
+            QMessageBox.information(
+                self,
+                "Colocar orden",
+                "No hay números de orden ahora.\n"
+                "Necesitás sesgo LONG/SHORT, zona OTE M15, invalidación (SL) y target (TP).",
+            )
+            return
+
+        detail = "\n".join(levels.summary_lines())
+        warn = ""
+        if not levels.valid_rr:
+            warn = (
+                "\n\n⚠ Lab marcaría DESCARTAR (R:R < 1:2). "
+                "Igual podés colocar LIMIT en demo para probar el cableado."
+            )
+        box = QMessageBox(self)
+        box.setWindowTitle("Colocar orden LIMIT en MT5")
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setText(
+            "¿Colocar orden PENDIENTE (LIMIT/STOP) en la cuenta demo de MT5?\n\n"
+            f"{levels.side} {levels.symbol}\n"
+            f"Entry {levels.entry:.5f}  |  SL {levels.sl:.5f}  |  TP {levels.tp:.5f}\n"
+            f"Riesgo ~{levels.risk_pct:.2f}% del balance (lotaje auto).\n\n"
+            "También actualiza archivos del Position Sizer (Entry/SL/TP)."
+        )
+        box.setDetailedText(detail + warn)
+        box.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        if box.exec() != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            levels, paths, order = send_and_place_limit(self._last_result)
+        except ValueError as e:
+            QMessageBox.warning(self, "Colocar orden", str(e))
+            return
+        except OSError as e:
+            QMessageBox.critical(self, "Colocar orden", f"Archivo handoff:\n{e}")
+            return
+        except Exception as e:
+            QMessageBox.critical(self, "Colocar orden", f"MT5 error:\n{e}")
+            return
+
+        clip = (
+            f"{levels.symbol} {levels.side}\n"
+            f"Entry: {levels.entry:.5f}\n"
+            f"SL: {levels.sl:.5f}\n"
+            f"TP: {levels.tp:.5f}\n"
+            f"R:R 1:{levels.rr:.2f}"
+        )
+        try:
+            QGuiApplication.clipboard().setText(clip)
+        except Exception:
+            pass
+
+        sizing = order.get("sizing") or {}
+        ok = bool(order.get("ok"))
+        ticket = order.get("ticket") or 0
+        status = (
+            f"OK ticket={ticket} vol={order.get('volume')} "
+            f"@ {order.get('price')}  ret={order.get('retcode')}"
+            if ok
+            else f"FALLÓ ret={order.get('retcode')} {order.get('comment')}"
+        )
+        self.lbl_ps_status.setText(status)
+        open_orders = order.get("open_orders") or []
+        orders_txt = "\n".join(
+            f"  #{o['ticket']} px={o['price_open']} SL={o['sl']} TP={o['tp']} vol={o['volume']}"
+            for o in open_orders
+        ) or "  (sin pendientes en el libro)"
+        path_txt = "\n".join(str(p) for p in paths)
+        msg = (
+            f"{'ORDEN COLOCADA' if ok else 'FALLO AL COLOCAR'}\n\n"
+            f"{detail}\n\n"
+            f"Lot: {sizing.get('lot')}  risk$: {sizing.get('risk_money')}\n"
+            f"retcode: {order.get('retcode')}  {order.get('comment')}\n"
+            f"ticket: {ticket}\n\n"
+            f"Pendientes {levels.symbol} ahora:\n{orders_txt}\n\n"
+            f"Handoff PS:\n{path_txt}\n\n"
+            "Para ver Entry/SL/TP en el panel del Position Sizer: "
+            "quitá y volvé a adjuntar el EA en el chart EURUSD "
+            "(settings en disco ya actualizados), o recompilá el PS parcheado."
+        )
+        if ok:
+            QMessageBox.information(self, "Orden LIMIT", msg)
+        else:
+            QMessageBox.critical(self, "Orden LIMIT", msg)

@@ -184,6 +184,39 @@ def run_cycle(force_fetch: bool = False) -> dict:
         log_error("engine", "wyckoff_fallo", e, symbol=SYMBOL)
         result["errores"].append(f"wyckoff: {e}")
 
+    # 6) Motor canónico R7 (sequence) → plan Entry/SL/TP compartido con Lab/LIMIT
+    try:
+        plan = _canonical_plan(SYMBOL)
+        if plan:
+            result["canonical"] = plan
+            # Overlay veredicto invalidation/target from structural plan when present
+            verd = result.get("veredicto") or {}
+            verd = dict(verd)
+            verd["invalidation"] = plan["sl"]
+            verd["target"] = plan["tp"]
+            verd["canonical_entry"] = plan["entry"]
+            verd["canonical_side"] = plan["side"]
+            verd["canonical_rr"] = plan["rr"]
+            verd["engine"] = plan["engine"]
+            # Align votes lightly with sequence side for Lab direction
+            if plan["side"] == "LONG":
+                verd["votes"] = {"LONG": max(int((verd.get("votes") or {}).get("LONG", 0)), 2),
+                                 "SHORT": int((verd.get("votes") or {}).get("SHORT", 0))}
+            else:
+                verd["votes"] = {"LONG": int((verd.get("votes") or {}).get("LONG", 0)),
+                                 "SHORT": max(int((verd.get("votes") or {}).get("SHORT", 0)), 2)}
+            result["veredicto"] = verd
+            log_event("engine", "canonical_plan", symbol=SYMBOL,
+                      data={"side": plan["side"], "entry": plan["entry"],
+                            "sl": plan["sl"], "tp": plan["tp"], "rr": plan["rr"]})
+        else:
+            result["canonical"] = None
+            log_event("engine", "canonical_plan_empty", symbol=SYMBOL)
+    except Exception as e:
+        result["canonical"] = None
+        log_error("engine", "canonical_plan_fallo", e, symbol=SYMBOL)
+        result["errores"].append(f"canonical: {e}")
+
     if not result["errores"]:
         log_event("engine", "ciclo_completo", level="INFO", symbol=SYMBOL,
                   data={"color": result["semaforo"]["color"], "bias": bias})
@@ -197,6 +230,30 @@ def run_cycle(force_fetch: bool = False) -> dict:
     except Exception as e:
         log_error("engine", "cache_write", e, symbol=SYMBOL)
     return result
+
+
+def _canonical_plan(symbol: str) -> dict | None:
+    """R7: last sequence signal H4→M15 (or D1→H4 fallback) as live plan."""
+    from ict_backtest.canonical import latest_plan
+    from ict_backtest.data_feed import load_frames
+
+    # Prefer H4→M15 (intraday exec). Fall back to D1→H4 if M15 missing.
+    for htf, ltf in (("H4", "M15"), ("D1", "H4")):
+        try:
+            frames = load_frames(symbol, tuple(dict.fromkeys([htf, ltf, "D1"])))
+            # Cap bars for latency: keep last ~2k LTF rows
+            capped = {}
+            for tf, df in frames.items():
+                if len(df) > 2500:
+                    capped[tf] = df.iloc[-2500:].reset_index(drop=True)
+                else:
+                    capped[tf] = df.reset_index(drop=True)
+            plan = latest_plan(symbol, htf=htf, ltf=ltf, frames=capped, max_age_bars=64)
+            if plan:
+                return plan
+        except Exception:
+            continue
+    return None
 
 
 def load_cached() -> dict | None:

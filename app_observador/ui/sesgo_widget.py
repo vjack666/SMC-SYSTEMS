@@ -13,19 +13,20 @@ class SesgoWidget(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        layout.setSpacing(4)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(2)
 
-        self.title = QLabel("SESGO DEL DÍA + ALINEACIÓN WYCKOFF")
-        self.title.setStyleSheet("color: #aaa; font-weight: bold;")
+        self.title = QLabel("SESGO · WYCKOFF")
+        self.title.setStyleSheet("color: #9aa0a6; font-weight: bold; font-size: 11px;")
         layout.addWidget(self.title)
 
         self.bias = QLabel("—")
-        self.bias.setStyleSheet("font-size: 18px; font-weight: bold; color: #ccc;")
+        self.bias.setStyleSheet("font-size: 15px; font-weight: bold; color: #ccc;")
         layout.addWidget(self.bias)
 
         self.align = QLabel("")
         self.align.setWordWrap(True)
-        self.align.setStyleSheet("color: #ccc; font-size: 12px;")
+        self.align.setStyleSheet("color: #9aa0a6; font-size: 11px;")
         layout.addWidget(self.align)
         layout.addStretch()
 
