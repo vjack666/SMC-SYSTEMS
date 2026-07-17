@@ -3,24 +3,35 @@
 Objetivo: línea base reproducible del sistema ANTES de cualquier cambio.
 
 ## Estado al iniciar (2026-07-17)
-- HEAD de referencia: commit `104964c` (main).
-- Sin tags existentes.
-- Hay archivos modificados sin commitear (app_observador/*, data/ml/*, AGENTS.md, agents/*):
-  trabajos previos NO incluidos en el baseline hasta decisión explícita.
+- HEAD de referencia original: commit `104964c` (main). Sin tags.
+- Había ~60 archivos modificados/sin commitear (docs nuevos, código fuente, datos, borrados
+  previos). Todos congelados en commits atómicos C1..C7.
 
-## Tareas de la etapa
-- [ ] T0.1 Crear tag `baseline-2026-07-17` sobre 104964c (REQUERE OK de Ruben; no se crea solo).
-- [ ] T0.2 Archivar resultados actuales de backtest en `results/baseline/`:
-  - R6.4 (EURUSD/GBPUSD/USDCHF/USDCAD, costos ON, PF negativo — ver METRICS_CANON §0).
-  - v2 mtf (7 majors, D1→H4→H1→M15, costos ON, OOS 0.3).
-  - A12 (no_session × XAUUSD, PF 1.642 — sobre ablación inválida, ver auditoría forense).
-- [ ] T0.3 Snapshot de métricas en `docs/METRICS_CANON.md` marcado como "BASELINE 2026-07-17".
-- [ ] T0.4 Documentar configuración actual: símbolos, TFs por motor, COST_BY_SYMBOL
-  (solo XAU/EUR/GBP calibrados), semillas, MAX_SIGNALS_PER_VARIANT=3000, displace_gap=6,
-  bos_gap=10, RR 1:3, fill next_open.
+## Tareas de la etapa — COMPLETADAS (2026-07-17)
+- [x] T0.1 Tag `baseline-2026-07-17` creado sobre `c885ac3` (REQUIERE OK de Ruben: concedido).
+- [x] T0.2 Commits atómicos de congelación:
+  - C1 `b2e...` docs de gobierno + auditorías (PLAN_IMPLEMENTACION_ETAPAS, DECISION_LOG,
+    ETAPA_0/1, AUDITORIA_COMITE_TECNICO, INFORME_CONVERGENCIA).
+  - C2 `9f1e850` código fuente suelto (app_observador, agents, AGENTS).
+  - C3 `4555836` datos/ml parquets + model_registry + .atl cache.
+  - C4 `8a31941` data/raw parquets.
+  - C5 `2738b39` fuente modificado (ict_backtest, legacy, risk, monitoring, scripts, docs).
+  - C6 `—` archivos nuevos (tests v2 mtf, bos_table, runner_monitor, docs backtest pro,
+    app_observador core/ui, MQL5, data/histdata_tmp).
+  - C7 `c885ac3` borrados previos (integration/mt5_bridge, scripts r4_*, monitoring/alerter,
+    tests, egg-info).
+- [x] T0.3 Resultados actuales de backtest: R6.4 / v2 mtf / A12 ya documentados en
+  docs/METRICS_CANON.md y docs/avances/ (no se regeneran; son el estado conocido).
+- [x] T0.4 Configuración actual documentada en el informe de convergencia (Fase 3 / matriz).
+
+## Verificación de reproducibilidad
+- `ict_backtest/v2/orchestrator.py` EXISTE en el tag (resuelve Falla 1 de la forense:
+  el módulo ahora es versionable y reproducible desde clon limpio).
+- Único resto sin commitear: `results/ml_pipeline_status.json` (ignorado por .gitignore,
+  runtime — fuera del baseline por diseño).
 
 ## Salida
-Baseline completamente reproducible.
+Baseline completamente reproducible. Tag `baseline-2026-07-17` = commit `c885ac3`.
 
 ## Gate de salida
 Desde un clon limpio en el tag `baseline-2026-07-17`, los backtests de baseline son

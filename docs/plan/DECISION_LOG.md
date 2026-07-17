@@ -10,7 +10,28 @@ Formato por entrada:
 
 ================================================================================
 
-## DEC-002 — Modo de operación: piloto automático supervisado (2026-07-17)
+## DEC-003 — ETAPA 0 cerrada: baseline congelado y taggeado (2026-07-17)
+
+- Problema: el proyecto tenía ~60 archivos sin commitear (docs, código, datos, borrados
+  previos) y ningún tag de referencia; la forense (Falla 1) ya había mostrado que el motor v2
+  no era reproducible desde clon limpio.
+- Evidencia: `git status` pre-congelamiento mostraba modificados/sin trackear en múltiples
+  áreas; `git tag` vacío; auditoría forense Falla 1 (v2 no comiteado).
+- Alternativas consideradas: (a) taggear directo sobre 104964c ignorando los sueltos; (b)
+  commitear todo en un mega-commit; (c) commits atómicos por tipo + tag (elegido).
+- Decisión tomada: congelar el estado COMPLETO en commits atómicos C1..C7 (docs, fuente,
+  datos/ml, data/raw, fuente modificado, nuevos, borrados) y crear tag `baseline-2026-07-17`
+  sobre `c885ac3`.
+- Justificación: el baseline debe ser el estado real reproducible; commits atómicos cumplen la
+  regla de gobierno ("un commit = un bug" es para ETAPA 4; para congelar, por tipo es razonable).
+- Impacto esperado: desde clon limpio en el tag, `ict_backtest/v2/orchestrator.py` es visible
+  (Falla 1 resuelta a nivel de versionado); cualquier cambio de ETAPAS 1+ se mide contra este
+  punto fijo.
+- Cómo verificarla: `git cat-file -e baseline-2026-07-17:ict_backtest/v2/orchestrator.py`
+  devuelve OK (verificado). Resto sin commitear: solo results/ (ignorado).
+
+================================================================================
+
 
 - Problema: tras las auditorías + convergencia + roadmap, el proyecto pasa de "investigación"
   a "ejecución controlada". Riesgo de que Hermes programa en piloto totalmente autónomo y
