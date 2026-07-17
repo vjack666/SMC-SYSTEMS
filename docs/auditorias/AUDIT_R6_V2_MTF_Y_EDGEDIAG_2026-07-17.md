@@ -65,10 +65,18 @@ commit que este reporte + roadmaps.
 **Consecuencia:** la ablación de `edge_diagnosis` es inválida para XAUUSD. El "candidate
 edge" de A12 descansa sobre un test que no diferencia variantes.
 
-**Parche (PENDIENTE decisión):** el cap debe cortar por **fecha/vventana**, no por
+**Parche (PENDIENTE decisión):** el cap debe cortar por **fecha/ventana**, no por
 confianza descendente, o elevarse/sustituirse por un esquema que permita que relajar un
 filtro cambie realmente el set de señales. Requiere discutir el diseño antes de parchar
 (líneas 64, 430-432, 627-628).
+
+**Instrumentación aplicada (2026-07-17, commit posterior):** se agregó `n_raw`
+(candidatos antes del cap) y `capped: bool` a cada celda del reporte
+(`write_edge_report` + `summary.csv` en `edge_diagnosis/run.py`). Esto permite medir
+qué celdas de las 168 están afectadas por `MAX_SIGNALS_PER_VARIANT` SIN cambiar la
+semántica del backtest. Pendiente: correr la grilla y observar `capped=True` por
+símbolo para confirmar si el cap solo afecta a XAUUSD. El corte en sí (criterio) sigue
+pendiente de decisión.
 
 ---
 

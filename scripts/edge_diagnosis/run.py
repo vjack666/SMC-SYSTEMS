@@ -150,6 +150,8 @@ def write_edge_report(full_results: list[dict], out_path: Path = REPORT_PATH) ->
             "variant": r.get("variant"),
             "symbol": r.get("symbol"),
             "n_total": r.get("n_total", 0),
+            "n_raw": r.get("n_raw", r.get("n_total", 0)),
+            "capped": bool(r.get("capped", False)),
             "insufficient": bool(r.get("insufficient")),
             "is_n": is_m.get("n", 0),
             "oos_n": oos.get("n", 0),
@@ -426,6 +428,7 @@ def harness_pass_signals(context: "pd.DataFrame", cfg: ScalpingConfig, v: Varian
     conf = context["signal_confidence"].astype(float)
     mask = signal_pass.to_numpy() & (direction != 0) & atr_ok.to_numpy() & (conf.to_numpy() >= MIN_CONFIDENCE)
     rows = np.where(mask)[0]
+    n_raw = int(len(rows))  # candidatos antes del cap (para instrumentar Falla 2)
     # cap por confianza descendente (variantes permisivas generan decenas de miles de senales)
     if len(rows) > MAX_SIGNALS_PER_VARIANT:
         order = rows[np.argsort(-conf.to_numpy()[rows])]
@@ -442,7 +445,7 @@ def harness_pass_signals(context: "pd.DataFrame", cfg: ScalpingConfig, v: Varian
             time=str(context.iloc[i]["time"]),
             direction=d, confidence=float(context.iloc[i]["signal_confidence"]),
             entry=e, stop_loss=sl, take_profit=tp))
-    return out
+    return out, n_raw
 
 
 def _simulate_trade_vectorized(frame: "pd.DataFrame", signals: list[ScalpingSignal], max_hold_bars: int) -> list[dict]:
@@ -521,7 +524,7 @@ def simulate(symbol: str, variant_key: str) -> dict:
     cfg = build_config(v)
     context = build_scalping_context(symbol=symbol, timeframe=TIMEFRAME, data_dir=DATA_DIR, config=cfg, orchestrator=None)
     frame = context  # context conserva OHLC para la simulacion
-    signals = harness_pass_signals(context, cfg, v)
+    signals, _ = harness_pass_signals(context, cfg, v)
     rows = _simulate_trade_vectorized(frame, signals, MAX_HOLD_BARS)
     for r in rows:
         r["variant"] = variant_key
@@ -622,8 +625,9 @@ def run_one_reuse(variant_key: str, symbol: str, context: "pd.DataFrame | None" 
         ctx = _get_context(symbol, cfg, v)
     else:
         ctx = _get_context(symbol, ScalpingConfig(), v)  # cache default
-    signals = harness_pass_signals(ctx, cfg, v)
+    signals, n_raw = harness_pass_signals(ctx, cfg, v)
     # cap por confianza descendente (variantes permisivas generan decenas de miles)
+    capped = n_raw > MAX_SIGNALS_PER_VARIANT
     if len(signals) > MAX_SIGNALS_PER_VARIANT:
         signals = sorted(signals, key=lambda s: float(s.confidence), reverse=True)[:MAX_SIGNALS_PER_VARIANT]
     rows = _simulate_trade_vectorized(ctx, signals, MAX_HOLD_BARS)
@@ -641,6 +645,7 @@ def run_one_reuse(variant_key: str, symbol: str, context: "pd.DataFrame | None" 
     oos_m = metrics_from(df[df["split"] == "OOS"])
     insufficient = (is_m["n"] < MIN_N) or (oos_m["n"] < MIN_N)
     return {"symbol": symbol, "variant": variant_key, "n_total": len(df),
+            "n_raw": n_raw, "capped": capped,
             "is": is_m, "oos": oos_m, "insufficient": insufficient, "trades": df.to_dict("records")}
 
 
@@ -912,6 +917,7 @@ def main() -> None:
             if "error" in r:
                 continue
             row = {"variant": r["variant"], "symbol": r["symbol"], "n_total": r["n_total"],
+                   "n_raw": r.get("n_raw", r["n_total"]), "capped": bool(r.get("capped", False)),
                    "insufficient": r["insufficient"]}
             for sp in ("is", "oos"):
                 m = r.get(sp)
