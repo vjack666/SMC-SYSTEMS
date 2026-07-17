@@ -27,6 +27,16 @@ Formato por entrada:
 - Impacto esperado: ETAPA 4 corrige de raíz, no síntomas; sin ciclos de retrabajo.
 - Cómo verificarla: DEPENDENCY_TREE.md existe con árbol por componente + CR-1..CR-6.
 
+## DEC-007 — ETAPA 4 PASO 1 cerrado: BOS/CHOCH unificados (2026-07-17)
+
+- Problema: dos implementaciones divergentes de BOS/CHOCH (detectors vs market_structure).
+- Decisión: detectors.bos/choch delegan al canónico (fuente única de verdad).
+- Evidencia: 8+46 tests passed; backtest PRE vs POST idéntico (dN=dPF=dWR=0) → sin regresión.
+  Dispatch confirmado REAL en signals/pipeline.py (usa bos_direction/choch_signal).
+- Regla respetada: Fase 0 prohibida; no se tocó ICT/SB. Un commit = un bug (72f7951).
+
+================================================================================
+
 ## DEC-006 — ETAPA 3 cerrada: plan de implementación por dependencia (2026-07-17)
 
 - Problema: definir el ORDEN de corrección sin violar "un cambio a la vez" ni la regla de oro.
