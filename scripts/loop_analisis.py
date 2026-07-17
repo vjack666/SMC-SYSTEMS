@@ -82,10 +82,6 @@ def _run(script: str, *args: str) -> tuple[bool, str]:
 
 def run_cycle(test: bool = False, no_alert: bool = False) -> dict:
     """Ejecuta un ciclo completo. Devuelve resumen."""
-    import sys
-    sys.path.insert(0, str(BASE / "scripts"))
-    from alertas import alertar
-
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     log = [f"=== CICLO {stamp} ==="]
 
@@ -117,20 +113,13 @@ def run_cycle(test: bool = False, no_alert: bool = False) -> dict:
     if verdict:
         log.append(f"  >>> {verdict}")
 
-    # (e) ALERTAS (popup + sonido)
-    if not no_alert:
-        if red:
-            alertar("NOTICIA ROJA EURUSD",
-                    "Evento High USD/EUR en ventana. Regla FundedNext: no operar "
-                    "(o 40% profit si cuenta fondeada).")
-            log.append("  [ALERTA] NOTICIA ROJA -> popup")
-        elif "VERDE" in verdict:
-            alertar("VERDE EURUSD", "Semáforo VERDE. Sesgo claro, sin roja. Operá "
-                    "con tu plan (riesgo <=1%).")
-            log.append("  [ALERTA] VERDE -> popup")
-        elif "AMARILLO" in verdict:
-            # AMARILLO: solo log, no popup (evita spam)
-            log.append("  [info] AMARILLO: sin popup (solo log)")
+    # (e) ALERTAS: canal de envío eliminado (empezar de 0). Solo registra en traza.
+    if red:
+        log.append("  [ALERTA] NOTICIA ROJA -> (canal desactivado)")
+    elif "VERDE" in verdict:
+        log.append("  [ALERTA] VERDE -> (canal desactivado)")
+    elif "AMARILLO" in verdict:
+        log.append("  [info] AMARILLO: sin popup (solo log)")
 
     # guardar traza del ciclo
     try:

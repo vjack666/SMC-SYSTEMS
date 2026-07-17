@@ -9,13 +9,16 @@ from typing import Any, Literal, TypedDict
 import numpy as np
 from langgraph.graph import END, StateGraph
 
-from backtest.validation.mt5_backtest_runner import MT5BacktestRunner, SlippageConfig, SimulatedTradeResult
+from backtest.validation.mt5_backtest_runner import (
+    MT5BacktestRunner,
+    SlippageConfig,
+    SimulatedTradeResult,
+    SignalAction,
+    SignalMessage,
+    OrderType,
+)
 from backtest.validation.trade_comparator import ComparisonResult, TradeComparator
 from backtest.validation.report_generator import ReportGenerator
-from integration.mt5_bridge.config import MT5BridgeConfig
-from integration.mt5_bridge.exporter import SignalExporter
-from integration.mt5_bridge.receiver import MT5Receiver
-from integration.mt5_bridge.schema import SignalAction, SignalMessage, OrderType
 from _data_legacy import load_frame
 
 logger = logging.getLogger(__name__)
@@ -199,7 +202,8 @@ def generate_signals(state: ValidationState) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Node: simulate_bridge — real file I/O via SignalExporter / MT5Receiver
+# Node: simulate_bridge — canal de envío a MT5 eliminado (empezar de 0).
+# Devuelve lista vacía: la simulación de envío real ya no existe.
 # ---------------------------------------------------------------------------
 
 
@@ -207,64 +211,13 @@ def simulate_bridge(state: ValidationState) -> dict[str, Any]:
     signals = state.get("signals", [])
     if not signals:
         return {"status": "error", "errors": ["simulate_bridge: no signals"]}
-
-    tmp_dir = tempfile.mkdtemp(prefix="mt5_bridge_")
-    config = MT5BridgeConfig(
-        protocol="file",
-        base_dir=Path(tmp_dir),
-        signal_log_dir="signals",
-    )
-
-    exporter = SignalExporter(config)
-    exporter.start()
-
-    sent: list[SignalMessage] = []
-    for sig in signals:
-        msg = SignalMessage(
-            signal_id=sig["signal_id"],
-            symbol=sig["symbol"],
-            action=SignalAction(sig["action"]),
-            order_type=OrderType(sig.get("order_type", "MARKET")),
-            volume=sig.get("volume"),
-            price=sig.get("price"),
-            stop_loss=sig.get("stop_loss"),
-            take_profit=sig.get("take_profit"),
-            comment=sig.get("comment", ""),
-            magic_number=sig.get("magic_number", 0),
-        )
-        result = exporter.send(msg)
-        sent.append(msg)
-
-    exporter.stop()
-
-    receiver = MT5Receiver(config)
-    receiver.start()
-    polled = receiver.poll()
-    receiver.stop()
-
-    bridge_results: list[dict[str, Any]] = []
-    for sig in signals:
-        trade_result = next(
-            (pr for pr in polled if pr.signal_id == sig["signal_id"]),
-            None,
-        )
-        bridge_results.append({
-            "signal_id": sig["signal_id"],
-            "symbol": sig["symbol"],
-            "action": sig["action"],
-            "volume": sig.get("volume"),
-            "price": sig.get("price"),
-            "stop_loss": sig.get("stop_loss"),
-            "take_profit": sig.get("take_profit"),
-            "bridge_status": "sent" if trade_result else "pending",
-            "bridge_ticket": trade_result.ticket if trade_result else None,
-        })
-
-    return {"bridge_results": bridge_results, "status": "bridge_simulated"}
+    logger.info("simulate_bridge: canal MT5 eliminado, sin simulacion de envio")
+    return {"bridge_results": [], "status": "bridge_disabled"}
 
 
 # ---------------------------------------------------------------------------
-# Node: simulate_ea
+# Node: simulate_ea — usa el runner local (sin canal MT5) para simular la
+# ejecución del EA. Los tipos SignalAction/SignalMessage son locales ahora.
 # ---------------------------------------------------------------------------
 
 

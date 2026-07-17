@@ -3,7 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from legacy.harness.contracts import HarnessEvent
+try:
+    from legacy.harness.contracts import HarnessEvent
+except ModuleNotFoundError:
+    from harness.contracts import HarnessEvent
 
 ADAPTER_NAME = "paper_trading"
 

@@ -108,6 +108,9 @@ def send_market_order(
         "comment": comment,
         "type_time": mt5.ORDER_TIME_GTC,
     }
+    filling = _filling_mode(symbol)
+    if filling is not None:
+        request["type_filling"] = filling
 
     result = mt5.order_send(request)
     if result is None:
@@ -119,6 +122,118 @@ def send_market_order(
         "ticket": result.order,
         "volume": result.volume,
         "price": result.price,
+    }
+
+
+def _filling_mode(symbol: str) -> int | None:
+    info = mt5.symbol_info(symbol)
+    if info is None:
+        return None
+    # Prefer IOC then FOK then RETURN depending on symbol flags.
+    filling = info.filling_mode
+    if filling & 1:  # FOK
+        return mt5.ORDER_FILLING_FOK
+    if filling & 2:  # IOC
+        return mt5.ORDER_FILLING_IOC
+    return mt5.ORDER_FILLING_RETURN
+
+
+def send_limit_order(
+    symbol: str,
+    side: str,
+    entry: float,
+    stop_loss: float,
+    take_profit: float,
+    volume: float | None = None,
+    risk_percent: float = 1.0,
+    comment: str = "SMC_LIMIT",
+    magic: int = 20260716,
+) -> dict:
+    """Place a pending LIMIT order with SL/TP (demo-friendly).
+
+    LONG  -> BUY_LIMIT  (entry should be below market)
+    SHORT -> SELL_LIMIT (entry should be above market)
+    If price is on the wrong side of market, falls back to STOP order type
+    so the pending order is still accepted by the broker.
+    """
+    if not mt5.symbol_select(symbol, True):
+        raise RuntimeError(f"symbol_select failed for {symbol}: {mt5.last_error()}")
+
+    info = mt5.symbol_info(symbol)
+    tick = mt5.symbol_info_tick(symbol)
+    if info is None or tick is None:
+        raise RuntimeError(f"No symbol/tick for {symbol}")
+
+    digits = int(info.digits)
+    entry = round(float(entry), digits)
+    stop_loss = round(float(stop_loss), digits)
+    take_profit = round(float(take_profit), digits)
+
+    is_long = side.upper() in ("BUY", "LONG")
+    bid, ask = float(tick.bid), float(tick.ask)
+
+    if is_long:
+        # BUY LIMIT below market; BUY STOP above market
+        if entry < ask:
+            order_type = mt5.ORDER_TYPE_BUY_LIMIT
+        else:
+            order_type = mt5.ORDER_TYPE_BUY_STOP
+    else:
+        # SELL LIMIT above market; SELL STOP below market
+        if entry > bid:
+            order_type = mt5.ORDER_TYPE_SELL_LIMIT
+        else:
+            order_type = mt5.ORDER_TYPE_SELL_STOP
+
+    if volume is None:
+        sizing = compute_lot(symbol, entry, stop_loss, risk_percent=risk_percent)
+        volume = sizing.lot
+    volume = float(volume)
+    if volume <= 0:
+        raise ValueError("Computed volume is 0 — risk too small or SL too wide")
+
+    request = {
+        "action": mt5.TRADE_ACTION_PENDING,
+        "symbol": symbol,
+        "volume": volume,
+        "type": order_type,
+        "price": entry,
+        "sl": stop_loss,
+        "tp": take_profit,
+        "deviation": 20,
+        "magic": magic,
+        "comment": comment[:31],
+        "type_time": mt5.ORDER_TIME_GTC,
+    }
+    filling = _filling_mode(symbol)
+    if filling is not None:
+        request["type_filling"] = filling
+
+    result = mt5.order_send(request)
+    if result is None:
+        return {
+            "ok": False,
+            "retcode": -1,
+            "comment": f"order_send None: {mt5.last_error()}",
+            "ticket": 0,
+            "volume": volume,
+            "order_type": int(order_type),
+            "price": entry,
+        }
+
+    ok = result.retcode == mt5.TRADE_RETCODE_DONE
+    return {
+        "ok": ok,
+        "retcode": result.retcode,
+        "comment": result.comment,
+        "ticket": result.order,
+        "volume": volume,
+        "order_type": int(order_type),
+        "price": entry,
+        "sl": stop_loss,
+        "tp": take_profit,
+        "side": "LONG" if is_long else "SHORT",
+        "request": request,
     }
 
 

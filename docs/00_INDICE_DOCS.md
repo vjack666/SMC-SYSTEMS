@@ -34,6 +34,11 @@ en carpetas temáticas dentro de `docs/`.
 ### Métricas canónicas (raíz de `docs/`)
 - `METRICS_CANON.md` — **única fuente** de PF/WR/gates; los libros enlazan aquí.
 
+### Plan backtest profesional (2026-07-13)
+- `plan/PLAN_BACKTEST_PROFESIONAL.md` — protocolo docs→código (R6): HTF cerradas, next-open, costos.
+- `ict/13_BACKTEST_PROFESIONAL/` — libro checklist + gap G1–G12.
+- `plan/BACKTEST_V2_SPEC.md` — **Architecture Approved v1.0** Backtest v2 (Strategy→TradingPlan→Orders→Sim; coverage C0x; event log); impl por fases bajo auth.
+
 ### `prompts/` — prompts del sistema
 - `PROMPTS.md` — prompts de agentes/sistema.
 

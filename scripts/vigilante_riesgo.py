@@ -29,7 +29,6 @@ BASE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE / "scripts"))
 sys.path.insert(0, str(BASE / "risk"))
 
-from alertas import alertar  # noqa: E402
 from sizer import close_position  # noqa: E402
 
 
@@ -113,16 +112,12 @@ def main() -> int:
             if loss_pct >= HARD_PCT:
                 _log(f"PERDIDA {loss_pct:.2f}% >= DLL {HARD_PCT}% -> CIERRA TODO")
                 n = _cerrar_todo(mt5, args.no_close)
-                alertar("RIESGO CRITICO EURUSD",
-                        f"Perdida flotante {loss_pct:.1f}% (DLL {HARD_PCT}%). "
-                        f"Se cerraron {n} operaciones.")
+                _log(f"RIESGO CRITICO: cerradas {n} operaciones (canal de aviso desactivado)")
                 closed_once = True
             elif loss_pct >= SOFT_PCT and not closed_once:
                 _log(f"PERDIDA {loss_pct:.2f}% >= limite {SOFT_PCT}% -> CIERRA TODO")
                 n = _cerrar_todo(mt5, args.no_close)
-                alertar("RIESGO EURUSD",
-                        f"Perdida flotante {loss_pct:.1f}% (limite {SOFT_PCT}%). "
-                        f"Se cerraron {n} operaciones para proteger la cuenta.")
+                _log(f"RIESGO: cerradas {n} operaciones para proteger la cuenta (canal desactivado)")
                 closed_once = True
             else:
                 # todo ok: reinicia la bandera si el equity se recupero

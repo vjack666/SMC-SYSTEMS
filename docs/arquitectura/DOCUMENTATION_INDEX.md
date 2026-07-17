@@ -26,7 +26,9 @@ imaginadas).
 | — | **Deployment Guide** | `docs/DEPLOYMENT_GUIDE.md` | ✅ existente | VPS, systemd, NSSM, recovery |
 | — | **Cronograma/Roadmap** | `docs/CRONOGRAMA_Y_ROADMAP.md` | ✅ fuente de verdad | Hitos y estado (v2.2) |
 | — | **Completion Report** | `COMPLETION_REPORT.md` | ✅ existente | Wiring del pipeline, métricas |
-| — | **Biblioteca ICT** | `docs/ict/00_INDICE.md` | ✅ 10 libros | Reglas ICT por concepto |
+| — | **Biblioteca ICT** | `docs/ict/00_INDICE.md` | ✅ 01–13 | Reglas ICT + backtest profesional (13) |
+| — | **Backtest profesional** | `docs/ict/13_BACKTEST_PROFESIONAL/` | ✅ v1.0 docs | Reloj MTF, fill, costos, OOS; plan R6 |
+| — | **Plan R6 backtest** | `docs/plan/PLAN_BACKTEST_PROFESIONAL.md` | ⏳ código | Aplicación G1–G3 |
 | — | **Libro auditoría** | `docs/ict/10_AUDITORIA_REFACCION/` | ✅ v1.0 | Hallazgos de auditoría externa + fixes |
 
 ## Cómo leer esto

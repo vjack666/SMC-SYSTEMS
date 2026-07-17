@@ -7,7 +7,6 @@ from harness.contracts import HarnessEvent
 from harness.reports.json_report import write_json_report
 from harness.runners.scenario_runner import ScenarioRunner
 from harness.scenarios.loader import load_scenarios
-from integration.mt5_bridge.harness_adapter import MT5BridgeHarnessAdapter
 from adapters.mt5_ea_harness import MQL5EAHarnessAdapter
 from governance.harness_adapter import GovernanceHarnessAdapter
 from monitoring.harness_adapter import MonitoringHarnessAdapter
@@ -36,7 +35,6 @@ ADAPTERS: dict[str, Any] = {
     "risk_governor": RiskGovernorAdapter(),
     "backtest": BacktestAdapter(),
     "feature_enrichment": FeatureEnrichmentAdapter(),
-    "mt5_bridge": MT5BridgeHarnessAdapter(),
     "mt5_ea": MQL5EAHarnessAdapter(),
     "langgraph_validation": LangGraphBacktestAdapter(),
     "monitoring": MonitoringHarnessAdapter(),

@@ -69,6 +69,12 @@ def main() -> int:
     ap.add_argument("--tfs", default="D1,H4,M15")
     ap.add_argument("--no-launch", action="store_true",
                     help="no abrir el terminal, asumir que ya esta corriendo")
+    ap.add_argument(
+        "--replace",
+        action="store_true",
+        help="overwrite parquet with MT5-only bars (DANGER: MT5 often caps ~50k). "
+             "Default is MERGE: keep longer local history and update tip from MT5.",
+    )
     args = ap.parse_args()
 
     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
@@ -93,16 +99,55 @@ def main() -> int:
     if acc is not None:
         print(f"[*] Conectado a cuenta {acc.login} ({acc.server}) balance={acc.balance}")
 
+    import pandas as pd
     from _data_legacy import _download_frame
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     ok, fail = 0, 0
+    mode = "REPLACE" if args.replace else "MERGE"
+    print(f"[*] Mode={mode} (use --replace only if you want MT5-only window)")
     for sym in symbols:
         for tf in tfs:
             try:
+                path = DATA_DIR / f"{sym}_{tf}.parquet"
+                prev_n = 0
+                prev = None
+                if path.exists() and path.stat().st_size > 100 and not args.replace:
+                    try:
+                        prev = pd.read_parquet(path)
+                        prev_n = len(prev)
+                    except Exception:
+                        prev = None
+
                 df = _download_frame(DATA_DIR, sym, tf)
-                last = df["time"].iloc[-1]
-                print(f"[OK] {sym} {tf}: {len(df)} velas, ultima {last}")
+                # _download_frame already wrote MT5-only; restore merge if needed
+                if prev is not None and prev_n > 0 and not args.replace:
+                    tip = df.copy()
+                    if "time" in prev.columns:
+                        prev = prev.copy()
+                        prev["time"] = pd.to_datetime(prev["time"], utc=True, errors="coerce")
+                    if "time" in tip.columns:
+                        tip["time"] = pd.to_datetime(tip["time"], utc=True, errors="coerce")
+                    # align columns
+                    for c in prev.columns:
+                        if c not in tip.columns:
+                            tip[c] = 0 if c in ("volume", "tick_volume") else pd.NA
+                    tip = tip[[c for c in prev.columns if c in tip.columns]]
+                    merged = (
+                        pd.concat([prev, tip], ignore_index=True)
+                        .drop_duplicates(subset=["time"], keep="last")
+                        .sort_values("time")
+                        .reset_index(drop=True)
+                    )
+                    merged.to_parquet(path, index=False)
+                    df = merged
+                    print(
+                        f"[OK] {sym} {tf}: merge {prev_n} + tip -> {len(df)} velas, "
+                        f"ultima {df['time'].iloc[-1]}"
+                    )
+                else:
+                    last = df["time"].iloc[-1]
+                    print(f"[OK] {sym} {tf}: {len(df)} velas, ultima {last}")
                 ok += 1
             except Exception as e:
                 print(f"[FAIL] {sym} {tf}: {e}")

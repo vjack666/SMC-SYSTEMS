@@ -12,7 +12,7 @@
 |-------|-----------|-------|-----------|
 | **Unitario** | Reglas puras (swing, BOS/CHOCH, costos, WF split) | `tests/test_ict_backtest.py` | <1s (datos sintéticos) |
 | **Integración** | Pipeline completo (load → detect → sequence → sim) | `tests/test_*.py` existentes | <10s |
-| **Smoke** | El módulo importa y corre sin error | `ict_backtest/_smoke.py` | <5s |
+| **Smoke** | El módulo importa y corre sin error | `python -m ict_backtest.v2.run_v2 --mode legacy --help` / `pytest tests/test_backtest_v2_*.py` | <5s |
 | **Harness** | Escenarios de operación | `harness/` (11 adapters, 14 scenarios) | variable |
 | **Corrida pesada (OOS)** | Walk-forward real sobre 50k velas | `optimize.py` (background) | ~2h |
 

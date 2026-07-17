@@ -25,6 +25,7 @@ class ObjectType(str, Enum):
     ORDER_BLOCK = "ORDER_BLOCK"
     LIQUIDITY = "LIQUIDITY"
     SWEEP = "SWEEP"
+    CANDLE = "CANDLE"  # R9 Paso 3: vista de vela con su contexto ICT completo (sequence)
 
 
 class Role(str, Enum):
@@ -61,6 +62,9 @@ class MarketObject:
     parent_object: str | None = None
     related_objects: list[str] = field(default_factory=list)
     quality_score: float | None = None
+    # R9: ancla al barra de origen para reconstruir el df legacy 1:1.
+    bar_index: int | None = None      # índice de la vela en el TF de origen
+    bar_time: object = None           # timestamp de la vela de origen
 
     def __post_init__(self) -> None:
         if not self.origin_tf:

@@ -3,7 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from legacy.backtest import CombinedBacktestConfig, run_filter_diagnosis
+try:
+    # cuando se importa desde la raiz del repo (legacy.backtest)
+    from legacy.backtest import CombinedBacktestConfig, run_filter_diagnosis
+    _backtest_mod = "legacy.backtest"
+except ModuleNotFoundError:
+    # cuando el harness corre desde dentro de legacy/ (backtest)
+    from backtest import CombinedBacktestConfig, run_filter_diagnosis
+    _backtest_mod = "backtest"
 
 
 class BacktestAdapter:
@@ -20,7 +27,9 @@ class BacktestAdapter:
                 diagnosis = run_filter_diagnosis(config)
                 return {"module": self.name, "event_names": [], "status": "ok", "mode": "diagnosis", "diagnosis": diagnosis}
             else:
-                from legacy.backtest import run_combined_backtest
+                run_combined_backtest = __import__(
+                    _backtest_mod, fromlist=["run_combined_backtest"]
+                ).run_combined_backtest
                 metrics, trades = run_combined_backtest(config)
                 return {
                     "module": self.name,

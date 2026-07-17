@@ -4,10 +4,51 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from integration.mt5_bridge.schema import OrderType, SignalAction, SignalMessage, TradeResult, TradeResultCode
+# Tipos del canal MT5 (integration.mt5_bridge) eliminados: se definen aquí
+# locales mínimos para que el harness de backtest siga funcionando sin el
+# canal de envío real. No envían ordenes; solo modelan la señal.
+class SignalAction(Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+    CLOSE_BUY = "CLOSE_BUY"
+    CLOSE_SELL = "CLOSE_SELL"
+
+
+class OrderType(Enum):
+    MARKET = "MARKET"
+    LIMIT = "LIMIT"
+    STOP = "STOP"
+
+
+@dataclass
+class SignalMessage:
+    signal_id: str
+    symbol: str
+    action: SignalAction
+    volume: float = 0.01
+    order_type: OrderType = OrderType.MARKET
+    price: float | None = None
+    stop_loss: float | None = None
+    take_profit: float | None = None
+    comment: str = ""
+    magic_number: int = 0
+
+
+@dataclass
+class TradeResult:
+    code: "TradeResultCode"
+    message: str = ""
+
+
+class TradeResultCode(Enum):
+    OK = "OK"
+    REJECTED = "REJECTED"
+    ERROR = "ERROR"
+
 
 logger = logging.getLogger(__name__)
 

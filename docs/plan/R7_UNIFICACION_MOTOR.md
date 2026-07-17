@@ -1,10 +1,14 @@
 # R7 — Unificación del motor de decisión ICT (single source of truth)
 
-ESTADO: FASE 1 y FASE 2 **CERRADAS Y CONGELADAS** (2026-07-15),
-**revisadas y ampliadas tras auditoría crítica de arquitectura** (misma sesión).
-Fases 3-6 (implementación / TDD): **NO AUTORIZADAS** — pendientes de firma
-posterior. Este documento congela la ARQUITECTURA antes de programar.
-No se modifica código en esta fase. Sin commit, sin push.
+ESTADO: FASE 1 y FASE 2 **CERRADAS Y CONGELADAS** (2026-07-15).
+**Implementación R7 (2026-07-16, autorización usuario "unificalo"):**
+- `ict_backtest/canonical.py` = API única `evaluate_signals` / `latest_plan`
+- `run_backtest.generate_sequence_signals` = thin wrapper a canonical
+- `build_signals_from_frames` eliminada (T3.2B previo)
+- `agents/ict_agent.py` ya no reimplementa geometría; lee columnas + `decision_engine=sequence`
+- observador `run_cycle` adjunta `canonical` plan y LIMIT/Lab lo prefieren
+- Deuda explícita: `legacy/backtest`, `ml/dataset_builder` (R7_DOCUMENTED_DEBT)
+Fases 3-6 DoD parcial: motor único en alcance vivo + backtest default; legacy/ML documentados fuera.
 
 **JERARQUÍA DOCUMENTAL (regla de oro, post-alineación 2026-07-15):** ante
 cualquier conflicto entre documentos oficiales, este contrato R7 es la

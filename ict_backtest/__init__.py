@@ -1,17 +1,23 @@
-"""ict_backtest — Backtest ICT desde cero (event-driven, vela a vela).
+"""ict_backtest — ICT engine package.
 
-Modulos:
-  structure.py : clasificacion bullish/bearish/ranging por TF (PARTE 1).
-  rules.py     : mini-check del dashboard como reglas puras (intradia/scalping).
-  engine.py    : construccion de senales + simulacion vela a vela (sin ML).
+R7: trade decisions come only from ``canonical.evaluate_signals`` (sequence).
+``engine.py`` holds shared helpers (simulate_trade, structural SL).
+``rules.py`` remains pure checklists for UI display — not a second signal motor.
 """
 
 from ict_backtest.structure import classify_structure, classify_multi_tf, momentum_direction
 from ict_backtest.rules import evaluate, checklist_intradia, checklist_scalping, killzone_en
 from ict_backtest.engine import ICTSignal, ICTTrade, simulate_trade
+from ict_backtest.canonical import (
+    CANONICAL_ENGINE,
+    evaluate_signals,
+    latest_plan,
+    R7_DOCUMENTED_DEBT,
+)
 
 __all__ = [
     "classify_structure", "classify_multi_tf", "momentum_direction",
     "evaluate", "checklist_intradia", "checklist_scalping", "killzone_en",
     "ICTSignal", "ICTTrade", "simulate_trade",
+    "CANONICAL_ENGINE", "evaluate_signals", "latest_plan", "R7_DOCUMENTED_DEBT",
 ]

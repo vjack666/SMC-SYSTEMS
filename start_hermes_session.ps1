@@ -62,9 +62,12 @@ Write-Host "[Hermes] Vigilante encendido. Cierra TODAS las operaciones abiertas 
 # scripts\, asi que se lanza directamente con su ruta absoluta.
 Write-Host "[Hermes] Paso 4/4 (parte A): encendiendo app del observador (PySide6)..."
 $appScript = Join-Path $PSScriptRoot 'run_app.py'
+# WindowStyle Normal: la app del observador SE MUESTRA al prender Windows
+# (comportamiento tipo WhatsApp: se puede ocultar a la bandeja con la X y
+# volver a traerla al frente sin duplicar). Antes estaba en Hidden.
 Start-Process -FilePath 'C:\Python314\pythonw.exe' -ArgumentList $appScript `
-    -RedirectStandardOutput (Join-Path $PSScriptRoot 'logs\observador.out') -WindowStyle Hidden
-Write-Host "[Hermes] Observador encendido en segundo plano (run_app.py en raiz)."
+    -RedirectStandardOutput (Join-Path $PSScriptRoot 'logs\observador.out') -WindowStyle Normal
+Write-Host "[Hermes] Observador encendido y VISIBLE (run_app.py en raiz)."
 
 # ---- 5) Reporte de salud + actualizaciones (en esta misma ventana) ----
 # Verifica que los procesos quedaron VIVOS y revisa el estado del repo (git).
