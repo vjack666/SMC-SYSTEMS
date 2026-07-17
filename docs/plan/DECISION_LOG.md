@@ -10,7 +10,28 @@ Formato por entrada:
 
 ================================================================================
 
-## DEC-003 — ETAPA 0 cerrada: baseline congelado y taggeado (2026-07-17)
+## DEC-004 — ETAPA 1 cerrada: hallazgos validados sin modificar código (2026-07-17)
+
+- Problema: tras la convergencia, cada hallazgo A debía demostrarse con repro real antes de
+  implementar (evitar corregir fantasmas).
+- Evidencia: inspección directa archivo:línea de cada H (detectors/bos.py:90-91,
+  detectors/choch.py:14-24, coverage.py:44-47/71, run.py:64/412/433-435, stats_validator.py:83/101,
+  dataset_builder.py:14/234, run_backtest.py:103, train.py:311-314, dataset_builder.py:146-161,
+  engine.py:160/229, strategy_mtf.py:101-103) + `ls data/raw/XAUUSD_M15.parquet` (EXISTE).
+- Alternativas consideradas: (a) aceptar la forense sin re-validar; (b) re-validar cada ID con
+  repro (elegido, obligatorio por ETAPA 1).
+- Decisión tomada: escribir VALIDACION_DE_HALLAZGOS.md con una entrada por ID (repro + línea +
+  salida medible). Two correcciones a la forense: H14 (XAUUSD M15 YA EXISTE, Falla 4 de datos
+  resuelta por descarga de hoy) y H3 (v2 YA versionado por commits previos).
+- Justificación: la validación independiente halló que dos fallas forenses ya no aplicaban a
+  nivel de datos/repo — corregirlas habría sido trabajo inventado. La ETAPA 1 cumplió su fin.
+- Impacto esperado: la ETAPA 4 (corrección) se enfoca solo en hallazgos A realmente vigentes
+  (H4,H5,H12,H13,H15,H16,H17,H18,H20,H21,H22); H3/H14 degradados a "ya resueltos".
+- Cómo verificarla: VALIDACION_DE_HALLAZGOS.md existe con los 12 IDs + 2 correcciones; sin
+  código modificado (solo docs + comandos de inspección).
+
+================================================================================
+
 
 - Problema: el proyecto tenía ~60 archivos sin commitear (docs, código, datos, borrados
   previos) y ningún tag de referencia; la forense (Falla 1) ya había mostrado que el motor v2
