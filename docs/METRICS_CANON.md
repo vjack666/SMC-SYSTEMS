@@ -3,7 +3,7 @@
 **Única fuente de números de performance para la documentación.**  
 Los libros ICT/Wyckoff **no inventan** PF/WR: enlazan aquí o a reportes crudos.
 
-**Actualizado:** 2026-07-16  (R6.4 M2: ablation honesta EURUSD M15) 
+**Actualizado:** 2026-07-17  (R6.4 M2 + v2 mtf multi-TF corrido) 
 **Regla:** si un número cambia en código/corrida, se actualiza **solo este archivo** (+ el reporte crudo). Los libros citan la sección, no copian cifras sueltas.
 
 > **Pendiente R6 (reloj profesional):** tras cerrar HTF closed-only + next-open + costs default (`docs/plan/PLAN_BACKTEST_PROFESIONAL.md`), re-medir Capa 2/3 y **reemplazar** las cifras de §3 si cambian. Hasta entonces, §3 sigue siendo post-auditoría swing/CHOCH (2026-07-11), **sin** fix multi-TF incompleto.
@@ -22,10 +22,59 @@ Los libros ICT/Wyckoff **no inventan** PF/WR: enlazan aquí o a reportes crudos.
 | G1+G2 | next_open | OFF | **-2.52** | 38.9% | 18 |
 | G1+G2+G3 (prod) | next_open | ON | **-4.89** | 38.9% | 18 |
 
-**Veredicto:** 🔴 **GATE R6 NO PASA en EURUSD M15** (PF<1.10 incluso en teoría).
+**Veredicto EURUSD M15:** 🔴 **GATE R6 NO PASA** (PF<1.10 incluso en teoría).
 - El reloj (G1) y el fill (G2) apenas cambian el PF (el motor ya genera señales donde open≈close).
 - Los costos (G3) hunden ~2R adicionales (de -2.5 a -4.9), como dicta la física.
 - N=18 es muestra pequeña (requiere R5: más datos para N≥200/fold en M3).
+
+### R6.4 M2 — Multi-símbolo (2026-07-16, extensión) · RESULTADO HONESTO
+
+Mismo motor canónico (generate_sequence_signals, SL estructural + RR 1:3 + killzone
++ HTF closed-only), 8000 velas (~3 meses), HTF H4. Script `scripts/r6_ablation.py`.
+
+| Símbolo | G1 teoría | G1+G2 | PROD (costos ON) | WR prod | N | Gate prod (PF≥1.10) |
+|---------|----------:|------:|-----------------:|--------:|--:|:-------------------:|
+| EURUSD  | -2.49     | -2.52 | **-4.89**        | 38.9%   | 18 | 🔴 |
+| GBPUSD  | -3.21     | -3.20 | **-7.07**        | 40.0%   | 30 | 🔴 |
+| USDCHF  | +9.95     | +9.99 | **-0.13**        | 48.0%   | 25 | 🔴 |
+| USDCAD  | +5.11     | +5.09 | **-8.64**        | 36.8%   | 38 | 🔴 |
+
+### R6 — v2 mtf (motor multi-TF D1→H4→H1→M15) · 2026-07-17 · RESULTADO HONESTO
+
+**Motor:** `ict_backtest/v2/run_v2.py --mode mtf` (cascada D1→H4→H1→M15, filtro top-down
+premium/discount + sesgo HTF). **Costos ON**, OOS 0.3.
+**Datos:** 7 majors (EURUSD, GBPUSD, USDJPY, AUDUSD, NZDUSD, USDCAD, USDCHF). Ventana
+disponible ~6 meses (2026-01-18→2026-07-16, H1/M15 bajados de MT5 demo esta sesión).
+XAUUSD EXCLUIDO (falta M15). Reporte: `docs/avances/BACKTEST_V2_MTF_REPORTE_2026-07-17.md`.
+
+| Símbolo | orders | trades | WR    | PF      | R     | OOS_PF   | coverage |
+|---------|-------:|-------:|------:|--------:|------:|---------:|----------|
+| EURUSD  | 0      | 0      | 0.0%  | 0.000   | 0.0   | —        | 86.1% v2_partial |
+| GBPUSD  | 1      | 1      | 0.0%  | 0.000   | -1.0  | 0.000    | 86.1% v2_partial |
+| USDJPY  | 1      | 1      |100.0% | inf*     | +1.0  | inf*     | 86.1% v2_partial |
+| AUDUSD  | 4      | 4      | 0.0%  | 0.000   | -4.4  | 0.000    | 86.1% v2_partial |
+| NZDUSD  | 2      | 2      | 0.0%  | 0.000   | -2.2  | 0.000    | 86.1% v2_partial |
+| USDCAD  | 4      | 4      |25.0%  | 0.510   | -1.5  | 0.000    | 86.1% v2_partial |
+| USDCHF  | 3      | 3      |33.3%  | 0.295   | -1.5  | inf*     | 86.1% v2_partial |
+
+`* inf` = ganó el único trade sin pérdida → PF indefinido (N=1), NO edge real.
+
+**Veredicto v2 mtf:** 🔴 **GATE NO PASA** (ningún símbolo PF OOS ≥ 1.10; sample 0-4 trades).
+El filtro multi-TF deja pasar tan pocos setups que el PF negativo de R6.4 desaparece por
+falta de operaciones, no por edge. Coverage `v2_partial` = 86.1% (C06 POI anclado MISSING).
+Conclusión: el nuevo motor añade disciplina top-down, pero la brecha real sigue siendo
+**POI anclado (C06) + R5 datos ≥3-4 años** (XAUUSD M15 ausente). No se declara edge alguno.
+
+**Veredicto global:** 🔴 GATE R6 NO PASA en NINGÚN símbolo en modo producción.
+- Reloj (G1→G2): ruido (<0.1 PF en todos). El motor ya opera open≈close.
+- Costos (G2→G3): HUNDEN todo (USDCHF +9.99→-0.13; USDCAD +5.09→-8.64). Es física, no bug.
+- USDCHF/USDCAD dan PF + en TEORÍA (sin costos, WR 40-48%): el motor detecta
+  estructura direccional real, pero el edge es MÁS FINO que el costo de transacción.
+  No es "sin edge", es "edge < costo". Mejorar EDGE (RR/filtro), no quitar costos.
+- Conclusión: el cuello NO es reloj/look-ahead (limpio desde R4/R6.1). Es edge < costo
+  en todos lados. Siguiente paso real = R5 (XAUUSD M15 + 3-4 años) para A12, y/o
+  mejorar el motor (RR, filtro, símbolos de mayor rango).
+- N baja (18-38): requiere R5 para N≥200/fold en walk-forward A12.
 
 **Bug G3 encontrado y corregido:** `simulate_trade` dividía la comisión por `risk`
 (inflaba pnl_r cuando risk~0 por SL mal ubicado a <1 pip del entry en hold_limit
@@ -253,7 +302,25 @@ residual para veredicto definitivo. Ver `AUDIT_LOOKAHEAD_HTF.md` (Fix residual).
   filtro displacement (que ayudo a Turtle) lo anula. Re-medir SIN displacement.
 - El PF 1.61 del §4 era del pipeline ML combinado, NO de modelos puros.
 
-**Decision actual:** NO Optuna sobre modelos aislados. Turtle no cumple gate
+### 8.3 R4-clean + funding-gate 6m (2026-07-17) — CIERRE OFICIAL
+
+**Script:** `scripts/r4_clean_funding_gate.py`  
+**Informe:** `docs/auditorias/R4_CIERRE_FUNDING_2026-07-17.md`  
+**JSON:** `results/r4/r4_clean_funding_LATEST.json`
+
+Meta de producto: en ~6 meses de histórico, shape de fondeo (~8% sin romper ~4% daily / ~8% max DD a 1% riesgo/trade).
+
+| Celda (H4→M15, 180d, costos ON) | Trades | PF | Equity% fondeo | Viable fondeo |
+|----------------------------------|--------|-----|----------------|---------------|
+| EURUSD Turtle CT | 5 | 0.70 | −0.97 | NO |
+| EURUSD Sequence AT | 5 | 1.18 | +0.37 | NO (no llega a +8%) |
+| GBPUSD Turtle CT | 7 | 0.34 | −3.33 | NO |
+| GBPUSD Sequence AT | 9 | 0.06 | −6.50 | NO |
+
+**Veredicto R4 final:** `REJECT_NO_EDGE` — ICT mecánico (sequence tesis 18) **no** apto para live/auto ni para pretender challenge FundedNext.  
+**Decisión:** NO Optuna sobre estos modelos. Observador + riesgo humano OK; bot ICT NO.
+
+**Decision actual (pre-8.3, histórico):** NO Optuna sobre modelos aislados. Turtle no cumple gate
 robusto; PO3 muestra insuficiente; Silver pendiente de re-medicion sin
 displacement. Parches de backtest aplicados y verificados (smoke 122 ready),
 SIN commit por regla de hierro de Ruben.

@@ -2,9 +2,9 @@
 
 **Proyecto:** SMC-SYSTEMS (renombrado desde SMC_SUCCESSOR)
 **Repositorio:** https://github.com/vjack666/SMC-SYSTEMS
-**Versión del Roadmap:** 2.4 (post-R4 audit + SL estructural + tesis ejecución 3 capas + libro 18 + **migración event-driven + libro 21 POI**)
-**Fecha de Actualización:** 2026-07-15
-**Estado General:** 🟢 Modo observador FundedNext operativo 24/7. R4 (ICT puro) auditado: backtests previos contaminados por look-ahead (97%), corregidos. Tesis de ejecución óptima documentada (libro 18). **Migración event-driven COMPLETA y probada (A' PF 1.511 > baseline 1.424). Libro 21 POI escrito (ontología→biblioteca→código cerrado). Pendiente: aplicar POI como bonus de quality_score en código (Fase E corregida) y turtle v2.8 limpio.**
+**Versión del Roadmap:** 2.5 (cierre R4-clean + meta fondeo 6m)
+**Fecha de Actualización:** 2026-07-17
+**Estado General:** 🟢 Observador FundedNext operativo. **R4 CERRADO (2026-07-17): ICT puro mecánico SIN edge para live/fondeo** — ver `docs/auditorias/R4_CIERRE_FUNDING_2026-07-17.md`. Meta de producto: pasar prueba de fondeo en ~6m de histórico; Turtle/sequence no lo logran bajo automatización actual. R7 parcial en código (`canonical.py`). Pendiente: R5 datos, A12 solo si aparece modelo viable, R3.5 libros 22/23.
 
 ---
 
@@ -89,14 +89,14 @@
 | **R2** | **Killzones + TZ unificadas** | UTC canónico, helper único | ✅ | Alta |
 | **R3** | **Huecos arquitectura (liquidez, open día, CHOCH-gate)** | canonical_sweep, PO3-2 | ✅ | Alta |
 | **R3.5** | **Huecos canon ICT en tesis (SMT/Breaker/OTE)** | Libros 14-17/20 hechos; **21 (POI) ✅ 22/23 pendientes** | 🔶 Parcial | Alta |
-| **R4** | **Auditoría + medición ICT puro** | Look-ahead corregido; Silver Bullet/PO3 sin edge; **Turtle limpio pendiente** | 🔶 En curso | Alta |
+| **R4** | **Auditoría + medición ICT puro** | Look-ahead ✅; SB/PO3 sin edge; **Turtle v2.8 + funding-gate 6m: REJECT_NO_EDGE** (informe 2026-07-17) | ✅ Cerrado | Alta |
 | **R4-tesis** | **Tesis ejecución óptima (libro 18)** | 3 capas + SL/entry exec TF + RR 1:3 | ✅ | Alta |
 | A12 | Walk-forward OOS celda ganadora | `no_session`×XAUUSD falló 1er pase (PF -0.058, N bajo). **Re-evaluar tras R4 limpio** | 🔴 Pendiente (re-run) | Alta |
 | A8 | Deployment Guide (F8) | VPS, systemd/NSSM | 🔴 Pendiente | Baja |
 | **R5** | **Datos A6 (bloqueante A12)** | ≥3-4 años M15 XAUUSD/EURUSD | 🟡 En curso | Alta |
-| **R6** | **Backtest profesional (reloj/fill/costos)** | G1 closed-only ✅; G2 fill ✅; G3 costs ✅; R6.4 M2: EURUSD M15 PF=-4.89 (GATE NO PASA) | 🔶 Docs ✅ / Código 🟢 G1-G3 done | Alta |
+| **R6** | **Backtest profesional (reloj/fill/costos)** | G1 closed-only ✅; G2 fill ✅; G3 costs ✅; R6.4 M2: EURUSD M15 PF=-4.89 (GATE NO PASA); **v2 mtf D1→H4→H1→M15 corrido 2026-07-17 (7 majors, costos ON, OOS 0.3): 0-4 trades/símbolo, ninguno pasa gate, coverage 86.1% (C06 POI missing)** | 🔶 Docs ✅ / Código 🟢 G1-G3 done / v2 mtf 🟢 corrido | Alta |
 | **R9** | **Migración del motor a MarketObject (R9)** | ✅ COMPLETADO (2026-07-15). Representación canónica MarketObject; sequence 100% migrado; equivalencia 15/15 tests; compatibilidad vía adapter intacta. NO incluía eliminar engine.py (deuda R7). | ✅ Cerrado | Alta |
-| **R7** | **Unificar motor de decisión (single source of truth)** | 🔒 Fase 1+2 CONGELADAS + AMPLIADAS post-auditoría (R7_UNIFICACION_MOTOR.md): inventario ahora incluye ict_agent/legacy/ml + consumidores build_signals_from_frames; DoD fortalecido (default runner en sequence, check_separation con islas). Contrato oficial. Fase 3-6 (impl/TDD) PENDIENTE de autorización. Sin código. | 🔒 Arquitectura congelada ⏳ | Alta |
+| **R7** | **Unificar motor de decisión (single source of truth)** | Fases 1–2 ✅; **impl parcial 2026-07-16/17:** `canonical.evaluate_signals`, runner default sequence, `ict_agent` lee columnas (no reimplementa), observador plan canónico. Deuda: pipeline/ML/legacy documentados fuera. DoD completo aún abierto. | 🔶 Parcial | Alta |
 
 **Criterio de completitud:** A1-A11 + R0-R4 + libro 18 en 🟢. Harness 100%. A12 validado con datos suficientes. Solo entonces production-ready para bot.
 
@@ -104,7 +104,7 @@
 
 ## 4. Fases Futuras
 
-- **Fase R4-clean:** Turtle Soup v2.8 SIN look-ahead + YA ALINEADO A TESIS 18 (SL mecha sweep, RR 1:3, killzone) en `run_backtest.py` camino sequence. Veredicto final del único modelo que rozó el gate. Si PF<1.10, R4 se documenta "sin edge para live".
+- **Fase R4-clean:** ✅ CERRADA 2026-07-17. Turtle/sequence 6m + costos + sim fondeo (8%/DLL4%/MLL8%): **REJECT_NO_EDGE**. Informe: `docs/auditorias/R4_CIERRE_FUNDING_2026-07-17.md`. No auto-trade ICT.
 - **Fase R3.5-libros:** escribir 21 (SMT), 22 (Breaker/MMXM), 23 (OTE) y cablear detectores (bloquea R4-honesto v30).
 - **Fase R6 WF/OOS:** re-run A12 tras R5.
 - **Fase R7 unificación:** un solo motor de evaluación ICT canónico (`sequence.py`) para backtest, UI y agente. El contrato R7 (R7_UNIFICACION_MOTOR.md) es la autoridad: `engine.py` queda degradado a helpers puros; `ict_agent` delega en `sequence`; `legacy/backtest` y `ml/dataset_builder` quedan DOCUMENTADOS FUERA de alcance de R7 (deuda a resolver post-R7, con decisión explícita). No se promete "matar todas las islas" en R7: el DoD de R7 exige que no haya motor ICT paralelo INVISIBLE, no la migración del legacy/ML en esta fase.
@@ -116,7 +116,7 @@
 ## 5. Métricas de Éxito / Gate
 
 - Profit Factor ≥ 1.25 (backtest 1.61 ✅ — pero ese número es del stack SMC heredado, NO del ICT puro R4).
-- **R4 ICT puro:** gate PF OOS ≥ 1.10 por modelo. Hoy: Silver Bullet RECHAZADO, PO3 INCONCLUSO, **Turtle Soup PENDIENTE v2.8**.
+- **R4 ICT puro:** gate PF ≥ 1.10 **y** meta fondeo 6m. **CERRADO:** SB/PO3/Turtle-sequence **sin edge** para live automatizado (2026-07-17).
 - Win Rate ≥ 52% · Max DD ≤ 10% · Sharpe > 1 · Expectancy > 0 (del stack SMC, no R4).
 - Edge diagnosis OOS PF ≥ 1.10 en >1 símbolo: ✅ (XAUUSD 1.376, etc.) — falta walk-forward A12.
 - Trade count ≥ 200/backtest (actual 91 ⚠️).
@@ -126,12 +126,13 @@
 
 ## 6. Próximos Pasos Inmediatos
 
-1. **R4-clean:** Turtle Soup v2.8 limpio YA ALINEADO a tesis 18 → veredicto final (corriendo EURUSD/GBPUSD en fondo).
-2. **R3.5:** libros 21/22/23 (SMT/Breaker/OTE) + detectores.
-3. **R4-tesis→código (v30, resto):** `build_signals_from_frames` con `exec_tf`/`itf` explícitos + M3 en `TF_FREQ` (el camino sequence/Turtle Soup YA usa SL estructural+RR1:3+killzone). Cierra la regla dura del libro 18 para scalping/checklist.
-4. **R7:** unificar motores ICT (anti-islas del grafo).
-5. **A6/R5:** expandir datos para A12.
-6. Cualquier nuevo desarrollo pasa por harness actualizado.
+1. ~~**R4-clean**~~ ✅ cerrado 2026-07-17 — sin edge ICT mecánico para fondeo/live.
+2. **Producto observador:** app + vigilante + LIMIT demo (sin pretender edge).
+3. **R5:** inventario/datos multi-año solo si se prueba un **nuevo** modelo candidato a A12.
+4. **A12:** bloqueado hasta haber celda con edge real (R4 no la dio).
+5. **R7:** completar deuda pipeline/ML/legacy o dejar documentada.
+6. **R3.5:** libros 22/23 opcionales (no desbloquean bot sin edge).
+7. Cualquier nuevo desarrollo pasa por harness actualizado.
 
 ---
 

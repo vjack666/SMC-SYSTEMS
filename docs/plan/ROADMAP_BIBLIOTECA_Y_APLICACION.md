@@ -240,7 +240,8 @@ contrato era la representación MarketObject, NO eliminar engine.py). Ver
 | R6.1 | HTF **closed-only** (`row_at_time` + merge_asof) + test multi-TF | ⏳ G1 |
 | R6.2 | `fill_mode=next_open` default producción | ⏳ G2 |
 | R6.3 | Cost pack ON por default en runners (`--no-cost` = theory) | ⏳ G3 |
-| R6.4 | Re-medir Capa 2/3 (ablation reloj) → **METRICS_CANON** | ⏳ |
+| R6.4 | Re-medir Capa 2/3 (ablation reloj) → **METRICS_CANON** | 🟢 corrido (R6.4 multi-símbolo en METRICS_CANON §0) |
+| R6-v2 | Motor multi-TF `ict_backtest/v2` (D1→H4→H1→M15) corrido 2026-07-17: 7 majors, costos ON, OOS 0.3. 0-4 trades/símbolo, ningún gate pasa, coverage v2_partial 86.1% (C06 POI missing). Reporte: `docs/avances/BACKTEST_V2_MTF_REPORTE_2026-07-17.md` | 🟢 corrido |
 | R6.5 | DSR/PBO / veredicto auto en optimize ICT (opcional) | ⏳ G6–G7 |
 | R6.6 | Gaps sesión, portafolio prop, régimen (post R5) | ⏳ no bloquea sello v1 |
 
