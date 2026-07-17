@@ -10,7 +10,37 @@ Formato por entrada:
 
 ================================================================================
 
-## DEC-004 — ETAPA 1 cerrada: hallazgos validados sin modificar código (2026-07-17)
+## DEC-005 — ETAPA 2 cerrada: árbol de dependencias / causa raíz (2026-07-17)
+
+- Problema: tras validar, hace falta saber QUÉ causa cada hallazgo para ordenar la
+  implementación por dependencia (no por gravedad).
+- Evidencia: `signals/pipeline.py:12` importa `detectors` (Stack A, usado en edge_diagnosis);
+  `run_backtest.py:103` usa canónico (Stack B). Bifurcación real de dos stacks confirmada.
+  `run_bt_v2_mtf.py:16` excluye XAUUSD pese a existir el parquet (H14 resuelto).
+- Alternativas consideradas: listar por prioridad (rechazado: oculta dependencias); árbol por
+  causa raíz (elegido).
+- Decisión tomada: 6 causas raíz (CR-1..CR-6) trazadas en DEPENDENCY_TREE.md. CR-1 = ausencia de
+  fuente única de verdad para geometría (raíz de H4/H5/H17). Hallazgo nuevo: el filtro XAUUSD en
+  el runner MTF es obsoleto, no falta de datos.
+- Justificación: el orden de ETAPA 4 debe seguir el árbol; corregir H4 antes que H17 porque H17
+  depende de saber cuál es la verdad.
+- Impacto esperado: ETAPA 4 corrige de raíz, no síntomas; sin ciclos de retrabajo.
+- Cómo verificarla: DEPENDENCY_TREE.md existe con árbol por componente + CR-1..CR-6.
+
+## DEC-006 — ETAPA 3 cerrada: plan de implementación por dependencia (2026-07-17)
+
+- Problema: definir el ORDEN de corrección sin violar "un cambio a la vez" ni la regla de oro.
+- Evidencia: árbol de ETAPA 2 (CR-1..CR-6).
+- Alternativas consideradas: ordenar por impacto (rechazado); ordenar por dependencia (elegido).
+- Decisión tomada: 7 pasos en IMPLEMENTATION_PLAN.md. CR-1 primero (desbloquea H4/H5/H17);
+  CR-6, CR-3, CR-4, CR-2, H16, CR-5. Cada paso = 1 commit = 1 bug, con tests+backtest+reversión
+  si >5-10% de desvío. Fase 0 (ICT/SB/Killzone/Sequence/SL/TP/HTF/Entry) prohibida.
+- Justificación: el orden evita corregir sobre base ambigua y aisla el efecto de cada filtro.
+- Impacto esperado: implementación trazable; cada commit mide su impacto contra baseline.
+- Cómo verificarla: IMPLEMENTATION_PLAN.md existe con pasos, aceptación y riesgo por ítem.
+
+================================================================================
+
 
 - Problema: tras la convergencia, cada hallazgo A debía demostrarse con repro real antes de
   implementar (evitar corregir fantasmas).
