@@ -101,3 +101,14 @@ hace falta cerrar la brecha B (POI anclado) y A1 (3 capas reales) sobre datos pr
 - A12: walk-forward OOS de `no_session`×XAUUSD (bloqueado por R5).
 - C06 POI anclado en motor v2.
 - (Opcional) unir frames M15 en GIF animado.
+
+## 8. ADVERTENCIA DE AUDITORÍA (2026-07-17, posterior al reporte)
+
+⚠️ **Este backtest NO es reproducible desde un clon limpio.** El commit eb691c5 agregó
+`scripts/run_bt_v2_mtf.py` pero **no** `ict_backtest/v2/` (el motor que importa). El módulo
+solo existe en disco local. Ver `docs/auditorias/AUDIT_R6_V2_MTF_Y_EDGEDIAG_2026-07-17.md`
+(Falla 1). El reporte queda pendiente de validación hasta que `ict_backtest/v2/` se
+versione. Además, el "candidate edge" de A12 (XAUUSD) descansa sobre una ablación rota
+(cap de señales), sin corrección múltiple y concentrada en 1 símbolo — ver misma auditoría,
+Fallas 2/3/4. **Veredicto provisional: cualquier conclusión (a favor o en contra) es
+prematura hasta resolver las 4 fallas.**

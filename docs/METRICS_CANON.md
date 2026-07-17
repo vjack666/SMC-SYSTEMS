@@ -65,6 +65,11 @@ falta de operaciones, no por edge. Coverage `v2_partial` = 86.1% (C06 POI anclad
 Conclusión: el nuevo motor añade disciplina top-down, pero la brecha real sigue siendo
 **POI anclado (C06) + R5 datos ≥3-4 años** (XAUUSD M15 ausente). No se declara edge alguno.
 
+> ⚠️ **AUDITADO 2026-07-17 (docs/auditorias/AUDIT_R6_V2_MTF_Y_EDGEDIAG_2026-07-17.md):**
+> este backtest **NO es reproducible** — el commit eb691c5 no versionó `ict_backtest/v2/`.
+> El veredicto es provisional hasta versionar el motor + resolver Fallas 2/3/4 (ablación
+> edge_diagnosis rota, sin DSR/PBO, concentración en XAUUSD excluido).
+
 **Veredicto global:** 🔴 GATE R6 NO PASA en NINGÚN símbolo en modo producción.
 - Reloj (G1→G2): ruido (<0.1 PF en todos). El motor ya opera open≈close.
 - Costos (G2→G3): HUNDEN todo (USDCHF +9.99→-0.13; USDCAD +5.09→-8.64). Es física, no bug.
