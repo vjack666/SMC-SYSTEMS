@@ -47,23 +47,61 @@ Esto evita el sobreajuste: si no hay evidencia dominante, el reporte dice
 BACKTEST (sequence / v2 / optimize)
         │  produce lista de TradeResult + meta
         ▼
-TradeContext          ← ensambla contexto por trade (Fase D, Paso 2)
-        │  {htf_bias, zone_authority, structure_quality, phase_log, exit_diag}
+TradeContext          ← CONGELADO una sola vez (Fase D, Paso 2)
+        │  {trade_id, signal_id, context_version,
+        │   htf_bias, zone_authority, structure_quality,
+        │   phase_log, exit_diag}
+        │  INMUTABLE: nunca se modifica ni recalcula tras conocer el resultado
         ▼
 Statistics Engine     ← métricas agregadas + cohortes
         │
         ▼
-Pattern Detector     ← busca patrones en ganadores/perdedores
-        │
+Correlation Engine    ← ¿qué variables se asocian a pérdidas/ganancias?
+        │   fuerza/dirección, colinealidad, tamaño de muestra
         ▼
-Hypothesis Generator ← propone hipótesis (p.ej. "73% de pérdidas sin autoridad HTF")
-        │
+Hypothesis Generator ← SOLO AQUÍ se proponen hipótesis,
+        │   apoyadas en las correlaciones previas
+        │   (p.ej. "73% de pérdidas sin autoridad HTF")
         ▼
 Evidence Ranking     ← confianza de cada hipótesis (boot/freq)
         │
         ▼
 Final Report         ← texto para humano Y para el agente (chat_context)
 ```
+
+### Contrato de inmutabilidad (anti look-ahead / sesgo de retrospectiva)
+`TradeContext` es un **frozen dataclass**. Se construye UNA SOLA VEZ a partir
+de `Signal` + `Trade` + `meta` en el momento de la simulación. Después:
+- NUNCA se modifica.
+- NUNCA se recalcula.
+- NUNCA se "arregla" tras conocer el PnL.
+
+Así el Diagnosis Engine solo LEe contexto histórico; no puede contaminarse
+con el resultado (el mismo peligro que el look-ahead cross-timeframe de R4).
+
+### Identificadores persistentes
+Cada `TradeContext` lleva:
+- `trade_id`: UUID del trade (estable a lo largo del reporte).
+- `signal_id`: referencia a la señal que lo originó (trazabilidad a R7).
+- `context_version`: versión del esquema TradeContext (para reconstruir
+  exactamente qué contexto tuvo un trade años después, aunque la estrategia
+  evolucione).
+
+### Contrato del reporte (6 preguntas + "no lo sé")
+El `Final Report` debe responder explícitamente:
+1. **¿Qué ocurrió?** → PF, WR, DD, Expectancy.
+2. **¿Dónde ocurrió?** → símbolos, sesiones, ventanas temporales, TF.
+3. **¿Por qué ocurrió?** → hipótesis respaldadas por evidencia.
+4. **¿Qué evidencia respalda eso?** → porcentajes, correlaciones, cohortes,
+   distribuciones.
+5. **¿Qué tan confiable es?** → nivel de confianza, tamaño de muestra,
+   consistencia estadística.
+6. **¿Qué NO puede concluir todavía?** → variables sin evidencia,
+   muestra insuficiente, resultados ambiguos.
+
+El punto 6 es OBLIGATORIO: un buen diagnóstico debe poder decir
+**"no lo sé"** cuando la evidencia no alcanza. Evita conclusiones forzadas
+y sobreajuste.
 
 Cada etapa es un módulo puro en `ict_backtest/diagnostics/`. Ninguno toca
 R7 (motor de decisión) ni altera PnL.
@@ -99,8 +137,13 @@ desconectado de la información real.
 ## 4. CONTRATO DE DATOS: TradeContext (por trade)
 
 ```python
-@dataclass
+@dataclass(frozen=True)  # INMUTABLE: 1 vez, nunca post-outcome
 class TradeContext:
+    # --- identificadores persistentes ---
+    trade_id: str            # UUID estable en todo el reporte
+    signal_id: str           # trazabilidad a la señal R7
+    context_version: str     # p.ej. "ctx-1.0" (reconstrucción futura)
+    # --- identidad ---
     symbol: str
     time: str
     direction: int
@@ -118,7 +161,7 @@ class TradeContext:
     atr_z: float
     sl_is_structural: bool
     dist_entry_to_sl_r: float
-    phase_log: list[str]            # sweep -> displace -> BOS -> return
+    phase_log: tuple[str, ...]     # sweep -> displace -> BOS -> return (inmutable)
     # exit diagnostics
     exit_reason: str
     mfe_r: float
@@ -130,6 +173,11 @@ class TradeContext:
     regime_tag: str | None
     htf_bias_at_exit: str | None
 ```
+
+**Regla de hierro:** una vez construido, `TradeContext` es de solo lectura.
+El Diagnosis Engine lo consume; no lo muta. (Ver §2 Contrato de
+inmutabilidad — anti sesgo de retrospectiva, mismo peligro que el
+look-ahead cross-timeframe de R4.)
 
 ---
 
