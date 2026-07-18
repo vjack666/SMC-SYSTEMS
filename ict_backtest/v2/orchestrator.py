@@ -109,6 +109,7 @@ def run_sequence_parity(
     frames: dict[str, pd.DataFrame] | None = None,
     live_table: bool = True,
     live_console: bool = False,
+    enable_pd_index: bool = True,
 ) -> dict[str, Any]:
     """Same decision path as `ict_backtest/run_backtest.py --engine sequence`.
 
@@ -183,6 +184,7 @@ def run_sequence_parity(
             bos_gap=bos_gap,
             frames=frames,
             fill_mode=fill_mode,
+            enable_pd_index=enable_pd_index,
         )
         print(f"[v2/sequence] signals: {len(signals)}", flush=True)
 
@@ -293,6 +295,7 @@ def run_mtf_intraday(
     oos_frac: float = 0.0,
     live_table: bool = True,
     live_console: bool = False,
+    enable_pd_index: bool = True,
 ) -> dict[str, Any]:
     """Top-down D1→H4→H1→M15. Clock = LTF only; HTF closed-only lookups.
 
@@ -350,6 +353,7 @@ def run_mtf_intraday(
             fill_mode=fill_mode,
             require_h1="H1" in ms,
             event_log=event_log,
+            enable_pd_index=enable_pd_index,
         )
         for s in signals:
             if live_table:

@@ -129,7 +129,8 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            displace_gap: int = 6, bos_gap: int | None = 10,
                            bos_table: dict | None = None,
                            cost: dict | None = None,
-                           fill_mode: str = "next_open") -> dict:
+                           fill_mode: str = "next_open",
+                           enable_pd_index: bool = False) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden)."""
     tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
     print(f"[1/3] Cargando frames {symbol} + market_structure ...", flush=True)
@@ -156,7 +157,8 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                                         displace_gap=displace_gap,
                                         bos_gap=bos_gap, frames=frames,
                                         bos_table=bos_table,
-                                        fill_mode=fill_mode)
+                                        fill_mode=fill_mode,
+                                        enable_pd_index=enable_pd_index)
     print(f"      features en {time.time()-t0:.1f}s", flush=True)
     print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
     print(f"      {len(signals)} senales", flush=True)
@@ -278,6 +280,7 @@ def main() -> None:
         require_displacement=not args.no_displacement,
         displace_gap=args.displace_gap, bos_gap=args.bos_gap,
         cost=cost,
+        enable_pd_index=True,  # Fase C: autoridad de zonas HTF como METADATA (sin gate, R1 se preserva)
     )
 
 

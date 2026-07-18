@@ -39,6 +39,7 @@ def generate_mtf_signals(
     use_nearest_tp: bool = True,
     min_rr: float = 3.0,
     event_log: EventLog | None = None,
+    enable_pd_index: bool = False,
 ) -> tuple[list[ICTSignal], dict[str, Any]]:
     """Sequence on M15 with H4 bias, then filter each signal top-down D1/H4/H1/PD."""
     log = event_log if event_log is not None else EventLog()
@@ -60,6 +61,7 @@ def generate_mtf_signals(
         bos_gap=bos_gap,
         frames=frames,
         fill_mode=fill_mode,
+        enable_pd_index=enable_pd_index,
     )
     ltf_df = ms[ltf]
     if use_nearest_tp:
