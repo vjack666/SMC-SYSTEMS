@@ -27,9 +27,11 @@ from ict_backtest.engine import (
     fill_entry_price,
     _tp_liquidity,
 )
+from ict_backtest.htf_pd_index import HtfPdIndex
 from ict_backtest.market_structure import detect_market_structure
 from ict_backtest.rules import killzone_en
 from ict_backtest.sequence import SequenceConfig, run_sequence
+from ict_backtest.zone_authority import evaluate_zone_authority
 
 CANONICAL_ENGINE = "sequence"
 
@@ -84,13 +86,28 @@ def evaluate_signals(
     ltf_df = ms[ltf]
     htf_df = ms.get(htf, ltf_df)
 
+    # --- Fase C (C1): indice de PD arrays HTF vigentes (plumbing que faltaba) ---
+    # Solo los TF HTF (no el LTF) alimentan el evaluador de autoridad de zonas.
+    htf_frames = {tf: df for tf, df in frames.items() if tf != ltf}
+    htf_pd_index = HtfPdIndex(htf_frames) if htf_frames else None
+    # Mapa LTF->HTF resuelto UNA sola vez (O(n), no O(n^2)). Se pasa al
+    # motor para lookup O(1) por barra (ver sequence.run_sequence).
+    ltf_map = htf_pd_index.build_ltf_map(ltf_df) if htf_pd_index is not None else None
+
     def est_htf_fn(i: int) -> dict[str, Any]:
         t = ltf_df.iloc[i]["time"]
         r = closed_row_at_time(htf_df, t, tf_duration(htf))
+        # C1: los PD arrays HTF vigentes ya vienen precalculados en ltf_map;
+        # aqui solo se entregan (lookup O(1)) para el evaluador de autoridad.
+        pd_zones = []
+        if ltf_map is not None:
+            for tf_ in htf_pd_index.timeframes:
+                pd_zones.extend(htf_pd_index.zones_at(i, tf_, ltf_map))
         return {
             "trend": str(r.get("trend", "RANGING")),
             "sweep_up": bool(r.get("liquidity_sweep_up", False)),
             "sweep_down": bool(r.get("liquidity_sweep_down", False)),
+            "pd_zones": pd_zones,
         }
 
     raw_sigs, _ = run_sequence(
@@ -105,6 +122,8 @@ def evaluate_signals(
         ),
         ltf_tf=ltf,
         bos_table=bos_table,
+        htf_pd_index=htf_pd_index,
+        ltf_map=ltf_map,
     )
 
     signals: list[ICTSignal] = []
@@ -140,16 +159,17 @@ def evaluate_signals(
             tp = entry - 3.0 * risk
         signals.append(
             ICTSignal(
-                symbol=symbol,
-                time=s["time"],
-                direction=direction,
-                entry=entry,
-                stop_loss=sl,
-                take_profit=tp,
-                model="sequence",
-                sweep_at=s["sweep_at"],
-                bos_at=s["bos_at"],
-                entry_at=s["entry_at"],
+            symbol=symbol,
+            time=s["time"],
+            direction=direction,
+            entry=entry,
+            stop_loss=sl,
+            take_profit=tp,
+            model="sequence",
+            sweep_at=s["sweep_at"],
+            bos_at=s["bos_at"],
+            entry_at=s["entry_at"],
+            zone_authority=s.get("zone_authority"),
             )
         )
     return signals

@@ -44,7 +44,9 @@ import numpy as np
 import pandas as pd
 
 from ict_backtest._util import closed_row_at_time
+from ict_backtest.htf_pd_index import HtfPdZone
 from ict_backtest.market_object import MarketObject, ObjectType, Role
+from ict_backtest.zone_authority import evaluate_zone_authority
 
 
 PHASE = ("IDLE", "SWEEP_DONE", "DISPLACE_DONE", "BOS_DONE")
@@ -86,6 +88,7 @@ class SequenceState:
     zone_low: float = float("nan")
     zone_pd_type: str = "NONE"   # Fase B1 (SPEC §4): metadato de la zona congelada
     zone_pd_tier: str = "NONE"   # (no altera la decisión de entry; info para POI/stacking)
+    zone_authority: Any = None     # Fase C (C2/C3): ZoneAuthority anotada (peso de confianza)
     history: list = field(default_factory=list)
 
     def reset(self):
@@ -99,6 +102,7 @@ class SequenceState:
         self.zone_low = float("nan")
         self.zone_pd_type = "NONE"
         self.zone_pd_tier = "NONE"
+        self.zone_authority = None
 
     def note(self, tag: str, i: int, extra: str = ""):
         self.history.append((tag, i, extra))
@@ -310,7 +314,8 @@ def _effective_bos_gap(cfg: SequenceConfig, i: int, obj, est_htf,
 
 
 def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
-                 htf_poi_fn=None, ltf_tf: str = "M15", bos_table: dict | None = None):
+                 htf_poi_fn=None, ltf_tf: str = "M15", bos_table: dict | None = None,
+                 htf_pd_index=None, ltf_map: dict | None = None):
     """Recorre el LTF y devuelve lista de dicts de senal.
 
     R9 Paso 3: acepta DataFrame O lista de MarketObject (type=CANDLE). En
@@ -318,6 +323,8 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
     dentro del loop. Equivalencia 100% con el legado (mismo bar_index).
 
     est_htf_fn(i) -> dict con trend/sweep_up/sweep_down del HTF en la vela i.
+        En Fase C (C1) tambien puede traer 'pd_zones': lista de PD arrays
+        HTF vigentes (HtfPdZone) a la vela i.
     htf_poi_fn(i, target) -> bool OPCIONAL: si se pasa, la zona de entrada del
         LTF (FVG/OB) SOLO se memoriza cuando el HTF tiene un POI en esa
         direccion (fidelidad ICT, tesis 18). Si es None (default), el
@@ -325,7 +332,11 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
     bos_table -> dict bucket->ventana (R10 Propuesta A). Si cfg.bos_gap is None,
         la ventana de confirmacion BOS se deriva de la FUERZA del quiebre via
         esta tabla empirica (sin indicadores). Si bos_gap es int, se ignora.
-    Cada senal: {time, direction, entry, phase_log}.
+    htf_pd_index -> HtfPdIndex OPCIONAL (Fase C, C1/C2). Si se pasa, cada
+        zona LTF trazada se ANOTA con su ZoneAuthority (peso de confianza de
+        zona, NO gate duro). El conteo de senales NO cambia: C solo aporta
+        informacion contextual (Contrato de no invasion de C).
+    Cada senal: {time, direction, entry, phase_log, zone_authority}.
     """
     # Conversion inicial: DataFrame -> MarketObject[] (si no vino ya como objetos).
     if isinstance(ltf_df_or_objs, pd.DataFrame):
@@ -371,14 +382,37 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
             if poi_ok:
                 _fvg = _latest_fvg_zone(obj, target)
                 _ob = _latest_ob_zone(obj, target)
+                _zone_obj = None
                 if _fvg is not None:
                     state.zone_high, state.zone_low = _fvg
                     state.zone_pd_type = str(obj.meta.get("pd_type", "FVG"))
                     state.zone_pd_tier = str(obj.meta.get("pd_tier", "T2"))
+                    _zone_obj = HtfPdZone(tf=ltf_tf, pd_type=state.zone_pd_type,
+                                          pd_tier=state.zone_pd_tier,
+                                          direction=target,
+                                          zone_high=state.zone_high,
+                                          zone_low=state.zone_low)
                 elif _ob is not None:
                     state.zone_high, state.zone_low = _ob
                     state.zone_pd_type = str(obj.meta.get("pd_type", "OB"))
                     state.zone_pd_tier = str(obj.meta.get("pd_tier", "T2"))
+                    _zone_obj = HtfPdZone(tf=ltf_tf, pd_type=state.zone_pd_type,
+                                          pd_tier=state.zone_pd_tier,
+                                          direction=target,
+                                          zone_high=state.zone_high,
+                                          zone_low=state.zone_low)
+                # Fase C (C2/C3): anota la AUTORIDAD de la zona (peso de
+                # confianza) SIN alterar la decision de R7. Lookup O(1) sobre
+                # ltf_map (precalculado una vez en canonical.py / build_ltf_map).
+                # CONTRATO: sin indice HTF, zone_authority queda None (el
+                # comportamiento historico no se toca; C no anota nada).
+                if htf_pd_index is not None and ltf_map is not None:
+                    _pd_zones = []
+                    for _tf in htf_pd_index.timeframes:
+                        _pd_zones.extend(htf_pd_index.zones_at(i, _tf, ltf_map))
+                    state.zone_authority = evaluate_zone_authority(_zone_obj, _pd_zones)
+                else:
+                    state.zone_authority = None
 
         if state.phase == "IDLE":
             if _has_sweep(obj, est_htf, target):
@@ -430,6 +464,7 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
             if _touches_zone(obj, state.zone_high, state.zone_low):
                 # SENAL: la secuencia completa ocurrio en orden y el precio
                 # volvio al cuadro (igual que el trader que espera el toque).
+                zone_auth = getattr(state, "zone_authority", None)
                 signals.append({
                     "time": str(obj.meta.get("time")),
                     "direction": target,
@@ -439,6 +474,7 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     "displace_at": state.displace_idx,
                     "bos_at": state.bos_idx,
                     "entry_at": i,
+                    "zone_authority": zone_auth,
                 })
                 state.note("ENTRY", i)
                 phase_seen["ENTRY"] += 1

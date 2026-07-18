@@ -33,6 +33,9 @@ class ICTSignal:
     sweep_at: int | None = None
     bos_at: int | None = None
     entry_at: int | None = None
+    # Fase C (C2/C3): ZoneAuthority anotada (peso de confianza de zona).
+    # Metadato de percepcion; NO altera entry/SL/TP ni el conteo de senales.
+    zone_authority: Any = None
 
 
 @dataclass

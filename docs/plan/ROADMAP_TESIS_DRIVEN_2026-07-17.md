@@ -186,15 +186,43 @@ FASE B — Geometría fina (desbloquea POI/SB reales):
   B3: Liquidez internal vs external — jerarquía de targets (internal swing reciente
       primero; external PDH/PDL/EQ high-low después) para el TP.
 
-FASE C — Setups anclados (era PASO 5, ahora CON prerequisitos B1-B3):
-  C1: POI anclado a narrativa HTF (htf_poi_fn ON) + filtro zona P-D/sesgo/respaldo
-      + POI como BONUS de quality_score (no gate duro, tesis 21 §4).
-  C2: Silver Bullet — ventana NY 10-11 / 14-15 ET + retorno a POI en M15→M5/M1.
-      RR por setup = 1:2 (libro 07 #5), no el 1:3 global.
-  C3: Turtle Soup (contratendencia) — sweep manipula, CHOCH contrario confirma
-      el giro, entrada en retorno. 1 de 3 setups del ciclo PO3 (tesis 20 §4).
-      Requiere documentar el flujo contratendencia (canónico ya soporta
-      counter_trend=True).
+FASE C — Capa de Autoridad de Zonas (PERCEPCIÓN, no decisión):
+  Re-definida 2026-07-18 (Ruben + Hermes): Fase C NO añade setups ni señales.
+  Es la CAPA DE EVALUACIÓN DE AUTORIDAD CONTEXTUAL de la zona LTF ya trazada
+  por R7 (tesis 18: "primero dónde mirar, luego cuándo disparar"). Cierra el
+  root cause A'' (POI anclado HTF muerto por plumbing, no por diseño): el hook
+  htf_poi_fn ya existía en run_sequence pero est_htf_fn nunca traía FVG/OB del
+  HTF. Fase C lleva ese cable (C0-C4, TDD, ver docs/plan/ETAPA_4_FASE_C_PLAN.md
+  y tests/test_fase_c0..c4.py).
+
+  C0: Plumbing HTF — HtfPdIndex indexa FVG/OB de los TF HTF (D1/H4/H1) por barra
+      LTF CERRADA (anti look-ahead). O(n) vía merge_asof, NO O(n²). No crea zonas.
+  C1: est_htf_fn (canonical.py) entrega los PD arrays HTF vigentes a cada vela LTF.
+  C2: zone_authority.evaluate_zone_authority — recibe la zona LTF (ya trazada por
+      R7) + PD arrays HTF vigentes y devuelve {has_htf_anchor, tier, stacking_level,
+      confidence_weight[0,1], level: Alta/Media/Baja}. LEE, no crea; no decide
+      dirección/entry/SL/TP; respeta la jerarquía T1(BPR)>T2(FVG/OB)>T3(rejection)
+      y el stacking multi-TF (libro 21 §2).
+  C3: cableado en run_sequence — anota zone_authority en cada señal (ICTSignal.
+      zone_authority). MISMO conteo de señales con/sin índice (regla de oro R1:
+      C no altera R7; si el conteo cambia = bug de invasión). Sin índice HTF,
+      zone_authority queda None (comportamiento histórico intacto).
+  C4: tests de fidelidad §5 — el peso ORDENA zonas por calidad contextual
+      (T1>T2>T3, stacking>single, Zona Alta>Media>Baja). Métrica de FIDELIDAD,
+      NO de PF (regla de oro del roadmap: se acepta por fidelidad, no por PF).
+  C5: validación manual end-to-end (runner_monitor) sobre EURUSD M15 real —
+      confirma R1 (mismo conteo) + distribución de autoridad. Sin PF.
+
+  ✅ DONE (2026-07-18): C0-C4 en código + tests verdes (16 tests). C5 en curso.
+  CONTRATO DE NO INVASIÓN (violación = bug): C nunca crea zonas, nunca es gate
+  duro, nunca altera el conteo de señales, nunca toca R7. El peso de confianza
+  es INFORMACIÓN para el operador/humor del mercado, no un filtro de entrada.
+
+  Setups SB / Turtle Soup (libro 07/06, tesis 20 §4): se reubican FUERA de esta
+  Fase C. Eran C1-C3 en el borrador previo pero, por la filosofía "C = capa de
+  autoridad, no 2do cerebro", SB/Turtle Soup son SETUPS que añaden señales y
+  pertenecen a una fase posterior de ampliación de tesis (no a la capa de
+  percepción). Quedan como PENDIENTES post-C, alineados a Fase G (gate fidelidad).
 
 FASE D — Entry fina:
   D1: OTE — retrace 62-79% del swing, medido sobre Dealing Range.
