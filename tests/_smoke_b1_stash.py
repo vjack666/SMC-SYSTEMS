@@ -1,9 +1,12 @@
 """Smoke test de regresión Fase B1 (Ruben rule: prueba empírica de cableo).
 
 Cuenta las señales de run_sequence sobre EURUSD M15 REAL (datos locales,
-no MT5) CON los metadatos B1 y SIN ellos (stash de los 4 archivos de código,
-en un proceso fresco para que recargue el baseline). Si el conteo difiere,
-B1 alteró la decisión del motor (fuente única R7 rota). Debe ser idéntico.
+no MT5) CON los metadatos B1 (HEAD) y SIN ellos (padre HEAD~1). Para el
+baseline usa `git checkout HEAD~1 -- <5 archivos>` en el propio proceso
+antes de lanzar el subprocess que cuenta; luego restaura con `git checkout
+HEAD -- <5 archivos>`. Stash es poco fiable aqui (archivos ya commiteados),
+por eso se usa checkout explicito. Si el conteo difiere, B1 alteró la
+decisión del motor (fuente única R7 rota). Debe ser idéntico.
 """
 import subprocess
 import sys
@@ -37,17 +40,17 @@ print('N_SIGNALS', len(sigs))
 """ % ROOT
 
 
-def _run_count(stash: bool) -> int:
-    if stash:
-        subprocess.run(["git", "stash", "push", "--", *CODE_FILES],
+def _run_count(baseline: bool) -> int:
+    if baseline:
+        subprocess.run(["git", "checkout", "HEAD~1", "--", *CODE_FILES],
                        cwd=ROOT, check=True, capture_output=True)
     try:
         out = subprocess.run([sys.executable, "-c", COUNT_SNIPPET],
                              cwd=ROOT, capture_output=True, text=True, timeout=200)
     finally:
-        if stash:
-            subprocess.run(["git", "stash", "pop"], cwd=ROOT,
-                           check=True, capture_output=True)
+        # siempre restaura al HEAD (B1) para no dejar el arbol sucio
+        subprocess.run(["git", "checkout", "HEAD", "--", *CODE_FILES],
+                       cwd=ROOT, check=True, capture_output=True)
     for line in out.stdout.splitlines():
         if line.startswith("N_SIGNALS"):
             return int(line.split()[1])
@@ -55,8 +58,8 @@ def _run_count(stash: bool) -> int:
 
 
 def main():
-    n_with = _run_count(stash=False)
-    n_base = _run_count(stash=True)
+    n_with = _run_count(baseline=False)
+    n_base = _run_count(baseline=True)
     print(f"B1 señales = {n_with} | baseline = {n_base}")
     if n_with != n_base:
         print("FALLO: B1 alteró la decisión del motor (fuente única R7)")
