@@ -39,6 +39,9 @@ class RawDiagnosticData:
     meta: dict[str, Any]        # {exit_reason, mfe_r, mae_r, hold_bars}
     row: dict[str, Any] | None = None        # fila LTF en signal.time (atr, etc.)
     htf_context: dict[str, Any] | None = None  # {trend, sweep_up, sweep_down} HTF
+    market_stack: dict[str, Any] | None = None  # Fase D multi-TF: stack closed-only
+                                                   # {tf: snapshot} de context_mtf.
+                                                   # None si no se solicito la cadena.
     backtest_id: str = ""
 
 
@@ -87,6 +90,13 @@ def build_trade_context(
     from datetime import datetime, timezone
     created_at = datetime.now(timezone.utc).isoformat()
 
+    # Fase D multi-TF: congelar el expediente completo (reglas #1/#4/#5).
+    # market_stack viene closed-only de context_mtf; lo normalizamos a
+    # {tf: MarketContextFrame}. Si es None (no se solicito la cadena),
+    # market_context queda None (contexto v1 sigue valido).
+    from ict_backtest.diagnostics.mtf_context import normalize_mtf_stack
+    market_context = normalize_mtf_stack(raw.market_stack) if raw.market_stack else None
+
     return TradeContext(
         backtest_id=raw.backtest_id,
         trade_id=trade_id,
@@ -119,4 +129,5 @@ def build_trade_context(
         time_in_drawdown=0.0,  # se precisa loop post; Paso 2 lo deja 0 (no inventa)
         regime_tag=None,
         htf_bias_at_exit=None,
+        market_context=market_context,
     )

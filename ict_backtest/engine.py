@@ -162,8 +162,9 @@ def simulate_trade_with_context(
     frame: pd.DataFrame, signal: "ICTSignal", max_hold_bars: int,
     cost: dict | None = None, *, est_htf_fn=None, ltf_tf: str = "M15",
     backtest_id: str = "",
+    market_stack: dict[str, Any] | None = None,
 ) -> tuple["ICTTrade | None", dict[str, Any], RawDiagnosticData | None]:
-    """EMITE RawDiagnosticData para el Diagnosis Engine (Fase D, Paso 2).
+    """EMITE RawDiagnosticData para el Diagnosis Engine (Fase D, Paso 2 + multi-TF).
 
     NO construye TradeContext (esa es responsabilidad de
     `diagnostics.context_builder.build_trade_context`). Solo SIMULA el trade
@@ -176,6 +177,9 @@ def simulate_trade_with_context(
 
     est_htf_fn(i) opcional: si se pasa, se usa para poblar htf_context del
     builder (trend/sweep). Si es None, el builder usa defaults (no inventa).
+    market_stack opcional: stack closed-only multi-TF {tf: snapshot} que el
+    builder congela en TradeContext.market_context (Fase D multi-TF). Si es
+    None, market_context queda None (contexto v1 sigue valido).
     """
     trade, meta = simulate_trade(frame, signal, max_hold_bars, cost=cost)
     if trade is None:
@@ -203,6 +207,7 @@ def simulate_trade_with_context(
     raw = RawDiagnosticData(
         signal=signal, trade=trade, meta=meta, row=row,
         htf_context=htf_context, backtest_id=backtest_id,
+        market_stack=market_stack,
     )
     return trade, meta, raw
 

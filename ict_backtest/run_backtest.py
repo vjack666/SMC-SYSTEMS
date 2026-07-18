@@ -29,6 +29,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ict_backtest.engine import ICTSignal, simulate_trade_with_context  # noqa: E402
+from ict_backtest.htf_pd_index import HtfPdIndex  # noqa: E402
+from ict_backtest._util import (  # noqa: E402
+    closed_row_at_time, tf_duration,
+)
 
 
 def _write_runner_progress(
@@ -134,16 +138,25 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            cost: dict | None = None,
                            fill_mode: str = "next_open",
                            enable_pd_index: bool = False,
-                           backtest_id: str | None = None) -> dict:
+                           backtest_id: str | None = None,
+                           window_months: int | None = None) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden).
 
-    Fase D (Paso 2): acumula RawDiagnosticData por trade en `contexts` (en
-    memoria) para que el Diagnosis Engine (Paso 3) los congele en TradeContext.
-    NO altera el PnL ni la decision (R1 de Paso 2). `backtest_id` permite
+    Fase D (Paso2): acumula RawDiagnosticData por trade en `contexts` (en
+    memoria) para que el Diagnosis Engine (Paso3) los congele en TradeContext.
+    NO altera el PnL ni la decision (R1 de Paso2). `backtest_id` permite
     reconstruir Backtest N -> Trade M.
+
+    `window_months` (Fase D validacion): si se da, recorta la ventana LTF a
+    los ultimos N meses (el HTF se recorta en consecuencia) ANTES de generar
+    senales. No cambia la logica, solo el universo de velas.
     """
     backtest_id = backtest_id or f"BT-{uuid.uuid4().hex[:8]}"
     tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
+    # Fase D multi-TF (reglas #1/#4): cadena completa D1/H4/H1/M15/M5/M1.
+    # Se cargan TODOS los TF que existan en disco; los ausentes quedan como
+    # MISSING en el snapshot (nunca se inventan ni se copian de otro TF).
+    TF_CHAIN = ("D1", "H4", "H1", "M15", "M5", "M1")
     print(f"[1/3] Cargando frames {symbol} + market_structure ...", flush=True)
     _write_runner_progress(
         current=f"[1/3] load+structure {symbol} {htf}->{ltf}",
@@ -152,9 +165,45 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         unit="stages",
     )
     t0 = time.time()
-    frames = load_frames(symbol, tuple(dict.fromkeys([htf, ltf, "D1"])))
+    load_kwargs: dict = {}
+    if window_months is not None:
+        # Recorte de ventana ANTES de cargar (ahorra I/O + features)
+        last = None
+        for tf in TF_CHAIN:
+            try:
+                p = ROOT / "data" / "raw" / f"{symbol}_{tf}.parquet"
+                if p.exists():
+                    last = pd.read_parquet(p, columns=["time"])["time"].iloc[-1]
+                    break
+            except Exception:
+                continue
+        if last is not None:
+            load_kwargs["start"] = last - pd.DateOffset(months=window_months)
+    frames = load_frames(symbol, TF_CHAIN, **load_kwargs)
     ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
     ltf_df = ms[ltf]
+    # Fase D: est_htf_fn para que el EMISOR propague htf_context REAL
+    # (no placeholder). Solo si enable_pd_index (igual que evaluate_signals).
+    est_htf_fn = None
+    if enable_pd_index:
+        htf_frames = {tf: df for tf, df in ms.items() if tf != ltf}
+        htf_pd_index = HtfPdIndex(htf_frames) if htf_frames else None
+        ltf_map = htf_pd_index.build_ltf_map(ltf_df) if htf_pd_index is not None else None
+        htf_df = ms.get(htf, ltf_df)
+
+        def est_htf_fn(i: int) -> dict:  # type: ignore[no-redef]
+            t = ltf_df.iloc[i]["time"]
+            r = closed_row_at_time(htf_df, t, tf_duration(htf))
+            pd_zones = []
+            if htf_pd_index is not None and ltf_map is not None:
+                for tf_ in htf_pd_index.timeframes:
+                    pd_zones.extend(htf_pd_index.zones_at(i, tf_, ltf_map))
+            return {
+                "trend": str(r.get("trend", "RANGING")),
+                "sweep_up": bool(r.get("liquidity_sweep_up", False)),
+                "sweep_down": bool(r.get("liquidity_sweep_down", False)),
+                "pd_zones": pd_zones,
+            }
     _write_runner_progress(
         current=f"[2/3] sequence signals {symbol}",
         done=1,
@@ -188,8 +237,28 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     # Update monitor ~20 times max (same cadence as console bar)
     step = max(1, total // 20) if total else 1
     for k, sig in enumerate(signals, 1):
+        # Fase D multi-TF: snapshot closed-only de TODA la cadena en signal.time.
+        # Usa context_mtf.build_context_stack (reusa lógica anti look-ahead ya
+        # existente). Si la cadena no se cargó, el stack marca MISSING por TF.
+        from ict_backtest.v2.context_mtf import build_context_stack
+        stack = None
+        try:
+            st = getattr(sig, "entry_at", None)
+            t = ltf_df.iloc[int(st)]["time"] if st is not None else sig.time
+            # zonas PD ancladas (Fase C) para poi real de H4/H1
+            anchored: dict = {}
+            if est_htf_fn is not None:
+                htf_ctx = est_htf_fn(int(st) if st is not None else 0)
+                for z in htf_ctx.get("pd_zones", []) or []:
+                    tf = getattr(z, "tf", None)
+                    if tf:
+                        anchored.setdefault(tf, []).append(z)
+            stack = build_context_stack(ms, t, tfs=TF_CHAIN, anchored_pd_zones=anchored)
+        except (TypeError, ValueError, KeyError, IndexError):
+            stack = None
         trade, meta, raw = simulate_trade_with_context(
             ltf_df, sig, max_hold, cost=cost, backtest_id=backtest_id,
+            est_htf_fn=est_htf_fn, market_stack=stack,
         )
         if trade is not None:
             pnls.append(trade.pnl_r)

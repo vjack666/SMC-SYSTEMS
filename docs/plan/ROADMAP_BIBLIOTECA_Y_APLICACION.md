@@ -110,6 +110,7 @@
 - [ ] `detectors/ob.py`: breaker block state tras falla de OB.
 - [ ] `build_signals_from_frames`: entry requiere SMT confirmando el sweep + OTE/Breaker como zona (no solo FVG).
 - [ ] **Fase E (POI) corregida (2026-07-15):** POI del libro 21 = PD Array ITF en zona correcta + sesgo + respaldo + ancla narrativa HTF. Aplicar como **BONUS de quality_score**, NO como filtro duro (A'' filtro duro = PF 0.900, rechazado). Pendiente cablear en `sequence.py`/`engine.py`.
+- [x] **Fase E (Diagnosis Engine — motores de análisis) ✅ CERRADA 2026-07-18:** StatisticsEngine/CorrelationEngine/HypothesisEngine solo-lectura sobre TradeContext v2; orquestador `diagnosis_report.py`. 23 tests TDD. Corrida real EURUSD 6m (36 trades): sin edge concluyente (n<30 por cohorte), única señal tenue M5 coef +0.27. Ver `docs/plan/ETAPA_DIAGNOSIS_ENGINE_FASE_E.md` + `CRONOGRAMA_Y_ROADMAP.md` fila E. (No confundir con la Fase E POI de este bloque: son fases distintas; esta es post-backtest, aquella es filtro de calidad de entrada.)
 - [ ] Re-correr R4 v30 CON SMT+OTE+Breaker antes de declarar edge.
 
 **Prioridad:** URGENTE. Sin SMT, la medición de R4 (v30) sobre-estima el edge (entra en manipulaciones falsas). El SL estructural (v29) ya resolvió el stop; estos 3 resuelven la entrada.

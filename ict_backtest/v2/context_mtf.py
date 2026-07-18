@@ -45,6 +45,8 @@ def snapshot_tf(
         row = closed_row_at_time(df, t, tf_duration(tf))
     if row is None:
         return {"tf": tf, "available": False, "trend": "RANGING"}
+    fvg_state = str(row.get("fvg_state", "NONE") or "NONE")
+    ob_dir = str(row.get("ob_direction", row.get("ob_dir", "-")) or "-")
     return {
         "tf": tf,
         "available": True,
@@ -58,6 +60,8 @@ def snapshot_tf(
         if not isinstance(row.get("bos_direction", 0), str)
         else (1 if str(row.get("bos_direction")) == "BULLISH" else -1 if str(row.get("bos_direction")) == "BEARISH" else 0),
         "choch": str(row.get("choch_signal", row.get("choch_status", ""))),
+        "fvg_state": fvg_state,
+        "ob_dir": ob_dir,
         "time": str(row.get("time", t)),
     }
 
@@ -102,17 +106,30 @@ def build_context_stack(
     t: Any,
     *,
     tfs: tuple[str, ...] = ("D1", "H4", "H1", "M15"),
+    anchored_pd_zones: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Top-down snapshots at t. Does not mix clocks — one t, many closed lookups."""
+    """Top-down snapshots at t. Does not mix clocks — one t, many closed lookups.
+
+    Si ``anchored_pd_zones`` trae zonas PD ancladas (p.ej. de htf_pd_index),
+    se inyecta ``poi`` real en el snapshot del TF correspondiente (H4/H1).
+    El ``dealing`` range (premium/discount) se inyecta como ``pd_side`` en D1/H4.
+    """
     stack = {tf: snapshot_tf(ms, tf, t) for tf in tfs if tf in ms or tf in tfs}
     # ensure keys
     for tf in tfs:
         stack.setdefault(tf, {"tf": tf, "available": False, "trend": "RANGING"})
-    d1 = ms.get("D1")
-    if d1 is not None:
-        stack["dealing"] = dealing_range_pd(d1, t)
-    else:
-        stack["dealing"] = {"pd_side": "UNKNOWN"}
+    # premium/discount por TF (D1/H4) via dealing range del propio TF
+    for tf in ("D1", "H4"):
+        df = ms.get(tf)
+        if df is not None:
+            dr = dealing_range_pd(df, t)
+            stack[tf]["pd_side"] = dr.get("pd_side", "UNKNOWN")
+    # POI anclado (H4/H1) desde htf_pd_index (Fase C)
+    if anchored_pd_zones:
+        for tf, zones in anchored_pd_zones.items():
+            if tf in stack and zones:
+                stack[tf]["pd_side"] = "PD"  # anclado presente
+                stack[tf]["poi_count"] = len(zones)
     return stack
 
 

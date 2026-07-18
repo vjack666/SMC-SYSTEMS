@@ -26,7 +26,36 @@ from typing import Any
 
 # Version del esquema TradeContext. Subir al cambiar campos para poder
 # reconstruir reportes historicos sin ambiguedad.
-CONTEXT_VERSION = "ctx-1.0"
+CONTEXT_VERSION = "ctx-2.0"
+
+
+@dataclass(frozen=True)
+class MarketContextFrame:
+    """Expediente de UN timeframe en el momento de la decisión (Fase D multi-TF).
+
+    Replica el schema que pidió Ruben. ``available=False`` significa que el TF
+    no estaba en disco => TODOS los campos de contenido valen "MISSING"
+    (regla #4: nada inventado, no se copia de otro TF).
+    """
+
+    tf: str
+    available: bool = True
+    # --- campos por rol (Ruben) ---
+    bias: str = "MISSING"               # D1/H4/H1
+    structure: str = "MISSING"          # D1/H4/H1 (bos/choch)
+    premium_discount: str = "MISSING"   # D1 (dealing range)
+    poi: str = "MISSING"                # H4 (PD array anclado)
+    liquidity: str = "MISSING"          # H1 (BSL/SSL)
+    setup: str = "MISSING"              # M15 (global)
+    setup_sweep: str = "MISSING"        # M15
+    setup_displacement: str = "MISSING" # M15
+    setup_bos: str = "MISSING"          # M15
+    setup_fvg: str = "MISSING"          # M15
+    setup_ob: str = "MISSING"           # M15
+    confirmation: str = "MISSING"       # M5/M1
+    micro_structure: str = "MISSING"    # M5/M1
+    execution: str = "MISSING"          # M1
+    entry_quality: str = "MISSING"      # M1
 
 
 @dataclass(frozen=True)
@@ -73,3 +102,9 @@ class TradeContext:
     # --- regime (HOY NO EXISTE; si otra fase lo agrega, se consume aqui) ---
     regime_tag: str | None = None
     htf_bias_at_exit: str | None = None
+
+    # --- Fase D multi-TF (Ruben reglas #1/#4/#5): expediente completo del
+    #     mercado en el momento de la decision. {tf: MarketContextFrame}.
+    #     V1 (ctx-1.0) no tenia este campo; v2 (ctx-2.0) lo suma. El contexto
+    #     sigue siendo @frozen e inmutable.
+    market_context: dict | None = None  # {tf: MarketContextFrame}
