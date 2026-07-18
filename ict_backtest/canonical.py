@@ -69,10 +69,16 @@ def evaluate_signals(
     bos_table: dict | None = None,
     frames: dict | None = None,
     fill_mode: str = "next_open",
+    enable_pd_index: bool = False,
 ) -> list[ICTSignal]:
     """Canonical ICT signal generator (R7).
 
     Event-sequence sweep→displace→BOS→return, structural SL, RR≥1:3, killzone.
+
+    ``enable_pd_index`` activa la Fase C (capa de autoridad de zonas HTF):
+    construye HtfPdIndex y anota ``zone_authority`` en cada señal. Si esta
+    False (modo historico), NO se paga el costo de detectar FVG/OB del HTF y
+    el comportamiento es identico al de antes de Fase C (C desactivado).
     """
     if bos_table is None:
         bos_table = load_bos_table()
@@ -88,8 +94,11 @@ def evaluate_signals(
 
     # --- Fase C (C1): indice de PD arrays HTF vigentes (plumbing que faltaba) ---
     # Solo los TF HTF (no el LTF) alimentan el evaluador de autoridad de zonas.
+    # CONTRATO: el indice SOLO se construye si enable_pd_index=True. Con False
+    # (modo historico) el comportamiento es identico al de antes de Fase C y no
+    # se paga el costo de detectar FVG/OB del HTF.
     htf_frames = {tf: df for tf, df in frames.items() if tf != ltf}
-    htf_pd_index = HtfPdIndex(htf_frames) if htf_frames else None
+    htf_pd_index = HtfPdIndex(htf_frames) if (enable_pd_index and htf_frames) else None
     # Mapa LTF->HTF resuelto UNA sola vez (O(n), no O(n^2)). Se pasa al
     # motor para lookup O(1) por barra (ver sequence.run_sequence).
     ltf_map = htf_pd_index.build_ltf_map(ltf_df) if htf_pd_index is not None else None
@@ -189,7 +198,7 @@ def latest_plan(
     ``max_age_bars``: ignore signals whose entry_at is older than this many
     bars from the end of the LTF series (stale setups).
     """
-    signals = evaluate_signals(symbol, htf, ltf, frames=frames)
+    signals = evaluate_signals(symbol, htf, ltf, frames=frames, enable_pd_index=True)
     if not signals:
         return None
     sig = signals[-1]
@@ -202,7 +211,7 @@ def latest_plan(
     risk = abs(sig.entry - sig.stop_loss)
     reward = abs(sig.take_profit - sig.entry)
     rr = (reward / risk) if risk > 0 else 0.0
-    return {
+    plan = {
         "engine": CANONICAL_ENGINE,
         "symbol": sig.symbol,
         "side": side,
@@ -217,3 +226,15 @@ def latest_plan(
         "bos_at": sig.bos_at,
         "entry_at": sig.entry_at,
     }
+    # Fase C (C3): la autoridad de la zona es INFORMACION para el operador
+    # (humor del mercado / "donde mirar"), no un filtro.
+    za = sig.zone_authority
+    if za is not None:
+        plan["zone_authority"] = {
+            "has_htf_anchor": za.has_htf_anchor,
+            "tier": za.tier,
+            "stacking_level": za.stacking_level,
+            "confidence_weight": za.confidence_weight,
+            "level": za.level,
+        }
+    return plan

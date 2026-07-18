@@ -246,11 +246,58 @@ usando ÚNICAMENTE matemática del precio y contexto de marcos superiores.
   - B2 (exec M5/M1) se mantiene CONGELADO hasta validar C (decisión Ruben).
 
 ---------------------------------------------------------------------
-10. ESTADO
+10. ESTADO DE IMPLEMENTACIÓN (2026-07-18)
 ---------------------------------------------------------------------
-  DISEÑO FORMALIZADO (v2, con ajustes de revisión). Sin código. Sin commit.
-  El árbol de trabajo sucio de ETAPA 4 (delegación BOS/CHOCH + _diag + borrado
-  INFORME) queda INTACTO y sin pushear hasta decisión expresa.
+IMPLEMENTADO Y CABLEADO EN PRODUCCIÓN (no solo función aislada):
 
-  Próximo paso propuesto (requiere OK de Ruben): implementar C0->C4 por TDD,
-  con commit atómico por paso y roadmap al día en cada commit.
+  C0  ict_backtest/htf_pd_index.py  — HtfPdIndex: FVG/OB del HTF (D1/H4/H1)
+      por barra LTF CERRADA (anti look-ahead). O(n) vía merge_asof
+      (build_ltf_map precalcula una vez; lookup O(1)). No crea zonas.
+  C1  canonical.est_htf_fn — entrega pd_zones (PD arrays HTF vigentes).
+  C2  ict_backtest/zone_authority.py — evaluate_zone_authority (lee-no-crea):
+      {has_htf_anchor, tier, stacking_level, confidence_weight[0,1], level}.
+      Jerarquía T1(BPR)>T2(FVG/OB)>T3(rejection) + stacking multi-TF.
+  C3  sequence.run_sequence — anota ICTSignal.zone_authority SIN alterar el
+      conteo (R1). Sin índice HTF => None (histórico intacto).
+  C4  tests/test_fase_c0..c4.py — 16 verdes (fidelidad §5: peso ORDENA zonas).
+  C5  tests/test_fase_c_production_wiring.py — 3 verdes: audita el CALL SITE
+      REAL (latest_plan / generate_sequence_signals), no solo la función
+      aislada. Confirma que zone_authority se propaga cuando C está ENCENDIDA
+      y queda None cuando APAGADA.
+
+CABLEADO EN PRODUCCIÓN (call sites reales):
+  - latest_plan (observador en vivo) => evaluate_signals(enable_pd_index=True)
+    SIEMPRE. Es el caso de uso de Fase C: autoridad de zona como INFORMACIÓN
+    para el operador (humor del mercado / "dónde mirar"). Propaga
+    plan["zone_authority"] al dict del plan.
+  - generate_sequence_signals (backtest) => expone enable_pd_index (default
+    False). Backtests de rendimiento siguen bloqueados hasta Fase G (regla de
+    oro R4); C se mide en backtest SOLO de forma explícita, nunca como filtro.
+
+DECISIÓN DE DISEÑO (responde a "¿debería enable_pd_index default True?"):
+  NO. evaluate_signals queda default False (modo histórico idéntico). El call
+  site del observador en vivo lo enciende siempre; el backtest lo enciende solo
+  si se pide explícitamente. Dejarlo explícito obliga a decidir por contexto y
+  evita que cualquier caller active C sin saberlo (rompería "C desactivado =
+  comportamiento histórico"). El error corregido no fue el default: fue NO
+  cablear el call site de producción. Hoy está cableado y auditado.
+
+HALLAZGO (relevante para C5 / roadmap): el motor base R7 (sequence) es
+INHERENTEMENTE LENTO. EURUSD M15 = 112.928 velas; evaluar 2000 velas tarda
+~84s (HTF FVG/OB por barra). 112k velas => ~80 min. Por eso C5 SOBRE DATOS
+REALES COMPLETOS es inviable en esta máquina/laptop y NO se usa para pytest.
+C5 se valida con --cap (subconjunto) o queda como validación manual con
+runner_monitor fuera del loop de CI. El costo de C (HTF detection) es fijo y
+se suma al de R7; no lo empeora (R1 se mantiene). Esto es DEUDA de
+RENDIMIENTO del motor base (Fase F1 / R10), fuera de alcance de Fase C.
+
+CONTRATO DE NO INVASIÓN: verificado en call site (test_fase_c_production_
+wiring). Si el conteo cambia con/sin C => bug de invasión (revertir).
+
+El árbol de trabajo sucio de ETAPA 4 (delegación BOS/CHOCH + _diag + borrado
+INFORME) queda INTACTO y sin pushear hasta decisión expresa (stash
+"ETAPA4-sucio-pre-C").
+
+Próximo paso (requiere OK de Ruben): validación C5 end-to-end con runner_monitor
+sobre EURUSD real (cap pequeño por lentitud del motor base) + decidir
+disposición del stash ETAPA 4.

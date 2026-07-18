@@ -98,8 +98,15 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
                                bos_gap: int | None = 10,
                                bos_table: dict | None = None,
                                frames: dict | None = None,
-                               fill_mode: str = "next_open") -> list:
-    """R7 thin wrapper — all decision logic lives in ``ict_backtest.canonical``."""
+                               fill_mode: str = "next_open",
+                               enable_pd_index: bool = False) -> list:
+    """R7 thin wrapper — all decision logic lives in ``ict_backtest.canonical``.
+
+    ``enable_pd_index`` enciende la Fase C (autoridad de zonas HTF). Por defecto
+    False (backtest de rendimiento queda igual a lo historico; ver R4: backtests
+    bloqueados hasta Fase G). La capa de AUTORIDAD se mide en backtest solo de
+    forma explicita, nunca como filtro.
+    """
     return evaluate_signals(
         symbol,
         htf,
@@ -112,6 +119,7 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
         bos_table=bos_table,
         frames=frames,
         fill_mode=fill_mode,
+        enable_pd_index=enable_pd_index,
     )
 
 
