@@ -130,6 +130,29 @@
 - Cómo verificarla: ROADMAP_TESIS_DRIVEN §4 Fase 0 (cadena SPEC→ADS→MDS→CÓDIGO) +
   DOCUMENTATION_INDEX.md (nota capa SPEC). DEC-009e registra la decisión.
 
+## DEC-009f — Fase 0: SPEC_TESIS_FORMAL.md redactada (borrador de contrato fuente) (2026-07-17)
+
+- Problema: la Fase 0 del roadmap maestro exigía formalizar la tesis en SPEC antes
+  de código (R1). El commit DEC-009e fijó la nomenclatura pero NO escribía la SPEC.
+- Evidencia: ROADMAP_TESIS_DRIVEN §4 Fase 0 + §9 matriz (24 obligatorios). SPEC
+  redactada en docs/ict/SPEC_TESIS_FORMAL.md v1.0 DRAFT (26 secciones, ~22KB).
+- Alternativas: (a) dejar SPEC como pendiente (rechazado: Fase 0 es puerta dura,
+  debe existir el borrador); (b) redactar SPEC cubriendo los 24 componentes de la
+  matriz con formato ENT/SAL/PRE/POST/DEP/CRIT/CASOS-LÍMITE/AMBIG (elegido).
+- Decisión tomada: SPEC_TESIS_FORMAL.md con los 24 componentes obligatorios (más
+  setups como composición §23, noticias como deuda funcional §24, ambigüedades
+  resueltas y etiquetadas como ingeniería §25, contrato R2 §26). Cada componente
+  cita referencia exacta (tesis 20 / libros 07/08/21). Estado: DRAFT pendiente de
+  firma del comité; al firmarse pasa a CONTRATO FUENTE (R1).
+- Justificación: cumple R1 (SPEC precede código) y R2 (§26 declara sincronía
+  SPEC↔matriz §9). Las decisiones de ingeniería están etiquetadas (R3). No se
+  ejecutó backtest (R4). El §23 evita reinterpretación: PO3/Turtle Soup/SB son un
+  motor de liquidez en 3 modos, no 3 estrategias.
+- Impacto: Fase 0 tiene su borrador; las Fases B-E pueden arrancar contra este
+  contrato. Falta firma del comité para ser CONTRATO FUENTE formal.
+- Cómo verificarla: docs/ict/SPEC_TESIS_FORMAL.md existe y cubre los 24 de la matriz
+  §9. DEC-009f registra la decisión.
+
 ================================================================================
 
 Base de conocimiento viva del proyecto (ETAPA 11). Cada decisión importante se registra con
