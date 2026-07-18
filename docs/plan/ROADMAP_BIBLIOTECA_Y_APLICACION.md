@@ -4,6 +4,13 @@
 **Propósito:** convertir la documentación ICT/Wyckoff en **contrato ejecutable** y cerrar el gap libro → código → backtest → observador.  
 **No sustituye** `CRONOGRAMA_Y_ROADMAP.md` (hitos A6/A12). Este doc es el plan de **calidad documental + cableado PO3/modelos**.
 
+> **NOTA DE CONTRATO (2026-07-17):** la biblioteca ICT de este doc se convertirá en
+> el **contrato formal de la tesis** en `docs/ict/SPEC_TESIS_FORMAL.md` (Fase 0 del
+> roadmap maestro `ROADMAP_TESIS_DRIVEN_2026-07-17.md`). Esa SPEC es el CONTRATO
+> FUENTE: ninguna regla se implementa sin estar primero en la SPEC, y la matriz de
+> trazabilidad (§9 del roadmap maestro) se mantiene sincronizada con ella. Este doc
+> queda al día al commitear el roadmap maestro.
+
 ---
 
 ## 1. Principios

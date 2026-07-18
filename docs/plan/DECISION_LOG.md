@@ -1,5 +1,112 @@
 # DECISION_LOG — Memoria técnica de SMC-SYSTEMS
 
+================================================================================
+
+## DEC-009 — Nueva estrategia de proyecto: roadmap orientado a la tesis, suspensión de backtests de rendimiento (2026-07-17)
+
+- Problema: las 3 auditorías (cobertura backtest ~30%, fidelidad tesis ~65% PARCIAL,
+  cruzada del roadmap) + R4 (ICT mecánico SIN edge — REJECT_NO_EDGE) mostraron que
+  el roadmap vigente ya no refleja el conocimiento adquirido. Faltan OTE, M5/M1,
+  POI con tiers/stacking, Silver Bullet completo, Trade Management; y el roadmap viejo
+  medía PASO 5 por PF (riesgo de trampa inversa: concluir "tesis falla" cuando falta
+  completar capas operativas).
+- Evidencia: AUDITORIA_FINAL_COBERTURA_BACKTEST_2026-07-17.md, AUDITORIA_FIDELIDAD_
+  TESIS_ICT_2026-07-17.md, AUDITORIA_CRUZADA_ROADMAP_2026-07-17.md; CRONOGRAMA_Y_
+  ROADMAP.md línea 7 (R4 NO_EDGE).
+- Alternativas consideradas: (a) seguir ETAPA 4 heredada (rechazado: mide por PF,
+  omite capas operativas); (b) parchear el roadmap (rechazado: conocimiento ya no
+  cabe); (c) replantear desde cero orientado a tesis (elegido, con libertad explícita).
+- Decisión tomada: ROADMAP_TESIS_DRIVEN_2026-07-17.md. Suspender backtests de
+  rendimiento hasta cobertura mínima obligatoria de tesis. Tres dimensiones separadas
+  (fidelidad / calidad / rendimiento). OTE, M5/M1, Trade Management suben de
+  opcionales a OBLIGATORIOS. Orden por dependencia de tesis (B geometría fina → C
+  POI+SB → D OTE → E trade mgmt → F deuda software → G gate fidelidad → backtest único).
+  Gate de aceptación = checklist de fidelidad (no PF). Backtest integral SOLO al final.
+- Justificación: el backtest ya cumplió su función (revelar deudas); medir PF sobre
+  tesis incompleta es ruido. Priorizar coherencia con la tesis sobre mantener el
+  plan anterior.
+- Impacto esperado: cierre de deudas conceptuales antes de any performance claim;
+  sin trampa de interpretar PF como veredicto de tesis.
+- Cómo verificarla: ROADMAP_TESIS_DRIVEN_2026-07-17.md existe y es el plan de avance;
+  checklist §5 cableado como tests/test_fidelity_thesis.py (SOLO tras definir→
+  validar→automatizar); sin backtests de PF hasta Fase G.
+
+## DEC-009b — Auditoría del plan + Fase 0 formalización (2026-07-17, post-revisión)
+
+- Problema: antes del commit, Ruben pidió una última auditoría del PROPIO roadmap
+  (no de la implementación) asumiendo rol de auditor externo. Se encontraron huecos
+  reales del nuevo roadmap vs la tesis: faltaban Turtle Soup (tesis 20 §4, 1 de 3
+  setups PO3), PD Arrays completos (Breaker/Rejection/Mitigation/Propulsion, 21_POI
+  §2), liquidez internal vs external (tesis 15/16), ambigüedad RR (SB 1:2 libro 07
+  #5 vs 1:3 global tesis 18), y una Fase 0 de formalización de la tesis.
+- Evidencia: libro 07_SILVER_BULLET.md contrato #5 (RR≥1:2); 20_TESIS_ICT.md §4
+  (3 setups PO3: Turtle Soup/PO3/SB); 21_POI.md §2 (tipos de PD Array); re-lectura
+  de 07/20/21/15/18.
+- Alternativas: (a) commitear el roadmap sin la auditoría (rechazado: Ruben exigió
+  validación previa); (b) auditar y dejar huecos (rechazado: "incorpóralo antes del
+  commit"); (c) auditar, incorporar y luego commitear (elegido).
+- Decisión tomada: incorporar los hallazgos al ROADMAP_TESIS_DRIVEN_2026-07-17.md:
+  Fase 0 (Formalización → SPEC_TESIS_FORMAL.md como contrato), B1 PD Arrays
+  completos, B3 liquidez internal/external, C3 Turtle Soup, RR por setup (SB 1:2),
+  checklist §5 con 14 ítems y separado en definir→validar→automatizar. Veredicto de
+  la auditoría del plan: ✅ listo para roadmap maestro tras la revisión.
+- Justificación: cerrar deuda conceptual ANTES del commit evita reabrir arquitectura
+  en 2 semanas. Fase 0 previene que cada fase "reinterprete" los libros ICT.
+- Impacto: roadmap maestro completo en lo obligatorio de la tesis; opcionales
+  (SMT/MMXM/noticias/walk-forward) fuera del corte, correctamente.
+- Cómo verificarla: ROADMAP_TESIS_DRIVEN_2026-07-17.md §9 con veredicto ✅; Fase 0
+  como puerta dura antes de B.
+
+## DEC-009c — Salvaguarda metodológica: matriz de trazabilidad + clasificación (2026-07-17)
+
+- Problema: Ruben exigió verificar, antes del commit, que el roadmap NO sea una
+  reinterpretación de ICT sino una representación fiel, y que ningún elemento
+  quedara sin clasificar (OBLIGATORIO con referencia / OPCIONAL con justificación
+  / DECISIÓN DE INGENIERÍA cuando no proviene de ICT). También cuestionó que
+  "noticias" estuviera como opcional: si la tesis dice que un evento invalida el
+  setup, es regla de invalidez, no extra.
+- Evidencia: re-lectura de 20_TESIS_ICT.md (§1-§12), 08_POWER_OF_THREE.md (PO3 vs
+  Turtle Soup por alineación), 07_SILVER_BULLET.md (#5 RR≥1:2), 21_POI.md (tiers),
+  05/15/16 (liquidez internal/external). MATRIZ §9 del roadmap.
+- Alternativas: (a) dejar noticias como opcional (rechazado: Ruben lo marcó como
+  deuda funcional); (b) clasificar cada elemento (elegido).
+- Decisión tomada: MATRIZ DE TRAZABILIDAD §9 con 33 filas, cada una con fuente
+  exacta y clasificación. Conteo: 24 OBLIGATORIOS, 4 DECISIÓN DE INGENIERÍA de
+  soporte, 3 OPCIONALES (SMT/MMXM/walk-forward), 1 DEUDA FUNCIONAL (noticias,
+  tesis 21 §5). CERO sin clasificar. Noticias reclasificada de opcional a DEUDA
+  FUNCIONAL (regla de invalidez real, no implementable hoy → documentada en hook
+  de Fase C, no olvidada). La afirmación "no quedan obligatorios fuera" se sostiene
+  y está respaldada por la matriz.
+- Justificación: la matriz impide que una decisión de ingeniería (cap, ML, XAUUSD
+  fix, DSR/PBO, RR-por-setup, Fase 0) se disfraze de regla de tesis. En 6 meses
+  cualquiera ve si un concepto está implementado o documentado como deuda.
+- Impacto: roadmap maestro con trazabilidad total; metodología sólida para el commit.
+- Cómo verificarla: ROADMAP_TESIS_DRIVEN_2026-07-17.md §9 (matriz) + salvaguarda al
+  final del §10. DEC-009c registra la decisión.
+
+## DEC-009d — Reglas de gobernanza del roadmap maestro (2026-07-17)
+
+- Problema: antes del commit único, Ruben exigió 4 criterios finales verificables:
+  (1) Fase 0/SPEC es contrato fuente, nada sin SPEC; (2) matriz sincronizada con
+  SPEC en el mismo cambio; (3) todo cambio futuro etiqueta si modifica tesis/
+  implementación/ingeniería sin mezclar; (4) backtest bloqueado hasta Fase G, sin
+  excepciones salvo validar infraestructura (nunca rendimiento).
+- Evidencia: review del ROADMAP_TESIS_DRIVEN_2026-07-17.md pre-commit. (1) y (4)
+  implícitos; (2) y (3) faltaban → se añadió sección 11 REGLAS DE GOBERNANZA
+  (R1-R4) como duras y vinculantes.
+- Alternativas: (a) dejar implícito (rechazado: Ruben pidió explícito); (b) fijar
+  R1-R4 como sección 11 (elegido).
+- Decisión tomada: sección 11 con R1 (SPEC precede código), R2 (matriz↔SPEC
+  sincronizadas en mismo cambio), R3 (etiqueta de capa en todo commit, sin mezclar
+  sin documentar), R4 (backtest rendimiento bloqueado hasta Fase G; excepción solo
+  infraestructura, nunca rendimiento). Los 4 criterios quedan reflejados.
+- Justificación: evita deriva futura (implementar sin SPEC, mezclar capas, medir
+  PF prematuramente). Cumple la aprobación condicional del commit.
+- Impacto: roadmap maestro con gobernanza dura; commit único procede.
+- Cómo verificarla: ROADMAP_TESIS_DRIVEN_2026-07-17.md §11 (R1-R4).
+
+================================================================================
+
 Base de conocimiento viva del proyecto (ETAPA 11). Cada decisión importante se registra con
 el formato definido en PLAN_IMPLEMENTACION_ETAPAS.md. Orden cronológico inverso (más reciente
 arriba). Cuando dentro de meses te preguntes "¿por qué hicimos X?", está aquí con su evidencia.

@@ -6,6 +6,14 @@
 **Fecha de Actualización:** 2026-07-17
 **Estado General:** 🟢 Observador FundedNext operativo. **R4 CERRADO (2026-07-17): ICT puro mecánico SIN edge para live/fondeo** — ver `docs/auditorias/R4_CIERRE_FUNDING_2026-07-17.md`. Meta de producto: pasar prueba de fondeo en ~6m de histórico; Turtle/sequence no lo logran bajo automatización actual. R7 parcial en código (`canonical.py`). Pendiente: R5 datos, A12 solo si aparece modelo viable, R3.5 libros 22/23.
 
+> **NOTA DE EJECUCIÓN (2026-07-17):** los hitos R0-R7/A1-A12 de este cronograma
+> siguen vigentes como CRONOLOGÍA del proyecto. Pero la **estrategia de implementación
+> orientada a la tesis** ahora vive en `docs/plan/ROADMAP_TESIS_DRIVEN_2026-07-17.md`
+> (roadmap maestro). Ese doc añade Fase 0 (formalización/SPEC), Fases B-E (cierre de
+> deuda conceptual), y suspende backtests de rendimiento hasta Fase G. Este
+> cronograma NO se contradice; se complementa. Al commitear el roadmap maestro, este
+> doc queda al día con la nota.
+
 ---
 
 ## 1. Principios Rectores (NO NEGOCIABLES)
