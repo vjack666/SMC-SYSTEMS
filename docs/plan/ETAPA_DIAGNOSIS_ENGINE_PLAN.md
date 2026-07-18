@@ -199,17 +199,39 @@ después se analicen, al final se presenten.
   R1 (conteo igual con/sin C) se preserva.
 
 ### Paso 2 — Conservar TradeContext (deuda R7/sequence, NO Fase C)
-- `engine.simulate_trade` NO descarte la señal: devuelva también el
-  TradeContext (signal completa + meta + lookup HTF en entry/exit).
-- Campos estructurales (phase_log, sl_is_structural, dist_entry_to_sl_r,
-  atr_z, htf_bias_entry/exit) se serializan. Sin tocar decisión.
+**DECISIÓN DE ARQUITECTURA (Ruben 2026-07-18):** `simulate_trade` NO construye
+el TradeContext. `simulate_trade` SIMULA (su única responsabilidad). Un
+`TradeContextBuilder` puro en `ict_backtest/diagnostics/` es quien CONGELA.
+
+Concretamente:
+- `engine.simulate_trade` queda IGUAL (no se toca → R1 de Paso 2: PnL idéntico).
+- `engine.simulate_trade_with_context` EMITE `RawDiagnosticData` (trade + meta +
+  row LTF + htf_context). NO conoce el esquema de diagnóstico.
+- `diagnostics/context_builder.build_trade_context(raw) -> TradeContext`
+  función PURA que CONGELA (frozen dataclass). Así `engine.py` queda limpio y
+  Fase D crece (noticias, vol, sesión, régimen, liquidez, spreads...) SIN tocar
+  la lógica de ejecución: solo se amplía el builder / RawDiagnosticData.
+- Call site `run_backtest.run_sequence_backtest` acumula `RawDiagnosticData` en
+  `m["contexts"]` + `m["backtest_id"]` (en memoria; el congelado lo hace Paso 3).
+
+Campos: `backtest_id`+`trade_id`+`signal_id`+`context_version`+`context_created_at`,
+zone_authority (Fase C como METADATA), phase_log, sl_is_structural, dist_entry_to_sl_r,
+atr_z, exit diagnostics. Sin tocar decisión ni PnL.
+
+**ESTADO: ✅ IMPLEMENTADO 2026-07-18** — `simulate_trade_with_context` +
+`diagnostics/trade_context.py` (TradeContext @frozen) +
+`diagnostics/context_builder.py` (build_trade_context puro). 5 tests verdes
+(inmutabilidad, R1 PnL idéntico, ids, Fase C viaja como metadata, call site
+`run_backtest` emite `contexts`+`backtest_id`).
 
 ### Paso 3 — NUEVA CAPA `ict_backtest/diagnostics/`
-- `trade_context.py`: `attach_trade_context(...)`.
-- `backtest_report.py`: `BacktestReport.build(trades)` → cohortes por autoridad/
-  bias/tier + rolling PF (dónde se degradó) + `explain()` (texto).
-- Hook en `run_backtest.py` / `optimize.py` / `v2`: al final, construir
-  reporte y escribir `results/diagnostics/<symbol>_<engine>_<fecha>.json` + `.md`.
+- `backtest_report.py`: `BacktestReport.build(contexts)` → consume `m["contexts"]`
+  (RawDiagnosticData), congela cada uno vía `build_trade_context`, arma cohortes
+  por autoridad/bias/tier + rolling PF (dónde se degradó) + `explain()` (texto).
+- Hook en `run_backtest.py` / `v2`: al final, construir reporte y escribir
+  `results/diagnostics/<symbol>_<engine>_<fecha>.json` + `.md`.
+- Statistics Engine + Correlation Engine + Hypothesis Generator + Evidence Ranking
+  (LOS MÓDULOS DEL DIAGNÓSTICO, no del backtest).
 
 ### Paso 4 — Alimentar v2 con datos reales
 - `v2/orchestrator`: llenar `explanation.layers["PD"]` y `quality_score` con
@@ -275,8 +297,12 @@ No hay evidencia suficiente para modificar un filtro.
 
 ## 8. ESTADO Y GOVERNANZA
 
-- Paso 1: implementación en curso (cableo Fase C en backtests).
-- Paso 2/3/4: pendientes, por TDD, UNA tarea a la vez.
+- Paso 1: ✅ DONE (Fase C cableada en backtests como METADATA, R1 OK).
+- Paso 2: ✅ DONE 2026-07-18 (TradeContext emitido+congelado; R1 PnL idéntico;
+  inmutable; ids persistentes; call site `run_backtest` emite `contexts`+
+  `backtest_id`). Arquitectura: `simulate_trade` SIMULA →
+  `simulate_trade_with_context` EMITE → `context_builder` CONGELA.
+- Paso 3/4: pendientes, por TDD, UNA tarea a la vez.
 - NO pushear sin OK expreso + cronograma al día en el mismo commit.
 - Fase C sigue marcada ✅ Cerrado en CRONOGRAMA_Y_ROADMAP.md (línea ~108).
   Esta Fase D es NUEVA y se agrega como entrada aparte.

@@ -158,7 +158,57 @@ def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
     return trade, {"exit_reason": exit_reason, "mfe_r": float(mfe_r), "mae_r": float(mae_r), "hold_bars": hold_bars}
 
 
+def simulate_trade_with_context(
+    frame: pd.DataFrame, signal: "ICTSignal", max_hold_bars: int,
+    cost: dict | None = None, *, est_htf_fn=None, ltf_tf: str = "M15",
+    backtest_id: str = "",
+) -> tuple["ICTTrade | None", dict[str, Any], RawDiagnosticData | None]:
+    """EMITE RawDiagnosticData para el Diagnosis Engine (Fase D, Paso 2).
+
+    NO construye TradeContext (esa es responsabilidad de
+    `diagnostics.context_builder.build_trade_context`). Solo SIMULA el trade
+    (igual que `simulate_trade`) y empaqueta los datos disponibles en
+    simulacion para que el builder los congele.
+
+    El PnL / exit_reason son IDENTICOS a `simulate_trade` (R1 de Paso 2: no
+    altera el resultado de la simulacion). Si el trade es None (filtro de
+    riesgo / tiempo no encontrado), emite RawDiagnosticData=None.
+
+    est_htf_fn(i) opcional: si se pasa, se usa para poblar htf_context del
+    builder (trend/sweep). Si es None, el builder usa defaults (no inventa).
+    """
+    trade, meta = simulate_trade(frame, signal, max_hold_bars, cost=cost)
+    if trade is None:
+        return None, meta, None
+
+    # fila LTF en signal.time (para atr_z / sl_is_structural si existen)
+    row: dict[str, Any] = {}
+    try:
+        times = frame["time"].astype(str)
+        matches = list(frame.index[times == signal.time])
+        if matches:
+            r = frame.iloc[int(matches[0])]
+            row = {k: r.get(k) for k in ("atr", "atr_z", "sl_is_structural",
+                                         "dist_entry_to_sl_r")}
+    except (KeyError, ValueError, IndexError):
+        row = {}
+
+    htf_context: dict[str, Any] | None = None
+    if est_htf_fn is not None:
+        try:
+            htf_context = est_htf_fn(int(getattr(signal, "entry_at", 0) or 0))
+        except (TypeError, ValueError, KeyError):
+            htf_context = None
+
+    raw = RawDiagnosticData(
+        signal=signal, trade=trade, meta=meta, row=row,
+        htf_context=htf_context, backtest_id=backtest_id,
+    )
+    return trade, meta, raw
+
+
 # ---- helpers ----
+
 
 def _coerce_ts(value: Any) -> pd.Timestamp | None:
     if value is None:
@@ -208,6 +258,7 @@ def _build_estructura(frames: dict[str, pd.DataFrame], i: int,
 
 
 from ict_backtest._util import row_at_time as _row_at_time  # noqa: E402
+from ict_backtest.diagnostics.context_builder import RawDiagnosticData  # noqa: E402
 
 
 def _tp_liquidity(row: pd.Series, direction: int) -> float | None:

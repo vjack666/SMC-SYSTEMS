@@ -18,6 +18,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +27,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from ict_backtest.engine import ICTSignal, simulate_trade_with_context  # noqa: E402
 
 
 def _write_runner_progress(
@@ -130,8 +133,16 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            bos_table: dict | None = None,
                            cost: dict | None = None,
                            fill_mode: str = "next_open",
-                           enable_pd_index: bool = False) -> dict:
-    """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden)."""
+                           enable_pd_index: bool = False,
+                           backtest_id: str | None = None) -> dict:
+    """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden).
+
+    Fase D (Paso 2): acumula RawDiagnosticData por trade en `contexts` (en
+    memoria) para que el Diagnosis Engine (Paso 3) los congele en TradeContext.
+    NO altera el PnL ni la decision (R1 de Paso 2). `backtest_id` permite
+    reconstruir Backtest N -> Trade M.
+    """
+    backtest_id = backtest_id or f"BT-{uuid.uuid4().hex[:8]}"
     tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
     print(f"[1/3] Cargando frames {symbol} + market_structure ...", flush=True)
     _write_runner_progress(
@@ -166,6 +177,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     print(f"[3/3] Simulando trades vela a vela (max_hold={max_hold}) ...", flush=True)
     pnls: list[float] = []
     exits: dict[str, int] = {}
+    contexts: list = []  # Fase D Paso 2: RawDiagnosticData emitido por trade
     total = len(signals)
     _write_runner_progress(
         current=f"[3/3] simulate trades {symbol}",
@@ -176,10 +188,14 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     # Update monitor ~20 times max (same cadence as console bar)
     step = max(1, total // 20) if total else 1
     for k, sig in enumerate(signals, 1):
-        trade, meta = simulate_trade(ltf_df, sig, max_hold, cost=cost)
+        trade, meta, raw = simulate_trade_with_context(
+            ltf_df, sig, max_hold, cost=cost, backtest_id=backtest_id,
+        )
         if trade is not None:
             pnls.append(trade.pnl_r)
             exits[meta["exit_reason"]] = exits.get(meta["exit_reason"], 0) + 1
+        if raw is not None:
+            contexts.append(raw)
         if total and (k % step == 0 or k == total):
             pct = 100 * k // total
             bar = "#" * (pct // 5) + "-" * (20 - pct // 5)
@@ -192,6 +208,8 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
             )
 
     m = _metrics(pnls)
+    m["contexts"] = contexts  # Fase D Paso 2: datos emitidos (Paso 3 los congela)
+    m["backtest_id"] = backtest_id
     _write_runner_progress(
         current=f"done {symbol} PF={m['pf']:.3f} n={m['trades']}",
         done=total if total else 1,
@@ -281,6 +299,7 @@ def main() -> None:
         displace_gap=args.displace_gap, bos_gap=args.bos_gap,
         cost=cost,
         enable_pd_index=True,  # Fase C: autoridad de zonas HTF como METADATA (sin gate, R1 se preserva)
+        backtest_id=f"BT-CLI-{uuid.uuid4().hex[:8]}",  # Fase D Paso 2: id estable de corrida
     )
 
 
