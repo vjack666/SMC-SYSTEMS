@@ -105,6 +105,31 @@
 - Impacto: roadmap maestro con gobernanza dura; commit único procede.
 - Cómo verificarla: ROADMAP_TESIS_DRIVEN_2026-07-17.md §11 (R1-R4).
 
+## DEC-009e — Nomenclatura documental SPEC → ADS → MDS → CÓDIGO (2026-07-17)
+
+- Problema: el commit maestro usaba "SPEC" como contrato fuente (Fase 0) pero no
+  fijaba la cadena documental completa ni sus alias respecto a la convención SDD/SAD
+  YA VIGENTE en el repo (SDD_ICT_BACKTEST.md, SAD.md, docs/specs/*.md, ADR-021,
+  DOCUMENTATION_INDEX). Ruben propuso SPEC→ADS→MDS→CÓDIGO (qué/cómo/con-qué).
+- Evidencia: search de "SDD" arrojó 40 matches en docs/ (SDD_ICT_BACKTEST, SAD.md,
+  9 SDD en docs/specs/, ADR-021, DOCUMENTATION_INDEX, VISION/PRD/SRS/SAD/SDD/TEST).
+  La convención SDD/SAD es estándar del proyecto, no solo etiqueta suelta.
+- Alternativas: (a) renombrar SDD→MDS masivamente (rechazado: rompería convención
+  vigente y ~40 refs); (b) adoptar SPEC como capa fuente y tratar SAD=ADS, SDD=MDS
+  como alias, sin renombrar (elegido).
+- Decisión tomada: cadena SPEC (docs/ict/SPEC_TESIS_FORMAL.md, QUÉ) → ADS
+  (=SAD.md, CÓMO) → MDS (=docs/specs/*.md SDD, CON QUÉ) → CÓDIGO. Actualizados:
+  ROADMAP_TESIS_DRIVEN_2026-07-17.md §4 Fase 0 (muestra la cadena + alias) y
+  DOCUMENTATION_INDEX.md (nota de capa fuente SPEC). SDD y MDS son lo mismo; no se
+  renombra nada existente.
+- Justificación: completa la cadena documental del repo (que ya tenía VISION→PRD→
+  SRS→SAD→SDD→TEST) añadiendo SPEC arriba como fuente de la estrategia, sin romper
+  lo existente. Separa QUÉ/CÓMO/CON QUÉ explícitamente.
+- Impacto: nomenclatura coherente y escalable; Fase 0 producirá SPEC_TESIS_FORMAL.md
+  como contrato, luego ADS/MDS existentes se amplían por módulo.
+- Cómo verificarla: ROADMAP_TESIS_DRIVEN §4 Fase 0 (cadena SPEC→ADS→MDS→CÓDIGO) +
+  DOCUMENTATION_INDEX.md (nota capa SPEC). DEC-009e registra la decisión.
+
 ================================================================================
 
 Base de conocimiento viva del proyecto (ETAPA 11). Cada decisión importante se registra con

@@ -9,6 +9,12 @@ imaginadas).
 > (carpeta = libro, archivos = temas). Los documentos de arquitectura/producto
 > viven sueltos en `docs/`.
 
+> **CAPA FUENTE SPEC (2026-07-17, DEC-009e):** la cadena documental ahora arranca
+> en SPEC (QUÉ dice la tesis) → ADS (=SAD, CÓMO se organiza) → MDS (=SDD,
+> CON QUÉ se implementa) → CÓDIGO. `docs/ict/SPEC_TESIS_FORMAL.md` es el CONTRATO
+> FUENTE de la estrategia (Fase 0 del roadmap maestro). No reemplaza la cadena
+> VISION→PRD→SRS→SAD→SDD→TEST; la precede como fuente de la estrategia ICT.
+
 ## Flujo de documentación
 
 | Orden | Documento | Ruta | Estado | Propósito |

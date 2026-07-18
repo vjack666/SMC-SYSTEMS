@@ -146,6 +146,20 @@ por dependencia del MODELO CONCEPTUAL. La deuda de software (XAUUSD O(n²), cap,
 DSR/PBO, tests) se subordina a cerrar la tesis primero (Fase F), no al revés.
 
 FASE 0 — FORMALIZACIÓN DE LA TESIS (especificación formal, ANTES de código):
+  Cadena de documentación del proyecto (convención adoptada DEC-009e, 2026-07-17):
+
+    SPEC ──▶ ADS ──▶ MDS ──▶ CÓDIGO
+    (QUÉ)   (CÓMO)  (CON QUÉ)
+
+  - SPEC = docs/ict/SPEC_TESIS_FORMAL.md — la tesis como CONTRATO FUENTE (QUÉ dice
+    la tesis). Nuevo eslabón; no existía. Alias: "Especificación Formal".
+  - ADS = docs/SAD.md (SAD existente) — arquitectura/organización del sistema (CÓMO
+    se organiza). Alias: SAD = Architecture Design Specification.
+  - MDS = docs/specs/*.md (SDD existentes) — diseño de cada módulo (CON QUÉ se
+    implementa). Alias: SDD = Module Design Specification. No se renombran los SDD
+    existentes; SDD y MDS son la misma cosa.
+  - CÓDIGO = implementación en ict_backtest/.
+
   Para cada componente (HTF bias, dealing range, PD arrays, sweep, displacement,
   BOS/CHOCH, POI, SB, Turtle Soup, OTE, M5/M1, trade mgmt, liquidez internal/
   external, RR por setup): definir ENTrada, SALida, PREcondiciones, POSTcondiciones,
