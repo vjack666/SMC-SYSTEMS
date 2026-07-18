@@ -27,14 +27,22 @@ Formato por entrada:
 - Impacto esperado: ETAPA 4 corrige de raíz, no síntomas; sin ciclos de retrabajo.
 - Cómo verificarla: DEPENDENCY_TREE.md existe con árbol por componente + CR-1..CR-6.
 
-## DEC-008 — ETAPA 4 PASO 2 (CR-6) BLOQUEADO: motor canonico se cuelga con XAUUSD (2026-07-17)
+## DEC-008 — ETAPA 4 PASO 2 (CR-6) BLOQUEADO: cuello de botella O(n^2) con XAUUSD (2026-07-17, causa raiz aislada)
 
-- Hecho: activar XAUUSD en run_bt_v2_mtf.py -> run_mtf_intraday entra en
-  loop/deadlock (escribe live_structure.csv 53b, no termina; proceso vivo ~2h).
-- Causa: motor canonico no soporta oro (gaps/horario/volatilidad). Dato CARGA OK
-  (109,270 velas M15) -> no es problema de datos, sino del motor.
+- Hecho original: activar XAUUSD en run_bt_v2_mtf.py -> run_mtf_intraday parecia
+  colgarse (proceso vivo ~2h, solo live_structure.csv 53b escrito).
+- DIAGNOSTICO FORENSE (scripts/_diag_xauusd_hang.py v3, monkeypatch observacional,
+  sin modificar src): NO es bucle infinito. TERMINA en 3052.8s (~51 min) con
+  n_raw=77 senales. Es lentitud extrema (~1000x EURUSD), no parada.
+- CAUSA RAIZ EXACTA: `ict_backtest/_util.py::closed_row_at_time` (lineas 113-122)
+  reconvierte y compara el array HTF COMPLETO por CADA llamada (O(n_HTF)). Se invoca
+  una vez por vela LTF via est_htf_fn en run_sequence (sequence.py:342).
+  Complejidad O(n_LTF * n_HTF) = 109270 M15 * 10066 H4 ~= 1.1e9 ops => ~51 min.
+  EURUSD tiene menos velas M15 => segundos. Por eso solo oro lo dispara.
 - Regla de oro aplicada: cambio que rompe -> REVERTIR (commit d9b7b8f). Vuelve a 7.
-- CR-6 QUEDA PENDIENTE: diagnosticar cuelgue en run_mtf_intraday como bug aislado.
+- FIX PROPUESTO (performance, deterministicamente identico en senales => cumple
+  regla de oro): cachear conversion HTF fuera del loop / merge_asof / cache por cutoff.
+- CR-6 QUEDA PENDIENTE hasta OK de Ruben para aplicar el fix de perf y reactivar.
 - No es fallo de la unificacion BOS/CHOCH (PASO 1): motor ya usaba market_structure.
 
 ================================================================================

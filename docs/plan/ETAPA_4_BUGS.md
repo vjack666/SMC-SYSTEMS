@@ -35,31 +35,34 @@ Sequence, Entry, SL, TP RR 1:3, HTF, Displacement) PROHIBIDA.
 - `signals/pipeline.py` USA `bos_direction`/`choch_signal` en confluencia
   (líneas 170-174, 227-232, 301-302, 360) → el dispatch es REAL, no muerto.
 
-## PASO 2 — Incluir XAUUSD en MTF (CR-6) — BLOQUEADO por bug del motor
+## PASO 2 — Incluir XAUUSD en MTF (CR-6) — BLOQUEADO por cuello de botella O(n^2)
 
-### Estado: REVERTIDO (no cerrado). Commit d9b7b8f.
+### Estado: REVERTIDO (no cerrado). Commit d9b7b8f. CAUSA RAIZ AISLADA 2026-07-17.
 
-### Hallazgo (2026-07-17)
-- Al activar XAUUSD en `run_bt_v2_mtf.py`, `run_mtf_intraday('XAUUSD', ...)`
-  ESCRIBIÓ `live_structure.csv` (53 bytes) y entró en **loop/deadlock**: nunca
-  produjo trades/metrics/coverage/OOS ni reescribió `results/bt_v2_mtf_resumen.txt`.
-  El proceso quedó vivo ~2h hasta ser matado (PID 25344).
-- Los otros 7 símbolos corren y terminan (la corrida de 7 escribió su resumen).
-- `load_frames('XAUUSD', ('M15','H4','D1'))` CARGA OK (109,270 velas M15).
-  El problema NO es el dato: es el motor canónico que no soporta oro
-  (gaps/horario/volatilidad). Confirma la "bomba de tiempo ajustada a EURUSD".
+### CAUSA RAIZ (diagnostico forense aislado, sin modificar src)
+- NO es bucle infinito. `run_mtf_intraday('XAUUSD')` TERMINA en ~3053s (~51 min)
+  con n_raw=77 senales. El "cuelgue" del Runner Monitor era lentitud extrema
+  (~1000x EURUSD), no parada.
+- Funcion exacta: `ict_backtest/_util.py::closed_row_at_time` (lineas 113-122).
+  Por CADA llamada reconvierte TODO el array HTF a datetime y compara el array
+  completo (O(n_HTF) por llamada). Se invoca UNA vez por vela LTF via
+  `est_htf_fn(i)` en `run_sequence` (sequence.py:342).
+- Complejidad: O(n_LTF * n_HTF). XAUUSD = 109270 M15 * 10066 H4 ~= 1.1e9 ops.
+  EURUSD tiene menos velas M15 => segundos. Por eso solo oro lo dispara.
+- Diagnostico: scripts/_diag_xauusd_hang.py (v3, monkeypatch observacional).
+  Log: results/diag_xauusd.log (n_raw=77, total 3052.8s).
 
-### Decisión
-- Regla de oro: cambio que rompe → REVERTIR. Vuelve a 7 símbolos, XAUUSD excluido.
-- CR-6 QUEDA PENDIENTE hasta diagnosticar y corregir el cuelgue en
-  `ict_backtest/v2/orchestrator.py` / `run_mtf_intraday` para XAUUSD.
-- No es un fallo de la unificación BOS/CHOCH (PASO 1): el motor canonico ya
-  usaba `market_structure`; el cuelgue es previo y específico de oro.
+### FIX PROPUESTO (performance, NO altera ICT => cumple regla de oro)
+1. Cachear `times = pd.to_datetime(df["time"])` UNA vez por run_sequence, no por llamada.
+2. O mejor: merge_asof por tiempo (O(log n_HTF) por vela) en lugar de scan lineal.
+3. O cachear resultado por `cutoff` (los t LTF son monotonicos).
+Cualquiera es deterministicamente identico en senales => backtest vs baseline
+debe dar igual (solo cambia el tiempo de ejecucion). Requiere OK de Ruben antes
+de implementar (es cambio de codigo).
 
-### Siguiente paso sugerido
-- Nuevo bug aislado: diagnosticar dónde se cuelga `run_mtf_intraday` con XAUUSD
-  (fase post-live_structure: simulate/coverage/OOS o bucle en estructura).
-  Tratarlo como su propio commit, NO dentro de CR-6 tal como estaba planteado.
+### Siguiente paso
+Esperar direccion de Ruben: (a) aplicar fix de perf y reactivar CR-6, o
+(b) diferir y seguir con PASO 3. NO avanzar sin OK.
 
 ================================================================================
 
