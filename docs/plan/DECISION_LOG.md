@@ -27,6 +27,18 @@ Formato por entrada:
 - Impacto esperado: ETAPA 4 corrige de raíz, no síntomas; sin ciclos de retrabajo.
 - Cómo verificarla: DEPENDENCY_TREE.md existe con árbol por componente + CR-1..CR-6.
 
+## DEC-008 — ETAPA 4 PASO 2 (CR-6) BLOQUEADO: motor canonico se cuelga con XAUUSD (2026-07-17)
+
+- Hecho: activar XAUUSD en run_bt_v2_mtf.py -> run_mtf_intraday entra en
+  loop/deadlock (escribe live_structure.csv 53b, no termina; proceso vivo ~2h).
+- Causa: motor canonico no soporta oro (gaps/horario/volatilidad). Dato CARGA OK
+  (109,270 velas M15) -> no es problema de datos, sino del motor.
+- Regla de oro aplicada: cambio que rompe -> REVERTIR (commit d9b7b8f). Vuelve a 7.
+- CR-6 QUEDA PENDIENTE: diagnosticar cuelgue en run_mtf_intraday como bug aislado.
+- No es fallo de la unificacion BOS/CHOCH (PASO 1): motor ya usaba market_structure.
+
+================================================================================
+
 ## DEC-007 — ETAPA 4 PASO 1 cerrado: BOS/CHOCH unificados (2026-07-17)
 
 - Problema: dos implementaciones divergentes de BOS/CHOCH (detectors vs market_structure).
