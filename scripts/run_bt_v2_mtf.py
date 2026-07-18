@@ -1,7 +1,9 @@
 """Lanza el backtest v2 mtf (costos ON, OOS 0.3) para los 7 simbolos listos.
 
-Excluye XAUUSD (falta M15). Escribe resultados en results/bt_v2/<sym>/mtf_intraday/
-y un resumen consolidado en results/bt_v2_mtf_resumen.txt.
+Excluye XAUUSD: el motor canonico (run_mtf_intraday) SE CUELGA con oro
+(escribe live_structure.csv y entra en loop/deadlock; ver ETAPA 4 PASO 2 bug).
+Escribe resultados en results/bt_v2/<sym>/mtf_intraday/ y un resumen
+consolidado en results/bt_v2_mtf_resumen.txt.
 """
 from __future__ import annotations
 
@@ -32,7 +34,7 @@ def main() -> int:
     lines = []
     t0 = datetime.now(timezone.utc)
     lines.append(f"# Backtest v2 mtf (costos ON, OOS 0.3) — {t0:%Y-%m-%d %H:%M UTC}")
-    lines.append(f"# Símbolos: {', '.join(SYMBOLS)} (XAUUSD excluido: falta M15)\n")
+    lines.append(f"# Símbolos: {', '.join(SYMBOLS)} (XAUUSD excluido: motor canonico se cuelga con oro)\n")
     for sym in SYMBOLS:
         try:
             p = run_one(sym)
