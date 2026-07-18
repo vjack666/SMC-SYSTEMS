@@ -168,7 +168,9 @@ def df_to_objects(frames: dict[str, pd.DataFrame],
                     zone_high=float(row.get("high", 0.0) or 0.0),
                     zone_low=float(row.get("low", 0.0) or 0.0),
                     meta={"fvg_state": row.get("fvg_state", "bullish" if fb else "bearish"),
-                          "fvg_bullish": fb, "fvg_bearish": fbe},
+                          "fvg_bullish": fb, "fvg_bearish": fbe,
+                          "pd_type": row.get("pd_type", "FVG"),
+                          "pd_tier": row.get("pd_tier", "T2")},
                 ))
             obb = bool(row.get("ob_bullish", False))
             obbe = bool(row.get("ob_bearish", False))
@@ -183,6 +185,8 @@ def df_to_objects(frames: dict[str, pd.DataFrame],
                     zone_low=float(row.get("low", 0.0) or 0.0),
                     meta={"ob_direction": row.get("ob_direction", "bullish" if obb else "bearish"),
                           "ob_bullish": obb, "ob_bearish": obbe,
-                          "ob_status": row.get("ob_status", "active")},
+                          "ob_status": row.get("ob_status", "active"),
+                          "pd_type": row.get("pd_type", "OB"),
+                          "pd_tier": row.get("pd_tier", "T2")},
                 ))
     return objs

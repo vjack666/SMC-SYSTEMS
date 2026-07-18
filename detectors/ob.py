@@ -38,6 +38,35 @@ def detect_order_blocks(frame: pd.DataFrame) -> pd.DataFrame:
     # --- Item E: invalidacion + envejecimiento ---
     data["ob_status"], data["ob_age"] = _track_ob_validity(data)
 
+    # --- Fase B1 (SPEC §4): tipos finos de PD Array + jerarquía (metadatos) ---
+    # Morfología del OB para clasificar tipo (libro 21 §2):
+    #  - OB normal              -> "OB"          (T2)
+    #  - vela de rechazo fuerte  -> "REJECTION_BLOCK" (T3): cuerpo fuerte Y mecha
+    #    opuesta larga (>= 1.5x el cuerpo) en la dirección opuesta al impulso.
+    #  - OB de continuación      -> "PROPULSION" (T2): ya es OB post-impulso.
+    #  - BREAKER / MITIGATION se resuelven en data_feed (cruce con estructura/FVG).
+    # NOTA: se PRESERVA el pd_type que vino de detect_fvg (FVG) y solo se
+    #   sobreescribe en las filas que son OB (no se pisa el resto).
+    upper = data[["high", "low", "open", "close"]].max(axis=1)
+    lower = data[["high", "low", "open", "close"]].min(axis=1)
+    wick_opp = np.where(
+        bearish_candle,  # vela alcista de impulso: mecha inferior
+        (data["open"] - data["low"]),
+        np.where(bullish_candle,  # vela bajista de impulso: mecha superior
+                 (data["high"] - data["open"]), 0.0),
+    )
+    rejection = strong_impulse & (wick_opp >= 1.5 * body.clip(lower=1e-9))
+
+    is_ob = (data["ob_bullish"] | data["ob_bearish"])
+    data["pd_type"] = data.get("pd_type", pd.Series("NONE", index=data.index))
+    data.loc[is_ob, "pd_type"] = "OB"
+    data.loc[rejection & is_ob, "pd_type"] = "REJECTION_BLOCK"
+
+    data["pd_tier"] = data.get("pd_tier", pd.Series("NONE", index=data.index))
+    data.loc[is_ob, "pd_tier"] = "T2"          # OB/PROPULSION T2
+    data.loc[data["pd_type"] == "REJECTION_BLOCK", "pd_tier"] = "T3"  # rejection T3
+
+    # MITIGATION_BLOCK / BREAKER / BPR (T1) se resuelven en data_feed con el cruce.
     return data
 
 

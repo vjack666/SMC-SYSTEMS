@@ -130,7 +130,26 @@
 - Cómo verificarla: ROADMAP_TESIS_DRIVEN §4 Fase 0 (cadena SPEC→ADS→MDS→CÓDIGO) +
   DOCUMENTATION_INDEX.md (nota capa SPEC). DEC-009e registra la decisión.
 
-## DEC-009f — Fase 0: SPEC_TESIS_FORMAL.md redactada (borrador de contrato fuente) (2026-07-17)
+## DEC-009g — Fase B1: PD Arrays completos + tiers/stacking (metadatos) (2026-07-18)
+
+- Problema: la SPEC §4/§5 exige tipos finos de PD Array (BREAKER/REJECTION/
+  MITIGATION/PROPULSION) y jerarquía T1/T2/T3 + stacking, pero el motor solo
+  detectaba FVG/OB genéricos. La POI anclada (§16) y el stacking (§5) no tenían
+  información para operar.
+- Decisión: añadir metadatos `pd_type`/`pd_tier` en detectores/fvg.py, ob.py,
+  data_feed.py (cruce BPR/BREAKER/MITIGATION) y propagarlos vía translation.py
+  al MarketObject; sequence.py los congela en el state de la zona. NO se cambia
+  la lógica de decisión de run_sequence (fuente única R7 intacta).
+- Por qué: geometría fina de la tesis sin riesgo a la fuente única; desbloquea
+  POI/stacking (Fase C) y exec M5/M1 (Fase B2).
+- Dónde: detectors/fvg.py, detectors/ob.py, ict_backtest/data_feed.py,
+  ict_backtest/translation.py, ict_backtest/sequence.py,
+  tests/test_fase_b1_pd_arrays.py, tests/_smoke_b1_stash.py.
+- Verificación empírica (Ruben rule): tests B1 5 passed; smoke EURUSD M15 real
+  B1=2 == baseline=2 señales (metadatos no alteran decisión); regresión 53 passed.
+  test_detectors_now_requires_2_bars ya falla en baseline (no es regresión B1).
+
+## DEC-009f — Fase 0: SPEC_TESIS_FORMAL.md (borrador de contrato fuente)
 
 - Problema: la Fase 0 del roadmap maestro exigía formalizar la tesis en SPEC antes
   de código (R1). El commit DEC-009e fijó la nomenclatura pero NO escribía la SPEC.

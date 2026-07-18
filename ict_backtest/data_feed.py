@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from detectors import detect_bos, detect_choch, detect_displacement, detect_fvg, detect_liquidity, detect_order_blocks
@@ -53,7 +54,47 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     o = detect_order_blocks(d)  # ob_bullish, ob_bearish, ob_top/bottom, ...
     d = o                      # PRESERVA las booleanas (antes se descartaban)
     d["ob_direction"] = d.apply(_ob_dir, axis=1).values
-    c = detect_choch(d)        # choch_signal, choch_status, choch_age
+    # --- Fase B1 (SPEC §4/§5): cruce FVG+OB y etiquetas de tipo/tier ---
+    # BPR (T1): FVG y OB caen en la MISMA zona de precio (tolerancia = 0.3 ATR).
+    # BREAKER: OB cuya estructura adyacente se rompió (bos_dir opuesto a ob_direction).
+    # MITIGATION_BLOCK (T3): OB que mitiga un FVG previo (fvg_mid entre ob_top/ob_bottom).
+    _atr = d["atr"] if "atr" in d.columns else pd.Series(0.0, index=d.index)
+    tol = 0.3 * _atr.clip(lower=1e-9)
+    fvg_b = d["fvg_bullish"].fillna(False).values
+    fvg_be = d["fvg_bearish"].fillna(False).values
+    # FVG activo mas reciente (persiste varias barras hasta llenarse): ffill del mid.
+    fvg_mid_active = d["fvg_mid"].where(fvg_b | fvg_be).ffill()
+    fvg_mid = fvg_mid_active.fillna(np.nan).values
+    ob_up = d["ob_bullish"].fillna(False).values
+    ob_dn = d["ob_bearish"].fillna(False).values
+    ob_top = d["ob_top"].fillna(np.nan).values
+    ob_bot = d["ob_bottom"].fillna(np.nan).values
+    ob_dir = d["ob_direction"].values  # +1 bull, -1 bear
+    bos_dir = d.get("bos_dir", pd.Series(0, index=d.index)).fillna(0).values
+    for i in range(len(d)):
+        if ob_up[i] or ob_dn[i]:
+            t = ob_top[i]
+            b = ob_bot[i]
+            if pd.isna(t) or pd.isna(b):
+                continue
+            in_ob = (not pd.isna(fvg_mid[i])) and (b <= fvg_mid[i] <= t)
+            near_ob = (not pd.isna(fvg_mid[i])) and (
+                abs(fvg_mid[i] - (t + b) / 2.0) <= tol[i])
+            # BPR (T1, maxima autoridad libro 21 §2): FVG y OB comparten zona.
+            # Tiene prioridad sobre MITIGATION/BREAKER.
+            if in_ob or near_ob:
+                d.at[i, "pd_tier"] = "T1"
+            # BREAKER: estructura rota en dirección opuesta al OB
+            if (ob_dir[i] == 1 and bos_dir[i] == -1) or (ob_dir[i] == -1 and bos_dir[i] == 1):
+                d.at[i, "pd_type"] = "BREAKER"
+                if d.at[i, "pd_tier"] == "T2":
+                    d.at[i, "pd_tier"] = "T1"
+            # MITIGATION_BLOCK (T3): OB tapa un FVG previo que NO es su zona
+            # exacta (si fuera su zona exacta ya es BPR/T1 arriba).
+            if (not in_ob) and near_ob and d.at[i, "pd_type"] != "BREAKER":
+                d.at[i, "pd_type"] = "MITIGATION_BLOCK"
+                d.at[i, "pd_tier"] = "T3"
+    c = detect_choch(d)          # choch_signal, choch_status, choch_age
     d["choch_signal"] = c["choch_signal"].values
     # Mapear choch_signal -> choch_dir (int) que el motor de secuencia espera.
     # CHOCH_BULLISH = +1 (giro alcista), CHOCH_BEARISH = -1, NONE = 0.

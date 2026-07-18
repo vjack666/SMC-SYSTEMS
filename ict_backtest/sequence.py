@@ -84,6 +84,8 @@ class SequenceState:
     bos_level: float = float("nan")
     zone_high: float = float("nan")
     zone_low: float = float("nan")
+    zone_pd_type: str = "NONE"   # Fase B1 (SPEC §4): metadato de la zona congelada
+    zone_pd_tier: str = "NONE"   # (no altera la decisión de entry; info para POI/stacking)
     history: list = field(default_factory=list)
 
     def reset(self):
@@ -95,6 +97,8 @@ class SequenceState:
         self.bos_level = float("nan")
         self.zone_high = float("nan")
         self.zone_low = float("nan")
+        self.zone_pd_type = "NONE"
+        self.zone_pd_tier = "NONE"
 
     def note(self, tag: str, i: int, extra: str = ""):
         self.history.append((tag, i, extra))
@@ -369,8 +373,12 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 _ob = _latest_ob_zone(obj, target)
                 if _fvg is not None:
                     state.zone_high, state.zone_low = _fvg
+                    state.zone_pd_type = str(obj.meta.get("pd_type", "FVG"))
+                    state.zone_pd_tier = str(obj.meta.get("pd_tier", "T2"))
                 elif _ob is not None:
                     state.zone_high, state.zone_low = _ob
+                    state.zone_pd_type = str(obj.meta.get("pd_type", "OB"))
+                    state.zone_pd_tier = str(obj.meta.get("pd_tier", "T2"))
 
         if state.phase == "IDLE":
             if _has_sweep(obj, est_htf, target):

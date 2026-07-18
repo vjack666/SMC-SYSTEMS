@@ -35,6 +35,16 @@ def detect_fvg(frame: pd.DataFrame) -> pd.DataFrame:
     data.loc[data["fvg_bearish"], "fvg_mid"] = bearish_mid[data["fvg_bearish"]]
 
     data["fvg_fill_status"] = _track_fvg_fill(data)
+
+    # --- Fase B1 (SPEC §3/§4): etiquetas de tipo y jerarquía (metadatos) ---
+    # FVG es tier T2 por defecto (libro 21 §2). El cruce con OB (BPR -> T1)
+    # se resuelve en data_feed tras tener ambos detectores. Aquí solo etiquetamos.
+    data["pd_type"] = np.where(
+        data["fvg_bullish"] | data["fvg_bearish"], "FVG", "NONE"
+    )
+    data["pd_tier"] = np.where(
+        data["fvg_bullish"] | data["fvg_bearish"], "T2", "NONE"
+    )
     return data
 
 

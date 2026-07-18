@@ -176,6 +176,11 @@ FASE B — Geometría fina (desbloquea POI/SB reales):
   B1: PD Arrays COMPLETOS — FVG/OB/Breaker/Rejection/Mitigation/Propulsion + tiers
       (BPR>OB/FVG>breaker>bloques) + stacking multi-TF (21_POI §2/§3). Requisito
       previo de un POI REAL.
+      ✅ DONE (DEC-009g, 2026-07-18): metadatos pd_type/pd_tier en detectores +
+      cruce BPR/BREAKER/MITIGATION en data_feed + propagación vía translation +
+      congelado en state de sequence. Verificado: no altera decisión del motor
+      (EURUSD M15 real B1==baseline señales). El CONSUMO de estos metadatos
+      (POI/staking reales) queda en Fase C.
   B2: Exec fino M5 + Confirmación M1 — bajar entry/SL/TP a M5/M1; prerequisito
       de Silver Bullet y Turtle Soup de libro 07/06.
   B3: Liquidez internal vs external — jerarquía de targets (internal swing reciente
@@ -294,8 +299,8 @@ disfrace de regla de la tesis.
 | Narrativa HTF (bias D1/H4/H1)   | tesis 20 §1, libro 08 §0              | OBLIGATORIO             | Base ✅ |
 | Dealing Range / P-D (EQ 50%)    | libro 21 (premium/discount)           | OBLIGATORIO             | Base ✅ |
 | PD Arrays (FVG/OB)              | tesis 20 §2/§5b, libro 21             | OBLIGATORIO             | Base ✅ |
-| PD Arrays completos (Breaker/Rej/Mitig/Propulsion) | tesis 20 §5b, libro 21 §2 (tiers T1-T3) | OBLIGATORIO | B1 |
-| Stacking multi-TF               | tesis 20 §5b, libro 21 §2             | OBLIGATORIO             | B1 |
+| PD Arrays completos (Breaker/Rej/Mitig/Propulsion) | tesis 20 §5b, libro 21 §2 (tiers T1-T3) | OBLIGATORIO | B1 ✅ (metadatos; consumo en C) |
+| Stacking multi-TF               | tesis 20 §5b, libro 21 §2             | OBLIGATORIO             | B1 ✅ (metadatos; consumo en C) |
 | Sweep de liquidez               | tesis 20 §3, libro 05                 | OBLIGATORIO             | Base ✅ |
 | Displacement (gap cuerpo>70%)   | tesis 20 §5b, libro 15                | OBLIGATORIO             | Base ✅ (calibrar F) |
 | Market Structure / BOS          | tesis 20 §2, libro 02                 | OBLIGATORIO             | Base ✅ (PASO 1) |
