@@ -56,3 +56,31 @@ def emit_h1(objs: Sequence[MarketObject]) -> PlanEvent:
     if not hay_poi:
         return PlanEvent("H1", PlanVerdict.ZONE_INVALID, bar_index=_bar_index_of(objs))
     return PlanEvent("H1", PlanVerdict.ZONE_ARMED, bar_index=_bar_index_of(objs))
+
+
+# Fases internas de run_sequence que definen el nivel de setup alcanzado.
+_PHASE_STRUCTURE_OK = "ENTRY"
+_PHASE_SETUP_LIVE = "BOS_DONE"
+
+
+def emit_m15(signals: Sequence[dict]) -> PlanEvent | None:
+    """Setup ICT (M15). Envuelve la salida de run_sequence.
+
+    Recibe la LISTA de senales que devuelve run_sequence (cada una con
+    `phase_log`). NO corre run_sequence (el loop driver lo hace). Emite:
+    - STRUCTURE_OK si alguna senal llego a ENTRY (cuadro completo).
+    - SETUP_LIVE si alguna llego a BOS_DONE (setup presente, sin entry).
+    - None si no hay senales o ninguna paso de SWEEP (la FSM no transiciona).
+
+    El emisor NO sabe de H4/H1: solo decide sobre la salida de su TF.
+    """
+    if not signals:
+        return None
+    fases = [f for s in signals for f in s.get("phase_log", [])]
+    if not fases:
+        return None
+    if _PHASE_STRUCTURE_OK in fases:
+        return PlanEvent("M15", PlanVerdict.STRUCTURE_OK, bar_index=0)
+    if _PHASE_SETUP_LIVE in fases:
+        return PlanEvent("M15", PlanVerdict.SETUP_LIVE, bar_index=0)
+    return None

@@ -74,6 +74,7 @@ _TRANSITIONS: dict[tuple[PlanState, PlanVerdict], PlanState] = {
     (PlanState.CONTEXT_OK, PlanVerdict.ZONE_ARMED): PlanState.ZONE_ARMED,
     (PlanState.ZONE_ARMED, PlanVerdict.ZONE_ARMED): PlanState.ZONE_ARMED,
     (PlanState.ZONE_ARMED, PlanVerdict.SETUP_LIVE): PlanState.SETUP_LIVE,
+    (PlanState.ZONE_ARMED, PlanVerdict.STRUCTURE_OK): PlanState.STRUCTURE_OK,
     (PlanState.SETUP_LIVE, PlanVerdict.STRUCTURE_OK): PlanState.STRUCTURE_OK,
     (PlanState.STRUCTURE_OK, PlanVerdict.ENTRY_READY): PlanState.ENTRY_READY,
     (PlanState.ENTRY_READY, PlanVerdict.ENTRY_READY): PlanState.ENTRY_READY,
