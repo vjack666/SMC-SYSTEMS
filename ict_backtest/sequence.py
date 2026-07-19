@@ -450,7 +450,11 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 # el imbalance ya no esta. El trader marca ese cuadro y ESPERA
                 # el retorno (mitigation). Fallback: nivel del BOS +- 0.5 ATR.
                 if not (np.isfinite(state.zone_high) and np.isfinite(state.zone_low)):
-                    atr = float(obj.meta.get("atr", np.nan))
+                    _atr = obj.meta.get("atr", np.nan)
+                    try:
+                        atr = float(_atr) if _atr is not None else float("nan")
+                    except (TypeError, ValueError):
+                        atr = float("nan")
                     if np.isfinite(atr) and np.isfinite(state.bos_level):
                         state.zone_high = state.bos_level + 0.5 * atr
                         state.zone_low = state.bos_level - 0.5 * atr

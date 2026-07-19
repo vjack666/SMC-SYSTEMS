@@ -10,7 +10,7 @@ from agents import (
     StructureAgent,
     WyckoffAgent,
 )
-from detectors import detect_bos, detect_choch, detect_displacement, detect_fvg, detect_order_blocks, compute_zones
+from detectors import detect_displacement, detect_fvg, detect_order_blocks, compute_zones
 from fixtures.synthetic_ohlcv import generate_synthetic_ohlcv
 from indicators import add_atr, add_ema, add_rsi
 

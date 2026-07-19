@@ -129,7 +129,7 @@ def df_to_objects(frames: dict[str, pd.DataFrame],
                           "liquidity_sweep_down": sd,
                           "liquidity_sweep_up": su},
                 ))
-            bd = int(row.get("bos_direction", 0) or 0)
+            bd = int(row.get("bos_dir", 0) or 0)
             if bd != 0:
                 objs.append(MarketObject(
                     type=ObjectType.BOS, origin_tf=tf,
@@ -138,7 +138,8 @@ def df_to_objects(frames: dict[str, pd.DataFrame],
                     bar_index=int(idx), bar_time=row.get("time"),
                     zone_high=float(row.get("high", 0.0) or 0.0),
                     zone_low=float(row.get("low", 0.0) or 0.0),
-                    meta={"bos_direction": bd,
+                    meta={"bos_dir": bd,
+                          "bos_direction": row.get("bos_direction", "NONE"),
                           "bos_status": row.get("bos_status", "active"),
                           "macro_direction": row.get("macro_direction", row.get("trend", "-"))},
                 ))
@@ -152,6 +153,7 @@ def df_to_objects(frames: dict[str, pd.DataFrame],
                     zone_high=float(row.get("high", 0.0) or 0.0),
                     zone_low=float(row.get("low", 0.0) or 0.0),
                     meta={"choch_dir": cd,
+                          "choch_signal": row.get("choch_signal", "NONE"),
                           "choch_status": row.get("choch_status", "active"),
                           "macro_direction": row.get("macro_direction", row.get("trend", "-"))},
                 ))

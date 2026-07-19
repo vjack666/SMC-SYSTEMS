@@ -10,12 +10,11 @@ import pandas as pd
 import os
 from datetime import datetime
 from indicators import add_atr, add_ema, add_rsi, add_stochastic
-from detectors.bos import BosConfig, detect_bos
-from detectors.choch import detect_choch
 from detectors.fvg import detect_fvg
 from detectors.ob import detect_order_blocks
 from detectors.displacement import detect_displacement
 from detectors.zones import compute_zones
+from ict_backtest.market_structure import StructureConfig, detect_market_structure
 from agents.orchestrator import AgentOrchestrator
 
 
@@ -67,9 +66,14 @@ def build_dataset(symbol: str = "EURUSD", years: list[int] = [2023, 2024]) -> pd
     df["trend_confidence"] = 1.0
     df["regime_state"] = "NORMAL"
 
-    # Detectors
-    df = detect_bos(df, BosConfig(followthrough_bars=18))
-    df = detect_choch(df)
+    # Detectores — estructura canonica (unica fuente de BOS/CHOCH)
+    ms = detect_market_structure(df, StructureConfig(swing_lookback=5, confirm_bars=2, atr_period=14))
+    df["bos_dir"] = ms["bos_dir"].astype(int).values
+    df["choch_dir"] = ms["choch_dir"].astype(int).values
+    df["bos_direction"] = ms["bos_dir"].map({1: "BULLISH", -1: "BEARISH"}).fillna("NONE").astype(str).values
+    df["choch_signal"] = ms["choch_dir"].map({1: "CHOCH_BULLISH", -1: "CHOCH_BEARISH"}).fillna("NONE").astype(str).values
+    df["bos_status"] = ms["bos_status"].where(ms["bos_dir"] != 0, "none").values
+    df["choch_status"] = ms["choch_status"].values
     df = detect_fvg(df)
     df = detect_order_blocks(df)
     df = detect_displacement(df)

@@ -25,9 +25,8 @@ sys.path.insert(0, str(BASE))
 sys.path.insert(0, str(BASE / "scripts"))
 
 from agents.wyckoff_agent import WyckoffAgent  # noqa: E402
-from detectors import BosConfig, detect_bos  # noqa: E402
 from indicators import add_atr, add_stochastic  # noqa: E402
-from detectors import TrendConfig, detect_trend  # noqa: E402
+from ict_backtest.market_structure import StructureConfig, detect_market_structure  # noqa: E402
 
 DATA_DIR = BASE / "data" / "raw"
 
@@ -48,10 +47,10 @@ def _enrich(df: pd.DataFrame) -> pd.DataFrame:
     """Agrega las columnas que WyckoffAgent.analyze() requiere."""
     df = df.copy()
     df["atr"] = add_atr(df, 14)
-    bos = detect_bos(df, BosConfig())
-    df["swing_label"] = bos["swing_label"]
-    trend = detect_trend(df, TrendConfig())
-    t = str(trend["trend"].iloc[-1])
+    ms = detect_market_structure(df, StructureConfig(swing_lookback=5, confirm_bars=2, atr_period=14))
+    df["swing_label"] = ms["swing_label"]
+    df["trend"] = ms["trend"]
+    t = str(ms["trend"].iloc[-1])
     df["macro_direction"] = t
     stoch = add_stochastic(df, k_period=14, d_period=3, smooth_k=3)
     df["stoch_k"] = stoch["stoch_k"]

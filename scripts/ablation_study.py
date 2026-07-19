@@ -17,12 +17,11 @@ from agents.wyckoff_agent import WyckoffAgent
 from agents.structure_agent import StructureAgent
 from agents.decision_agent import DecisionAgent
 from agents.base import AnalysisResult
-from detectors.bos import BosConfig, detect_bos
-from detectors.choch import detect_choch
 from detectors.fvg import detect_fvg
 from detectors.ob import detect_order_blocks
 from detectors.displacement import detect_displacement
 from detectors.zones import compute_zones
+from ict_backtest.market_structure import StructureConfig, detect_market_structure
 
 
 def generate_multi_regime(n_bars: int = 5_000, seed: int = 42, start_price: float = 1.1000) -> pd.DataFrame:
@@ -194,8 +193,14 @@ if __name__ == "__main__":
     df = generate_multi_regime(n_bars=args.n_bars, seed=args.seed)
     df = add_forward_labels(df, horizon=args.horizon)
     df = add_basic_indicators(df)
-    df = detect_bos(df, BosConfig(followthrough_bars=18))
-    df = detect_choch(df)
+    # Detectores — estructura canonica (unica fuente de BOS/CHOCH)
+    ms = detect_market_structure(df, StructureConfig(swing_lookback=5, confirm_bars=2, atr_period=14))
+    df["bos_dir"] = ms["bos_dir"].astype(int).values
+    df["choch_dir"] = ms["choch_dir"].astype(int).values
+    df["bos_direction"] = ms["bos_dir"].map({1: "BULLISH", -1: "BEARISH"}).fillna("NONE").astype(str).values
+    df["choch_signal"] = ms["choch_dir"].map({1: "CHOCH_BULLISH", -1: "CHOCH_BEARISH"}).fillna("NONE").astype(str).values
+    df["bos_status"] = ms["bos_status"].where(ms["bos_dir"] != 0, "none").values
+    df["choch_status"] = ms["choch_status"].values
     df = detect_fvg(df)
     df = detect_order_blocks(df)
     df = detect_displacement(df)

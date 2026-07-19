@@ -10,12 +10,7 @@ import pandas as pd
 from agents.orchestrator import AgentOrchestrator
 from data import load_frame
 from detectors import (
-    CHOCH_BEARISH,
-    CHOCH_BULLISH,
-    BosConfig,
     compute_zones,
-    detect_bos,
-    detect_choch,
     detect_displacement,
     detect_fvg,
     detect_order_blocks,
@@ -23,6 +18,7 @@ from detectors import (
 )
 from indicators import add_atr, add_ema, add_rsi, add_stochastic
 from trend_context import build_trend_context_frame
+from ict_backtest.market_structure import StructureConfig, detect_market_structure
 
 
 @dataclass(frozen=True)
@@ -102,7 +98,7 @@ def build_scalping_context(
         config = ScalpingConfig()
 
     steps = [
-        "load_frame", "detect_bos", "detect_choch", "detect_fvg",
+        "load_frame", "market_structure", "detect_fvg",
         "detect_order_blocks", "detect_displacement", "compute_zones",
         "indicators", "trend_context", "filters", "sweep_ote",
         "confluence", "done",
@@ -116,10 +112,21 @@ def build_scalping_context(
     _step(0, "loading data...")
     data = load_frame(data_dir, symbol, timeframe)
 
-    _step(1, "detecting BOS...")
-    data = detect_bos(data, BosConfig(followthrough_bars=18))
-    _step(2, "detecting CHOCH...")
-    data = detect_choch(data)
+    _step(1, "detecting market structure (canonical BOS/CHOCH)...")
+    ms = detect_market_structure(data, StructureConfig(swing_lookback=5, confirm_bars=2, atr_period=14))
+    # Vistas string que el pipeline ya consume río abajo (sin renombrar).
+    # El canónico emite bos_dir/choch_dir (int) y bos_status/choch_status.
+    data["bos_dir"] = ms["bos_dir"].astype(int).values
+    data["choch_dir"] = ms["choch_dir"].astype(int).values
+    data["bos_direction"] = (
+        ms["bos_dir"].map({1: "BULLISH", -1: "BEARISH"}).fillna("NONE").astype(str).values
+    )
+    data["choch_signal"] = (
+        ms["choch_dir"].map({1: "CHOCH_BULLISH", -1: "CHOCH_BEARISH"}).fillna("NONE").astype(str).values
+    )
+    data["bos_status"] = ms["bos_status"].where(ms["bos_dir"] != 0, "none").values
+    data["choch_status"] = ms["choch_status"].values
+    _step(2, "market structure ready")
     _step(3, "detecting FVG...")
     data = detect_fvg(data)
     _step(4, "detecting order blocks...")
@@ -224,8 +231,8 @@ def build_scalping_context(
         | ((data["macro_direction"] == "BEARISH") & ob_bear_near)
     ).to_numpy()
 
-    recent_bearish_choch = (data["choch_signal"] == CHOCH_BEARISH).rolling(10, min_periods=1).max().astype(bool)
-    recent_bullish_choch = (data["choch_signal"] == CHOCH_BULLISH).rolling(10, min_periods=1).max().astype(bool)
+    recent_bearish_choch = (data["choch_signal"] == "CHOCH_BEARISH").rolling(10, min_periods=1).max().astype(bool)
+    recent_bullish_choch = (data["choch_signal"] == "CHOCH_BULLISH").rolling(10, min_periods=1).max().astype(bool)
 
     # --- Item E: degradar CHOCH muerto ---
     if config.enable_detector_invalidation and "choch_status" in data.columns:

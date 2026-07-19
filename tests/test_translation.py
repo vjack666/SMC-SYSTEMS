@@ -68,7 +68,8 @@ def test_df_to_objects_sella_capa():
 
     h4 = pd.DataFrame({
         "close": [1.0, 2.0], "high": [1.1, 2.1], "low": [0.9, 1.9],
-        "bos_direction": [1, 0], "fvg_bullish": [True, False],
+        "bos_dir": [1, 0], "bos_direction": ["BULLISH", "NONE"],
+        "fvg_bullish": [True, False],
         "fvg_bearish": [False, False],
     })
     objs = df_to_objects({"H4": h4}, symbol="EURUSD")

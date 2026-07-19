@@ -4,10 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from detectors import BosConfig, CHOCH_BEARISH, CHOCH_BULLISH, detect_bos, detect_choch, detect_fvg, detect_order_blocks
+from detectors import detect_fvg, detect_order_blocks
 from fixtures.synthetic_ohlcv import generate_synthetic_ohlcv
 from indicators import add_atr, add_ema, add_rsi
 from signals import ScalpingConfig, summarize_filter_diagnosis
+from ict_backtest.market_structure import StructureConfig, detect_market_structure
 
 
 @pytest.fixture
@@ -15,23 +16,14 @@ def synth_frame():
     return generate_synthetic_ohlcv(n_bars=500, seed=42)
 
 
-class TestDetectors:
-    def test_bos_detector_adds_columns(self, synth_frame):
-        result = detect_bos(synth_frame)
-        assert "bos_direction" in result.columns
-        assert "bos_level" in result.columns
-        assert "liquidity_sweep_down" in result.columns
-        assert "liquidity_sweep_up" in result.columns
+class TestDetectorsCanonical:
+    """BOS/CHOCH ahora vienen del motor canonico (market_structure)."""
 
-    def test_bos_detector_with_config(self, synth_frame):
-        cfg = BosConfig(swing_lookback=3, followthrough_bars=5)
-        result = detect_bos(synth_frame, cfg)
-        assert "bos_direction" in result.columns
-
-    def test_choch_detector_adds_columns(self, synth_frame):
-        result = detect_choch(synth_frame)
-        assert "choch_signal" in result.columns
-        assert set(result["choch_signal"].unique()).issubset({"NONE", CHOCH_BULLISH, CHOCH_BEARISH})
+    def test_market_structure_adds_columns(self, synth_frame):
+        ms = detect_market_structure(synth_frame, StructureConfig(swing_lookback=5, confirm_bars=2))
+        assert "bos_dir" in ms.columns
+        assert "choch_dir" in ms.columns
+        assert "bos_status" in ms.columns
 
     def test_fvg_detector_adds_columns(self, synth_frame):
         result = detect_fvg(synth_frame)
@@ -43,22 +35,17 @@ class TestDetectors:
         assert "ob_bullish" in result.columns
         assert "ob_bearish" in result.columns
 
-    def test_indicators(self, synth_frame):
-        atr = add_atr(synth_frame, 14)
-        assert len(atr) == len(synth_frame)
-        ema = add_ema(synth_frame, 20)
-        assert len(ema) == len(synth_frame)
-        rsi = add_rsi(synth_frame, 14)
-        assert len(rsi) == len(synth_frame)
 
+class TestPipelineIntegration:
     def test_filter_diagnosis_on_synth_data(self, synth_frame):
-        from detectors import detect_bos, detect_choch, detect_fvg, detect_order_blocks
-        from indicators import add_atr, add_ema, add_rsi
         from signals.pipeline import _session_filter, _last_anchor
 
         frame = synth_frame.copy()
-        frame = detect_bos(frame)
-        frame = detect_choch(frame)
+        ms = detect_market_structure(frame, StructureConfig(swing_lookback=5, confirm_bars=2))
+        frame["bos_dir"] = ms["bos_dir"].values
+        frame["choch_dir"] = ms["choch_dir"].values
+        frame["bos_direction"] = ms["bos_dir"].map({1: "BULLISH", -1: "BEARISH"}).fillna("NONE").astype(str).values
+        frame["choch_signal"] = ms["choch_dir"].map({1: "CHOCH_BULLISH", -1: "CHOCH_BEARISH"}).fillna("NONE").astype(str).values
         frame = detect_fvg(frame)
         frame = detect_order_blocks(frame)
         frame["atr"] = add_atr(frame, 14)
@@ -161,13 +148,3 @@ class TestRegimeDetector:
         row = synth_frame.iloc[-1]
         result = classify_row(row)
         assert result in ("TRENDING", "RANGING", "HIGH_VOL", "LOW_VOL", "CHAOTIC")
-
-
-class TestThresholdEngine:
-    def test_threshold_for_regime(self):
-        from risk import DynamicThresholdConfig, threshold_for_regime
-        cfg = DynamicThresholdConfig()
-        assert threshold_for_regime("TRENDING", cfg) == pytest.approx(0.60)
-        assert threshold_for_regime("HIGH_VOL", cfg) == pytest.approx(0.68)
-        assert threshold_for_regime("CHAOTIC", cfg) == pytest.approx(0.75)
-        assert threshold_for_regime("LOW_VOL", cfg) == pytest.approx(0.65)

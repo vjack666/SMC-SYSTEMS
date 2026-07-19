@@ -18,8 +18,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from detectors import detect_bos, detect_choch, detect_displacement, detect_fvg, detect_liquidity, detect_order_blocks
-from detectors.trend import detect_trend
+from detectors import detect_displacement, detect_fvg, detect_liquidity, detect_order_blocks
+from ict_backtest.market_structure import StructureConfig, detect_market_structure
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data" / "raw"
@@ -44,10 +44,26 @@ def _ob_dir(row: pd.Series) -> str:
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """Corre detectores ICT sobre un frame OHLC y devuelve columnas del contrato."""
     d = df.copy().reset_index(drop=True)
-    d = detect_bos(d)          # atr, swing_label, liquidity_sweep_*, bos_direction, bos_status
-    t = detect_trend(d)        # trend, trend_int
-    d["trend"] = t["trend"].values
-    d["macro_direction"] = t["trend"].values
+    # --- Estructura canonica (BOS/CHOCH/trend) como UNICA fuente de verdad ---
+    # Sustituye detect_bos/detect_choch legacy (sin indicadores EMA para CHOCH).
+    ms = detect_market_structure(d, StructureConfig(swing_lookback=5, confirm_bars=2, atr_period=14))
+    d["bos_dir"] = ms["bos_dir"].astype(int).values
+    d["choch_dir"] = ms["choch_dir"].astype(int).values
+    d["bos_direction"] = (
+        ms["bos_dir"].map({1: "BULLISH", -1: "BEARISH"}).fillna("NONE").astype(str).values
+    )
+    d["choch_signal"] = (
+        ms["choch_dir"].map({1: "CHOCH_BULLISH", -1: "CHOCH_BEARISH"}).fillna("NONE").astype(str).values
+    )
+    d["bos_status"] = ms["bos_status"].where(ms["bos_dir"] != 0, "none").values
+    d["choch_status"] = ms["choch_status"].values
+    d["trend"] = ms["trend"].values
+    d["swing_high"] = ms["swing_high"].values
+    d["swing_low"] = ms["swing_low"].values
+    d["swing_label"] = ms["swing_label"].values
+    d["atr"] = ms["_atr"] if "_atr" in ms.columns else d.get("atr")
+    # trend ya viene del canonico (ms["trend"], HH/HL vs LH/LL). El macro_direction
+    # lo provee build_trend_context_frame en pipeline.py, no aqui (sequence usa HTF).
     f = detect_fvg(d)          # fvg_bullish, fvg_bearish, fvg_mid, ...
     d = f                      # PRESERVA las booleanas (antes se descartaban)
     d["fvg_state"] = d.apply(_fvg_state, axis=1).values
@@ -63,14 +79,16 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     fvg_b = d["fvg_bullish"].fillna(False).values
     fvg_be = d["fvg_bearish"].fillna(False).values
     # FVG activo mas reciente (persiste varias barras hasta llenarse): ffill del mid.
-    fvg_mid_active = d["fvg_mid"].where(fvg_b | fvg_be).ffill()
+    # detect_fvg puede no emitir fvg_mid con <3 barras (early return) -> tolerante.
+    _fvg_mid = d["fvg_mid"] if "fvg_mid" in d.columns else pd.Series(np.nan, index=d.index)
+    fvg_mid_active = _fvg_mid.where(fvg_b | fvg_be).ffill()
     fvg_mid = fvg_mid_active.fillna(np.nan).values
     ob_up = d["ob_bullish"].fillna(False).values
     ob_dn = d["ob_bearish"].fillna(False).values
     ob_top = d["ob_top"].fillna(np.nan).values
     ob_bot = d["ob_bottom"].fillna(np.nan).values
     ob_dir = d["ob_direction"].values  # +1 bull, -1 bear
-    bos_dir = d.get("bos_dir", pd.Series(0, index=d.index)).fillna(0).values
+    bos_dir = d["bos_dir"].fillna(0).values
     for i in range(len(d)):
         if ob_up[i] or ob_dn[i]:
             t = ob_top[i]
@@ -94,17 +112,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
             if (not in_ob) and near_ob and d.at[i, "pd_type"] != "BREAKER":
                 d.at[i, "pd_type"] = "MITIGATION_BLOCK"
                 d.at[i, "pd_tier"] = "T3"
-    c = detect_choch(d)          # choch_signal, choch_status, choch_age
-    d["choch_signal"] = c["choch_signal"].values
-    # Mapear choch_signal -> choch_dir (int) que el motor de secuencia espera.
-    # CHOCH_BULLISH = +1 (giro alcista), CHOCH_BEARISH = -1, NONE = 0.
-    d["choch_dir"] = c["choch_signal"].replace(
-        {"CHOCH_BULLISH": 1, "CHOCH_BEARISH": -1, "NONE": 0}
-    ).fillna(0).astype(int).values
-    # Mapear bos_direction -> bos_dir (int) que _has_bos espera (BOS clasico).
-    d["bos_dir"] = d["bos_direction"].replace(
-        {"BULLISH": 1, "BEARISH": -1}
-    ).fillna(0).astype(int).values
+    d["choch_signal"] = d["choch_signal"]  # ya derivado del canonico arriba
     disp = detect_displacement(d)  # displacement_bullish/bearish, magnitude
     d["displacement_bullish"] = disp["displacement_bullish"].values
     d["displacement_bearish"] = disp["displacement_bearish"].values
@@ -120,6 +128,10 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     from detectors.liquidity_context import canonical_sweep, DEFAULT_SWEEP_LOOKBACK
     from typing import cast
     swept = canonical_sweep(d, lookback=DEFAULT_SWEEP_LOOKBACK)
+    # Mantener el contrato de columnas legacy que el envoltorio (translation.df_to_objects)
+    # y sequence esperan: liquidity_sweep_up/down son los flags de la vela que barrio.
+    d["liquidity_sweep_up"] = swept["liquidity_sweep_up"].values
+    d["liquidity_sweep_down"] = swept["liquidity_sweep_down"].values
     d["sweep_low"] = _sweep_level(cast(pd.Series, swept["liquidity_sweep_down"]),
                                   cast(pd.Series, d["low"]))
     d["sweep_high"] = _sweep_level(cast(pd.Series, swept["liquidity_sweep_up"]),
@@ -138,19 +150,37 @@ def _sweep_level(flag: pd.Series, price: pd.Series) -> pd.Series:
     return price.where(flag).shift(1)
 
 
-def load_tf(symbol: str, timeframe: str, data_dir: Path | str = DATA_DIR) -> pd.DataFrame:
-    """Carga un parquet OHLC y le agrega las features ICT."""
+def load_tf(symbol: str, timeframe: str, data_dir: Path | str = DATA_DIR,
+             start=None, end=None) -> pd.DataFrame:
+    """Carga un parquet OHLC y le agrega las features ICT.
+
+    `start`/`end` (Timestamp/str opcional): filtran el parquet POR FECHA
+    ANTES de `build_features` (ahorra I/O y computo en ventanas cortas).
+    No altera ninguna columna ni la logica de senales (R1 intacto).
+    """
     path = Path(data_dir) / f"{symbol}_{timeframe}.parquet"
     if not path.exists():
         raise FileNotFoundError(f"No existe {path}")
     df = pd.read_parquet(path)
+    if start is not None or end is not None:
+        mask = pd.Series(True, index=df.index)
+        if start is not None:
+            mask &= df["time"] >= pd.Timestamp(start)
+        if end is not None:
+            mask &= df["time"] <= pd.Timestamp(end)
+        df = df[mask]
     return build_features(df)
 
 
 def load_frames(symbol: str, timeframes: tuple[str, ...],
-                data_dir: Path | str = DATA_DIR) -> dict[str, pd.DataFrame]:
-    """Carga varios TF con features. Devuelve {tf: df}."""
-    return {tf: load_tf(symbol, tf, data_dir) for tf in timeframes}
+                data_dir: Path | str = DATA_DIR,
+                start=None, end=None) -> dict[str, pd.DataFrame]:
+    """Carga varios TF con features. Devuelve {tf: df}.
+
+    `start`/`end` recortan cada TF ANTES de features (ventana, sin look-ahead).
+    """
+    return {tf: load_tf(symbol, tf, data_dir, start=start, end=end)
+            for tf in timeframes}
 
 
 def bias_from_trend(frames: dict[str, pd.DataFrame], htf: str) -> str:
