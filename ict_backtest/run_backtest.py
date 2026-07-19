@@ -69,6 +69,7 @@ from ict_backtest.canonical import (  # noqa: E402
     evaluate_signals,
     load_bos_table,
 )
+from ict_backtest.plan_attach import attach_alignment  # noqa: E402
 
 
 def _metrics(pnls: list[float]) -> dict[str, float]:
@@ -130,6 +131,35 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
     )
 
 
+def _stack_to_objs_by_tf(stack) -> dict:
+    """Extrae objetos MarketObject por TF del market_stack (Fase D).
+
+    Defensivo: si el stack no expone objetos utilizables devuelve {} (missing,
+    Regla #4 — sin inventar). No acopla plan_attach a la forma interna del stack.
+    """
+    objs_by_tf: dict = {}
+    if not stack:
+        return objs_by_tf
+    # El stack es un dict por TF (build_context_stack) o un objeto con frames.
+    frames = stack.get("frames", stack) if isinstance(stack, dict) else getattr(stack, "frames", None)
+    if isinstance(frames, dict):
+        for tf, fr in frames.items():
+            objs = getattr(fr, "objects", None) or getattr(fr, "pd_arrays", None)
+            if objs:
+                objs_by_tf[tf] = list(objs)
+    return objs_by_tf
+
+
+def _stack_swing(stack):
+    """Extrae (high, low) del swing HTF del market_stack, o None."""
+    if not stack or not isinstance(stack, dict):
+        return None
+    swing = stack.get("swing") or stack.get("htf_swing")
+    if isinstance(swing, (tuple, list)) and len(swing) == 2:
+        return (float(swing[0]), float(swing[1]))
+    return None
+
+
 def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            counter_trend: bool = False, tp_mode: str = "fixed2r",
                            require_displacement: bool = True,
@@ -139,7 +169,8 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            fill_mode: str = "next_open",
                            enable_pd_index: bool = False,
                            backtest_id: str | None = None,
-                           window_months: int | None = None) -> dict:
+                           window_months: int | None = None,
+                           attach_plan: bool = False) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden).
 
     Fase D (Paso2): acumula RawDiagnosticData por trade en `contexts` (en
@@ -227,6 +258,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     pnls: list[float] = []
     exits: dict[str, int] = {}
     contexts: list = []  # Fase D Paso 2: RawDiagnosticData emitido por trade
+    alignments: list = []  # Fase 5: AlignmentReport adjunto por senal (modo OBSERVE)
     total = len(signals)
     _write_runner_progress(
         current=f"[3/3] simulate trades {symbol}",
@@ -256,6 +288,18 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
             stack = build_context_stack(ms, t, tfs=TF_CHAIN, anchored_pd_zones=anchored)
         except (TypeError, ValueError, KeyError, IndexError):
             stack = None
+        # Fase 5 (Brecha A1, modo OBSERVE): adjunta AlignmentReport multi-TF a la
+        # senal. NO filtra ni cambia el PnL. Reusa el stack ya construido (Fase D).
+        # Si el stack no trae objetos utilizables, objs_by_tf={} y score_plan
+        # califica solo con el emit_* del sig (sin inventar, Regla #4).
+        if attach_plan and stack is not None:
+            objs_by_tf = _stack_to_objs_by_tf(stack)
+            swing = _stack_swing(stack)
+            try:
+                attached = attach_alignment(sig, objs_by_tf, swing=swing)
+                alignments.append(attached["alignment"])
+            except Exception:
+                pass
         trade, meta, raw = simulate_trade_with_context(
             ltf_df, sig, max_hold, cost=cost, backtest_id=backtest_id,
             est_htf_fn=est_htf_fn, market_stack=stack,
@@ -279,6 +323,10 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     m = _metrics(pnls)
     m["contexts"] = contexts  # Fase D Paso 2: datos emitidos (Paso 3 los congela)
     m["backtest_id"] = backtest_id
+    if attach_plan:
+        # Fase 5: AlignmentReport adjunto por senal (modo OBSERVE). Solo se
+        # incluye si el flag esta activo; el backtest estandar queda intacto.
+        m["alignments"] = alignments
     _write_runner_progress(
         current=f"done {symbol} PF={m['pf']:.3f} n={m['trades']}",
         done=total if total else 1,
@@ -342,6 +390,9 @@ def main() -> None:
                     help="ventana BOS tras displacement (sequence engine)")
     ap.add_argument("--engine", default="sequence", choices=["sequence", "checklist"],
                     help="R7: only sequence is canonical. 'checklist' is an alias to sequence.")
+    ap.add_argument("--attach-plan", action="store_true",
+                    help="Fase 5: adjunta AlignmentReport multi-TF por senal (modo OBSERVE, "
+                         "no filtra ni cambia el PnL). Mide calidad de alineacion.")
     args = ap.parse_args()
 
     cost = resolve_cost(args.symbol, override=args.cost, no_cost=args.no_cost)
@@ -369,6 +420,7 @@ def main() -> None:
         cost=cost,
         enable_pd_index=True,  # Fase C: autoridad de zonas HTF como METADATA (sin gate, R1 se preserva)
         backtest_id=f"BT-CLI-{uuid.uuid4().hex[:8]}",  # Fase D Paso 2: id estable de corrida
+        attach_plan=args.attach_plan,  # Fase 5: calificador de alineacion (modo OBSERVE)
     )
 
 
