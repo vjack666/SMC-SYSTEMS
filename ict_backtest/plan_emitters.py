@@ -84,3 +84,22 @@ def emit_m15(signals: Sequence[dict]) -> PlanEvent | None:
     if _PHASE_SETUP_LIVE in fases:
         return PlanEvent("M15", PlanVerdict.SETUP_LIVE, bar_index=0)
     return None
+
+
+def emit_m5(setup: dict, m5_confirm: dict) -> PlanEvent | None:
+    """Ejecucion (M5). Decide SI entrar, NO la direccion del plan.
+
+    Recibe el setup validado (direction) y la confirmacion de M5
+    (direction + confirmed). M5 es exec TF: filtra + ejecuta, NO modifica
+    el plan (matriz de autoridad). Regla de jerarquia: M5 NO puede
+    invertir la direccion del plan; solo confirma en la MISMA direccion.
+
+    - ENTRY_READY si m5_confirm.confirmed y misma direccion que el setup.
+    - None si no hay confirmacion o direccion no coincide (el setup se
+      descarta pero el plan sigue vivo en STRUCTURE_OK).
+    """
+    if not m5_confirm.get("confirmed"):
+        return None
+    if m5_confirm.get("direction") != setup.get("direction"):
+        return None
+    return PlanEvent("M5", PlanVerdict.ENTRY_READY, bar_index=0)
