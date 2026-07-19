@@ -103,3 +103,23 @@ def emit_m5(setup: dict, m5_confirm: dict) -> PlanEvent | None:
     if m5_confirm.get("direction") != setup.get("direction"):
         return None
     return PlanEvent("M5", PlanVerdict.ENTRY_READY, bar_index=0)
+
+
+def emit_m1(setup: dict, m1_trigger: dict) -> PlanEvent | None:
+    """Optimizacion/trigger fino (M1). Ultimo filtro de timing.
+
+    El plan ya esta en ENTRY_READY (decision de M5). M1 confirma el
+    trigger fino y dispara IN_TRADE. M1 es exec TF de SB fino: NO cambia
+    la direccion ni el plan, solo el momento exacto de entrada (spread/
+    SL/RR/timing). Si M1 no confirma -> None (el plan se queda en
+    ENTRY_READY; la entrada espera o se descarta).
+
+    Criterio de salida de Fase 4 (bench, no FSM): M1 debe demostrar
+    mejora estadistica vs M5; si no, M1 no pasa. Eso se evalúa con
+    backtest comparativo, no aquí.
+    """
+    if not m1_trigger.get("confirmed"):
+        return None
+    if m1_trigger.get("direction") != setup.get("direction"):
+        return None
+    return PlanEvent("M1", PlanVerdict.IN_TRADE, bar_index=0)

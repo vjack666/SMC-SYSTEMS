@@ -35,6 +35,7 @@ class PlanVerdict(Enum):
     SETUP_LIVE = "SETUP_LIVE"
     STRUCTURE_OK = "STRUCTURE_OK"
     ENTRY_READY = "ENTRY_READY"
+    IN_TRADE = "IN_TRADE"
 
 
 class PlanState(Enum):
@@ -78,6 +79,7 @@ _TRANSITIONS: dict[tuple[PlanState, PlanVerdict], PlanState] = {
     (PlanState.SETUP_LIVE, PlanVerdict.STRUCTURE_OK): PlanState.STRUCTURE_OK,
     (PlanState.STRUCTURE_OK, PlanVerdict.ENTRY_READY): PlanState.ENTRY_READY,
     (PlanState.ENTRY_READY, PlanVerdict.ENTRY_READY): PlanState.ENTRY_READY,
+    (PlanState.ENTRY_READY, PlanVerdict.IN_TRADE): PlanState.IN_TRADE,
 }
 
 
