@@ -40,7 +40,63 @@ from ict_backtest.dealing_range_motor import compute_zone_class
 from ict_backtest.po3_motor import compute_po3_complete, Po3MotorConfig
 from ict_backtest.rules import killzone_en
 from ict_backtest.sequence import SequenceConfig, run_sequence
+from ict_backtest.setups.rr_map import rr_for
 from ict_backtest.zone_authority import evaluate_zone_authority
+
+
+def _rr_for_raw_signal(s: dict, ltf_df: pd.DataFrame, direction: int, ltf: str = "M15") -> float:
+    """Resuelve el RR objetivo del setup de la senal cruda ``s`` (call-site real).
+
+    Usa los detectores reales (is_silver_bullet / is_turtle_soup / is_ote_entry)
+    sobre los indices sweep/entry de ``s`` contra ``ltf_df``. Precedencia
+    SB > Turtle > OTE > default (mismo contrato que rr_map._setup_of). Si ningun
+    setup se confirma, rr_for(None)=3.0 (default de tesis).
+
+    Call-site real del pipeline: evaluate_signals llama esto DENTRO del loop
+    (no una funcion aislada) para aplicar rr_target al TP. Los flags post-loop
+    (flag_rr) anotan lo mismo en el ICTSignal para el consumidor (scoring/UI).
+    """
+    sweep_at = s.get("sweep_at")
+    entry_at = s.get("entry_at")
+    sb_confirmed = False
+    turtle_confirmed = False
+    ote_confirmed = False
+    sweep_ts = None
+    entry_ts = None
+    if sweep_at is not None and entry_at is not None and ltf_df is not None:
+        # Importar por modulo (no por la ref del top) para que los tests
+        # puedan mockear a nivel de modulo del detector y para respetar
+        # overrides en runtime.
+        from ict_backtest.setups import silver_bullet as sb_mod
+        from ict_backtest.setups import turtle_soup as ts_mod
+        from ict_backtest.setups import ote as ote_mod
+        try:
+            sweep_ts = ltf_df.iloc[int(sweep_at)]["time"]
+            entry_ts = ltf_df.iloc[int(entry_at)]["time"]
+            sb_confirmed, _ = sb_mod.is_silver_bullet(sweep_ts, entry_ts, direction, killzone_en)
+        except Exception:
+            sb_confirmed = False
+        try:
+            _frames = {ltf: ltf_df}
+            turtle_confirmed, _ = ts_mod.is_turtle_soup(sweep_ts, direction, _frames, ltf)
+        except Exception:
+            turtle_confirmed = False
+        try:
+            # OTE requiere swing en el row de entry; lo lee del ltf_df.
+            if "swing_high" in ltf_df.columns and "swing_low" in ltf_df.columns:
+                sh = ltf_df.iloc[int(entry_at)].get("swing_high")
+                sl = ltf_df.iloc[int(entry_at)].get("swing_low")
+                if not (pd.isna(sh) or pd.isna(sl)):
+                    ote_confirmed, _ = ote_mod.is_ote_entry(float(s.get("entry", 0.0)), float(sh), float(sl), direction)
+        except Exception:
+            ote_confirmed = False
+    if sb_confirmed:
+        return rr_for("silver_bullet")
+    if turtle_confirmed:
+        return rr_for("turtle_soup")
+    if ote_confirmed:
+        return rr_for("ote")
+    return rr_for(None)
 
 CANONICAL_ENGINE = "sequence"
 
@@ -227,14 +283,16 @@ def evaluate_signals(
             continue
         liq = _tp_liquidity(entry_row, direction, ltf_df)
         tp_ext = liq.get("external")
+        _rr = _rr_for_raw_signal(s, ltf_df, direction, ltf)
         if liq.get("internal") is not None:
             tp = liq["internal"]
+            # Guarda minima: liquidez internal no puede quedar < 2R del risk.
+            if direction == 1 and tp <= entry + 2.0 * risk:
+                tp = entry + _rr * risk
+            if direction == -1 and tp >= entry - 2.0 * risk:
+                tp = entry - _rr * risk
         else:
-            tp = entry + 3.0 * risk if direction == 1 else entry - 3.0 * risk
-        if direction == 1 and tp <= entry + 2.0 * risk:
-            tp = entry + 3.0 * risk
-        if direction == -1 and tp >= entry - 2.0 * risk:
-            tp = entry - 3.0 * risk
+            tp = entry + _rr * risk if direction == 1 else entry - _rr * risk
         # --- Fase B2: reanclar entry/SL/TP/liq/killzone al EXEC TF (M5/M1) ---
         # El setup se detecto en el LTF (entry_at/sweep_at son indices LTF).
         # Mapeamos el instante de toque al exec_df (vela cerrada <= ts, anti
@@ -266,14 +324,15 @@ def evaluate_signals(
             entry_row_exec = exec_df.iloc[entry_at_exec]
             liq_exec = _tp_liquidity(entry_row_exec, direction, exec_df)
             tp_ext = liq_exec.get("external") or tp_ext
+            _rr_exec = _rr_for_raw_signal(s, ltf_df, direction, ltf)
             if liq_exec.get("internal") is not None:
                 tp = liq_exec["internal"]
+                if direction == 1 and tp <= entry + 2.0 * risk:
+                    tp = entry + _rr_exec * risk
+                if direction == -1 and tp >= entry - 2.0 * risk:
+                    tp = entry - _rr_exec * risk
             else:
-                tp = entry + 3.0 * risk if direction == 1 else entry - 3.0 * risk
-            if direction == 1 and tp <= entry + 2.0 * risk:
-                tp = entry + 3.0 * risk
-            if direction == -1 and tp >= entry - 2.0 * risk:
-                tp = entry - 3.0 * risk
+                tp = entry + _rr_exec * risk if direction == 1 else entry - _rr_exec * risk
 
             # Killzone sobre el timestamp del exec TF (mismo instante, mas fino).
             kz = killzone_en(pd.to_datetime(entry_row_exec["time"], utc=True))

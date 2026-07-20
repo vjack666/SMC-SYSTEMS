@@ -540,4 +540,30 @@ Formato por entrada:
   KZ 7 + B3 5 + B2 4 + A1 6 + POI 12 + fase1 2 + r7 7 + orquestador 1). Sin
   datos reales. Commit pendiente de OK de Ruben (regla de commit).
 
+## DEC-009l — APLICACIÓN real de RR por setup (→TP) y E1 Trade Mgmt (→simulador) (2026-07-20)
+
+- Problema (pendiente de DEC-009k): los setups ICT anotaban `rr_target` y
+  `apply_trade_management` existía como funciones puras, pero NO se aplicaban
+  al cálculo real del TP ni al simulador de trade. Riesgo anti-test-verde-aislado
+  (Ruben): anotar no es cablear.
+- Decisión: (a) RR→TP: `canonical.evaluate_signals` ahora resuelve el setup de
+  la señal CRUDa dentro del loop vía `_rr_for_raw_signal(s, ltf_df, direction,
+  ltf)` (call-site real del pipeline, usa los detectores `is_silver_bullet`/
+  `is_turtle_soup`/`is_ote_entry` reales) y aplica `tp = entry +/- rr_target *
+  risk` reemplazando el `3.0*risk` fijo. La guarda de mínimo 2R solo aplica al
+  fallback de liquidez internal (cuando no hay BSL/SSL). (b) E1→simulador:
+  `trade_mgmt.apply_trade_management(entry, sl, tp, direction, df, ...)` simula
+  el recorrido post-entry (parcial en tp1 + BE + trailing + cierre en TP/SL/BE,
+  PnL ponderado). Es el call-site real que `run_backtest` llamará por señal.
+- Justificación: cierra la trampa "función aislada vs cableada". El TP ahora
+  obedece el setup (SB 1:2, Turtle 1:1.5, OTE 1:3, default 1:3) de forma
+  empírica, y E1 tiene su motor de gestión listo y testeado para el backtest.
+  Regresión cero: sin setup confirmado, RR sigue 3.0 (idéntico histórico).
+- Impacto: la señal ICT produce TP por setup y el trade management tiene
+  simulador propio. Backtest de PF sigue BLOQUEADO hasta Fase G (no se corrió
+  `run_backtest` con estas funciones sobre datos reales; solo unidad sintética).
+- Cómo verificarla: batería 103 passed (96 + `test_rr_applied_to_tp.py` 4 +
+  `test_e1_applied_trade_mgmt.py` 3). Sin datos reales. Commit pendiente de OK
+  de Ruben.
+
 ================================================================================

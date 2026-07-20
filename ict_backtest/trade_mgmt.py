@@ -10,6 +10,7 @@ Convencion direccion: +1 long, -1 short (igual que ICTSignal.direction).
 """
 from __future__ import annotations
 
+import pandas as pd
 
 def _check_direction(direction: int) -> None:
     if direction not in (1, -1):
@@ -86,3 +87,113 @@ def trailing_stop(
         return float(max(sl, candidate))
     candidate = entry - (steps - 1) * step
     return float(min(sl, candidate))
+
+
+def apply_trade_management(
+    entry: float,
+    sl: float,
+    tp: float,
+    direction: int,
+    df: "pd.DataFrame",
+    *,
+    partial_pct: float = 0.5,
+    tp1_r: float = 1.0,
+    trail_step_r: float = 1.0,
+    be_buf: float = 0.0,
+) -> dict:
+    """Simula la gestion post-entry de un trade sobre la serie ``df`` (call-site real).
+
+    Recorre ``df`` (precios POST-entry, en orden cronologico) y aplica, en orden:
+      1) Si el precio toca tp1 (= entry +/- tp1_r*risk segun direccion) -> cierra
+         `partial_pct` del lote y mueve el SL restante a Break-Even (entry +/- be_buf).
+      2) Tras el parcial, aplica trailing stop por steps de `trail_step_r*risk`
+         (solo mejora el SL).
+      3) Cierre final cuando el precio toca TP, el SL (BE o trailing) o agota df.
+
+    Devuelve dict con:
+      - exit_reason: "tp" | "sl" | "be" | "trailing" | "open"
+      - exit_price: float (precio de salida del REMANENTE)
+      - pnl_r: float (PnL total en R: parcial + remanente, ponderado por pct)
+      - partial_done: bool
+
+    Es el CALL-SITE REAL que el backtest usara para gestionar senales de
+    evaluate_signals. NO es backtest de PF (no itera senales ni calcula metricas
+    agregadas); solo simula UN trade dada su gestion. Funcion pura: no muta df.
+
+    TDD: tests/test_e1_applied_trade_mgmt.py (parcial+TP, BE, SL directo).
+    """
+    _check_direction(direction)
+    risk = abs(entry - sl)
+    if risk <= 0:
+        raise ValueError(f"risk invalido (entry={entry}, sl={sl})")
+
+    tp1 = entry + tp1_r * risk if direction == 1 else entry - tp1_r * risk
+    # SL vigente (puede moverse a BE luego del parcial).
+    cur_sl = float(sl)
+    cur_tp = float(tp)
+    partial_done = False
+    partial_price = None
+
+    closes = df["close"] if "close" in df.columns else None
+    if closes is None:
+        # fallback a la ultima columna numerica
+        closes = df.select_dtypes("number").iloc[:, -1]
+
+    for px in closes:
+        px = float(px)
+        # 1) Disparo de parcial + BE al tocar tp1 (una sola vez).
+        if not partial_done and partial_exit(entry, tp1, direction, px, pct=partial_pct):
+            partial_done = True
+            partial_price = px
+            # Mover SL del remanente a BE (+/- buf).
+            new_be = to_breakeven(entry, sl, direction, px, be_trigger_r=0.0)
+            if new_be is not None:
+                if direction == 1:
+                    cur_sl = max(cur_sl, new_be + be_buf)
+                else:
+                    cur_sl = min(cur_sl, new_be - be_buf)
+            continue  # el parcial ocurre en esta vela; el remanente sigue.
+
+        # 2) Trailing del SL tras el parcial.
+        if partial_done:
+            trail = trailing_stop(entry, cur_sl, direction, px, step_r=trail_step_r)
+            if direction == 1:
+                cur_sl = max(cur_sl, trail)
+            else:
+                cur_sl = min(cur_sl, trail)
+
+        # 3) Chequeo de salida del remanente.
+        if direction == 1:
+            if px >= cur_tp:
+                return _exit_dict("tp", px, entry, sl, risk, partial_done, partial_price, partial_pct)
+            if px <= cur_sl:
+                reason = "be" if partial_done and abs(cur_sl - entry) < 1e-12 else "sl"
+                return _exit_dict(reason, px, entry, sl, risk, partial_done, partial_price, partial_pct)
+        else:
+            if px <= cur_tp:
+                return _exit_dict("tp", px, entry, sl, risk, partial_done, partial_price, partial_pct)
+            if px >= cur_sl:
+                reason = "be" if partial_done and abs(cur_sl - entry) < 1e-12 else "sl"
+                return _exit_dict(reason, px, entry, sl, risk, partial_done, partial_price, partial_pct)
+
+    # Agoto el df sin tocar TP ni SL -> queda "open" en el ultimo close.
+    last = float(closes.iloc[-1])
+    return _exit_dict("open", last, entry, sl, risk, partial_done, partial_price, partial_pct)
+
+
+def _exit_dict(reason, exit_price, entry, sl, risk, partial_done, partial_price, partial_pct):
+    """Calcula pnl_r ponderado (parcial + remanente) y arma el dict de salida."""
+    if partial_done and partial_price is not None:
+        # Parcial: pct del lote en partial_price; remanente (1-pct) en exit_price.
+        p_partial = (partial_price - entry) / risk if risk > 0 else 0.0
+        p_remain = (exit_price - entry) / risk if risk > 0 else 0.0
+        pnl_r = partial_pct * p_partial + (1.0 - partial_pct) * p_remain
+    else:
+        pnl_r = (exit_price - entry) / risk if risk > 0 else 0.0
+    return {
+        "exit_reason": reason,
+        "exit_price": float(exit_price),
+        "pnl_r": float(pnl_r),
+        "partial_done": bool(partial_done),
+        "risk": float(risk),
+    }
