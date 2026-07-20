@@ -28,9 +28,17 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from ict_backtest.plan_emitters import emit_d1, emit_h4, emit_h1, emit_m15
-from ict_backtest.plan_fsm import PlanVerdict
-
+from ict_backtest.market_object import ObjectType
+from ict_backtest.plan_emitters import (
+    emit_d1,
+    emit_h4,
+    emit_h1,
+    emit_m15,
+    emit_m5,
+    emit_m1,
+    _field,
+)
+from ict_backtest.plan_fsm import PlanFSM, PlanState, PlanVerdict, _objs_before
 
 @dataclass
 class AlignmentReport:
@@ -159,3 +167,135 @@ def score_plan(
         m15_anchored=m15_anchored,
         po3_complete=po3_complete,
     )
+
+
+def plan_step(fsm: PlanFSM, sig: dict, objs_by_tf: dict) -> PlanState:
+    """Evalúa el estado del PLAN para UNA señal en su t (contexto cerrado <= t).
+
+    La FSM se RESETEA por señal: el gate decide sobre el contexto HTF/M15
+    cerrado en el momento t de la señal, no acumulando entre señales. Esto
+    es coherente con "la tesis dicta el contexto en t" y con AC2 (el gate
+    puede vetar cualquier señal individualmente según su propio contexto).
+
+    Reusa _objs_before (anti look-ahead cross-TF por bar_time) y los emit_*.
+    """
+    fsm.reset()
+    t = _field(sig, "time")
+    d1 = _objs_before(objs_by_tf, "D1", t)
+    h4 = _objs_before(objs_by_tf, "H4", t)
+    h1 = _objs_before(objs_by_tf, "H1", t)
+    m15 = _objs_before(objs_by_tf, "M15", t)
+    m5 = _objs_before(objs_by_tf, "M5", t)
+    m1 = _objs_before(objs_by_tf, "M1", t)
+
+    ev = emit_d1(d1)
+    if ev is not None:
+        fsm.transition(ev)
+    ev = emit_h4(h4)
+    if ev is not None:
+        fsm.transition(ev)
+    ev = emit_h1(h1)
+    if ev is not None:
+        fsm.transition(ev)
+    ev = emit_m15([sig])
+    if ev is not None:
+        fsm.transition(ev)
+    # M5/M1 son exec TF: confirman en la MISMA dirección (no cambian plan).
+    direction = _field(sig, "direction", 0)
+    m5_confirm = build_confirm_from_tf(_to_df(m5), t, direction)
+    ev = emit_m5(sig, m5_confirm)
+    if ev is not None:
+        fsm.transition(ev)
+    m1_trigger = build_confirm_from_tf(_to_df(m1), t, direction)
+    ev = emit_m1(sig, m1_trigger)
+    if ev is not None:
+        fsm.transition(ev)
+    return fsm.state
+
+
+def run_plan_fsm(
+    signals: list,
+    *,
+    objs_by_tf: dict | list,
+    threshold: PlanState = PlanState.STRUCTURE_OK,
+) -> dict:
+    """A1 Opción B — compuerta de ejecución FSM sobre señales YA generadas.
+
+    Dueño de UNA sola instancia PlanFSM que vive durante TODO el backtest
+    (no se resetea por señal). Por cada señal, en su t=signal.time, toma los
+    MarketObjects cerrados <= t por TF y alimenta los emisores; fsm.transition.
+
+    run_sequence NO se toca: recibe TODAS las señales (AC1). Solo decide
+    cuáles SE OPERAN (AC2). Cada señal descartada reporta el estado FSM
+    explícito que provocó el veto (AC3).
+
+    Args:
+        signals: lista de señales (dict ICTSignal) de run_sequence.
+        objs_by_tf: MarketObjects por TF (``{tf: [MarketObject]}``), O una
+            lista paralela a ``signals`` (``[ {tf: [...]}, ... ]``) para
+            tests/demo sintéticos donde no hay eje temporal global.
+        threshold: estado mínimo para operar (default STRUCTURE_OK).
+
+    Devuelve:
+        {
+          "all_signals":  [todas las señales, igual al baseline],
+          "trade_signals": [señales que la FSM deja operar],
+          "vetoes": [{"signal_index", "state"} por cada descarte],
+        }
+    """
+    fsm = PlanFSM()
+    all_signals: list = []
+    trade_signals: list = []
+    vetoes: list = []
+
+    for i, sig in enumerate(signals):
+        all_signals.append(sig)
+        # MarketObjects de ESTA señal (lista paralela) o globales (dict).
+        objs = objs_by_tf[i] if isinstance(objs_by_tf, list) else objs_by_tf
+
+        state = plan_step(fsm, sig, objs)
+        if _state_rank(state) >= _state_rank(threshold):
+            trade_signals.append(sig)
+        else:
+            vetoes.append({"signal_index": i, "state": state.value})
+
+    return {
+        "all_signals": all_signals,
+        "trade_signals": trade_signals,
+        "vetoes": vetoes,
+    }
+
+
+# Orden de autoridad del plan (para comparar umbrales).
+_STATE_ORDER = {
+    PlanState.NO_TRADE: 0,
+    PlanState.CONTEXT_OK: 1,
+    PlanState.ZONE_ARMED: 2,
+    PlanState.SETUP_LIVE: 3,
+    PlanState.STRUCTURE_OK: 4,
+    PlanState.ENTRY_READY: 5,
+    PlanState.IN_TRADE: 6,
+    PlanState.CLOSED: 7,
+}
+
+
+def _state_rank(state: PlanState) -> int:
+    return _STATE_ORDER.get(state, 0)
+
+
+def _to_df(objs: list):
+    """Convierte lista de MarketObjects a df mínimo para build_confirm_from_tf.
+
+    build_confirm_from_tf espera columnas 'bos_dir'/'choch_dir'. Los objetos
+    los mapeamos: BOS/CHOCH ACTIVE => dir en la columna correspondiente.
+    """
+    if not objs:
+        return None
+    import pandas as pd
+
+    rows = []
+    for o in objs:
+        bos_dir = o.direction if o.type is ObjectType.BOS else 0
+        choch_dir = o.direction if o.type is ObjectType.CHOCH else 0
+        rows.append({"time": getattr(o, "bar_time", None), "bos_dir": bos_dir, "choch_dir": choch_dir})
+    return pd.DataFrame(rows)

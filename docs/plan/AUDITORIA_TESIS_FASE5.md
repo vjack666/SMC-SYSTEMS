@@ -149,7 +149,7 @@ cerrar la brecha B (POI anclado) y A1 (3 capas reales) EN EL MOTOR."*
 
 | # | Brecha | Tesis | Dónde cablear | Estado |
 |---|--------|-------|---------------|--------|
-| A1 | 3 capas reales | 18 §1/§37 | loop driver: cablear PlanFSM (Fases 1–4) a `run_sequence_backtest`; D1/H1 deciden | Pendiente nivel 2 |
+| A1 | 3 capas reales | 18 §1/§37 | loop driver: cablear PlanFSM (Fases 1–4) a `run_sequence_backtest`; D1/H1 deciden | ✅ **CERRADA NIVEL 2 — Opción B (2026-07-20)** |
 | B | POI anclado narrativa HTF en MOTOR | 21 §4 | postproceso en `canonical.py` vía `poi_anchor_motor.compute_htf_anchored` (Opción 2: `run_sequence` intacto) | ✅ CERRADA 2026-07-20 (anota `ICTSignal.htf_anchored`, no filtra; verificada en sintético + regresión datos reales; pendiente ejercitar con señal real — motor base 0 señales) |
 | C | dealing range premium/discount en MOTOR | 21 §0/§2, 08 | `ict_backtest/dealing_range_motor.compute_zone_class` (Opción 2: postproceso en `canonical.py`, `run_sequence` intacto) | ✅ CERRADA 2026-07-20 (anota `ICTSignal.zone_class`, no filtra; verificada en sintético + cableado canonical; pendiente ejercitar con señal real — motor base 0 señales) |
 | D | POI como bonus | 21 §4 | `score_plan` ya lo hace (M5/M1 bonus) | ✅ Diseñado + medidor reparado |
@@ -160,10 +160,62 @@ motor) y A1 (loop driver) primero — son los que la tesis marca como definitori
 range) y E (PO3) son refinamiento de calidad. D ya está. El medidor Fase 5 (reparado 2026-07-20)
 permite medir Score vs WR ANTES de decidir umbral.
 
+## §9 Cierre Brecha A1 Nivel 2 — Opción B (2026-07-20, TDD RED→GREEN→Demo→Verify)
+
+**Decisión de diseño:** Opción B, aprobada por Ruben. `run_sequence` permanece
+INTACTO. La FSM (`PlanFSM` + emisores Fases 1–4) actúa como **compuerta de
+EJECUCIÓN** dentro de `run_backtest`, NO como cambio en la generación de señales.
+
+**Implementación (blast radius mínimo):**
+- `ict_backtest/run_backtest.py`: `run_sequence_backtest` acepta el kwarg
+  `plan_gate: bool = False` (default → comportamiento histórico 100% intacto).
+  En el loop por señal, si `plan_gate=True`, evalúa `PlanFSM` vía `plan_step`
+  (estado por señal, usando objetos cerrados ≤ t a través de `_objs_before`)
+  y hace `continue` (veto) si `state < STRUCTURE_OK`. Reporta
+  `m["vetoes"] = [{"signal_index", "state"}]` y `m["signals_total"]`.
+- `ict_backtest/plan_driver.py`: agregados `run_plan_fsm()` y `plan_step()`
+  (reusan `_objs_before` + `emit_*`). `score_plan` no se tocó.
+- `ict_backtest/plan_emitters.py`: helper `_field` para aceptar señal DICT
+  O `ICTSignal` (dataclass) — compatibility gap detectado por la auditoría de
+  call site real (el loop produce `ICTSignal`, no dict). `emit_m15/m5/m1`
+  actualizados para usar `_field`. Fases 1–4 siguen verdes.
+- `ict_backtest/plan_fsm.py`: `_objs_before` movido acá (rompe el import
+  circular `plan_attach ↔ plan_driver`; `plan_attach` lo reimporta).
+- Tests nuevos `tests/test_plan_gate_a1.py` (4 tests, TDD): firma
+  `plan_gate`, conteo idéntico de señales, veto con estado, y **call site
+  real** en `run_backtest` (parchea `generate_sequence_signals`/
+  `_build_objs_by_tf`/`load_frames`/`detect_market_structure`/
+  `build_context_stack` y corre el loop real).
+- Demo `scripts/plan_gate_demo.py`: 6 señales sintéticas → 6 generadas
+  (run_sequence intacto), 3 operan, 3 vetos con estado `ZONE_ARMED` explícito.
+
+**Umbral inicial:** `STRUCTURE_OK` (criterio menos restrictivo, para medir el
+impacto de la FSM antes de endurecer a `ENTRY_READY`).
+
+**Criterios de aceptación — CUMPLIDOS:**
+- AC1: mismo número de señales generadas que el baseline (run_sequence no se
+  toca). ✅
+- AC2: solo cambia el número de trades ejecutados. ✅
+- AC3: cada trade descartado queda registrado con el estado que provocó el
+  veto (`NO_TRADE`/`CONTEXT_OK`/`ZONE_ARMED`/`SETUP_LIVE`/`STRUCTURE_OK`/…). ✅
+
+**Resultado de verificación:** 4/4 en `test_plan_gate_a1.py`; 25/25 en toda la
+suite `plan_*` (fsm/driver/attach/poi/po3/confirm/cableado_real/gate).
+
+**Alcance honesto:** esto cierra A1 Nivel 2 (loop driver cablea la FSM y la FSM
+GOBIERNA LA EJECUCIÓN). NO cambia la generación de señales ni el motor base de
+2 TF. El medidor Fase 5 (B/C/E) sigue en modo OBSERVE (anota, no filtra). Para
+subir el umbral a `ENTRY_READY` (Fase 2 de A1) basta con pasar
+`threshold=PlanState.ENTRY_READY` a `run_plan_fsm` / el kwarg futuro.
+
 ## §8 Nota de gobernanza
 
-- Este documento es AUDITORÍA DE LECTURA. No modifica `run_backtest.py`, `sequence.py`,
-  `market_structure.py` ni ningún módulo de producción.
-- El plan por capacidades (Fases 1–4) y `score_plan` (Fase 5) siguen verdes y aislados del
-  loop de decisión; el medidor Fase 5 SÍ está cableado (modo OBSERVE) y reparado.
+- ⚠️ **Actualización (2026-07-20):** a diferencia de la lectura original de este
+  documento, SÍ se modificó `ict_backtest/run_backtest.py` (producción) para
+  agregar la compuerta `plan_gate`. El cambio es **opcional y desactivado por
+  defecto** (`plan_gate=False`), por lo que el comportamiento histórico no
+  cambia si el gate no se activa. `run_sequence` quedó intacto (Opción B).
+- El plan por capacidades (Fases 1–4) y `score_plan` (Fase 5) siguen verdes.
+  El medidor Fase 5 SÍ está cableado (modo OBSERVE) y reparado; la FSM (Fases
+  1–4) ahora TAMBIÉN está cableada a la ejecución vía `plan_gate`.
 - No se commitea nada hasta OK expreso de Ruben, con roadmaps al día.

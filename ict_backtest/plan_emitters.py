@@ -11,7 +11,20 @@ no saben de la existencia de los otros TF.
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Sequence, Any
+
+
+def _field(sig: Any, name: str, default: Any = None) -> Any:
+    """Lee un campo de la señal sea dict O ICTSignal (dataclass).
+
+    Los emisores y el gate deben aceptar AMBOS: run_sequence produce
+    ICTSignal (objetos), los tests/demos producen dicts. getattr funciona
+    para dataclasses; para dicts usamos .get.
+    """
+    if isinstance(sig, dict):
+        return sig.get(name, default)
+    return getattr(sig, name, default)
+
 
 from ict_backtest.market_object import MarketObject, ObjectState, ObjectType, Role
 from ict_backtest.plan_fsm import PlanEvent, PlanVerdict
@@ -74,11 +87,12 @@ def emit_m15(signals: Sequence[dict]) -> PlanEvent | None:
       Esto es coherente con la secuencia canonica sweep->displace->BOS->entry.
 
     El emisor NO sabe de H4/H1: solo decide sobre la salida de su TF.
+    Acepta dict O ICTSignal (usa _field).
     """
     if not signals:
         return None
     # API legacy: phase_log explicito
-    fases = [f for s in signals for f in s.get("phase_log", [])]
+    fases = [f for s in signals for f in _field(s, "phase_log", []) or []]
     if fases:
         if _PHASE_STRUCTURE_OK in fases:
             return PlanEvent("M15", PlanVerdict.STRUCTURE_OK, bar_index=0)
@@ -86,8 +100,8 @@ def emit_m15(signals: Sequence[dict]) -> PlanEvent | None:
             return PlanEvent("M15", PlanVerdict.SETUP_LIVE, bar_index=0)
         return None
     # API real (ICTSignal): entry_at / bos_at dictan la fase alcanzada.
-    hay_entry = any(s.get("entry_at") is not None for s in signals)
-    hay_bos = any(s.get("bos_at") is not None for s in signals)
+    hay_entry = any(_field(s, "entry_at") is not None for s in signals)
+    hay_bos = any(_field(s, "bos_at") is not None for s in signals)
     if hay_entry:
         return PlanEvent("M15", PlanVerdict.STRUCTURE_OK, bar_index=0)
     if hay_bos:
@@ -109,7 +123,7 @@ def emit_m5(setup: dict, m5_confirm: dict) -> PlanEvent | None:
     """
     if not m5_confirm.get("confirmed"):
         return None
-    if m5_confirm.get("direction") != setup.get("direction"):
+    if m5_confirm.get("direction") != _field(setup, "direction"):
         return None
     return PlanEvent("M5", PlanVerdict.ENTRY_READY, bar_index=0)
 
@@ -129,6 +143,6 @@ def emit_m1(setup: dict, m1_trigger: dict) -> PlanEvent | None:
     """
     if not m1_trigger.get("confirmed"):
         return None
-    if m1_trigger.get("direction") != setup.get("direction"):
+    if m1_trigger.get("direction") != _field(setup, "direction"):
         return None
     return PlanEvent("M1", PlanVerdict.IN_TRADE, bar_index=0)

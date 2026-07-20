@@ -189,7 +189,8 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            enable_pd_index: bool = False,
                            backtest_id: str | None = None,
                            window_months: int | None = None,
-                           attach_plan: bool = False) -> dict:
+                           attach_plan: bool = False,
+                           plan_gate: bool = False) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden).
 
     Fase D (Paso2): acumula RawDiagnosticData por trade en `contexts` (en
@@ -273,6 +274,20 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
     print(f"      {len(signals)} senales", flush=True)
 
+    # A1 Opción B: compuerta de ejecución FSM (plan_gate). run_sequence intacto:
+    # usa TODAS las señales; solo decide cuáles SE OPERAN. El dict objs por TF
+    # se construye UNA vez (anti look-ahead real por bar_time en plan_step).
+    # plan_step evalúa el estado del plan POR señal (contexto cerrado <= t),
+    # no acumula entre señales (coherente con "contexto en t" de la tesis).
+    plan_gate_fsm = None
+    plan_gate_vetoes: list = []
+    if plan_gate:
+        from ict_backtest.plan_driver import plan_step, _state_rank
+        from ict_backtest.plan_fsm import PlanFSM, PlanState
+        plan_gate_fsm = PlanFSM()
+        plan_gate_objs = _build_objs_by_tf(frames, symbol)
+        plan_gate_threshold = PlanState.STRUCTURE_OK
+
     print(f"[3/3] Simulando trades vela a vela (max_hold={max_hold}) ...", flush=True)
     pnls: list[float] = []
     exits: dict[str, int] = {}
@@ -295,6 +310,13 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     # Update monitor ~20 times max (same cadence as console bar)
     step = max(1, total // 20) if total else 1
     for k, sig in enumerate(signals, 1):
+        # A1 Opción B: si el gate está activo, la FSM decide si esta señal
+        # opera. Las señales descartadas NO se simulan (se registra el veto).
+        if plan_gate_fsm is not None:
+            state = plan_step(plan_gate_fsm, sig, plan_gate_objs)
+            if _state_rank(state) < _state_rank(plan_gate_threshold):
+                plan_gate_vetoes.append({"signal_index": k - 1, "state": state.value})
+                continue
         # Fase D multi-TF: snapshot closed-only de TODA la cadena en signal.time.
         from ict_backtest.v2.context_mtf import build_context_stack
         stack = None
@@ -347,6 +369,15 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     m = _metrics(pnls)
     m["contexts"] = contexts  # Fase D Paso 2: datos emitidos (Paso 3 los congela)
     m["backtest_id"] = backtest_id
+    if plan_gate:
+        # A1 Opción B: reporte de vetos del gate (auditoría del plan FSM).
+        # Cada entrada: {"signal_index", "state"} con el estado que vetó.
+        m["plan_gate"] = True
+        m["vetoes"] = plan_gate_vetoes
+        m["trades_gated"] = m["trades"]
+        m["signals_total"] = total
+        print(f"  plan_gate    : {len(plan_gate_vetoes)} vetos / {total} señales "
+              f"(umbral STRUCTURE_OK)", flush=True)
     if attach_plan:
         # Fase 5: AlignmentReport adjunto por senal (modo OBSERVE). Solo se
         # incluye si el flag esta activo; el backtest estandar queda intacto.

@@ -28,32 +28,11 @@ from ict_backtest.plan_emitters import (
     emit_m5,
     emit_m1,
 )
+# _objs_before vive en plan_fsm (sin ciclo de import) y se reexporta aquí
+# para mantener la API pública usada por scripts/tests.
+from ict_backtest.plan_fsm import _objs_before  # noqa: F401
 
 _TF_ORDER = ("D1", "H4", "H1", "M15", "M5", "M1")
-
-
-def _objs_before(objs_by_tf: dict[str, list[MarketObject]], tf: str, t) -> list[MarketObject]:
-    """Objetos de un TF ya cerrados en t (anti look-ahead cross-TF real).
-
-    Filtra por ``bar_time`` (timestamp), porque HTF y LTF tienen bar_index
-    distintos. Fallback a bar_index si el objeto no trae bar_time.
-    """
-    out = []
-    for o in objs_by_tf.get(tf, []) or []:
-        ot = getattr(o, "bar_time", None)
-        oi = getattr(o, "bar_index", None)
-        if ot is not None and t is not None:
-            import pandas as pd
-            try:
-                if pd.to_datetime(ot) <= pd.to_datetime(t):
-                    out.append(o)
-                continue
-            except (TypeError, ValueError):
-                pass
-        if oi is not None and isinstance(t, int):
-            if oi <= t:
-                out.append(o)
-    return out
 
 
 def attach_alignment(

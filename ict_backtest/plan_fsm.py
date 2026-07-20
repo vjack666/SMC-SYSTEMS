@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from ict_backtest.market_object import MarketObject
+
 
 class PlanVerdict(Enum):
     """Decision de una capa de temporalidad."""
@@ -115,3 +117,27 @@ class PlanFSM:
     def reset(self) -> None:
         self.state = PlanState.NO_TRADE
         self._context_layers = set()
+
+
+def _objs_before(objs_by_tf: dict[str, list[MarketObject]], tf: str, t) -> list[MarketObject]:
+    """Objetos de un TF ya cerrados en t (anti look-ahead cross-TF real).
+
+    Filtra por ``bar_time`` (timestamp), porque HTF y LTF tienen bar_index
+    distintos. Fallback a bar_index si el objeto no trae bar_time.
+    """
+    out: list[MarketObject] = []
+    for o in objs_by_tf.get(tf, []) or []:
+        ot = getattr(o, "bar_time", None)
+        oi = getattr(o, "bar_index", None)
+        if ot is not None and t is not None:
+            import pandas as pd
+            try:
+                if pd.to_datetime(ot) <= pd.to_datetime(t):
+                    out.append(o)
+                continue
+            except (TypeError, ValueError):
+                pass
+        if oi is not None and isinstance(t, int):
+            if oi <= t:
+                out.append(o)
+    return out
