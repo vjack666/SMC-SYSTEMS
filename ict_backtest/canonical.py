@@ -225,9 +225,10 @@ def evaluate_signals(
         risk = abs(entry - sl)
         if risk <= 0 or risk > STRUCT_SL_MAX_RANGE * rng:
             continue
-        liq = _tp_liquidity(entry_row, direction)
-        if liq is not None:
-            tp = liq
+        liq = _tp_liquidity(entry_row, direction, ltf_df)
+        tp_ext = liq.get("external")
+        if liq.get("internal") is not None:
+            tp = liq["internal"]
         else:
             tp = entry + 3.0 * risk if direction == 1 else entry - 3.0 * risk
         if direction == 1 and tp <= entry + 2.0 * risk:
@@ -263,9 +264,10 @@ def evaluate_signals(
 
             # TP = liquidez opuesta del exec TF, o 3R sobre el nuevo risk.
             entry_row_exec = exec_df.iloc[entry_at_exec]
-            liq_exec = _tp_liquidity(entry_row_exec, direction)
-            if liq_exec is not None:
-                tp = liq_exec
+            liq_exec = _tp_liquidity(entry_row_exec, direction, exec_df)
+            tp_ext = liq_exec.get("external") or tp_ext
+            if liq_exec.get("internal") is not None:
+                tp = liq_exec["internal"]
             else:
                 tp = entry + 3.0 * risk if direction == 1 else entry - 3.0 * risk
             if direction == 1 and tp <= entry + 2.0 * risk:
@@ -331,6 +333,7 @@ def evaluate_signals(
             entry_at=s["entry_at"],
             zone_authority=s.get("zone_authority"),
             poi_present=s.get("poi_present"),
+            external_tp=tp_ext,
             htf_anchored=compute_htf_anchored(
                 sig_dir=direction, entry_at=s["entry_at"],
                 htf_pd_index=htf_pd_index, ltf_map=ltf_map,

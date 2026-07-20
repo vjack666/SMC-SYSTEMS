@@ -55,6 +55,10 @@ class ICTSignal:
     # entrada. Metadato de percepcion (NO filtra: principio Brecha D). None si
     # no hay datos de estructura (modo historico).
     po3_complete: bool | None = None
+    # B3 (2026-07-20): objetivo de liquidez EXTERNAL (PDH/PDL del dia previo)
+    # anotado como metadato para Trade Management (E1). El TP primario sigue
+    # siendo internal (bsl/ssl). None si no hay dia previo o modo historico.
+    external_tp: float | None = None
 
 
 @dataclass
@@ -285,23 +289,60 @@ from ict_backtest._util import row_at_time as _row_at_time  # noqa: E402
 from ict_backtest.diagnostics.context_builder import RawDiagnosticData  # noqa: E402
 
 
-def _tp_liquidity(row: pd.Series, direction: int) -> float | None:
-    """TP = pool de liquidez opuesto mas cercano (BSL si long / SSL si short).
+def _tp_liquidity(row: pd.Series, direction: int, df: pd.DataFrame | None = None) -> dict:
+    """Jerarquia de liquidez para el TP (MDS_B3_LIQUIDEZ_INT_EXT, tesis §14).
 
-    Usa bsl_price/ssl_price del detect_liquidity en el TF de ejecucion.
+    Devuelve dict con dos niveles de objetivo:
+      - ``internal``: liquidez del swing reciente de la sesion/estructura
+        (BSL si long / SSL si short). Es el TP PRIMARIO.
+      - ``external``: liquidez macro del dia/semana previo
+        (PDH si long / PDL si short). Objetivo macro para gestion (E1).
+
+    El TP de la senal = internal (igual que antes: bsl_price/ssl_price).
+    external se anota como metadato para Trade Management (E1).
+
+    Regresion cero: sin ``df`` o sin dia previo, external=None y el
+    comportamiento es identico al historico (usa solo internal/bsl-ssl).
     """
+    out: dict = {"internal": None, "external": None}
+
+    # --- internal: BSL/SSL del row (detect_liquidity en TF de ejecucion) ---
     try:
         if direction == 1:
             bsl = float(row.get("bsl_price"))
             if pd.notna(bsl) and bsl > float(row["close"]):
-                return bsl
+                out["internal"] = bsl
         else:
             ssl = float(row.get("ssl_price"))
             if pd.notna(ssl) and ssl < float(row["close"]):
-                return ssl
+                out["internal"] = ssl
     except (TypeError, ValueError, KeyError):
         pass
-    return None
+
+    # --- external: PDH/PDL del dia previo en df (EQ = promedio de ambos) ---
+    if df is not None and len(df):
+        try:
+            tcol = "time" if "time" in df.columns else None
+            row_ts = pd.to_datetime(row.get("time"), utc=True, errors="coerce")
+            if pd.notna(row_ts):
+                if tcol is not None:
+                    df_ts = pd.to_datetime(df[tcol], utc=True, errors="coerce")
+                else:
+                    df_ts = pd.to_datetime(df.index, utc=True, errors="coerce")
+                row_day = row_ts.tz_convert("UTC").normalize() if row_ts.tz else row_ts.normalize()
+                prev_mask = df_ts.dt.normalize() < row_day
+                if prev_mask.any():
+                    prev = df[prev_mask]
+                    if direction == 1:
+                        # PDH (y EQ high): maximo high del dia previo
+                        out["external"] = float(prev["high"].max())
+                    else:
+                        # PDL (y EQ low): minimo low del dia previo
+                        out["external"] = float(prev["low"].min())
+        except (TypeError, ValueError, KeyError):
+            pass
+
+    return out
 
 
 def _coerce_ts(value: Any) -> pd.Timestamp | None:

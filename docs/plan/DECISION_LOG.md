@@ -466,6 +466,40 @@ Formato por entrada:
  - Cómo verificarla: tras el diseño, los tests de call site real deben mostrar que la
  dirección de la señal sale del PlanFSM, no de `extract_htf_layer` en run_sequence.
  - Regla de commit: este DEC-009i se commitea junto con el cierre de A1/B2/Brecha A
- (roadmap + cronograma al día en el mismo commit, según regla de Ruben).
+   (roadmap + cronograma al día en el mismo commit, según regla de Ruben).
+ - ACLARACIÓN POSTERIOR (Ruben, 2026-07-20, tras discutir opciones): la
+   "opción C" se EJECUTA como el CAMINO DE LA TESIS, no como PlanFSM dictador
+   duro. O sea: PlanFSM queda como PORTERO de madurez (A1 Nivel 2), y la
+   DIRECCIÓN la sigue dictando run_sequence PERO con el FILTRO HTF ENRIQUECIDO
+   (D1 sesgo + H4 POI anclado + H1 liquidez + premium/discount + PO3/AMD como
+   gates de timing). Esto es literal libro 18 §0 #2 y SPEC §1/§9 ("HTF = filtro
+   top-down, motor único R7 decide") y evita el pozo de A'' (gate duro HTF = PF
+   0.900). El PlanFSM NO se vuelve un 2do cerebro de dirección ciego; se enriquece
+   el filtro que run_sequence ya usa. Ver cierre de B3 (DEC-009j) como primer
+   paso de ese enriquecimiento (jerarquía de liquidez internal/external ya
+   anotada en la señal como metadato, listo para E1).
+
+ ## DEC-009j — B3 CERRADO: jerarquía de liquidez internal vs external (2026-07-20)
+
+ - Problema: `_tp_liquidity` (engine.py) usaba clusters lejanos (libro 20 §8)
+   y no distinguía liquidez INTERNAL (swing reciente de sesión) de EXTERNAL
+   (PDH/PDL/EQ high-low). La tesis (§14) exige TP primario = internal, objetivo
+   macro = external.
+ - Decisión tomada: `_tp_liquidity(row, direction, df=None)` ahora devuelve
+   `dict{internal, external}`. `internal` = bsl_price/ssl_price del row (idéntico
+   a histórico). `external` = PDH (long) / PDL (short) del día previo en `df`
+   (calculado; antes no existía). Call-site en `canonical.evaluate_signals` usa
+   `internal` como TP primario (regresión cero: antes también usaba bsl/ssl) y
+   anota `external_tp` en `ICTSignal` como metadato para E1 (Trade Management).
+ - Justificación: cierra MDS_B3_LIQUIDEZ_INT_EXT (OBLIGATORIO, SPEC §14) sin
+   alterar entry/SL/TP ni el conteo de señales (principio Brecha D: metadato de
+   percepción, no filtro). Es el primer ladrillo del enriquecimiento del filtro
+   HTF que pide la "opción C como camino de tesis" (DEC-009i aclaración).
+ - Impacto esperado: el TP sigue siendo internal (BSL/SSL, igual que antes); el
+   external queda disponible para E1 (ej. BE+corrida a PDH/PDL macro). Sin
+   `df` o sin día previo → external=None → comportamiento histórico intacto.
+ - Cómo verificarla: tests `tests/test_b3_tp_hierarchy.py` (5: unidad RED→GREEN
+   + aceptación call-site real con 2 días: TP=1.1300 internal / external_tp=1.1100
+   PDH). Batería completa 36 passed (B3+B2+A1+POI+fase1+r7). Sin datos reales.
 
  ================================================================================
