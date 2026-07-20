@@ -64,24 +64,33 @@ _PHASE_SETUP_LIVE = "BOS_DONE"
 
 
 def emit_m15(signals: Sequence[dict]) -> PlanEvent | None:
-    """Setup ICT (M15). Envuelve la salida de run_sequence.
+    """Setup ICT (M15). Envuelve la salida de run_sequence / ICTSignal.
 
-    Recibe la LISTA de senales que devuelve run_sequence (cada una con
-    `phase_log`). NO corre run_sequence (el loop driver lo hace). Emite:
-    - STRUCTURE_OK si alguna senal llego a ENTRY (cuadro completo).
-    - SETUP_LIVE si alguna llego a BOS_DONE (setup presente, sin entry).
-    - None si no hay senales o ninguna paso de SWEEP (la FSM no transiciona).
+    Contrato dual (sin romper tests legacy ni el loop real):
+    - Si la senal trae ``phase_log`` (API de prueba aislada), usa esa fase.
+    - Si es ``ICTSignal`` real (campos ``entry_at``/``bos_at``, SIN
+      ``phase_log``), infiere el veredicto: ENTRY alcanzado (entry_at
+      presente) => STRUCTURE_OK; solo BOS (bos_at, sin entry) => SETUP_LIVE.
+      Esto es coherente con la secuencia canonica sweep->displace->BOS->entry.
 
     El emisor NO sabe de H4/H1: solo decide sobre la salida de su TF.
     """
     if not signals:
         return None
+    # API legacy: phase_log explicito
     fases = [f for s in signals for f in s.get("phase_log", [])]
-    if not fases:
+    if fases:
+        if _PHASE_STRUCTURE_OK in fases:
+            return PlanEvent("M15", PlanVerdict.STRUCTURE_OK, bar_index=0)
+        if _PHASE_SETUP_LIVE in fases:
+            return PlanEvent("M15", PlanVerdict.SETUP_LIVE, bar_index=0)
         return None
-    if _PHASE_STRUCTURE_OK in fases:
+    # API real (ICTSignal): entry_at / bos_at dictan la fase alcanzada.
+    hay_entry = any(s.get("entry_at") is not None for s in signals)
+    hay_bos = any(s.get("bos_at") is not None for s in signals)
+    if hay_entry:
         return PlanEvent("M15", PlanVerdict.STRUCTURE_OK, bar_index=0)
-    if _PHASE_SETUP_LIVE in fases:
+    if hay_bos:
         return PlanEvent("M15", PlanVerdict.SETUP_LIVE, bar_index=0)
     return None
 

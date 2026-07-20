@@ -32,12 +32,27 @@ from ict_backtest.plan_emitters import (
 _TF_ORDER = ("D1", "H4", "H1", "M15", "M5", "M1")
 
 
-def _objs_before(objs_by_tf: dict[str, list[MarketObject]], tf: str, t):
-    """Objetos de un TF ya cerrados (bar_index <= t de la senal). Anti look-ahead."""
+def _objs_before(objs_by_tf: dict[str, list[MarketObject]], tf: str, t) -> list[MarketObject]:
+    """Objetos de un TF ya cerrados en t (anti look-ahead cross-TF real).
+
+    Filtra por ``bar_time`` (timestamp), porque HTF y LTF tienen bar_index
+    distintos. Fallback a bar_index si el objeto no trae bar_time.
+    """
     out = []
     for o in objs_by_tf.get(tf, []) or []:
-        if o.bar_index is not None and isinstance(t, int) and o.bar_index <= t:
-            out.append(o)
+        ot = getattr(o, "bar_time", None)
+        oi = getattr(o, "bar_index", None)
+        if ot is not None and t is not None:
+            import pandas as pd
+            try:
+                if pd.to_datetime(ot) <= pd.to_datetime(t):
+                    out.append(o)
+                continue
+            except (TypeError, ValueError):
+                pass
+        if oi is not None and isinstance(t, int):
+            if oi <= t:
+                out.append(o)
     return out
 
 
@@ -55,7 +70,13 @@ def attach_alignment(
     - score_plan suma (bonus M5/M1/ancla/zona), NO filtra.
     """
     direction = signal.get("direction", 0)
-    t = signal.get("bar_index", signal.get("time"))
+    # t para anti-look-ahead DEBE ser el timestamp (bar_time de los objetos
+    # es timestamp). Priorizamos 'time'; 'bar_index' solo como fallback si no
+    # hay time (caso test aislado). Usar bar_index como t rompe la comparacion
+    # cross-TF en _objs_before (pd.to_datetime(int) != timestamp).
+    t = signal.get("time")
+    if t is None:
+        t = signal.get("bar_index")
     # padre = objetos HTF (D1/H4/H1) ya cerrados en t (derivado de objs_by_tf)
     parent_objs = {tf: _objs_before(objs_by_tf, tf, t) for tf in ("D1", "H4", "H1")}
 

@@ -131,33 +131,52 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
     )
 
 
-def _stack_to_objs_by_tf(stack) -> dict:
-    """Extrae objetos MarketObject por TF del market_stack (Fase D).
+def _build_objs_by_tf(frames: dict, symbol: str, tf_chain=("D1", "H4", "H1", "M15", "M5", "M1")) -> dict:
+    """Fuente canonica de MarketObjects por TF para el medidor de alineacion.
 
-    Defensivo: si el stack no expone objetos utilizables devuelve {} (missing,
-    Regla #4 — sin inventar). No acopla plan_attach a la forma interna del stack.
+    usa data_feed.build_objects (Fase A/B/C): produce MarketObjects con
+    origin_tf + bar_index + bar_time sellados (translation.df_to_objects).
+    Solo construye sobre TF_CHAIN (no todos los TF en disco) para no pagar
+    el costo de M1/M5 masivos cuando el medidor solo necesita la cadena.
+    Agrupa por origin_tf UNA vez por backtest (O(n)), fuera del loop de
+    senales. Anti-look-ahead se aplica DESPUES en plan_attach por bar_time.
+    Si falla, devuelve {} (missing, Regla #4 — sin inventar) y el medidor
+    califica solo con el emit_* de la senal.
     """
-    objs_by_tf: dict = {}
-    if not stack:
-        return objs_by_tf
-    # El stack es un dict por TF (build_context_stack) o un objeto con frames.
-    frames = stack.get("frames", stack) if isinstance(stack, dict) else getattr(stack, "frames", None)
-    if isinstance(frames, dict):
-        for tf, fr in frames.items():
-            objs = getattr(fr, "objects", None) or getattr(fr, "pd_arrays", None)
-            if objs:
-                objs_by_tf[tf] = list(objs)
-    return objs_by_tf
+    try:
+        from ict_backtest.data_feed import build_objects
+        sub = {tf: df for tf, df in frames.items() if tf in tf_chain}
+        all_objs = build_objects(sub, symbol=symbol)
+    except Exception:
+        return {}
+    by_tf: dict = {}
+    for o in all_objs or []:
+        tf = getattr(o, "origin_tf", None)
+        if tf:
+            by_tf.setdefault(tf, []).append(o)
+    return by_tf
 
 
-def _stack_swing(stack):
-    """Extrae (high, low) del swing HTF del market_stack, o None."""
-    if not stack or not isinstance(stack, dict):
+def _htf_swing_closed(ms: dict, t, htf_tf: str = "H4") -> tuple[float, float] | None:
+    """Swing HTF ya CERRADO en t para dealing range (premium/discount).
+
+    Usa el max high / min low de las velas HTF cerradas (time <= t).
+    Anti look-ahead: solo barras cerradas. Devuelve (high, low) o None.
+    """
+    df = ms.get(htf_tf)
+    if df is None or len(df) == 0:
         return None
-    swing = stack.get("swing") or stack.get("htf_swing")
-    if isinstance(swing, (tuple, list)) and len(swing) == 2:
-        return (float(swing[0]), float(swing[1]))
-    return None
+    import pandas as pd
+    try:
+        times = pd.to_datetime(df["time"], utc=True, errors="coerce")
+        tt = pd.to_datetime(t, utc=True, errors="coerce")
+        mask = times <= tt
+        win = df.loc[mask]
+    except Exception:
+        return None
+    if len(win) < 3:
+        return None
+    return (float(win["high"].max()), float(win["low"].min()))
 
 
 def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
@@ -266,12 +285,17 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         total=max(total, 1),
         unit="signals",
     )
+    # Fase 5 (Brecha A1, modo OBSERVE): medidor de alineacion multi-TF.
+    # Fuente canonica de MarketObjects por TF: build_objects (Fase A/B/C),
+    # agrupados por origin_tf UNA vez por backtest (no en el loop). El
+    # anti-look-ahead real (bar_time <= t) se aplica en plan_attach.
+    # Si no hay objetos, objs_by_tf={} y score_plan califica solo con el
+    # emit_* de la senal (sin inventar, Regla #4).
+    objs_by_tf = _build_objs_by_tf(frames, symbol) if attach_plan else {}
     # Update monitor ~20 times max (same cadence as console bar)
     step = max(1, total // 20) if total else 1
     for k, sig in enumerate(signals, 1):
         # Fase D multi-TF: snapshot closed-only de TODA la cadena en signal.time.
-        # Usa context_mtf.build_context_stack (reusa lógica anti look-ahead ya
-        # existente). Si la cadena no se cargó, el stack marca MISSING por TF.
         from ict_backtest.v2.context_mtf import build_context_stack
         stack = None
         try:
@@ -289,13 +313,13 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         except (TypeError, ValueError, KeyError, IndexError):
             stack = None
         # Fase 5 (Brecha A1, modo OBSERVE): adjunta AlignmentReport multi-TF a la
-        # senal. NO filtra ni cambia el PnL. Reusa el stack ya construido (Fase D).
-        # Si el stack no trae objetos utilizables, objs_by_tf={} y score_plan
-        # califica solo con el emit_* del sig (sin inventar, Regla #4).
-        if attach_plan and stack is not None:
-            objs_by_tf = _stack_to_objs_by_tf(stack)
-            swing = _stack_swing(stack)
+        # senal. NO filtra ni cambia el PnL. Usa objs_by_tf REALES (MarketObjects
+        # sellados por TF) + swing HTF cerrado en t (dealing range real).
+        if attach_plan:
             try:
+                st = getattr(sig, "entry_at", None)
+                t = ltf_df.iloc[int(st)]["time"] if st is not None else sig.time
+                swing = _htf_swing_closed(ms, t, htf_tf=htf if htf in ms else "H4")
                 attached = attach_alignment(sig, objs_by_tf, swing=swing)
                 alignments.append(attached["alignment"])
             except Exception:
@@ -393,6 +417,9 @@ def main() -> None:
     ap.add_argument("--attach-plan", action="store_true",
                     help="Fase 5: adjunta AlignmentReport multi-TF por senal (modo OBSERVE, "
                          "no filtra ni cambia el PnL). Mide calidad de alineacion.")
+    ap.add_argument("--window-months", type=int, default=None,
+                    help="Fase D validacion: recorta la ventana LTF a los ultimos N meses "
+                         "ANTES de cargar (ahorra I/O + features).")
     args = ap.parse_args()
 
     cost = resolve_cost(args.symbol, override=args.cost, no_cost=args.no_cost)
@@ -421,6 +448,7 @@ def main() -> None:
         enable_pd_index=True,  # Fase C: autoridad de zonas HTF como METADATA (sin gate, R1 se preserva)
         backtest_id=f"BT-CLI-{uuid.uuid4().hex[:8]}",  # Fase D Paso 2: id estable de corrida
         attach_plan=args.attach_plan,  # Fase 5: calificador de alineacion (modo OBSERVE)
+        window_months=args.window_months,  # Fase D validacion: recorte de ventana pre-carga
     )
 
 

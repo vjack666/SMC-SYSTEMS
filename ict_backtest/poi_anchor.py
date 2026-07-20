@@ -25,6 +25,28 @@ def _is_structural(obj: MarketObject) -> bool:
     return obj.type in (ObjectType.BOS, ObjectType.CHOCH)
 
 
+def _closed_before(candidate_time, candidate_idx, ltf_time, ltf_idx) -> bool:
+    """True si el objeto padre ya cerró ANTES que el LTF (anti look-ahead).
+
+    Dominio real: compara por ``bar_time`` (timestamp), porque HTF y LTF
+    tienen índices de barra DISTINTOS (un H4 no comparte bar_index con un
+    M15). Fallback a bar_index solo si ambos bar_time son None.
+    """
+    ct = candidate_time
+    lt = ltf_time
+    if ct is not None and lt is not None:
+        # normaliza a timestamps comparables
+        import pandas as pd
+        try:
+            return pd.to_datetime(ct) <= pd.to_datetime(lt)
+        except (TypeError, ValueError):
+            pass
+    # fallback (sin timestamps): solo si ambos índices presentes
+    if candidate_idx is not None and ltf_idx is not None:
+        return candidate_idx <= ltf_idx
+    return False
+
+
 def anchor_objects(
     ltf_objects: list[MarketObject],
     htf_objects_by_tf: dict[str, list[MarketObject]],
@@ -33,18 +55,17 @@ def anchor_objects(
     """Marca cada objeto LTF con meta['anchored'] segun respaldo HTF padre.
 
     Para cada objeto LTF (FVG/OB REFINEMENT), busca en los TF padre (D1/H4/H1)
-    un BOS/CHOCH en la MISMA direccion con bar_index <= ltf.bar_index (cerrado).
-    Solo mira los ultimos `window_n` objetos HTF previos (ventana, libro 21 §6).
+    un BOS/CHOCH en la MISMA direccion ya CERRADO (bar_time <= ltf.bar_time,
+    anti look-ahead cross-TF). Solo mira los ultimos ``window_n`` objetos HTF
+    previos (ventana, libro 21 §6).
     Devuelve la misma lista (objetos mutados in-place en meta/parent).
     """
-    # indice plano de objetos HTF padre por direccion, ordenados por bar_index
+    # indice plano de objetos HTF padre por direccion
     parents_by_dir: dict[int, list[MarketObject]] = {1: [], -1: []}
     for tf in _HTF_PARENTS:
         for o in htf_objects_by_tf.get(tf, []) or []:
             if _is_structural(o) and o.direction in parents_by_dir:
                 parents_by_dir[o.direction].append(o)
-    for d in parents_by_dir:
-        parents_by_dir[d].sort(key=lambda x: x.bar_index if x.bar_index is not None else 0)
 
     for obj in ltf_objects:
         obj.meta["anchored"] = False
@@ -52,9 +73,11 @@ def anchor_objects(
         if obj.direction not in parents_by_dir:
             continue
         candidates = parents_by_dir[obj.direction]
-        # solo HTF ya cerrados (bar_index <= LTF) y los ultimos window_n
-        prior = [p for p in candidates if p.bar_index is not None
-                 and obj.bar_index is not None and p.bar_index <= obj.bar_index]
+        # solo HTF ya cerrados (bar_time <= LTF) y los ultimos window_n
+        prior = [
+            p for p in candidates
+            if _closed_before(p.bar_time, p.bar_index, obj.bar_time, obj.bar_index)
+        ]
         prior = prior[-window_n:] if window_n else prior
         if prior:
             anchor = prior[-1]

@@ -36,6 +36,11 @@ class ICTSignal:
     # Fase C (C2/C3): ZoneAuthority anotada (peso de confianza de zona).
     # Metadato de percepcion; NO altera entry/SL/TP ni el conteo de senales.
     zone_authority: Any = None
+    # Brecha B (Opción 2, 2026-07-20): ancla POI HTF padre en la direccion de
+    # la senal. Metadato de percepcion (NO filtra: principio Brecha D). None si
+    # enable_pd_index=False (modo historico). Se calcula en post-proceso, sin
+    # tocar run_sequence (radio de explosion minimo).
+    htf_anchored: bool | None = None
 
 
 @dataclass

@@ -111,3 +111,40 @@ def test_sin_attach_plan_no_puebla_alignments():
 
     assert m["trades"] == 1
     assert "alignments" not in m
+
+
+def test_window_months_se_pasa_a_run_sequence_backtest():
+    """El flag --window-months del CLI debe llegar a run_sequence_backtest."""
+    from ict_backtest.run_backtest import run_sequence_backtest
+
+    sig = _fake_sig()
+    fake_trade = mock.MagicMock()
+    fake_trade.pnl_r = 1.0
+    fake_meta = {"exit_reason": "tp"}
+    df = pd.DataFrame({"time": pd.date_range("2024-01-01", periods=20, freq="15min")})
+
+    captured = {}
+
+    def _fake_seq(symbol, htf, ltf, counter_trend=False, tp_mode="fixed2r",
+                  require_displacement=True, displace_gap=6, bos_gap=10,
+                  bos_table=None, frames=None, fill_mode="next_open",
+                  enable_pd_index=False):
+        captured["called"] = True
+        return [sig]
+
+    with mock.patch("ict_backtest.run_backtest.load_frames",
+                    return_value={"M15": df}), \
+         mock.patch("ict_backtest.run_backtest.detect_market_structure",
+                    return_value=df), \
+         mock.patch("ict_backtest.run_backtest.generate_sequence_signals",
+                    side_effect=_fake_seq), \
+         mock.patch("ict_backtest.run_backtest.simulate_trade_with_context",
+                    return_value=(fake_trade, fake_meta, None)), \
+         mock.patch.object(_fake_ctx_mod, "build_context_stack",
+                           return_value=_fake_stack()):
+        run_sequence_backtest(
+            "EURUSD", "H4", "M15", max_hold=50,
+            attach_plan=False, backtest_id="TEST-WIN", window_months=1,
+        )
+
+    assert captured.get("called") is True

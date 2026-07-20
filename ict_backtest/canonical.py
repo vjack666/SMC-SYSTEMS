@@ -29,6 +29,7 @@ from ict_backtest.engine import (
 )
 from ict_backtest.htf_pd_index import HtfPdIndex
 from ict_backtest.market_structure import detect_market_structure
+from ict_backtest.poi_anchor_motor import compute_htf_anchored
 from ict_backtest.rules import killzone_en
 from ict_backtest.sequence import SequenceConfig, run_sequence
 from ict_backtest.zone_authority import evaluate_zone_authority
@@ -179,6 +180,10 @@ def evaluate_signals(
             bos_at=s["bos_at"],
             entry_at=s["entry_at"],
             zone_authority=s.get("zone_authority"),
+            htf_anchored=compute_htf_anchored(
+                sig_dir=direction, entry_at=s["entry_at"],
+                htf_pd_index=htf_pd_index, ltf_map=ltf_map,
+            ),
             )
         )
     return signals
