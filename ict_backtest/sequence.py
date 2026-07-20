@@ -49,6 +49,7 @@ from ict_backtest.market_object import MarketObject, ObjectState, ObjectType, Ro
 from ict_backtest.multitf_context import MultiTFContext, extract_htf_layer
 from ict_backtest.plan_fsm import PlanEvent, PlanVerdict
 from ict_backtest.zone_authority import evaluate_zone_authority
+from ict_backtest.poi_filter import poi_present
 
 
 PHASE = ("IDLE", "SWEEP_DONE", "DISPLACE_DONE", "BOS_DONE")
@@ -91,6 +92,9 @@ class SequenceState:
     zone_pd_type: str = "NONE"   # Fase B1 (SPEC §4): metadato de la zona congelada
     zone_pd_tier: str = "NONE"   # (no altera la decisión de entry; info para POI/stacking)
     zone_authority: Any = None     # Fase C (C2/C3): ZoneAuthority anotada (peso de confianza)
+    htf_aligned: bool = True       # A1 (Brecha A1): ¿la cascada D1->H4->H1 permite la dir?
+    htf_reason: str = "ok"         # A1: motivo del filtro top-down (observabilidad)
+    poi_present: Any = None        # Brecha A (Fase C): ¿hay POI HTF anclado en dir? (bonus, no gate)
     history: list = field(default_factory=list)
 
     def reset(self):
@@ -105,6 +109,9 @@ class SequenceState:
         self.zone_pd_type = "NONE"
         self.zone_pd_tier = "NONE"
         self.zone_authority = None
+        self.htf_aligned = True
+        self.htf_reason = "ok"
+        self.poi_present = None
 
     def note(self, tag: str, i: int, extra: str = ""):
         self.history.append((tag, i, extra))
@@ -389,6 +396,26 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
             state.reset()
             continue
 
+        # BRECHA A1 (Opción B, filtro suave): la dirección objetivo debe
+        # alinearse con la cascada top-down D1->H4->H1 del MultiTFContext
+        # completo. Solo se aplica cuando el llamador pasó est_htf_ctx_fn
+        # (modo multitemporal). Si es None (legacy sin contexto) el
+        # comportamiento histórico queda INTACTO. El POI anclado NO es veto
+        # (require_pd=False): según auditoría destruye edge; se usa como
+        # bonus/anotación, no como gate duro.
+        if est_htf_ctx_fn is not None and _ctx is not None:
+            from ict_backtest.v2.context_mtf import top_down_allows_trade
+            _ok, _reason = top_down_allows_trade(
+                _ctx, target, counter_trend=cfg.counter_trend, require_pd=False,
+            )
+            if not _ok:
+                # Veta la dirección que choca con la cascada y reinicia la
+                # secuencia (no cambia la lógica interna del SETUP).
+                state.htf_aligned = False
+                state.htf_reason = _reason
+                state.reset()
+                continue
+
         # Si la secuencia en curso es de distinta direccion, reinicia
         if state.phase != "IDLE" and state.direction != target:
             state.reset()
@@ -400,6 +427,17 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
             # Fidelidad ICT (tesis 18): la zona LTF (FVG/OB) solo se traza como
             # cuadro de entrada si el HTF tiene un POI en esa direccion. Sin
             # guarda (htf_poi_fn=None) el comportamiento es el historico.
+            # BRECHA A (Fase C): poi_present anota si hay POI HTF anclado
+            # en la direccion del setup (bonus de autoridad de zona, NO gate
+            # duro: segun auditoria Fase E el veto destruye edge). Se calcula
+            # SIEMPRE (con indice presente) via poi_filter.poi_present, y se
+            # congela en state para propagarse a la senal en BOS_DONE.
+            if htf_poi_fn is not None and htf_pd_index is not None and ltf_map is not None:
+                state.poi_present = poi_present(htf_pd_index, ltf_map, i, target)
+            else:
+                state.poi_present = None
+            # Hook historico: poi_ok decide si se memoriza la zona LTF. Con
+            # htf_poi_fn=None es no-op (comportamiento historico intacto).
             poi_ok = (htf_poi_fn is None) or bool(htf_poi_fn(i, target))
             if poi_ok:
                 _fvg = _latest_fvg_zone(obj, target)
@@ -493,6 +531,7 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 # SENAL: la secuencia completa ocurrio en orden y el precio
                 # volvio al cuadro (igual que el trader que espera el toque).
                 zone_auth = getattr(state, "zone_authority", None)
+                _poi_present = getattr(state, "poi_present", None)
                 signals.append({
                     "time": str(obj.meta.get("time")),
                     "direction": target,
@@ -503,6 +542,9 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     "bos_at": state.bos_idx,
                     "entry_at": i,
                     "zone_authority": zone_auth,
+                    "poi_present": _poi_present,
+                    "htf_aligned": state.htf_aligned,
+                    "htf_reason": state.htf_reason,
                 })
                 state.note("ENTRY", i)
                 phase_seen["ENTRY"] += 1

@@ -35,6 +35,7 @@ from ict_backtest.htf_pd_index import HtfPdIndex
 from ict_backtest.market_structure import detect_market_structure
 from ict_backtest.multitf_context import MultiTFContext, build_multitf_context, extract_htf_layer
 from ict_backtest.poi_anchor_motor import compute_htf_anchored
+from ict_backtest.poi_filter import make_htf_poi_fn
 from ict_backtest.dealing_range_motor import compute_zone_class
 from ict_backtest.po3_motor import compute_po3_complete, Po3MotorConfig
 from ict_backtest.rules import killzone_en
@@ -64,6 +65,24 @@ def load_bos_table() -> dict | None:
         return None
 
 
+def _exec_idx_at_time(exec_df: pd.DataFrame, t: Any) -> int:
+    """Indice en ``exec_df`` de la vela cuyo ``time`` <= ``t`` (cerrado).
+
+    Mapeo anti look-ahead del instante de toque del LTF al TF de ejecucion:
+    el toque de zona ocurre en el LTF en un timestamp dado; buscamos en el
+    exec_df la ULTIMA vela ya cerrada cuyo time sea <= ese timestamp. La vela
+    del exec TF que contiene el toque ya cerro (no miramos el futuro del exec
+    TF), y NO restamos ``duration`` (a diferencia de closed_row_at_time) para
+    no desplazar el ancla una vela mas alla del toque real.
+    """
+    tt = pd.to_datetime(t, utc=True, errors="coerce")
+    times = pd.to_datetime(exec_df["time"], utc=True, errors="coerce")
+    prior = exec_df.index[times <= tt]
+    if len(prior):
+        return int(prior[-1])  # type: ignore[arg-type]
+    return 0
+
+
 def evaluate_signals(
     symbol: str,
     htf: str,
@@ -78,6 +97,7 @@ def evaluate_signals(
     frames: dict | None = None,
     fill_mode: str = "next_open",
     enable_pd_index: bool = False,
+    exec_tf: str | None = None,
 ) -> list[ICTSignal]:
     """Canonical ICT signal generator (R7).
 
@@ -87,6 +107,11 @@ def evaluate_signals(
     construye HtfPdIndex y anota ``zone_authority`` en cada señal. Si esta
     False (modo historico), NO se paga el costo de detectar FVG/OB del HTF y
     el comportamiento es identico al de antes de Fase C (C desactivado).
+
+    Fase B2 (libro 18 ICT): ``exec_tf`` ancla entry/SL/TP al TF de EJECUCION
+    mas fino (M5/M1), NO al LTF (M15). Por defecto (None) o si == ltf, el
+    comportamiento es IDENTICO al historico (regresion cero). El SETUP sigue
+    detectandose en el LTF via run_sequence; solo se reanclan entry/SL/TP.
     """
     if bos_table is None:
         bos_table = load_bos_table()
@@ -153,6 +178,13 @@ def evaluate_signals(
         bos_table=bos_table,
         htf_pd_index=htf_pd_index,
         ltf_map=ltf_map,
+        # BRECHA A (Fase C): htf_poi_fn REAL consume el POI anclado HTF
+        # (HtfPdIndex ya construido arriba). as_gate=False (default Fase E):
+        # NO veta entradas (el veto destruye edge); el POI se anota como
+        # bonus en poi_present para enriquecer zone_authority/scoring.
+        # Sin índice HTF (enable_pd_index=False) queda None -> no-op,
+        # comportamiento histórico 100% intacto (regresión cero).
+        htf_poi_fn=make_htf_poi_fn(htf_pd_index, ltf_map) if htf_pd_index is not None else None,
         htf=htf,
         est_htf_ctx_fn=est_htf_ctx_fn,
     )
@@ -162,6 +194,15 @@ def evaluate_signals(
     # Migrado de la columna `atr` (inexistente en el ms, lo que mataba el
     # filtro). Mismo contrato: serie alineada al índice de ltf_df.
     rng_series = avg_candle_range(ltf_df, window=50)
+
+    # --- Fase B2 (libro 18 ICT): TF de EJECUCION para anclar entry/SL/TP. ---
+    # None o == ltf  => comportamiento historico (regresion cero). Si es otro
+    # TF (M5/M1) ya cargado en `ms`, entry/SL/TP/liq/killzone se recalculan
+    # sobre esa vela mas fina (el SL SIEMPRE en el exec TF, nunca en mayor).
+    use_exec = exec_tf is not None and exec_tf != ltf and exec_tf in ms
+    exec_df = ms[exec_tf] if use_exec else ltf_df
+    rng_exec_series = avg_candle_range(exec_df, window=50) if use_exec else rng_series
+
     for s in raw_sigs:
         direction = s["direction"]
         entry_at = s["entry_at"]
@@ -193,6 +234,53 @@ def evaluate_signals(
             tp = entry + 3.0 * risk
         if direction == -1 and tp >= entry - 2.0 * risk:
             tp = entry - 3.0 * risk
+        # --- Fase B2: reanclar entry/SL/TP/liq/killzone al EXEC TF (M5/M1) ---
+        # El setup se detecto en el LTF (entry_at/sweep_at son indices LTF).
+        # Mapeamos el instante de toque al exec_df (vela cerrada <= ts, anti
+        # look-ahead) y recalculamos SOBRE esa vela mas fina.
+        if use_exec:
+            entry_ts = ltf_df.iloc[entry_at]["time"]
+            sweep_ts = ltf_df.iloc[s["sweep_at"]]["time"]
+            entry_at_exec = _exec_idx_at_time(exec_df, entry_ts)
+            sweep_at_exec = _exec_idx_at_time(exec_df, sweep_ts)
+
+            # Entry = open de la vela SIGUIENTE al toque en el exec TF.
+            try:
+                entry = fill_entry_price(exec_df, entry_at_exec, fill_mode)
+            except ValueError:
+                continue
+
+            # SL anclado a la MECHA del sweep del exec TF (rango del exec TF).
+            rng_exec = float(rng_exec_series.iloc[entry_at_exec]) \
+                if entry_at_exec < len(rng_exec_series) else 0.0
+            if not (rng_exec > 0):
+                continue
+            sweep_row_exec = exec_df.iloc[sweep_at_exec]
+            sl_exec = calc_structural_sl(sweep_row_exec, direction, rng_exec)
+            if sl_exec is None:
+                continue
+            sl = sl_exec
+
+            # TP = liquidez opuesta del exec TF, o 3R sobre el nuevo risk.
+            entry_row_exec = exec_df.iloc[entry_at_exec]
+            liq_exec = _tp_liquidity(entry_row_exec, direction)
+            if liq_exec is not None:
+                tp = liq_exec
+            else:
+                tp = entry + 3.0 * risk if direction == 1 else entry - 3.0 * risk
+            if direction == 1 and tp <= entry + 2.0 * risk:
+                tp = entry + 3.0 * risk
+            if direction == -1 and tp >= entry - 2.0 * risk:
+                tp = entry - 3.0 * risk
+
+            # Killzone sobre el timestamp del exec TF (mismo instante, mas fino).
+            kz = killzone_en(pd.to_datetime(entry_row_exec["time"], utc=True))
+
+            # Recalcular risk con el SL del exec TF antes de los cortes RR.
+            risk = abs(entry - sl)
+            if risk <= 0 or risk > STRUCT_SL_MAX_RANGE * rng_exec:
+                continue
+        # --- Fin Fase B2 ---
         # --- Brecha C (Opción 2): clase de zona según dealing range HTF ---
         htf_ms = ms.get(htf, ltf_df)
         htf_row = closed_row_at_time(htf_ms, ltf_df.iloc[s["entry_at"]]["time"],
@@ -226,7 +314,7 @@ def evaluate_signals(
         htf_bias = str(htf_ms.iloc[s["entry_at"]]["trend"]) if len(htf_ms) > s["entry_at"] else ""
         po3_complete = compute_po3_complete(
             po3_structure if po3_structure else None,
-            config=Po3MotorConfig(bias=htf_bias, exec_tf=ltf, htf=htf),
+            config=Po3MotorConfig(bias=htf_bias, exec_tf=exec_tf or ltf, htf=htf),
         )
 
         signals.append(
@@ -242,6 +330,7 @@ def evaluate_signals(
             bos_at=s["bos_at"],
             entry_at=s["entry_at"],
             zone_authority=s.get("zone_authority"),
+            poi_present=s.get("poi_present"),
             htf_anchored=compute_htf_anchored(
                 sig_dir=direction, entry_at=s["entry_at"],
                 htf_pd_index=htf_pd_index, ltf_map=ltf_map,

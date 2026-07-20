@@ -330,3 +330,142 @@ Formato por entrada:
   tiene su DEC-xxx referenciando evidencia y comparación contra baseline.
 
 ================================================================================
+
+## DEC-009f — Aclaración de alcance del PlanFSM (cierra contradicción doc, 2026-07-20)
+
+- Problema: ARQUITECTURA_TEMPORALIDADES.md (líneas 10-17 y matriz §3) decía "las
+  temporalidades superiores CREAN/modifican el plan" y "D1/H4/H1 → Crea/modifica plan ✅",
+  lo cual CONTRADICE la regla de hierro de ETAPA_4_FASE_C_PLAN.md §1-§2 ("un solo cerebro.
+  C es capa de CONTEXTO, no de decisión") y la filosofía del roadmap maestro (C = percepción,
+  no 2do cerebro). La contradicción llevó a proponer erróneamente convertir al PlanFSM en un
+  "cerebro de dirección" que delegara la dirección de run_sequence — violando el contrato.
+- Evidencia: cruce ARQUITECTURA_TEMPORALIDADES.md vs ETAPA_4_FASE_C_PLAN.md §1-§2 vs
+  ROADMAP_TESIS_DRIVEN_2026-07-17.md §4 (SB/Turtle sacados de Fase C "por filosofía C = capa
+  de autoridad, no 2do cerebro") vs SPEC §1/§9 + libro 18 §0 #2 (HTF = filtro top-down, motor
+  único R7 decide).
+- Decisión tomada: enmendar ARQUITECTURA_TEMPORALIDADES.md para releer "crea/modifica plan"
+  como "aporta contexto/dirección como FILTRO top-down". El PlanFSM queda definido como
+  máquina de MADUREZ/EJECUCIÓN (lo ya implementado: Opción B, A1 Nivel 2), NO como cerebro de
+  dirección. La dirección la dicta el HTF como filtro y la decide el motor único R7.
+- Justificación: elimina la ambigüedad que permitía reinterpretar el PlanFSM como 2do cerebro
+  (riesgo de duplicar lógica de decisión, violando R7 y el contrato de no invasión de C).
+  Respeta tu regla "un solo cerebro".
+- Impacto esperado: ningún agente (ni Hermes) vuelve a proponer PlanFSM-como-cerebro-de-
+  dirección. La Brecha A1 real se cierra cableando top_down_allows_trade al motor canónico
+  como filtro (ver PROPUESTA_BRECHA_A1_CABLEADO_TOPDOWN.md), no creando FSM nueva.
+- Cómo verificarla: ARQUITECTURA_TEMPORALIDADES.md §1 y §3 ya releen la columna y agregan nota
+  de coherencia apuntando a ETAPA_4_FASE_C_PLAN.md §1; sin contradicción con "un solo cerebro".
+
+## DEC-009g — Propuesta Brecha A1 real: cablear top_down_allows_trade al motor canónico (2026-07-20)
+
+- Problema: el motor canónico (run_sequence) decide dirección solo desde H4 (sequence.py:380);
+  NO hace el top-down D1→H4→H1 que exige la tesis (Brecha A1 "3 capas reales"). El cronograma
+  marca "A1 Nivel 2 CERRADA" pero eso es solo la compuerta de EJECUCIÓN (plan_gate, madurez),
+  no las 3 capas reales en el motor. Confusión de nombres en el cronograma.
+- Evidencia: top_down_allows_trade YA EXISTE en ict_backtest/v2/context_mtf.py:136 (gate
+  D1→H4→H1→PD, devuelve (ok,reason), soporta counter_trend), pero solo se usa en el motor v2
+  LEGACY (no versionado). El canónico no lo llama.
+- Alternativas consideradas: (a) convertir PlanFSM en cerebro de dirección (RECHAZADO: viola
+  "un solo cerebro", contrato Fase C); (b) cablear top_down_allows_trade al canónico como
+  filtro (ELEGIDO); (c) reescribir lógica de dirección (RECHAZADO: ya existe, no reinventar).
+- Decisión tomada: dejar PROPUESTA_BRECHA_A1_CABLEADO_TOPDOWN.md (borrador, NO implementado).
+  Diseño: run_sequence construye `stack` desde MultiTFContext (cerrado-only) y llama
+  top_down_allows_trade tras calcular direction; anota ICTSignal.htf_aligned. Opción B
+  (anotación+bonus, igual filosofía Fase C) recomendada para arrancar; Opción A (filtro duro)
+  como knob APAGADO por default. Turtle Soup usa counter_trend=True.
+- Justificación: cierra la Brecha A1 FUNCTIONAL sin 2do cerebro, reusando código ya validado
+  (anti-look-ahead por build_context_stack). Respeta tu regla "un solo cerebro" y la SPEC.
+- Impacto esperado: el motor deja de "pensar en H4→M15" y filtra por cascada D1→H4→H1 real.
+- Cómo verificarla / PENDIENTE: requiere (1) OK de Ruben Opción A vs B; (2) firma de Fase 0
+  (SPEC_TESIS_FORMAL sigue DRAFT) antes de tocar código (regla R1); (3) escribir MDS
+  docs/specs/*.md que exige R2 (hoy NO existen). Sin esos, NO se implementa. Backtest de PF
+  bloqueado hasta Fase G (R4). Verificación por fidelidad + diag_etapas con datos chicos.
+
+## DEC-009h — Fase 0 firma de SPEC + creación de MDS (R1/R2 cumplidas, 2026-07-20)
+
+- Problema: la SPEC_TESIS_FORMAL seguía DRAFT (no firmada) pese a que B1/C0-C4/A1 Nivel 2
+  ya se implementaron sin ella (violación de R1). Y los MDS (docs/specs/*.md) que exige R2
+  NO existían: la matriz §9 marcaba 8 componentes OBLIGATORIOS como ❌ sin diseño de módulo.
+- Evidencia: ROADMAP_TESIS_DRIVEN §9 (8 obligatorios ❌), §11 R1 (SPEC precede código),
+  R2 (sincronía SPEC↔MDS); SPEC_TESIS_FORMAL header "DRAFT"; búsqueda docs/specs/ vacía.
+- Decisión tomada:
+  (a) FIRMAR SPEC_TESIS_FORMAL (R1): pasa a CONTRATO FUENTE. Se registra excepción DEC-009g
+      para B1/C0-C4/A1 Nivel 2 (hechos antes, ya validados, sin alterar conteo).
+  (b) CREAR docs/specs/ con 8 MDS nuevos + INDICE_MDS.md (R2): B2 (exec M5/M1), B3
+      (internal/external liq), Killzones L/NY PM, C2 (Silver Bullet), C3 (Turtle Soup),
+      D1 (OTE), E1 (Trade Mgmt), RR por setup. Cubre todos los ❌ de la matriz §9.
+  (c) Cronograma v2.7: fila "Fase 0 — Formalización (SPEC firmada) + MDS" CERRADA; fila
+      "Brecha A1 real — 3 capas en motor" como PENDIENTE/propuesta.
+- Justificación: cumple tu regla de gobernanza R1 (SPEC precede código) y R2 (trazabilidad
+  SPEC↔MDS). Cierra la deuda de diseño que impedía implementar B2→E1 con base contractual.
+- Impacto esperado: cualquier implementación de B2/C2/C3/D1/E1 ahora tiene SPEC firmada +
+  MDS como contrato. Orden sugerido B2→B3→C2→C3→D1→E1 (ROADMAP §4).
+- Cómo verificarla: SPEC header dice "FIRMADA"; docs/specs/ tiene 8 MDS + índice; cronograma
+  v2.7 refleja ambos. Backtest de PF sigue bloqueado hasta Fase G (R4).
+
+## DEC-009i — Principio de zona horaria: hora del SERVIDOR + conversión (2026-07-20)
+
+- Principio dictado por Ruben: "se toma la hora del servidor (donde está instalado MT5/
+  Hermes = broker time) y se hace LA CONVERSIÓN horaria" (a ET / UTC canónico) antes de
+  evaluar cualquier lógica ICT horaria. NO se asume que el timestamp ya está en ET ni en
+  UTC, y PROHIBIDO offset fijo hardcodeado.
+- Evidencia de bug en código REAL (detectado al redactar MDS_KILLZONES):
+  * `detectors/killzones.py:11-14` asume `time` del parquet "YA está en hora broker" y NO
+    convierte; usa offset FIJO ("NY=-4, LDN=0, TOKYO=+9 en verano") → ignora DST/zonas reales.
+  * `ict_backtest/rules.py:killzone_en` asume `ts` "ya viene en UTC" y evalúa crudo.
+  * `docs/ict/01_KILLZONES.md §4` marcaba KZ-1 "resuelto" pero persiste el hueco KZ-2
+    (3 relojes en la práctica: ET mentorship / broker chart / UTC approx falso).
+- Decisión tomada:
+  * Establecer como REGLA DURA en `docs/specs/MDS_KILLZONES_L_NYPM.md` §0: server_time →
+    conversión vía ZoneInfo (DST) → UTC canónico → evaluar bandas. Zona del broker =
+    CONFIG (`SMC_BROKER_TZ`), no hardcode. Reusar patrón de `app_observador/core/timezone.py`
+    (UTC canónico + ZoneInfo). Anti-look-ahead: solo `time` de vela ya cerrada.
+  * Firma propuesta `server_to_utc(ts, broker_tz)` + `killzone_en(ts, broker_tz=None)` que
+    convierte SIEMPRE antes de evaluar.
+  * MDS_KILLZONES reescrito para exigir la muerte del offset fijo (KZ-2) al implementar.
+- Justificación: cumple el principio de Ruben y evita killzones falsas por DST/zona (el bug
+  actual da ventanas desfasadas ~1h en verano y en brokers fuera de NY).
+- Impacto esperado: killzone idéntica en backtest (ts vela convertido) y en vivo (reloj PC
+  convertido), sin 3 relojes. Cierra KZ-2.
+- Cómo verificarla: MDS_KILLZONES §0 tiene la regla dura + bug citado; tests de aceptación
+ con broker NY / DST / broker otra zona. Implementación pendiente (es fase de diseño).
+
+ ## DEC-009i — Ruben elige C: el PlanFSM SÍ será cerebro de DIRECCIÓN (modifica DEC-009f, 2026-07-20)
+
+ - Contexto: en esta sesión se cerraron por código Brecha A1 real (cascada D1→H4→H1
+ cableada en `run_sequence` como filtro Opción B), Fase B2 (exec M5/M1) y Brecha A
+ (POI anclado como bonus vía `htf_poi_fn`). Los 3 con TDD + call site real + verify
+ empírico (22 tests nuevos + 9 de regresión canónica, 31 passed). Ver CRONOGRAMA
+ filas Brecha A1 real / Fase B2 / Brecha A, y ROADMAP_BIBLIOTECA §R3.5.
+ - Decisión tomada (Ruben, opción C): PROMOVER el PlanFSM a cerebro de DIRECCIÓN de la
+ estrategia. Esto MODIFICA la filosofía de DEC-009f ("PlanFSM NO es cerebro de
+ dirección, un solo cerebro, run_sequence decide filtrado por HTF"). El PlanFSM dejará
+ de ser solo máquina de MADUREZ/EJECUCIÓN (lo que hoy es, A1 Nivel 2 = compuerta
+ Opción B) y pasará a dictar la DIRECCIÓN (emitir sesgo D1→H4→H1, consumir POI anclado
+ Fase C, premium/discount, PO3/AMD como gates de timing) y run_sequence le DELEGARÁ la
+ dirección (quitando su lectura de H4 trend y su hook `htf_poi_fn` muerto).
+ - Evidencia que lo motiva: auditoría `docs/plan/AUDITORIA_PLANFSM_CEREBRO.md` probó que
+ el PlanFSM HOY NO puede ser cerebro de dirección sin antes ampliar B1-B7 (no emite
+ dirección; POI anclado desconectado de `emit_h1`; premium/discount ignorado por
+ emisores; PO3 solo bonus; `top_down_allows_trade` fuera del PlanFSM en v2 legacy;
+ duplicación de cerebro en H4; contrato "un solo cerebro" incumplido en la práctica).
+ - Alternativas consideradas y descartadas: (a) dejar el PlanFSM como portero de madurez
+ y no tocar dirección (RECHAZADA: Ruben quiere que el motor use la cascada de verdad,
+ no solo filtre); (b) que run_sequence siga decidiendo (RECHAZADA: viola la intención
+ C de un único cerebro de dirección).
+ - Justificación: cierra la queja original de Ruben ("el motor piensa solo en H4→M15").
+ La cascada ya frena (A1); en C la cascada TAMBIÉN manda la dirección, unificada en el
+ PlanFSM.
+ - Impacto esperado: reestructuración de los emisores del PlanFSM (B1-B7) y del contrato
+ `run_sequence ↔ PlanFSM`. NO es "enchufar una cables": requiere dar contenido
+ direccional al PlanFSM primero.
+ - PRÓXIMO PASO (no en este commit): diseñar el PlanFSM ampliado (emite DIRECCIÓN, consume
+ POI anclado Fase C, pd_side, PO3 como gate de timing) + demo sintética + OK de Ruben
+ (regla de gobernanza: diseño+demo antes de producción). Luego cablear run_sequence
+ para delegar dirección/POI al PlanFSM.
+ - Cómo verificarla: tras el diseño, los tests de call site real deben mostrar que la
+ dirección de la señal sale del PlanFSM, no de `extract_htf_layer` en run_sequence.
+ - Regla de commit: este DEC-009i se commitea junto con el cierre de A1/B2/Brecha A
+ (roadmap + cronograma al día en el mismo commit, según regla de Ruben).
+
+ ================================================================================

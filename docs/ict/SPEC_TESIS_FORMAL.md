@@ -2,10 +2,10 @@ SPEC_TESIS_FORMAL — Contrato fuente de la estrategia ICT/Silver Bullet
 ==============================================================
 
 ID: SPEC_TESIS_FORMAL.md
-Versión: 1.0 (borrador de Fase 0, pendiente de firma del comité)
-Fecha: 2026-07-17
+Versión: 1.0 (FIRMADA por el comité 2026-07-20 — cumple R1 del roadmap maestro)
+Fecha: 2026-07-17 (firmada 2026-07-20)
 Estándar: ADR-021 (filosofía documental) + DEC-009e (cadena SPEC→ADS→MDS→CÓDIGO)
-Estado: DRAFT — al firmarse, se convierte en CONTRATO FUENTE (R1 del roadmap maestro).
+Estado: CONTRATO FUENTE (FIRMADA 2026-07-20). Precede al código (R1).
 Vinculación: matriz de trazabilidad en ROADMAP_TESIS_DRIVEN_2026-07-17.md §9
             (toda regla aquí debe tener su fila en la matriz; R2 exige sincronía).
 
@@ -434,5 +434,14 @@ AMBOS (este SPEC y la matriz) se actualizan en el MISMO cambio. No se acepta uno
 sin el otro.
 
 ---------------------------------------------------------------------
-FIN — SPEC_TESIS_FORMAL v1.0 DRAFT (Fase 0).
-Al firmarse por el comité: pasa a CONTRATO FUENTE (R1). Hasta entonces es borrador.
+FIN — SPEC_TESIS_FORMAL v1.0 — CONTRATO FUENTE (FIRMADA por el comité 2026-07-20).
+
+EXCEPCIÓN REGISTRADA (DEC-009g, 2026-07-20): los componentes B1 (metadatos pd_type/pd_tier),
+Fase C (C0-C4, POI anclado como percepción), y A1 Nivel 2 (plan_gate Opción B) se
+implementaron ANTES de la firma de esta SPEC. Se reconocen como excepción documentada a R1
+(ya validados por tests + call site real + fidelidad, sin alterar conteo de señales). El
+resto de la tesis (B2, SB, Turtle Soup, OTE, Trade Mgmt, internal/external liq, killzones
+L/NY PM, RR por setup) REQUIERE esta SPEC firmada + su MDS correspondiente antes de
+implementarse. Backtest de rendimiento sigue bloqueado hasta Fase G (R4).
+
+MDS (diseño de módulo) por componente: ver docs/specs/ (R2 exige sincronía SPEC↔MDS).

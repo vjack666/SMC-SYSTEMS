@@ -7,14 +7,23 @@ puntos abiertos. Fuente de verdad complementaria: `BACKTEST_V2_SPEC.md`
 
 ## 1. Principio rector (define toda la jerarquía)
 
-> Las temporalidades superiores crean e invalidan el plan.
-> Las inferiores únicamente validan o rechazan ejecuciones del plan;
-> nunca generan un plan alternativo.
+> Las temporalidades superiores definen el CONTEXTO del plan (sesgo D1/H4/H1,
+> POI anclado, premium/discount); las inferiores validan/descartan la ejecución.
+>
+> ACLARACIÓN DE ALCANCE (2026-07-20, cierra contradicción con ETAPA_4_FASE_C_PLAN):
+> En este doc, "plan" = el ESTADO DE MADUREZ del setup a través de las capas
+> (NO_TRADE→CONTEXT_OK→ZONE_ARMED→SETUP_LIVE→STRUCTURE_OK→ENTRY_READY). El PlanFSM
+> es la máquina que AVANZA ese estado de madurez y VETA la EJECUCIÓN (Opción B,
+> A1 Nivel 2). NO es un segundo cerebro de DIRECCIÓN: la dirección la dicta el HTF
+> como filtro top-down (libro 18 §0 #2; SPEC §1/§9) y la DECIDE el motor único
+> (R7 = run_sequence). Ver contrato "un solo cerebro" en ETAPA_4_FASE_C_PLAN.md §1/§2.
 
-El plan nace arriba (D1/H4/H1). Nunca abajo (M15/M5/M1). Una capa
+El plan nace arriba (D1/H4/H1 aportan sesgo/zona). Nunca abajo (M15/M5/M1). Una capa
 inferior puede descartar un setup concreto, pero no convierte un BUY en
 SELL ni redefine el sesgo. Si M5 rechaza una entrada, el plan sigue
-vigente hasta que una capa superior lo invalide.
+vigente hasta que una capa superior lo invalide. La dirección del setup la
+fija el motor único R7 usando el filtro HTF; el PlanFSM solo certifica que
+la cascada maduró.
 
 ## 2. FSM central basada en eventos
 
@@ -61,14 +70,20 @@ Ventajas frente a "una FSM por TF que se consultan entre sí":
 
 ## 3. Responsabilidad y autoridad por TF (matriz de decisión)
 
-| TF  | Rol mental                     | Crea/modifica plan | Cancela setup | Ejecuta | Estado hoy        |
-|-----|--------------------------------|--------------------|---------------|---------|-------------------|
-| D1  | Contexto macro / régimen       | ✅                 | ✅            | ❌      | Cargado, no usa   |
-| H4  | Bias + POI de contexto         | ✅                 | ✅            | ❌      | Implementado      |
-| H1  | Validación POI (ITF intradía)  | ✅                 | ✅            | ❌      | Pendiente (v30)   |
-| M15 | Setup ICT (sweep→disp→BOS)     | ❌                 | ✅            | ❌      | Implementado      |
-| M5  | Refinamiento / exec SB          | ❌                 | ✅            | ✅      | Pendiente (v30)   |
-| M1  | Entry ultrafino (opcional)     | ❌                 | solo trigger  | ✅      | Fuera flujo princ.|
+| TF  | Rol mental                     | Aporta contexto/dirección (filtro HTF) | Cancela setup | Ejecuta | Estado hoy        |
+|-----|--------------------------------|----------------------------------------|---------------|---------|-------------------|
+| D1  | Contexto macro / régimen       | ✅ (sesgo, filtro top-down SPEC §1)     | ✅            | ❌      | Cargado, no usa   |
+| H4  | Bias + POI de contexto         | ✅ (sesgo, filtro top-down SPEC §1)     | ✅            | ❌      | Implementado      |
+| H1  | Validación POI (ITF intradía)  | ✅ (zona, filtro top-down SPEC §1)      | ✅            | ❌      | Pendiente (v30)   |
+| M15 | Setup ICT (sweep→disp→BOS)     | ❌ (el motor único R7 decide la dirección DENTRO del filtro HTF) | ✅ | ❌ | Implementado      |
+| M5  | Refinamiento / exec SB          | ❌                                     | ✅            | ✅      | Pendiente (v30)   |
+| M1  | Entry ultrafino (opcional)     | ❌                                     | solo trigger  | ✅      | Fuera flujo princ.|
+
+> Nota de coherencia (2026-07-20): la columna "Crea/modifica plan" del diseño
+> original se relee como "aporta contexto/dirección como FILTRO top-down" (libro 18
+> §0 #2), NO como autoridad de decisión. El PLANFSM no es un 2do cerebro: la
+> dirección la decide el motor único R7 usando el filtro HTF. Ver ETAPA_4_FASE_C_PLAN.md
+> §1 "un solo cerebro. C es capa de CONTEXTO, no de decisión."
 
 Notas:
 - **H1**: emite `ZONE_ARMED` o `ZONE_INVALID`. Si INVALID, `PlanFSM`

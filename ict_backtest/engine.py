@@ -41,6 +41,12 @@ class ICTSignal:
     # enable_pd_index=False (modo historico). Se calcula en post-proceso, sin
     # tocar run_sequence (radio de explosion minimo).
     htf_anchored: bool | None = None
+    # Brecha A (Fase C, 2026-07-20): ¿habia POI HTF anclado en la
+    # direccion de la senal al momento de la entrada? BONUS de autoridad de
+    # zona (NO filtra: principio Fase E / Brecha D). None si
+    # enable_pd_index=False (modo historicor). Se calcula en run_sequence
+    # via htf_poi_fn (hook poi_ok), NO altera entry/SL/TP ni el conteo.
+    poi_present: bool | None = None
     # Brecha C (Opción 2, 2026-07-20): clase de zona de la entrada segun el
     # dealing range del swing HTF (PREMIUM/DISCOUNT/EQ). Metadato de percepcion
     # (NO filtra: principio Brecha D). None si no hay swing HTF disponible.
