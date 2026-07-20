@@ -88,19 +88,32 @@ funciona; falta señal donde aplicarla.
 **Impacto:** el filtro más definitorio de ICT ahora se ANOTA en cada señal (y el medidor Fase
 5 ya lo califica como bonus). No se descarta ninguna señal.
 
-## §4 Brecha C — dealing range / premium-discount AUSENTE en el motor
+## §4 Brecha C — dealing range / premium-discount: CERRADA EN MOTOR (Opción 2, 2026-07-20)
 
 **Tesis (libro 21 §0, §2; libro 08 PO3):** un POI válido exige estar en la ZONA CORRECTA
 del dealing range (discount para long, premium para short, EQ = 50% fib del swing HTF).
 Sin eso, un OB perfecto en premium en día bullish es wrong-side (libro 21:50, SKIP tier).
 
-**Código hoy:** el módulo `dealing_range.py` EXISTE y el MEDIDOR Fase 5 lo usa como bonus
-(+0.5 si zona correcta). PERO NO está en `build_objects`/`run_sequence`: el motor base no
-filtra por zona (libro 21 §6 mapeo: "`role=POI` pero NO filtra zona/sesgo/respaldo"). Power
-of Three (AMD) está implementado en `signals/po3.py` (R1) pero NO está cableado al backtest
-de señales canónico (Brecha E).
+**Código hasta 2026-07-19:** `dealing_range.py` EXISTE y el MEDIDOR Fase 5 lo usa como
+bonus (+0.5 si zona correcta). PERO NO estaba en `run_sequence`: el motor base no anotaba
+la zona. Solo el medidor la veía.
 
-**Impacto:** no hay filtro de calidad de zona en el motor. Entra en cualquier precio.
+**Cierre 2026-07-20 (Opción 2, postprocesado en canonical.py — run_sequence SIN
+modificaciones):** se creó `ict_backtest/dealing_range_motor.py` con la función PURA
+`compute_zone_class(sig_dir, entry, swing_high_htf, swing_low_htf)` que delega en
+`dealing_range.classify_zone` y devuelve 'PREMIUM'/'DISCOUNT'/'EQ'. `canonical.evaluate_signals`
+lo llama EN POST-PROCESO (tras `run_sequence`, sin tocar el motor interno): obtiene el
+`swing_high`/`swing_low` del HTF cerrado vigente al `entry_at` (anti look-ahead por
+`closed_row_at_time`) y anota `ICTSignal.zone_class`. `run_sequence` 100% intacto.
+
+**Principio Brecha D respetado (anota, NO filtra):** si no hay swing HTF (`None`) →
+`zone_class=None` y la señal sale igual. Conteo idéntico. Verificado:
+- Test unitario `tests/test_dealing_range_motor.py` (8 tests, unidad pura).
+- Demo sintético `scripts/cierre_brecha_c_demo.py`: DISCOUNT/PREMIUM/EQ correctos, conteo idéntico.
+- Verify cableado `scripts/verify_brecha_ce_cableado.py`: enchufe en canonical anota sin crashear.
+
+**Impacto:** la zona de entrada ahora se ANOTA en cada señal (el medidor Fase 5 ya la
+califica como bonus). No se descarta ninguna señal por zona.
 
 ## §5 Brecha D — POI como BONUS, no filtro duro (ya resuelta en diseño)
 
@@ -138,9 +151,9 @@ cerrar la brecha B (POI anclado) y A1 (3 capas reales) EN EL MOTOR."*
 |---|--------|-------|---------------|--------|
 | A1 | 3 capas reales | 18 §1/§37 | loop driver: cablear PlanFSM (Fases 1–4) a `run_sequence_backtest`; D1/H1 deciden | Pendiente nivel 2 |
 | B | POI anclado narrativa HTF en MOTOR | 21 §4 | postproceso en `canonical.py` vía `poi_anchor_motor.compute_htf_anchored` (Opción 2: `run_sequence` intacto) | ✅ CERRADA 2026-07-20 (anota `ICTSignal.htf_anchored`, no filtra; verificada en sintético + regresión datos reales; pendiente ejercitar con señal real — motor base 0 señales) |
-| C | dealing range premium/discount en MOTOR | 21 §0/§2, 08 | enchufar `dealing_range` en `build_objects`/`run_sequence` | Pendiente (medidor ya lo marca como bonus) |
+| C | dealing range premium/discount en MOTOR | 21 §0/§2, 08 | `ict_backtest/dealing_range_motor.compute_zone_class` (Opción 2: postproceso en `canonical.py`, `run_sequence` intacto) | ✅ CERRADA 2026-07-20 (anota `ICTSignal.zone_class`, no filtra; verificada en sintético + cableado canonical; pendiente ejercitar con señal real — motor base 0 señales) |
 | D | POI como bonus | 21 §4 | `score_plan` ya lo hace (M5/M1 bonus) | ✅ Diseñado + medidor reparado |
-| E | PO3/AMD cableado al MOTOR | 08 | `signals/po3.py` → `run_sequence` | Pendiente (medidor ya marca `po3_complete`) |
+| E | PO3/AMD cableado al MOTOR | 08 | `ict_backtest/po3_motor.compute_po3_complete` (Opción 2: postproceso en `canonical.py`, `run_sequence` intacto) | ✅ CERRADA 2026-07-20 (anota `ICTSignal.po3_complete`, no filtra; verificada en sintético + cableado canonical; pendiente ejercitar con señal real — motor base 0 señales) |
 
 **Orden sugerido (tu filosofía: primero medir, luego concluir):** cerrar B (POI anclado en
 motor) y A1 (loop driver) primero — son los que la tesis marca como definitorios. C (dealing

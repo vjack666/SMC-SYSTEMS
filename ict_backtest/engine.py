@@ -41,6 +41,14 @@ class ICTSignal:
     # enable_pd_index=False (modo historico). Se calcula en post-proceso, sin
     # tocar run_sequence (radio de explosion minimo).
     htf_anchored: bool | None = None
+    # Brecha C (Opción 2, 2026-07-20): clase de zona de la entrada segun el
+    # dealing range del swing HTF (PREMIUM/DISCOUNT/EQ). Metadato de percepcion
+    # (NO filtra: principio Brecha D). None si no hay swing HTF disponible.
+    zone_class: str | None = None
+    # Brecha E (Opción 2, 2026-07-20): ciclo PO3/AMD completo al momento de la
+    # entrada. Metadato de percepcion (NO filtra: principio Brecha D). None si
+    # no hay datos de estructura (modo historico).
+    po3_complete: bool | None = None
 
 
 @dataclass

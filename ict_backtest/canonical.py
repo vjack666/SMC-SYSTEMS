@@ -30,6 +30,8 @@ from ict_backtest.engine import (
 from ict_backtest.htf_pd_index import HtfPdIndex
 from ict_backtest.market_structure import detect_market_structure
 from ict_backtest.poi_anchor_motor import compute_htf_anchored
+from ict_backtest.dealing_range_motor import compute_zone_class
+from ict_backtest.po3_motor import compute_po3_complete, Po3MotorConfig
 from ict_backtest.rules import killzone_en
 from ict_backtest.sequence import SequenceConfig, run_sequence
 from ict_backtest.zone_authority import evaluate_zone_authority
@@ -167,6 +169,42 @@ def evaluate_signals(
             tp = entry + 3.0 * risk
         if direction == -1 and tp >= entry - 2.0 * risk:
             tp = entry - 3.0 * risk
+        # --- Brecha C (Opción 2): clase de zona según dealing range HTF ---
+        htf_ms = ms.get(htf, ltf_df)
+        htf_row = closed_row_at_time(htf_ms, ltf_df.iloc[s["entry_at"]]["time"],
+                                     tf_duration(htf))
+        zone_class = compute_zone_class(
+            sig_dir=direction,
+            entry=entry,
+            swing_high_htf=float(htf_row["swing_high"]) if htf_row is not None else None,
+            swing_low_htf=float(htf_row["swing_low"]) if htf_row is not None else None,
+        )
+        # --- Brecha E (Opción 2): ciclo PO3/AMD completo al momento de entry ---
+        # Estructura con velas CERRADAS <= entry_at (anti look-ahead).
+        po3_structure: dict = {}
+        for tf_key, tf_df in ms.items():
+            sub = tf_df.iloc[: s["entry_at"] + 1]
+            if len(sub) == 0:
+                continue
+            last = sub.iloc[-1]
+            po3_structure[tf_key] = {
+                "trend": str(last.get("trend", "")),
+                "sweep_up": bool(last.get("sweep_up", False)),
+                "sweep_down": bool(last.get("sweep_down", False)),
+                "bos_dir": int(last.get("bos_dir", 0) or 0),
+                "bos_status": str(last.get("bos_status", "")),
+                "choch_status": str(last.get("choch_status", "")),
+                "fvg_state": str(last.get("fvg_state", "")),
+                "ob_dir": str(last.get("ob_dir", "")),
+                "session_range": str(last.get("session_range", "")),
+                "session_open": float(last.get("open", "nan")) if tf_key == "D1" else None,
+            }
+        htf_bias = str(htf_ms.iloc[s["entry_at"]]["trend"]) if len(htf_ms) > s["entry_at"] else ""
+        po3_complete = compute_po3_complete(
+            po3_structure if po3_structure else None,
+            config=Po3MotorConfig(bias=htf_bias, exec_tf=ltf, htf=htf),
+        )
+
         signals.append(
             ICTSignal(
             symbol=symbol,
@@ -184,6 +222,8 @@ def evaluate_signals(
                 sig_dir=direction, entry_at=s["entry_at"],
                 htf_pd_index=htf_pd_index, ltf_map=ltf_map,
             ),
+            zone_class=zone_class,
+            po3_complete=po3_complete,
             )
         )
     return signals
