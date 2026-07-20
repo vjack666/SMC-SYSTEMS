@@ -502,4 +502,42 @@ Formato por entrada:
    + aceptación call-site real con 2 días: TP=1.1300 internal / external_tp=1.1100
    PDH). Batería completa 36 passed (B3+B2+A1+POI+fase1+r7). Sin datos reales.
 
- ================================================================================
+## DEC-009k — C2/C3/D1/E1/RR/KZ CERRADOS: setups ICT cableados al orquestador (2026-07-20)
+
+- Problema: el motor tenia Brechas C2/C3/D1/E1/RR/KZ de la tesis sin cerrar
+  (Silver Bullet, Turtle Soup, OTE, Trade Mgmt, RR por setup, Killzones TZ).
+- Decisión tomada: cerrarlos como MÓDULOS AISLADOS (cada agente leaf creó su
+  archivo nuevo, regiones disjuntas, TDD RED→GREEN, SIN tocar canonical/engine
+  en la implementación) y luego YO cablearlos en `canonical.evaluate_signals`
+  como PASO POST (knob apagado = solo anotan, no filtran duro — principio
+  Brecha D / lección A''). Esto evita el pozo de A'' (gate duro HTF = PF 0.900)
+  y respeta "un solo cerebro" (run_sequence decide, los setups enriquecen la
+  señal como metadato).
+  - C2 `setups/silver_bullet.py`: `is_silver_bullet` + `flag_silver_bullet`
+    (anota `sb_confirmed`/`sb_killzone`). Reusa `killzone_en` (KZ-2).
+  - C3 `setups/turtle_soup.py`: `is_turtle_soup` + `flag_turtle_soup` (anota
+    `turtle_confirmed`/`turtle_broke`). PDH/PDL día previo desde `frames[ltf]`.
+  - D1 `setups/ote.py`: `ote_zone`/`is_ote_entry`/`flag_ote` (anota
+    `ote_confirmed`/`ote_zone`). Fib 0.62-0.79 de la pierna.
+  - E1 `trade_mgmt.py`: `to_breakeven`/`partial_exit`/`trailing_stop` (funciones
+    PURAS, listas para consumir post-entry; NO cableadas aún al simulador).
+  - RR `setups/rr_map.py`: `RR_BY_SETUP`/`rr_for`/`flag_rr` (anota `rr_target`).
+    SB→2.0, Turtle→1.5, OTE→3.0, default→3.0.
+  - KZ-2 `detectors/killzones.py` + `ict_backtest/rules.py`: `server_to_utc`
+    vía ZoneInfo (DST automático), mata offsets fijos NY=-4/LDN=0/TOKYO=+9.
+    Firma `killzone_en(ts, broker_tz=None)` estable.
+- Justificación: cierra 6 OBLIGATORIOS de la tesis en orden de roadmap con
+  gobernanza TDD + call-site real auditable (no test aislado: `test_orchestrator_
+  setups_wired.py` corre `evaluate_signals` real y afirma que la señal trae
+  `sb_confirmed=True`/'L' y `rr_target==2.0`). Regresión cero: los flags no
+  alteran entry/SL/TP; `evaluate_signals` sigue produciendo señales idénticas.
+- Impacto esperado: la señal ICT ahora sale ENRIQUECIDA con setup detectado +
+  RR objetivo + liquidez external (B3) + POI (Brecha A) + cascada HTF (A1).
+  Pendiente (Fase siguiente, NO este commit): (a) aplicar `rr_target` al cálculo
+  de TP en canonical (hoy fuerza 1:3); (b) cablear E1 al simulador post-entry;
+  (c) knob de filtro duro opcional (veto por setup) si el backtest lo justifica.
+- Cómo verificarla: batería 96 passed (C2 11 + C3 6 + D1 10 + E1 19 + RR 6 +
+  KZ 7 + B3 5 + B2 4 + A1 6 + POI 12 + fase1 2 + r7 7 + orquestador 1). Sin
+  datos reales. Commit pendiente de OK de Ruben (regla de commit).
+
+================================================================================
