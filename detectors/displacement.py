@@ -8,17 +8,22 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class DisplacementConfig:
-    body_atr_multiple: float = 1.5
+    # Múltiplo del RANGO promedio (high-low) que el cuerpo debe superar para
+    # contar como displacement. Migrado de body_atr_multiple (ATR) a rango puro
+    # (Fase 1): mismo valor inicial (1.5) para medir impacto en Fase 2.
+    body_range_multiple: float = 1.5
     wick_threshold: float = 0.4
-    atr_period: int = 14
+    range_period: int = 14
 
 
-def _compute_atr(frame: pd.DataFrame, period: int) -> pd.Series:
-    high_low = frame["high"] - frame["low"]
-    high_prev_close = (frame["high"] - frame["close"].shift(1)).abs()
-    low_prev_close = (frame["low"] - frame["close"].shift(1)).abs()
-    tr = pd.concat([high_low, high_prev_close, low_prev_close], axis=1).max(axis=1)
-    return tr.rolling(period).mean()
+def _avg_candle_range(frame: pd.DataFrame, period: int) -> pd.Series:
+    """Rango promedio de la vela = media móvil de (high - low).
+
+    MATEMÁTICA PURA del gráfico, SIN INDICADORES (migración ATR -> rango,
+    Fase 1). Es la misma métrica que ict_backtest._util.avg_candle_range.
+    """
+    candle_range = (frame["high"] - frame["low"]).clip(lower=0.0)
+    return candle_range.rolling(period).mean()
 
 
 def detect_displacement(
@@ -29,7 +34,9 @@ def detect_displacement(
         config = DisplacementConfig()
 
     data = frame.copy()
-    data["atr"] = _compute_atr(data, config.atr_period)
+    # Rango promedio de contexto (NO ATR). No se escribe en la columna "atr"
+    # (contrato de volatilidad del sistema) para no pisarla.
+    avg_range = _avg_candle_range(data, config.range_period)
 
     body = (data["close"] - data["open"]).abs()
     candle_range = (data["high"] - data["low"]).replace(0, pd.NA)
@@ -38,9 +45,9 @@ def detect_displacement(
 
     bullish_body = data["close"] > data["open"]
     bearish_body = data["close"] < data["open"]
-    atr = data["atr"].fillna(1e-9)
+    rng = avg_range.fillna(1e-9)
 
-    large_body = body > atr * config.body_atr_multiple
+    large_body = body > rng * config.body_range_multiple
     small_wick = wick_ratio < config.wick_threshold
 
     data["displacement_bullish"] = bullish_body & large_body & small_wick
@@ -48,7 +55,7 @@ def detect_displacement(
 
     data["displacement_magnitude"] = np.where(
         data["displacement_bullish"] | data["displacement_bearish"],
-        body / atr,
+        body / rng,
         0.0,
     )
 

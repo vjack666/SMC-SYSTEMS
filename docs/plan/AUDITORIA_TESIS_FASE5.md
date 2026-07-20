@@ -219,3 +219,71 @@ subir el umbral a `ENTRY_READY` (Fase 2 de A1) basta con pasar
   El medidor Fase 5 SÍ está cableado (modo OBSERVE) y reparado; la FSM (Fases
   1–4) ahora TAMBIÉN está cableada a la ejecución vía `plan_gate`.
 - No se commitea nada hasta OK expreso de Ruben, con roadmaps al día.
+
+## §10 Fase 1 — Lectura multitemporal (RESOLUCIÓN DE CAUSA RAÍZ, 2026-07-20)
+
+### Diagnóstico: la brecha A1 no era de estrategia, era de infraestructura
+
+Las anotaciones B/C/E y el gate A1 Nivel 2 operaban sobre un motor que, en su
+núcleo, **solo leía UN time-frame a la vez**. El call site real
+(`ict_backtest/canonical.py`) construía `est_htf_fn` leyendo `ms.get(htf)`
+—un solo DataFrame HTF— y lo pasaba a `run_sequence`, que iteraba solo sobre
+el LTF. Por eso D1 se "cargaba pero no se usaba" y H1/M5/M1 estaban ausentes:
+**no era falta de datos (los 6 TF ya estaban en `data/raw/*_{D1,H4,H1,M15,M5,M1}.parquet`),
+sino una interfaz de 1-HTF en el código.**
+
+### Decisión: Opción A (conservadora, 100% idéntica al baseline)
+
+Ruben pidió un objetivo único —resolver la infraestructura de lectura— sin
+mezclar con cambios de estrategia B/C/E ni nuevas reglas de ICT. Se eligió
+Opción A:
+
+- El motor carga **TODA la cadena** `D1→H4→H1→M15→M5→M1`.
+- Existe un **`MultiTFContext`** completo, consistente y **libre de look-ahead**
+  (reusa `v2/context_mtf.build_context_stack`, que usa `closed_row_at_time`
+  por TF — cerrado-only, sin mirar velas futuras).
+- `run_sequence` **recibe** ese contexto multinivel, pero lo reduce con
+  `extract_htf_layer(context, htf)` al **MISMO HTF que usaba antes** (el `htf`
+  que recibe `evaluate_signals`, p.ej. D1). Los otros 5 TF viajan disponibles
+  en el contexto pero **aún no influyen** en la lógica.
+- Comportamiento **100% idéntico al baseline**: mismo nº de señales, mismas
+  entradas, mismo resultado.
+
+### Implementación (blast radius mínimo)
+
+- Nuevo `ict_backtest/multitf_context.py`:
+  - `MultiTFContext(dict)` — wrapper tipado del stack cerrado por TF.
+  - `build_multitf_context(ms, t, tfs, anchored_pd_zones)` — delega en
+    `build_context_stack` (anti look-ahead ya garantizado).
+  - `extract_htf_layer(context, htf)` — extrae el dict plano
+    `{trend, sweep_up, sweep_down, pd_zones}` que hoy consume `run_sequence`
+    (Opción A: mismas claves → misma decisión).
+- `ict_backtest/canonical.py` (`evaluate_signals`):
+  - Carga `TF_CHAIN = (D1,H4,H1,M15,M5,M1)` completa (ya no `tfs = [htf, ltf, "D1"]`).
+  - `est_htf_ctx_fn(i)` construye el `MultiTFContext` y lo pasa a `run_sequence`.
+- `ict_backtest/sequence.py` (`run_sequence`):
+  - Acepta `est_htf_ctx_fn` y `htf`. Si presente: `ctx = est_htf_ctx_fn(i)`;
+    `est_htf = extract_htf_layer(ctx, htf)`. Si ausente: legacy `est_htf_fn(i)`
+    (compatibilidad total con tests aislados y llamadores).
+  - **No se tocó la lógica interna de decisión** (sweep/displacement/BOS/CHOCH/
+    entry). Blast radius mínimo, igual que en A1 Nivel 2.
+
+### Evidencia de cierre (las 7 que Ruben exigió)
+
+1. **Los 6 TF llegan al motor** — `tests/test_multitf_context.py` (`test_multi_tf_context_full_chain`) construye ms de 6 TF y `build_multitf_context` entrega `ctx["D1".."M1"]`; `scripts/fase1_verify.py` carga EURUSD real de 6 TF y afirma `set(frames) >= {D1,H4,H1,M15,M5,M1}`.
+2. **No hay look-ahead** — `test_multi_tf_context_no_lookahead`: inyectar una vela M15 con `time` muy posterior (BEARISH) no cambia el snapshot cerrado en `t` (el lookup `closed_row_at_time` la excluye). Reusa primitiva ya probada de `v2/context_mtf.py`.
+3. **`run_sequence` recibe el `MultiTFContext`** — `test_evaluate_signals_passes_multitf_context_to_run_sequence` (call site real, parcheando `canonical.run_sequence`): captura `est_htf_ctx_fn`, lo invoca por barra, y afirma `isinstance(ctx, MultiTFContext)` y que `extract_htf_layer(ctx,"D1") == legacy 1-nivel`.
+4. **Comportamiento idéntico al baseline** — `test_evaluate_signals_behavior_identical_to_baseline` + `test_run_sequence_receives_multitf_context_identical_behavior`: el contexto reducido a `htf` es **igual** al `est_htf_fn` de 1 nivel histórico barra por barra; `scripts/fase1_verify.py` confirma `entry_at` de Fase 1 == legacy sobre EURUSD real.
+5. **Tests y demos en verde** — suite `multitf_context` (4) + `fase1_no_regression` (2) + `plan_*` (25) = 31 verdes en la sub-suite; script empírico corre limpio.
+6. **Documentación actualizada** — esta §10 + fila en `CRONOGRAMA_Y_ROADMAP.md` + check en `ROADMAP_BIBLIOTECA_Y_APLICACION.md`.
+7. **Commit y push solo tras verificar** — ver commit de cierre de Fase 1.
+
+### Lo que QUEDA para Fase 2 (fuera de alcance, con evidencia)
+
+La infraestructura ahora entrega el contexto completo. Lo que **aún no se hizo**
+(el usuario lo separó explícitamente): decidir cómo `run_sequence` consume
+H4/H1/M5/M1 para filtrar/pesar/confirmar (activar la cascada
+`top_down_allows_trade` ya presente en `v2/context_mtf.py` pero desactivada).
+Eso es cambio de estrategia y requiere backtest comparativo con evidencia
+(igual que el `A''` filtro duro que bajó PF 0.9→0.900). No se activa en Fase 1
+para no romper la identidad del baseline.

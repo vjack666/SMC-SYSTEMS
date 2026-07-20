@@ -8,7 +8,7 @@ RR >= 1:3, y filtro de killzone. Antes el sequence usaba SL=BOS+-0.5ATR
 
 import pandas as pd
 
-from ict_backtest.engine import calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_ATR
+from ict_backtest.engine import calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_RANGE
 from ict_backtest.rules import killzone_en
 
 
@@ -53,14 +53,14 @@ def test_sl_none_sin_nivel_estructural():
 
 
 def test_filtro_tamano_sl_gigante():
-    # Sweep gigante -> riesgo > STRUCT_SL_MAX_ATR*ATR -> motor SALTA (no comprime).
-    atr = 0.0010
-    sweep_low = 1.0900  # 90 pips bajo el entry -> riesgo ~90 ATR
+    # Sweep gigante -> riesgo > STRUCT_SL_MAX_RANGE*rango -> motor SALTA (no comprime).
+    rng = 0.0010
+    sweep_low = 1.0900  # 90 pips bajo el entry -> riesgo ~90 rangos
     entry = 1.0990
-    row = _row(sweep_low=sweep_low, atr=atr)
-    sl = calc_structural_sl(row, 1, atr)
+    row = _row(sweep_low=sweep_low, atr=rng)
+    sl = calc_structural_sl(row, 1, rng)
     risk = abs(entry - sl)
-    assert risk > STRUCT_SL_MAX_ATR * atr
+    assert risk > STRUCT_SL_MAX_RANGE * rng
 
 
 def test_tp_liquidez_opuesta_preferida():

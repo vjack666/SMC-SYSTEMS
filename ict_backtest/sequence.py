@@ -45,7 +45,9 @@ import pandas as pd
 
 from ict_backtest._util import closed_row_at_time
 from ict_backtest.htf_pd_index import HtfPdZone
-from ict_backtest.market_object import MarketObject, ObjectType, Role
+from ict_backtest.market_object import MarketObject, ObjectState, ObjectType, Role
+from ict_backtest.multitf_context import MultiTFContext, extract_htf_layer
+from ict_backtest.plan_fsm import PlanEvent, PlanVerdict
 from ict_backtest.zone_authority import evaluate_zone_authority
 
 
@@ -315,7 +317,9 @@ def _effective_bos_gap(cfg: SequenceConfig, i: int, obj, est_htf,
 
 def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                  htf_poi_fn=None, ltf_tf: str = "M15", bos_table: dict | None = None,
-                 htf_pd_index=None, ltf_map: dict | None = None):
+                 htf_pd_index=None, ltf_map: dict | None = None,
+                 htf: str | None = None,
+                 est_htf_ctx_fn=None):
     """Recorre el LTF y devuelve lista de dicts de senal.
 
     R9 Paso 3: acepta DataFrame O lista de MarketObject (type=CANDLE). En
@@ -325,6 +329,15 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
     est_htf_fn(i) -> dict con trend/sweep_up/sweep_down del HTF en la vela i.
         En Fase C (C1) tambien puede traer 'pd_zones': lista de PD arrays
         HTF vigentes (HtfPdZone) a la vela i.
+        (Legacy: mantenido para llamadores existentes y tests aislados.)
+    htf / est_htf_ctx_fn (Fase 1, lectura multitemporal): si est_htf_ctx_fn
+        se pasa, run_sequence lo llama por barra y obtiene un MultiTFContext
+        con el snapshot closed-only de TODA la cadena D1..M1. Luego aplica
+        extract_htf_layer(context, htf) para seguir decidiendo con el MISMO
+        HTF que usaba antes (Opción A): comportamiento 100% idéntico al
+        baseline de 1 nivel. Los otros 5 TF viajan disponibles en el
+        contexto pero aún no influyen en la lógica. Sin est_htf_ctx_fn, el
+        comportamiento es exactamente el de antes (est_htf_fn legacy).
     htf_poi_fn(i, target) -> bool OPCIONAL: si se pasa, la zona de entrada del
         LTF (FVG/OB) SOLO se memoriza cuando el HTF tiene un POI en esa
         direccion (fidelidad ICT, tesis 18). Si es None (default), el
@@ -354,7 +367,16 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
 
     for i in range(n):
         obj = objs[i]
-        est_htf = est_htf_fn(i)
+        # Fase 1 (lectura multitemporal): si se pasó est_htf_ctx_fn, run_sequence
+        # recibe el MultiTFContext completo y lo reduce al MISMO HTF de antes
+        # (Opción A) vía extract_htf_layer. Sin esto, usa est_htf_fn legacy
+        # (comportamiento idéntico al histórico).
+        if est_htf_ctx_fn is not None:
+            _ctx = est_htf_ctx_fn(i)
+            est_htf = extract_htf_layer(_ctx, htf) if htf is not None else {}
+        else:
+            _ctx = None
+            est_htf = est_htf_fn(i)
         htf_trend = str(est_htf.get("trend", "RANGING"))
         bias = htf_trend if htf_trend in ("BULLISH", "BEARISH") else "RANGING"
         if bias == "RANGING":
@@ -448,7 +470,9 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 # TRAZAR EL CUADRO: usar la zona cacheada (FVG/OB del tramo
                 # sweep->displacement, memoria arriba), NO la vela del BOS donde
                 # el imbalance ya no esta. El trader marca ese cuadro y ESPERA
-                # el retorno (mitigation). Fallback: nivel del BOS +- 0.5 ATR.
+                # el retorno (mitigation). Fallback: nivel del BOS +- 0.5 * rango
+                # promedio (meta["atr"] ya es avg_candle_range, fuente unica de
+                # volatilidad; migrado de ATR a rango puro, Fase 1).
                 if not (np.isfinite(state.zone_high) and np.isfinite(state.zone_low)):
                     _atr = obj.meta.get("atr", np.nan)
                     try:

@@ -19,9 +19,13 @@ from typing import Any
 
 import pandas as pd
 
-from ict_backtest._util import closed_row_at_time, tf_duration
+from ict_backtest._util import (
+    avg_candle_range,
+    closed_row_at_time,
+    tf_duration,
+)
 from ict_backtest.engine import (
-    STRUCT_SL_MAX_ATR,
+    STRUCT_SL_MAX_RANGE,
     ICTSignal,
     calc_structural_sl,
     fill_entry_price,
@@ -29,6 +33,7 @@ from ict_backtest.engine import (
 )
 from ict_backtest.htf_pd_index import HtfPdIndex
 from ict_backtest.market_structure import detect_market_structure
+from ict_backtest.multitf_context import MultiTFContext, build_multitf_context, extract_htf_layer
 from ict_backtest.poi_anchor_motor import compute_htf_anchored
 from ict_backtest.dealing_range_motor import compute_zone_class
 from ict_backtest.po3_motor import compute_po3_complete, Po3MotorConfig
@@ -88,7 +93,10 @@ def evaluate_signals(
     if frames is None:
         from ict_backtest.data_feed import load_frames
 
-        tfs = tuple(dict.fromkeys([htf, ltf, "D1"]))
+        # Fase 1 (lectura multitemporal): cargar TODA la cadena D1/H4/H1/M15/M5/M1.
+        # Los datos de 6 TF ya están en disco (EURUSD/XAUUSD/GBPUSD/...); el
+        # cuello de botella era que el motor solo leía [htf, ltf, "D1"].
+        tfs = ("D1", "H4", "H1", "M15", "M5", "M1")
         frames = load_frames(symbol, tfs)
 
     ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
@@ -106,25 +114,34 @@ def evaluate_signals(
     # motor para lookup O(1) por barra (ver sequence.run_sequence).
     ltf_map = htf_pd_index.build_ltf_map(ltf_df) if htf_pd_index is not None else None
 
-    def est_htf_fn(i: int) -> dict[str, Any]:
+    # --- Fase 1 (lectura multitemporal): est_htf_ctx_fn devuelve el
+    # MultiTFContext closed-only de TODA la cadena en t. run_sequence usa
+    # extract_htf_layer(context, htf) para seguir decidiendo con el MISMO
+    # HTF de hoy (Opción A): comportamiento 100% idéntico al baseline.
+    # Los otros 5 TF viajan disponibles en el contexto pero aún no influyen.
+    def est_htf_ctx_fn(i: int) -> "MultiTFContext":
         t = ltf_df.iloc[i]["time"]
-        r = closed_row_at_time(htf_df, t, tf_duration(htf))
-        # C1: los PD arrays HTF vigentes ya vienen precalculados en ltf_map;
-        # aqui solo se entregan (lookup O(1)) para el evaluador de autoridad.
-        pd_zones = []
-        if ltf_map is not None:
+        anchored = None
+        if htf_pd_index is not None and ltf_map is not None:
+            anchored = {}
             for tf_ in htf_pd_index.timeframes:
-                pd_zones.extend(htf_pd_index.zones_at(i, tf_, ltf_map))
-        return {
-            "trend": str(r.get("trend", "RANGING")),
-            "sweep_up": bool(r.get("liquidity_sweep_up", False)),
-            "sweep_down": bool(r.get("liquidity_sweep_down", False)),
-            "pd_zones": pd_zones,
-        }
+                zs = htf_pd_index.zones_at(i, tf_, ltf_map)
+                if zs:
+                    anchored[tf_] = zs
+        return build_multitf_context(
+            ms, t, tfs=("D1", "H4", "H1", "M15", "M5", "M1"),
+            anchored_pd_zones=anchored,
+        )
+
+    # Fallback legacy: si run_sequence se llamara sin est_htf_ctx_fn, este
+    # est_htf_fn devuelve el dict plano idéntico al de antes (extract_htf_layer
+    # sobre el contexto). Mantiene compatibilidad con el 2º arg posicional.
+    def est_htf_fn_legacy(i: int) -> dict:
+        return extract_htf_layer(est_htf_ctx_fn(i), htf)
 
     raw_sigs, _ = run_sequence(
         ltf_df,
-        est_htf_fn,
+        est_htf_fn_legacy,  # 2º arg (est_htf_fn legacy): dict plano válido.
         SequenceConfig(
             counter_trend=counter_trend,
             tp_mode=tp_mode,
@@ -136,9 +153,15 @@ def evaluate_signals(
         bos_table=bos_table,
         htf_pd_index=htf_pd_index,
         ltf_map=ltf_map,
+        htf=htf,
+        est_htf_ctx_fn=est_htf_ctx_fn,
     )
 
     signals: list[ICTSignal] = []
+    # FUENTE ÚNICA de volatilidad/riesgo: rango promedio (high-low) del LTF.
+    # Migrado de la columna `atr` (inexistente en el ms, lo que mataba el
+    # filtro). Mismo contrato: serie alineada al índice de ltf_df.
+    rng_series = avg_candle_range(ltf_df, window=50)
     for s in raw_sigs:
         direction = s["direction"]
         entry_at = s["entry_at"]
@@ -147,18 +170,19 @@ def evaluate_signals(
             entry = fill_entry_price(ltf_df, entry_at, fill_mode)
         except ValueError:
             continue
-        atr = float(entry_row.get("atr", 0.0) or 0.0)
-        if not (atr > 0):
+        # Volatilidad de contexto = rango promedio en la barra de entrada.
+        rng = float(rng_series.iloc[entry_at]) if entry_at < len(rng_series) else 0.0
+        if not (rng > 0):
             continue
         kz = killzone_en(pd.to_datetime(entry_row["time"], utc=True))
         if kz not in ("London Open", "New York AM", "New York PM"):
             continue
         sweep_row = ltf_df.iloc[s["sweep_at"]]
-        sl = calc_structural_sl(sweep_row, direction, atr)
+        sl = calc_structural_sl(sweep_row, direction, rng)
         if sl is None:
             continue
         risk = abs(entry - sl)
-        if risk <= 0 or risk > STRUCT_SL_MAX_ATR * atr:
+        if risk <= 0 or risk > STRUCT_SL_MAX_RANGE * rng:
             continue
         liq = _tp_liquidity(entry_row, direction)
         if liq is not None:

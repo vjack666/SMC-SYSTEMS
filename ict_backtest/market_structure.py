@@ -9,7 +9,7 @@ invalidado, segun la teoria ICT (innercircletrader) y SMC (dailypriceaction):
     - Si el swing roto es HH/HL (en tendencia), es continuacion.
     - Si el swing roto es LH/LL (en correccion), es BOS de correccion (no cambia tendencia).
     - ACTIVO desde el break hasta que el precio CRUZA de nuevo el nivel roto
-      (invalidacion) o se aleja menos de max_age_atr*ATR sin follow-through (aged).
+      (invalidacion). EVENT-DRIVEN: no hay caducidad por tiempo/volatilidad.
 
   CHOCH (Change of Character):
     - Es el BOS que rompe el swing que DEFINE la tendencia opuesta.
@@ -18,18 +18,18 @@ invalidado, segun la teoria ICT (innercircletrader) y SMC (dailypriceaction):
     - REGLA CLAVE (dailypriceaction): un CHOCH valido debe romper el swing que
       produjo el ULTIMO BOS. Si rompe un swing equivocado, no cuenta.
     - ACTIVO hasta invalidacion (precio rompe en sentido contrario el swing del CHOCH)
-      o envejecimiento por volatilidad.
+      o invalidacion por cruce del nivel.
 
-Confirmacion y caducidad ORIENTADAS A LA REALIDAD DEL MERCADO (no velas fijas):
+Confirmacion ORIENTADA A LA REALIDAD DEL MERCADO (no velas fijas):
   - CONFIRMACION: la ruptura se marca solo con el CUERPO (close), nunca la mecha
     (wick = liquidity sweep, no estructura — TradingStrategyGuides 2026). Para
     reducir fakeouts (Turtle Soups) se exige `confirm_bars` cierres CONSECUTIVOS
     rompiendo el nivel (LuxAlgo Market Structure ICT, feb 2026: "two consecutive
     candle bodies close beyond a previous swing level").
-  - CADUCIDAD: en lugar de un numero fijo de velas (max_age), la estructura
-    "envejece" (aged) si el precio NO se aleja al menos `max_age_atr` * ATR del
-    nivel roto. Asi la validez se adapta a la volatilidad real del par/TF
-    (EURUSD M15 != XAUUSD H4), no a una constante magica.
+  - CADUCIDAD: EVENT-DRIVEN (Fase D). La estructura vive hasta el cruce del
+    nivel (invalidated). NO hay "aged" por tiempo ni por volatilidad; se ELIMINO
+    la dependencia de ATR (migracion ATR -> rango, Fase 1). La unica metrica de
+    volatilidad del sistema es avg_candle_range (rango high-low), sin indicadores.
 
 El detector de este modulo es EVENT-DRIVEN y SECUENCIAL: no evalua todo de
 golpe, sino que va marcando el estado de estructura vela a vela (memoria de
@@ -53,7 +53,6 @@ import pandas as pd
 @dataclass(frozen=True)
 class StructureConfig:
     swing_lookback: int = 5
-    atr_period: int = 14
     followthrough_bars: int = 8
     # Confirmacion: cuantos cierres CONSECUTIVOS deben romper el nivel.
     # 1 = una sola vela (comportamiento original); 2 = filtra fakeouts (LuxAlgo).
@@ -62,23 +61,11 @@ class StructureConfig:
     # tiempo/volatilidad (max_age_atr / max_age_bars / "aged"). Las
     # estructuras ahora viven por EVENTO (cruce del nivel = invalidated),
     # no por un contador de velas. Ver docs/plan/MARKET_OBJECT_MODEL.md.
+    # NOTE (migracion ATR -> rango, Fase 1): se ELIMINO `atr_period` y el
+    # calculo de ATR (Wilder), que era CODIGO MUERTO tras eliminar el "aged".
+    # La volatilidad del sistema es UNA sola: avg_candle_range (rango high-low),
+    # sin indicadores. Ver _util.avg_candle_range.
 
-
-def _atr(frame: pd.DataFrame, period: int) -> pd.Series:
-    """ATR clasico (Wilder) sobre high/low/close."""
-    high = frame["high"].to_numpy()
-    low = frame["low"].to_numpy()
-    close = frame["close"].to_numpy()
-    prev_close = np.roll(close, 1)
-    prev_close[0] = close[0]
-    tr = np.maximum.reduce([
-        high - low,
-        np.abs(high - prev_close),
-        np.abs(low - prev_close),
-    ])
-    tr_series = pd.Series(tr, index=frame.index)
-    atr_series = tr_series.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
-    return pd.Series(atr_series.to_numpy(), index=frame.index)
 
 
 def _swing_points(frame: pd.DataFrame, lookback: int) -> tuple[pd.Series, pd.Series]:
@@ -149,8 +136,6 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
     sh, sl = _swing_points(d, config.swing_lookback)
     d["swing_high"], d["swing_low"] = sh, sl
     d["swing_label"] = _label_swings(sh, sl)
-    atr = _atr(d, config.atr_period)
-    d["_atr"] = atr.to_numpy()
 
     # BOS: close (cuerpo) rompe el swing previo, CONFIRMADO por `confirm_bars`
     # cierres consecutivos (filtra fakeouts).
@@ -174,7 +159,7 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
     d["choch_dir"] = _consecutive_break(
         pd.Series(choch_raw != 0, index=d.index), config.confirm_bars
     ).astype(int) * choch_raw
-    d = d.drop(columns=["_last_bos_dir", "_last_bos_level", "_atr"])
+    d = d.drop(columns=["_last_bos_dir", "_last_bos_level"])
     d["choch_status"], d["choch_age"] = _track_structure(d, config, is_choch=True)
     d["trend"] = _derive_trend(d)
     return d
@@ -184,11 +169,9 @@ def _track_structure(d: pd.DataFrame, config: StructureConfig, is_choch: bool = 
     """Sigue validez de BOS o CHOCH vela a vela.
 
     Invalidacion: el cierre CRUZA de nuevo el nivel roto (por cuerpo).
-    Envejecimiento (aged): el precio lleva `max_age_bars` velas SEGUIDAS sin
-    alejarse al menos `max_age_atr` * ATR del nivel roto. Es decir: la
-    estructura "muere" solo tras un periodo de no-progress medido en volatilidad
-    real, no por un numero ciego de velas. Si en cualquier vela el precio se
-    aleja el umbral ATR, el contador de descanso se resetea.
+    EVENT-DRIVEN (Fase D): la estructura vive por EVENTO (cruce del nivel =
+    invalidated). NO hay caducidad por tiempo/volatilidad ("aged"): nunca muere
+    por un contador de velas ni por un umbral de volatilidad.
     """
     n = len(d)
     status = pd.Series(["none"] * n, index=d.index, dtype=object)
@@ -200,7 +183,6 @@ def _track_structure(d: pd.DataFrame, config: StructureConfig, is_choch: bool = 
     low = d["low"].to_numpy()
     high = d["high"].to_numpy()
     close = d["close"].to_numpy()
-    atr = d["_atr"].to_numpy() if "_atr" in d.columns else np.zeros(n)
     dir_col = d["choch_dir"].to_numpy() if is_choch else d["bos_dir"].to_numpy()
     sh = d["swing_high"].to_numpy()
     slv = d["swing_low"].to_numpy()

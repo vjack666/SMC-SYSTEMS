@@ -307,23 +307,29 @@ def _coerce_ts(value: Any) -> pd.Timestamp | None:
     return ts.tz_convert("UTC") if ts.tz else ts.tz_localize("UTC")
 
 
-# Maximo ancho del SL estructural en ATR. Si el sweep fue gigante y el SL
-# queda mas alla de esto, el RR se rompe -> el motor SALTA el trade (P5).
-STRUCT_SL_MAX_ATR = 6.0
+# Maximo ancho del SL estructural en RANGO (high-low promedio). Si el sweep
+# fue gigante y el SL queda mas alla de esto, el RR se rompe -> el motor
+# SALTA el trade (P5). Migrado de STRUCT_SL_MAX_ATR (ATR) a rango puro:
+# misma magnitud de umbral (6.0) para medir impacto en Fase 2 (calibración).
+STRUCT_SL_MAX_RANGE = 6.0
 
 
-def calc_structural_sl(row: pd.Series, direction: int, atr: float) -> float | None:
+def calc_structural_sl(row: pd.Series, direction: int, rng: float) -> float | None:
     """Stop-loss estructural ICT (libro 14_STOP_LOSS_ESTRUCTURAL).
 
     Ancla el SL al NIVEL donde la tesis del trade se cae, NO a la volatilidad.
     Prioridad (ICT mistake #4: usar buffer, no 1 pip):
       1. Mechas del sweep (sweep_low/sweep_high) +- buffer (la fuente madre).
       2. Si no hay sweep: swing roto (swing_low/swing_high de BOS/CHOCH).
-      3. Si tampoco: None -> el motor NO opera (no degrada a ATR).
+      3. Si tampoco: None -> el motor NO opera (no degrada a rango).
     El buffer evita que el spike post-sweep toque el stop por 1 pip.
+
+    El buffer ahora usa el RANGO PROMEDIO (high-low) de la fuente única
+    ``avg_candle_range`` (en vez de ATR), bajo la regla de matemática pura
+    sin indicadores. Múltiplo equivalente inicial (0.3) para medir impacto.
     """
     from typing import cast
-    buf = STRUCT_SL_BUFFER_ATR * atr
+    buf = STRUCT_SL_BUFFER_RANGE * rng
 
     def _lvl(col: str) -> float | None:
         v = row.get(col, np.nan)
@@ -349,9 +355,10 @@ def calc_structural_sl(row: pd.Series, direction: int, atr: float) -> float | No
     return None
 
 
-# Buffer del SL estructural en ATR (ICT mistake #4: stops 1 pip past the
-# level get tagged on the spike). 0.3 ATR da aire sin romper el RR.
-STRUCT_SL_BUFFER_ATR = 0.3
+# Buffer del SL estructural en RANGO (high-low promedio). ICT mistake #4:
+# stops 1 pip past the level get tagged on the spike. 0.3 * rango da aire sin
+# romper el RR. Migrado de STRUCT_SL_BUFFER_ATR (ATR) a rango puro (Fase 1).
+STRUCT_SL_BUFFER_RANGE = 0.3
 
 
 def _invalidation_level(estructura: dict, direction: int, exec_tf: str = "M15") -> float | None:

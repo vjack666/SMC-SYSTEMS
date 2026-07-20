@@ -123,3 +123,31 @@ def closed_row_at_time(df: pd.DataFrame, t: Any, duration: Any) -> Any:
     except Exception:
         pass
     return df.iloc[0]
+
+
+def avg_candle_range(df: pd.DataFrame, window: int = 50) -> pd.Series:
+    """FUENTE ÚNICA de volatilidad/riesgo del sistema.
+
+    Rango promedio de la vela = promedio de (high - low) sobre una ventana
+    móvil de `window` velas. MATEMÁTICA PURA del gráfico, SIN INDICADORES
+    (equivalente a True Range promedio pero sin el componente
+    close-anterior, que solo aporta ruido en TF intradía).
+
+    Es la MISMA métrica que usa ``confirmation_window`` (sequence.py:268) y
+    ``build_bos_table`` (bos_table_builder.py:104) para la fuerza del BOS.
+    Toda volatilidad/riesgo del sistema debe leer de AQUÍ, para no tener dos
+    caminos (rango nuevo + ATR viejo). Ver migración ATR -> rango (Fase 1).
+
+    - Ventanas con high==low (rango 0) se tratan como NA para no contaminar
+      el promedio ni producir división por cero en los consumidores.
+    - Devuelve una Serie alineada al índice de `df` (rolling mean, ffill del
+      arranque hasta tener `window` velas).
+    """
+    high = df["high"].to_numpy(dtype=float)
+    low = df["low"].to_numpy(dtype=float)
+    rng = pd.Series(high - low, index=df.index)
+    # high==low (rango 0) -> NaN, para no contaminar el promedio ni dividir por 0.
+    rng = rng.mask(rng <= 0.0)
+    avg = rng.rolling(window=window, min_periods=max(1, window // 2)).mean().ffill().bfill()
+    return avg
+

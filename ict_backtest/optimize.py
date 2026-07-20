@@ -40,7 +40,7 @@ if str(ROOT) not in sys.path:
 from ict_backtest.data_feed import load_frames  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
 from ict_backtest.sequence import run_sequence, SequenceConfig  # noqa: E402
-from ict_backtest._util import closed_row_at_time, infer_tf_duration  # noqa: E402
+from ict_backtest._util import closed_row_at_time, infer_tf_duration, avg_candle_range  # noqa: E402
 from ict_backtest.costs import resolve_cost  # noqa: E402
 from ict_backtest.engine import simulate_trade, ICTSignal, fill_entry_price  # noqa: E402
 
@@ -114,18 +114,21 @@ def sequence_pf_on_slice(ltf_df: pd.DataFrame, htf_df: pd.DataFrame,
                        displace_gap=params.displace_gap, bos_gap=params.bos_gap))
 
     signals = []
+    rng_series = avg_candle_range(ltf_df, window=50)
     for s in raw_sigs:
         direction = s["direction"]
         # Fill default produccion = next_open (open vela siguiente). R6.2 G2.
         entry = fill_entry_price(ltf_df, s["entry_at"], "next_open")
-        atr = float(ltf_df.iloc[s["entry_at"]].get("atr", 0.0) or 0.0)
-        if not (atr > 0):
+        # FUENTE ÚNICA de volatilidad/riesgo: rango promedio (high-low). Migrado
+        # de ATR a rango puro (Fase 1), múltiplo equivalente para medir impacto.
+        rng = float(rng_series.iloc[s["entry_at"]]) if s["entry_at"] < len(rng_series) else 0.0
+        if not (rng > 0):
             continue
         bos_lvl = s.get("bos_level", float("nan"))
         if direction == 1:
-            sl = bos_lvl - 0.5 * atr if np.isfinite(bos_lvl) else entry - atr
+            sl = bos_lvl - 0.5 * rng if np.isfinite(bos_lvl) else entry - rng
         else:
-            sl = bos_lvl + 0.5 * atr if np.isfinite(bos_lvl) else entry + atr
+            sl = bos_lvl + 0.5 * rng if np.isfinite(bos_lvl) else entry + rng
         risk = abs(entry - sl)
         if risk <= 0:
             continue

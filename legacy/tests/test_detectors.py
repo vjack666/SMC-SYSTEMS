@@ -261,7 +261,7 @@ class TestDetectDisplacement:
             lows=[99.5, 100.5, 101.5],
             closes=[100.8, 102.8, 104.8],
         )
-        result = detect_displacement(df, DisplacementConfig(body_atr_multiple=1.0, atr_period=14))
+        result = detect_displacement(df, DisplacementConfig(body_range_multiple=1.0, range_period=14))
         assert result["displacement_bullish"].iloc[-1]
 
     def test_small_body_not_displacement(self):
@@ -271,7 +271,7 @@ class TestDetectDisplacement:
             lows=[99.0, 99.5, 100.0],
             closes=[100.2, 100.7, 101.2],
         )
-        result = detect_displacement(df, DisplacementConfig(body_atr_multiple=10.0, atr_period=14))
+        result = detect_displacement(df, DisplacementConfig(body_range_multiple=10.0, range_period=14))
         assert not result["displacement_bullish"].any()
 
     def test_magnitude_scales_with_body(self):
@@ -280,7 +280,7 @@ class TestDetectDisplacement:
         assert result["displacement_magnitude"].min() >= 0.0
 
     def test_config_overrides(self, frame):
-        cfg = DisplacementConfig(body_atr_multiple=2.0, wick_threshold=0.3)
+        cfg = DisplacementConfig(body_range_multiple=2.0, wick_threshold=0.3)
         result = detect_displacement(frame, cfg)
         assert "displacement_bullish" in result.columns
 

@@ -5,7 +5,8 @@ Carga OHLC (parquet en data/raw), corre los detectores ICT del repo
 las columnas que el motor (engine._build_estructura) espera:
 
   trend/macro_direction, bos_direction, bos_status,
-  liquidity_sweep_up/down, fvg_state, ob_direction, atr, time, ohlc
+  liquidity_sweep_up/down, fvg_state, ob_direction, atr (= avg_candle_range,
+  rango high-low, fuente unica de volatilidad; ver nota Fase 1), time, ohlc
 
 Todo se calcula por TF (D1, H4, ...). NO usa reloj de PC: la killzone
 la deriva el motor del timestamp de cada vela.
@@ -20,6 +21,7 @@ import pandas as pd
 
 from detectors import detect_displacement, detect_fvg, detect_liquidity, detect_order_blocks
 from ict_backtest.market_structure import StructureConfig, detect_market_structure
+from ict_backtest._util import avg_candle_range
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data" / "raw"
@@ -46,7 +48,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     d = df.copy().reset_index(drop=True)
     # --- Estructura canonica (BOS/CHOCH/trend) como UNICA fuente de verdad ---
     # Sustituye detect_bos/detect_choch legacy (sin indicadores EMA para CHOCH).
-    ms = detect_market_structure(d, StructureConfig(swing_lookback=5, confirm_bars=2, atr_period=14))
+    ms = detect_market_structure(d, StructureConfig(swing_lookback=5, confirm_bars=2))
     d["bos_dir"] = ms["bos_dir"].astype(int).values
     d["choch_dir"] = ms["choch_dir"].astype(int).values
     d["bos_direction"] = (
@@ -61,7 +63,11 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     d["swing_high"] = ms["swing_high"].values
     d["swing_low"] = ms["swing_low"].values
     d["swing_label"] = ms["swing_label"].values
-    d["atr"] = ms["_atr"] if "_atr" in ms.columns else d.get("atr")
+    # Volatilidad/riesgo = FUENTE ÚNICA rango high-low (avg_candle_range), NO
+    # ATR. La columna se sigue llamando "atr" por CONTRATO (object_adapter,
+    # sequence.meta, translation la esperan con ese nombre), pero su contenido
+    # es el rango promedio puro. Migración ATR -> rango (Fase 1).
+    d["atr"] = avg_candle_range(d, window=50).to_numpy()
     # trend ya viene del canonico (ms["trend"], HH/HL vs LH/LL). El macro_direction
     # lo provee build_trend_context_frame en pipeline.py, no aqui (sequence usa HTF).
     f = detect_fvg(d)          # fvg_bullish, fvg_bearish, fvg_mid, ...
@@ -71,11 +77,12 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     d = o                      # PRESERVA las booleanas (antes se descartaban)
     d["ob_direction"] = d.apply(_ob_dir, axis=1).values
     # --- Fase B1 (SPEC §4/§5): cruce FVG+OB y etiquetas de tipo/tier ---
-    # BPR (T1): FVG y OB caen en la MISMA zona de precio (tolerancia = 0.3 ATR).
+    # BPR (T1): FVG y OB caen en la MISMA zona de precio (tolerancia = 0.3 * rango
+    # high-low promedio, fuente única avg_candle_range; migrado de 0.3 ATR).
     # BREAKER: OB cuya estructura adyacente se rompió (bos_dir opuesto a ob_direction).
     # MITIGATION_BLOCK (T3): OB que mitiga un FVG previo (fvg_mid entre ob_top/ob_bottom).
-    _atr = d["atr"] if "atr" in d.columns else pd.Series(0.0, index=d.index)
-    tol = 0.3 * _atr.clip(lower=1e-9)
+    _rng = d["atr"] if "atr" in d.columns else pd.Series(0.0, index=d.index)
+    tol = 0.3 * _rng.clip(lower=1e-9)
     fvg_b = d["fvg_bullish"].fillna(False).values
     fvg_be = d["fvg_bearish"].fillna(False).values
     # FVG activo mas reciente (persiste varias barras hasta llenarse): ffill del mid.

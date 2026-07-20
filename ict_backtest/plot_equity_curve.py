@@ -23,7 +23,7 @@ if str(ROOT) not in sys.path:
 from ict_backtest.data_feed import load_frames  # noqa: E402
 from ict_backtest.market_structure import detect_market_structure  # noqa: E402
 from ict_backtest.sequence import run_sequence, SequenceConfig  # noqa: E402
-from ict_backtest._util import closed_row_at_time, tf_duration  # noqa: E402
+from ict_backtest._util import closed_row_at_time, tf_duration, avg_candle_range  # noqa: E402
 from ict_backtest.engine import simulate_trade, ICTSignal  # noqa: E402
 
 SYMBOL, HTF, LTF = "EURUSD", "H4", "M15"
@@ -55,14 +55,15 @@ def main() -> None:
                        displace_gap=DISPLACE_GAP, bos_gap=BOS_GAP))
 
     signals = []
+    rng_series = avg_candle_range(ltf_df, window=50)
     for s in raw_sigs:
         direction = s["direction"]
         entry = s["entry"]
-        atr = float(ltf_df.iloc[s["entry_at"]].get("atr", 0.0) or 0.0)
-        if not (atr > 0):
+        rng = float(rng_series.iloc[s["entry_at"]]) if s["entry_at"] < len(rng_series) else 0.0
+        if not (rng > 0):
             continue
         bos_lvl = s.get("bos_level", float("nan"))
-        sl = bos_lvl - 0.5 * atr if np.isfinite(bos_lvl) else entry - atr
+        sl = bos_lvl - 0.5 * rng if np.isfinite(bos_lvl) else entry - rng
         risk = abs(entry - sl)
         if risk <= 0:
             continue
