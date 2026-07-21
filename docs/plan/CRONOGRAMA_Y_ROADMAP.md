@@ -3,9 +3,16 @@
 **Proyecto:** SMC-SYSTEMS (renombrado desde SMC_SUCCESSOR)
 **Repositorio:** https://github.com/vjack666/SMC-SYSTEMS
 **Versión del Roadmap:** 2.8 (Fase 0 SPEC firmada + MDS + principio TZ servidor→conversión)
-**Fecha de Actualización:** 2026-07-21 (cierre R10 + R3.5 + dealing range)
+**Fecha de Actualización:** 2026-07-21 (cierre R10 + R3.5 + dealing range + limpieza post-commit)
 **Estado General:** 🟢 Observador FundedNext operativo. **R4 CERRADO (2026-07-17): ICT puro mecánico SIN edge para live/fondeo** — ver `docs/auditorias/R4_CIERRE_FUNDING_2026-07-17.md`. **R7 UNIFICACIÓN COMPLETADA (2026-07-19):** motores legacy BOS/CHOCH/TREND eliminados (`git rm detectors/bos.py/choch.py/trend.py`); única fuente de verdad `ict_backtest/market_structure.py`. Migración validada por `scripts/diag_etapas.py` (la secuencia H4→M15 vive: run_sequence genera señales). Diseño de temporalidades y roadmap por capacidades en `docs/plan/ARQUITECTURA_TEMPORALIDADES.md` + `docs/plan/ROADMAP_CAPACIDADES.md`. **R10 cerrado (2026-07-21): default canónico `bos_gap=None`/dinámico, sin ATR/indicadores. R3.5 cerrado (2026-07-21): POI tiers/stacking documentados + `ict_backtest/tier_engine.py`. Dealing range/EQ cerrado (2026-07-21): API explícita en `ict_backtest/dealing_range_motor.py`, EQ ambiguo no descarta.**
 
+> **NOTA DE MANTENIMIENTO (2026-07-21, commit `e227b97`):** fix de formato parquet
+> (21 archivos con `time` como DatetimeIndex en vez de columna → `KeyError` en
+> `sequence.py`). Scripts de descarga MT5 corregidos (`index=False`). Recovery del
+> test suite: 606 passed / 10 failed (desde 576/30). Los 10 failures restantes son
+> pre-existentes (pasan individualmente): 6 × suite-order pollution en A1 topdown,
+> 3 × multitf_context, 1 × sklearn 1.9 vs pickle 1.7.1.
+>
 > **NOTA DE EJECUCIÓN (2026-07-17):** los hitos R0-R7/A1-A12 de este cronograma
 > siguen vigentes como CRONOLOGÍA del proyecto. Pero la **estrategia de implementación
 > orientada a la tesis** ahora vive en `docs/plan/ROADMAP_TESIS_DRIVEN_2026-07-17.md`
