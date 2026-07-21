@@ -424,5 +424,95 @@
     },
     "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-939\\test_save_and_load0\\test_model.pkl",
     "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1784654264626",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-948\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1784654500475",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-949\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1784655291025",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-950\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1784659425153",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-951\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1784660698292",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-959\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1784662441649",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-960\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1784663592126",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-961\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1784664630655",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-962\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1784664924536",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-963\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
   }
 ]

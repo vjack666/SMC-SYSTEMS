@@ -200,8 +200,10 @@ def _has_bos(obj: MarketObject, est_htf: dict, direction: int, counter_trend: bo
     A-favor (counter_trend=False): el BOS del LTF debe ir en la direccion del
     sesgo HTF. Contratendencia: el BOS/CHOCH debe ir en direccion OPUESTA al HTF.
     """
-    bos_dir = int(obj.meta.get("bos_dir", 0) or 0)
-    choch_dir = int(obj.meta.get("choch_dir", 0) or 0)
+    _bd = obj.meta.get("bos_dir", 0)
+    bos_dir = 0 if (_bd is None or (isinstance(_bd, float) and (_bd != _bd))) else int(_bd)
+    _cd = obj.meta.get("choch_dir", 0)
+    choch_dir = 0 if (_cd is None or (isinstance(_cd, float) and (_cd != _cd))) else int(_cd)
     htf_trend = str(est_htf.get("trend", "RANGING"))
     if counter_trend:
         want = -1 if htf_trend == "BULLISH" else 1 if htf_trend == "BEARISH" else direction

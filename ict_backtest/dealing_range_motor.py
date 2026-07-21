@@ -52,17 +52,19 @@ def compute_zone_class(
     entry: float,
     zone_low: float | None = None,
     zone_high: float | None = None,
-) -> str:
-    """Devuelve la clase del deal range para la señal actual.
+) -> str | None:
+    """Devuelve la clase del deal range para la señal actual, o ``None``
+    cuando no hay swing HTF válido (no hay dealing range que clasificar).
 
-    - Si no hay swing HTF, devuelve ``EQ`` como fallback seguro.
-    - Usa la zona FVG/OB del setup cuando está disponible; si no, la usa el entry.
-    - PQ = eq, upper = EQ + 12% rango, lower = EQ - 12% rango.
+    - ``None``: swing ausente, parcial o inválido (high <= low).
+    - ``"EQ"``: precio dentro de la banda ambigua (±12% del midpoint).
+    - ``"DISCOUNT"`` / ``"PREMIUM"``: precio por debajo / encima de EQ.
+    - Usa la zona FVG/OB del setup cuando está disponible; si no, usa entry.
     """
     if swing_high_htf is None or swing_low_htf is None:
-        return "EQ"
+        return None
     if swing_high_htf <= swing_low_htf:
-        return "EQ"
+        return None
     eq = _eq(swing_high_htf, swing_low_htf)
     rng = swing_high_htf - swing_low_htf
     price = entry

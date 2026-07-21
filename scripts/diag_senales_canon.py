@@ -13,7 +13,7 @@ from ict_backtest.data_feed import load_frames, build_features
 from ict_backtest.market_structure import detect_market_structure
 from ict_backtest.sequence import run_sequence, SequenceConfig
 from ict_backtest._util import closed_row_at_time, tf_duration
-from ict_backtest.engine import calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_ATR
+from ict_backtest.engine import calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_RANGE
 from ict_backtest.rules import killzone_en
 
 SYMBOL, HTF, LTF = "AUDUSD", "H4", "M15"
@@ -68,7 +68,7 @@ for s in raw:
     if sl is None:
         continue
     risk = abs(s["entry"] - sl)
-    if risk <= 0 or risk > STRUCT_SL_MAX_ATR * atr:
+    if risk <= 0 or risk > STRUCT_SL_MAX_RANGE * atr:
         continue
     out.append(entry_at)
 print(f"post-filter senales: {len(out)}")

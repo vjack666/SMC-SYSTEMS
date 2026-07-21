@@ -68,7 +68,7 @@ def test_tp_liquidez_opuesta_preferida():
     atr = 0.0010
     row = _row(close=1.1000, atr=atr, bsl=1.1080)
     liq = _tp_liquidity(row, 1)
-    assert liq == 1.1080
+    assert liq["internal"] == 1.1080
 
 
 def test_killzone_filtra_fuera_de_ventana():

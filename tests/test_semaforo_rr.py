@@ -5,9 +5,18 @@ solo por "estructura clara y sin roja"; exige un setup valido (R:R >= 1:2).
 Si el contexto esta limpio pero el R:R no llega -> AMARILLO "esperar".
 """
 import sys
+import types
 from pathlib import Path
 sys.path.insert(0, '.')
 sys.path.insert(0, str(Path('.').resolve() / 'scripts'))
+
+# rutina_eurusd imports BosConfig/detect_bos from detectors which were
+# removed in the R7 unification (now in ict_backtest/market_structure.py).
+# evaluate() never uses those — mock the transitive imports so the test
+# stays isolated from the broken production import chain.
+for mod_name in ("rutina_eurusd", "news_report"):
+    if mod_name not in sys.modules:
+        sys.modules[mod_name] = types.ModuleType(mod_name)
 
 from scripts.semaforo_fundednext import evaluate
 

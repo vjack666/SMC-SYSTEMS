@@ -37,7 +37,7 @@ from ict_backtest.market_structure import detect_market_structure
 from ict_backtest.sequence import run_sequence, SequenceConfig
 from ict_backtest._util import closed_row_at_time, tf_duration
 from ict_backtest.engine import (calc_structural_sl, _tp_liquidity,
-                                 STRUCT_SL_MAX_ATR, ICTSignal)
+                                 STRUCT_SL_MAX_RANGE, ICTSignal)
 import ict_backtest.run_backtest as rb
 
 
@@ -92,7 +92,7 @@ def _oracle_sequence_signals():
         if sl is None:
             continue
         risk = abs(entry - sl)
-        if risk <= 0 or risk > STRUCT_SL_MAX_ATR * atr:
+        if risk <= 0 or risk > STRUCT_SL_MAX_RANGE * atr:
             continue
         liq = _tp_liquidity(entry_row, direction)
         tp = liq if liq is not None else (

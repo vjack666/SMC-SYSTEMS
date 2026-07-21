@@ -72,7 +72,7 @@ def _signals_and_metrics(frames, ms, use_objects=False):
             ltf_df, est_fn, cfg, ltf_tf=LTF
         )
     # Simular para métricas (usando SL estructural + RR 1:3 estilo run_backtest)
-    from ict_backtest.engine import calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_ATR
+    from ict_backtest.engine import calc_structural_sl, _tp_liquidity, STRUCT_SL_MAX_RANGE
     pnls = []
     for s in sigs:
         direction = s["direction"]
@@ -85,7 +85,7 @@ def _signals_and_metrics(frames, ms, use_objects=False):
         if sl is None:
             continue
         risk = abs(entry - sl)
-        if risk <= 0 or risk > STRUCT_SL_MAX_ATR * atr:
+        if risk <= 0 or risk > STRUCT_SL_MAX_RANGE * atr:
             continue
         liq = _tp_liquidity(entry_row, direction)
         tp = liq if liq is not None else (entry + 3.0 * risk if direction == 1 else entry - 3.0 * risk)

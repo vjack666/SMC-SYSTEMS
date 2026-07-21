@@ -17,8 +17,9 @@ import pandas as pd
 import pytest
 
 from ict_backtest.data_feed import load_frames
+from ict_backtest._util import avg_candle_range
 from ict_backtest.market_structure import (
-    detect_market_structure, _swing_points, _label_swings, _atr,
+    detect_market_structure, _swing_points, _label_swings,
     _consecutive_break, _track_structure, _derive_trend, StructureConfig,
 )
 
@@ -54,7 +55,7 @@ def test_identify_exact_mutation_instruction():
     c = snap("L150 asigna swing_high/low")
     d["swing_label"] = _label_swings(sh, sl)          # L151
     c = snap("L151 swing_label")
-    atr = _atr(d, config.atr_period)                  # L152
+    atr = avg_candle_range(d, window=14)               # L152
     c = snap("L152 _atr")
     d["_atr"] = atr.to_numpy()                        # L153
     c = snap("L153 d['_atr'] = atr")

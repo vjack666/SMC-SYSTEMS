@@ -62,11 +62,11 @@ def test_separation_script_runs():
         cwd=str(ROOT), capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stderr
-    # Solo engine<->rules cruzan (2 aristas); el resto son islas.
-    assert "ict_backtest/engine.py <-> ict_backtest/rules.py: 2" in result.stdout
+    # Post-R7: engine delega en sequence (1 arista); rules ya no cruza con engine.
+    assert "ict_backtest/engine.py <-> ict_backtest/sequence.py: 1" in result.stdout
     # Sin subprocess, la lógica independiente debe coincidir en el conteo.
     data = _load_graph()
-    assert _count_cross_edges(data, MODULES) == 2
+    assert _count_cross_edges(data, MODULES) == 1
 
 
 def test_modules_in_distinct_communities():

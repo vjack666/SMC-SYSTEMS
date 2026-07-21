@@ -113,11 +113,13 @@ def build_scalping_context(
     data = load_frame(data_dir, symbol, timeframe)
 
     _step(1, "detecting market structure (canonical BOS/CHOCH)...")
-    ms = detect_market_structure(data, StructureConfig(swing_lookback=5, confirm_bars=2, atr_period=14))
+    ms = detect_market_structure(data, StructureConfig(swing_lookback=5, confirm_bars=2))
     # Vistas string que el pipeline ya consume río abajo (sin renombrar).
     # El canónico emite bos_dir/choch_dir (int) y bos_status/choch_status.
     data["bos_dir"] = ms["bos_dir"].astype(int).values
     data["choch_dir"] = ms["choch_dir"].astype(int).values
+    data["swing_high"] = ms["swing_high"].values
+    data["swing_low"] = ms["swing_low"].values
     data["bos_direction"] = (
         ms["bos_dir"].map({1: "BULLISH", -1: "BEARISH"}).fillna("NONE").astype(str).values
     )
@@ -174,11 +176,11 @@ def build_scalping_context(
     atr_filter = data["atr_ratio"].fillna(0.0) > config.min_atr_ratio
 
     if config.relaxed_bos:
-        bos_up = data["bos_direction"].rolling(2, min_periods=1).max() > 0
-        bos_down = data["bos_direction"].rolling(2, min_periods=1).min() < 0
+        bos_up = data["bos_dir"].rolling(2, min_periods=1).max() > 0
+        bos_down = data["bos_dir"].rolling(2, min_periods=1).min() < 0
     else:
-        bos_up = data["bos_direction"] > 0
-        bos_down = data["bos_direction"] < 0
+        bos_up = data["bos_direction"] == "BULLISH"
+        bos_down = data["bos_direction"] == "BEARISH"
 
         # --- Item E: degradar BOS muerto (invalidated/aged) ---
         if config.enable_detector_invalidation and "bos_status" in data.columns:
@@ -305,8 +307,8 @@ def build_scalping_context(
     # CHOCH opuesto al macro = aviso de giro; BOS en la dirección del giro posterior
     # en bos_gap velas = confirmación. Mantiene confirmación por cuerpo (market_structure)
     # y caducidad ATR (Item E choch_status/bos_status).
-    recent_bos_bull = data["bos_direction"].rolling(config.sequence_bos_gap, min_periods=1).max() > 0
-    recent_bos_bear = data["bos_direction"].rolling(config.sequence_bos_gap, min_periods=1).min() < 0
+    recent_bos_bull = data["bos_dir"].rolling(config.sequence_bos_gap, min_periods=1).max() > 0
+    recent_bos_bear = data["bos_dir"].rolling(config.sequence_bos_gap, min_periods=1).min() < 0
     choch_bos_confirm = (
         ((data["macro_direction"] == "BULLISH") & recent_bearish_choch & recent_bos_bull & choch_alive)
         | ((data["macro_direction"] == "BEARISH") & recent_bullish_choch & recent_bos_bear & choch_alive)
@@ -372,10 +374,10 @@ def build_scalping_context(
     data.loc[signal_pass & (data["macro_direction"] == "BULLISH"), "signal_direction"] = 1
     data.loc[signal_pass & (data["macro_direction"] == "BEARISH"), "signal_direction"] = -1
 
-    swing_low_20 = data["last_swing_low"].ffill().rolling(20, min_periods=1).apply(
+    swing_low_20 = data["swing_low"].ffill().rolling(20, min_periods=1).apply(
         lambda s: s.dropna().iloc[-1] if not s.dropna().empty else float("nan"), raw=False
     )
-    swing_high_20 = data["last_swing_high"].ffill().rolling(20, min_periods=1).apply(
+    swing_high_20 = data["swing_high"].ffill().rolling(20, min_periods=1).apply(
         lambda s: s.dropna().iloc[-1] if not s.dropna().empty else float("nan"), raw=False
     )
     data["structural_sl"] = float("nan")

@@ -22,7 +22,7 @@ from ict_backtest.market_structure import detect_market_structure
 from ict_backtest.sequence import run_sequence, SequenceConfig
 from ict_backtest._util import closed_row_at_time, tf_duration
 from ict_backtest.engine import (calc_structural_sl, _tp_liquidity,
-                                 STRUCT_SL_MAX_ATR)
+                                 STRUCT_SL_MAX_RANGE)
 from ict_backtest.rules import killzone_en
 from ict_backtest.run_backtest import generate_sequence_signals
 
@@ -66,10 +66,11 @@ def _post_filter(ltf_df, raw_sigs):
         risk = abs(entry - sl)
         if risk <= 0:
             drops.append((entry_at, "risk<=0")); continue
-        if risk > STRUCT_SL_MAX_ATR * atr:
-            drops.append((entry_at, f"risk>{STRUCT_SL_MAX_ATR}*atr")); continue
+        if risk > STRUCT_SL_MAX_RANGE * atr:
+            drops.append((entry_at, f"risk>{STRUCT_SL_MAX_RANGE}*atr")); continue
         liq = _tp_liquidity(entry_row, direction)
-        tp = liq if liq is not None else (entry + 3.0*risk if direction == 1 else entry-3.0*risk)
+        liq_val = liq["internal"] if isinstance(liq, dict) else liq
+        tp = liq_val if liq_val is not None else (entry + 3.0*risk if direction == 1 else entry-3.0*risk)
         if direction == 1 and tp <= entry + 2.0*risk: tp = entry + 3.0*risk
         if direction == -1 and tp >= entry - 2.0*risk: tp = entry - 3.0*risk
         out.append(entry_at)

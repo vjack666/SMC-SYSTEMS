@@ -35,7 +35,7 @@ import pandas as pd
 from ict_backtest._util import closed_row_at_time, tf_duration
 from ict_backtest.canonical import evaluate_signals
 from ict_backtest.engine import (calc_structural_sl, fill_entry_price,
-                                 STRUCT_SL_MAX_ATR)
+                                 STRUCT_SL_MAX_RANGE)
 from ict_backtest.market_structure import detect_market_structure
 from ict_backtest.multitf_context import (build_multitf_context,
                                           extract_htf_layer)
@@ -155,9 +155,9 @@ def _post_filter_with_reasons(ltf_df, raw_sigs, fill_mode="next_open"):
             rows.append((entry_at, direction, "FAIL", "calc_structural_sl=None"))
             continue
         risk = abs(entry - sl)
-        if risk <= 0 or risk > STRUCT_SL_MAX_ATR * atr:
-            reason = (f"risk={risk:.5f} > {STRUCT_SL_MAX_ATR}*atr={STRUCT_SL_MAX_ATR*atr:.5f}"
-                      if risk > STRUCT_SL_MAX_ATR * atr else "risk<=0")
+        if risk <= 0 or risk > STRUCT_SL_MAX_RANGE * atr:
+            reason = (f"risk={risk:.5f} > {STRUCT_SL_MAX_RANGE}*atr={STRUCT_SL_MAX_RANGE*atr:.5f}"
+                      if risk > STRUCT_SL_MAX_RANGE * atr else "risk<=0")
             rows.append((entry_at, direction, "FAIL", reason))
             continue
         out.append(s)

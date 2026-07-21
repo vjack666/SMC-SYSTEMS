@@ -24,7 +24,7 @@ from ict_backtest.market_structure import detect_market_structure
 from ict_backtest._util import closed_row_at_time, tf_duration
 from ict_backtest.sequence import run_sequence, SequenceConfig
 from ict_backtest.rules import killzone_en, KILLZONES_UTC
-from ict_backtest.engine import calc_structural_sl, fill_entry_price, _tp_liquidity, STRUCT_SL_MAX_ATR
+from ict_backtest.engine import calc_structural_sl, fill_entry_price, _tp_liquidity, STRUCT_SL_MAX_RANGE
 
 
 def audit_symbol(symbol: str, htf: str, ltf: str, max_hold: int = 16,
@@ -165,7 +165,7 @@ def audit_symbol(symbol: str, htf: str, ltf: str, max_hold: int = 16,
         if risk <= 0:
             filter_counts["risk_too_small"] += 1
             continue
-        if risk > STRUCT_SL_MAX_ATR * atr:
+        if risk > STRUCT_SL_MAX_RANGE * atr:
             filter_counts["risk_too_large"] += 1
             continue
 
@@ -184,7 +184,7 @@ def audit_symbol(symbol: str, htf: str, ltf: str, max_hold: int = 16,
     print(f"  |  KILLED by structural SL = None         : {filter_counts['structural_sl_none']:>8}         |")
     print(f"  |    - sweep_low/high missing             : {filter_counts['structural_sl_sweep_low_missing']+filter_counts['structural_sl_swing_low_missing']:>8}         |")
     print(f"  |  KILLED by risk <= 0                    : {filter_counts['risk_too_small']:>8}         |")
-    print(f"  |  KILLED by risk > {STRUCT_SL_MAX_ATR:.0f}*ATR               : {filter_counts['risk_too_large']:>8}         |")
+    print(f"  |  KILLED by risk > {STRUCT_SL_MAX_RANGE:.0f}*ATR               : {filter_counts['risk_too_large']:>8}         |")
     print(f"  |  ==========================================================  |")
     print(f"  |  FINAL SIGNALS (trades)                : {filter_counts['final_signals']:>8}         |")
     print(f"  +================================================================+")

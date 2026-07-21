@@ -403,31 +403,31 @@ def evaluate_signals(
             )
         )
 
-        # --- Cableado de setups ICT (Fase C2/C3/D1/RR) como PASO POST ---
-        # Principio Brecha D / leccion A'': los flags SOLO ANOTAN metadato
-        # (sb_confirmed, turtle_confirmed, ote_confirmed, rr_target) en cada
-        # ICTSignal. NO filtran ni alteran entry/SL/TP. El filtro duro queda
-        # como knob apagado (hard_filter=False). Asi el pipeline produce la
-        # senal completa y quien consuma (scoring/E1) decide. Call-site real:
-        # evaluate_signals AHORA llama estos flags sobre su propia salida.
-        from ict_backtest.setups.silver_bullet import flag_silver_bullet
-        from ict_backtest.setups.turtle_soup import flag_turtle_soup
-        from ict_backtest.setups.ote import flag_ote
-        from ict_backtest.setups.rr_map import flag_rr
+    # --- Cableado de setups ICT (Fase C2/C3/D1/RR) como PASO POST ---
+    # Principio Brecha D / leccion A'': los flags SOLO ANOTAN metadato
+    # (sb_confirmed, turtle_confirmed, ote_confirmed, rr_target) en cada
+    # ICTSignal. NO filtran ni alteran entry/SL/TP. El filtro duro queda
+    # como knob apagado (hard_filter=False). Asi el pipeline produce la
+    # senal completa y quien consuma (scoring/E1) decide. Call-site real:
+    # evaluate_signals AHORA llama estos flags sobre su propia salida.
+    from ict_backtest.setups.silver_bullet import flag_silver_bullet
+    from ict_backtest.setups.turtle_soup import flag_turtle_soup
+    from ict_backtest.setups.ote import flag_ote
+    from ict_backtest.setups.rr_map import flag_rr
 
-        ltf_df_for_flags = frames.get(ltf) if isinstance(frames, dict) else (frames if isinstance(frames, pd.DataFrame) else None)
-        for _fn in (
-            lambda s: flag_silver_bullet(s, ltf_df_for_flags),
-            lambda s: flag_turtle_soup(s, frames, ltf) if isinstance(frames, dict) else None,
-            lambda s: flag_ote(s, frames, ltf) if isinstance(frames, dict) else None,
-            lambda s: flag_rr(s),
-        ):
-            try:
-                _fn(signals)
-            except Exception:
-                pass  # knob apagado: si un flag falla, no rompe el pipeline base
+    ltf_df_for_flags = frames.get(ltf) if isinstance(frames, dict) else (frames if isinstance(frames, pd.DataFrame) else None)
+    for _fn in (
+        lambda s: flag_silver_bullet(s, ltf_df_for_flags),
+        lambda s: flag_turtle_soup(s, frames, ltf) if isinstance(frames, dict) else None,
+        lambda s: flag_ote(s, frames, ltf) if isinstance(frames, dict) else None,
+        lambda s: flag_rr(s),
+    ):
+        try:
+            _fn(signals)
+        except Exception:
+            pass  # knob apagado: si un flag falla, no rompe el pipeline base
 
-        return signals
+    return signals
 
 
 def latest_plan(
