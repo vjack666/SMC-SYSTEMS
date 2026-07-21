@@ -1,9 +1,9 @@
 # Roadmap — Biblioteca 10/10 y aplicación al sistema
 
-**Fecha:** 2026-07-19  \
+**Fecha:** 2026-07-21  \
 **Propósito:** convertir la documentación ICT/Wyckoff en **contrato ejecutable** y cerrar el gap libro → código → backtest → observador.  \
 **No sustituye** `CRONOGRAMA_Y_ROADMAP.md` (hitos A6/A12/R7). Este doc es el plan de **calidad documental + cableado PO3/modelos**.  \
-**Actualización 2026-07-19:** R7 unificación COMPLETADA (motores legacy BOS/CHOCH/TREND eliminados; canónico `ict_backtest/market_structure.py` es única fuente de verdad). Diseño de temporalidades/FSM y roadmap por capacidades (Plan/Setup/Ejecución/Optimización) en `docs/plan/ARQUITECTURA_TEMPORALIDADES.md` + `docs/plan/ROADMAP_CAPACIDADES.md` como vista superpuesta sobre los hitos R. **Actualización 2026-07-20:** A1 Nivel 2 CERRADA (Opción B, FSM como compuerta de ejecución en `run_backtest`, `run_sequence` intacto). **MIGRACIÓN ATR→RANGO Fase 1 CERRADA (2026-07-20):** única fuente de volatilidad del motor = `avg_candle_range` (rango high-low puro, sin ATR/Wilder); ver hito Fase 1 de `CRONOGRAMA_Y_ROADMAP.md`.
+**Actualización 2026-07-19:** R7 unificación COMPLETADA (motores legacy BOS/CHOCH/TREND eliminados; canónico `ict_backtest/market_structure.py` es única fuente de verdad). **A1 Nivel 2 CERRADA** (Opción B, FSM como compuerta de ejecución en `run_backtest`, `run_sequence` intacto). **MIGRACIÓN ATR→RANGO Fase 1 CERRADA (2026-07-20):** única fuente de volatilidad del motor = `avg_candle_range` (rango high-low puro, sin ATR/Wilder). **Actualización 2026-07-21:** R10 cerrado (default canónico `bos_gap=None` dinámico, sin ATR). R3.5 POI tiers/stacking cerrado (`ict_backtest/tier_engine.py`). Dealing range/EQ cerrado (`ict_backtest/dealing_range_motor.py`), EQ ambiguo no descarta señales.
 
 > **NOTA DE CONTRATO (2026-07-17):** la biblioteca ICT de este doc se convertirá en
 > el **contrato formal de la tesis** en `docs/ict/SPEC_TESIS_FORMAL.md` (Fase 0 del

@@ -101,7 +101,7 @@ def run_sequence_parity(
     counter_trend: bool = False,
     require_displacement: bool = True,
     displace_gap: int = 6,
-    bos_gap: int | None = 10,
+    bos_gap: int | None = None,
     fill_mode: str = "next_open",
     cost: dict[str, float] | None = None,
     no_cost: bool = False,

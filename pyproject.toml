@@ -28,7 +28,6 @@ dependencies = [
 include = [
   "agents*",
   "adapters*",
-  "backtest*",
   "data*",
   "desktop*",
   "detectors*",

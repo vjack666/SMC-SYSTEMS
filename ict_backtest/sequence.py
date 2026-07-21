@@ -68,11 +68,11 @@ class SequenceConfig:
     sweep_lookback: int = 8        # el sweep debe verse en las ultimas N velas
     displace_gap: int = 6          # ventana para el displacement tras el sweep
     # R10 (Propuesta A): ventana de confirmacion BOS.
-    #   bos_gap: int  -> fijo (comportamiento historico, compatible R7).
+    #   bos_gap: int  -> fijo (solo para debugging/scripts).
     #   bos_gap: None -> DINAMICO: confirmation_window() deriva N de la FUERZA
     #                del quiebre via tabla empirica del backtest (sin ATR/indicadores).
-    # Default 40 conserva el comportamiento canónico previo a R10.
-    bos_gap: int | None = 40
+    # Por defecto running en modo dinamico; si se pasa int, se mantiene compat.
+    bos_gap: int | None = None
     require_displacement: bool = True
     counter_trend: bool = False
     tp_mode: str = "fixed2r"

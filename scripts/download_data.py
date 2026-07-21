@@ -322,8 +322,6 @@ def main() -> None:
     if completed > 0:
         print(f"\nNext step: retrain models")
         print(f"  python scripts/run_ml_pipeline.py")
-        print(f"\nOr run backtest:")
-        print(f"  python -c \"from backtest.engine import run_combined_backtest; m, t = run_combined_backtest(); print(m)\"")
 
 
 if __name__ == "__main__":

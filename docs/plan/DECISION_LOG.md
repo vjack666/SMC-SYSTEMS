@@ -566,4 +566,28 @@ Formato por entrada:
   `test_e1_applied_trade_mgmt.py` 3). Sin datos reales. Commit pendiente de OK
   de Ruben.
 
+## DEC-009m — Phase 0 freeze: inventory del motor de decisión LEGACY (2026-07-21)
+
+- Problema: R7 unificó el path vivo en `ict_backtest.canonical`, pero la deuda
+  H2/H3 (`legacy/backtest`, `ml/dataset_builder`) seguía sin freeze ni grafo
+  exhaustivo de consumidores. Riesgo: nuevos imports del motor viejo mientras
+  se planifica la purga.
+- Evidencia: `docs/plan/PLAN_PURGA_MOTOR_LEGACY.md` (inventario path:line);
+  imports verificados en `ml/dataset_builder.py:14`, `scripts/edge_diagnosis/run.py:54`,
+  `scripts/run_fundednext_compliance.py:23`, `adapters/__init__.py:4-6`,
+  `paper_trading/runner.py:26`, `signals/pipeline.py:89`; path canónico
+  `app_observador/core/engine.py` → `latest_plan`.
+- Alternativas: (a) borrar legacy de una (rechazado: rompe ML/harness/paper);
+  (b) freeze + inventory por fases (elegido).
+- Decisión tomada: congelar el motor de decisión legacy — **ningún código nuevo**
+  importa `legacy.backtest` / `from backtest` / `_build_signals_from_context` como
+  fuente de trades. `_data_legacy` queda clasificado DATA_ONLY (no decisión).
+  Plan de purga en 5 fases; Phase 0 DONE, Phase 1 = dead scripts.
+- Justificación: sin freeze el grafo de deuda crece; sin inventory no se puede
+  rewire ML/adapters con seguridad.
+- Impacto esperado: purga ordenada sin tocar observador/canonical; Phase 1 puede
+  matar scripts rotos (`_measure_ml_filter`, `_run_ml_iso`, `_smc_measure_ml_gate`).
+- Cómo verificarla: `docs/plan/PLAN_PURGA_MOTOR_LEGACY.md` §0–§8; grep freeze
+  documentado en §0; cero cambios de comportamiento en path PROTECT.
+
 ================================================================================

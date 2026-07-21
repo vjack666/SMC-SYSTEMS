@@ -148,7 +148,7 @@ def evaluate_signals(
     tp_mode: str = "fixed2r",
     require_displacement: bool = True,
     displace_gap: int = 6,
-    bos_gap: int | None = 10,
+    bos_gap: int | None = None,
     bos_table: dict | None = None,
     frames: dict | None = None,
     fill_mode: str = "next_open",
@@ -228,6 +228,7 @@ def evaluate_signals(
             tp_mode=tp_mode,
             require_displacement=require_displacement,
             displace_gap=displace_gap,
+            # R10 running: sin default hardcodeado; sequence trae None por defecto.
             bos_gap=bos_gap,
         ),
         ltf_tf=ltf,

@@ -31,7 +31,7 @@ def generate_mtf_signals(
     counter_trend: bool = False,
     require_displacement: bool = True,
     displace_gap: int = 6,
-    bos_gap: int | None = 10,
+    bos_gap: int | None = None,
     fill_mode: str = "next_open",
     require_d1: bool = True,
     require_h1: bool = True,

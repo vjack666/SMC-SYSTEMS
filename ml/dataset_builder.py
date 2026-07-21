@@ -11,11 +11,28 @@ from sklearn.inspection import permutation_importance
 from sklearn.ensemble import RandomForestClassifier
 
 from agents.orchestrator import AGENT_COLUMNS, AgentOrchestrator
-from legacy.backtest.engine import _build_signals_from_context, _simulate_trade_with_stats
 from data import load_frame
 from features import FeatureEngine
 from regime import detect_regimes
 from signals.pipeline import ScalpingConfig, build_scalping_context
+
+from ict_backtest.canonical import evaluate_signals
+from ict_backtest.engine import ICTTrade, simulate_trade
+
+
+
+def _simulate_trade_with_stats(
+    frame: pd.DataFrame,
+    signal: Any,
+    max_hold_bars: int,
+) -> tuple[Any, dict[str, Any]]:
+    """Thin wrapper over canonical ``simulate_trade`` (R7 Phase 3)."""
+    return simulate_trade(
+        frame=frame,
+        signal=signal,
+        max_hold_bars=max_hold_bars,
+        cost=None,
+    )
 
 
 @dataclass
@@ -231,10 +248,19 @@ def build_ml_dataset(
 
         context = orchestrator.analyze_context(context)
 
-        signals = _build_signals_from_context(
+        signals = evaluate_signals(
             symbol=symbol,
-            context=context,
-            min_confidence=config.min_confidence,
+            htf="D1",
+            ltf=timeframe,
+            counter_trend=False,
+            tp_mode="fixed2r",
+            require_displacement=True,
+            displace_gap=6,
+            bos_gap=10,
+            frames={timeframe: context, "D1": context.head(1)},
+            fill_mode="next_open",
+            enable_pd_index=False,
+            exec_tf=None,
         )
 
         print(f"  Signals: {len(signals)}")
@@ -247,7 +273,7 @@ def build_ml_dataset(
             if progress_cb:
                 progress_cb("signals", signal_idx, total_signals, f"{symbol} | rows={len(rows)}")
 
-            context_row = context_map.get(signal.time)
+            context_row = context_map.get(str(signal.time))
             if context_row is None:
                 continue
 
