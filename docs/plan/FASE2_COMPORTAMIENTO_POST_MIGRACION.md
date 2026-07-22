@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — Informe completado 2026-07-20. Hallazgos consumidos por trabajo subsiguiente.
+
 # FASE 2 — INFORME DE COMPORTAMIENTO POST-MIGRACIÓN ATR→RANGO
 
 **Fecha:** 2026-07-20

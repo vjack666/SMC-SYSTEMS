@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — Árbol de dependencias completado 2026-07-17. 6 causas raíz documentadas.
+
 # DEPENDENCY TREE — ETAPA 2 (causa raíz, no prioridades)
 
 Objetivo: encontrar la CAUSA RAÍZ de cada hallazgo y cómo se encadenan. NO es una lista de

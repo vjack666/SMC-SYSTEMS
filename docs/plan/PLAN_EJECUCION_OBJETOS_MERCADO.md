@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — Plan de ejecución TDD completado. La migración fue implementada vía R9.
+
 # Plan de Ejecución TDD — Objetos de Mercado ICT (MarketObject)
 
 > **For Hermes:** usar la skill `subagent-driven-development` para implementar

@@ -6,6 +6,10 @@
 **Fecha de Actualización:** 2026-07-21 (cierre R10 + R3.5 + dealing range + limpieza post-commit)
 **Estado General:** 🟢 Observador FundedNext operativo. **R4 CERRADO (2026-07-17): ICT puro mecánico SIN edge para live/fondeo** — ver `docs/auditorias/R4_CIERRE_FUNDING_2026-07-17.md`. **R7 UNIFICACIÓN COMPLETADA (2026-07-19):** motores legacy BOS/CHOCH/TREND eliminados (`git rm detectors/bos.py/choch.py/trend.py`); única fuente de verdad `ict_backtest/market_structure.py`. Migración validada por `scripts/diag_etapas.py` (la secuencia H4→M15 vive: run_sequence genera señales). Diseño de temporalidades y roadmap por capacidades en `docs/plan/ARQUITECTURA_TEMPORALIDADES.md` + `docs/plan/ROADMAP_CAPACIDADES.md`. **R10 cerrado (2026-07-21): default canónico `bos_gap=None`/dinámico, sin ATR/indicadores. R3.5 cerrado (2026-07-21): POI tiers/stacking documentados + `ict_backtest/tier_engine.py`. Dealing range/EQ cerrado (2026-07-21): API explícita en `ict_backtest/dealing_range_motor.py`, EQ ambiguo no descarta.**
 
+> **NOTA DE AUDITORÍA (2026-07-21):** este plan está auditado por archivo y sección en
+> `docs/plan/AUDITORIA_DOCUMENTAL_2026-07-21.md` (estado ✅ completo / ❌ incompleto /
+> ⚠️ faltante).
+
 > **NOTA DE MANTENIMIENTO (2026-07-21, commit `e227b97`):** fix de formato parquet
 > (21 archivos con `time` como DatetimeIndex en vez de columna → `KeyError` en
 > `sequence.py`). Scripts de descarga MT5 corregidos (`index=False`). Recovery del

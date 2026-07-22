@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — ETAPA 3 completada. Los 7 pasos fueron ejecutados (2026-07-17).
+
 # IMPLEMENTATION PLAN — ETAPA 3 (orden por dependencia)
 
 Orden de cambios por DEPENDENCIA (no por importancia). Cada ítem es UN commit = UN bug.

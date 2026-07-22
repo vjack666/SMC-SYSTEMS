@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — Validación completada 2026-07-17. 12 hallazgos validados con repro paso a paso.
+
 # VALIDACIÓN DE HALLAZGOS — ETAPA 1
 
 Objetivo: demostrar que cada hallazgo realmente existe, con repro paso a paso y evidencia

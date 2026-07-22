@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — ETAPA 0 completada 2026-07-17. Tag creado. Sin acciones pendientes.
+
 # ETAPA 0 — BASELINE (Congelar estado actual)
 
 Objetivo: línea base reproducible del sistema ANTES de cualquier cambio.

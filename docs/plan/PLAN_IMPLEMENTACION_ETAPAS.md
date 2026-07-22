@@ -1,7 +1,12 @@
+> **⚠️ SUPERSEDED** — Contrato de ingeniería original (2026-07-17).
+> Fuente de verdad vigente: `CRONOGRAMA_Y_ROADMAP.md` (v2.2, 2026-07-10).
+> Muchas etapas fueron completadas por caminos distintos a los definidos aquí.
+> Este documento NO es fuente de verdad vigente.
+
 # PLAN DE IMPLEMENTACIÓN POR ETAPAS — SMC-SYSTEMS
 
-Este documento es el CONTRATO DE INGENIERÍA del proyecto. Define el flujo de trabajo
-obligatorio a partir de 2026-07-17. Sustituye el modo "arreglar cosas suelto" por un proceso
+~~Este documento es el CONTRATO DE INGENIERÍA del proyecto.~~ **SUPERSEDED** por `CRONOGRAMA_Y_ROADMAP.md`.
+Define el flujo de trabajo obligatorio a partir de 2026-07-17. Sustituye el modo "arreglar cosas suelto" por un proceso
 de etapas con salida clara y criterio de aceptación. Hermes NO avanza de una etapa a la
 siguiente sin cerrar la anterior y sin evidencia.
 

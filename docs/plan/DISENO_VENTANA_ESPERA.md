@@ -1,3 +1,5 @@
+> **⚠️ STALE** — Diseño v2 (2026-07-14). Nunca implementado. Sin referencias activas en el repo.
+
 # Diseño: ventana_espera() — ventana de retorno inteligente (Piso 2, Turtle Soup)
 
 Estado: DISEÑO v2 (ajuste conceptual de Ruben: velocidad EMPÍRICA del log,

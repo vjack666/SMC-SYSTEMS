@@ -1,3 +1,7 @@
+> **⚠️ STALE** — Plan original del Diagnosis Engine. Paso 1/2 completados, pero el trabajo
+> real se migró a `ETAPA_DIAGNOSIS_ENGINE_MTF.md` y `ETAPA_DIAGNOSIS_ENGINE_FASE_E.md`.
+> Este documento NO refleja la implementación final.
+
 # FASE D — DIAGNOSIS ENGINE (Infraestructura de autoexplicación)
 
 **Fecha:** 2026-07-18

@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — Fase B1 completada 2026-07-18 (commit DEC-009g). PD Arrays + tiers/stacking implementados.
+
 PLAN DE IMPLEMENTACIÓN — FASE B1 (Geometría fina de PD Arrays + tiers/stacking)
 ================================================================================
 

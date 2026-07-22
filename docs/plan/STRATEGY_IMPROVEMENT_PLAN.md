@@ -1,8 +1,12 @@
+> **⚠️ STALE** — Fase 1–2 completadas; Fases 3–5 nunca ejecutadas.
+> El proyecto pivotó a R7/R9/R10/thesis-driven. Los hallazgos ML-off (Exp A) siguen vigentes
+> como referencia, pero las propuestas de mejora (B–F) no se implementaron.
+
 # Plan de Mejora de Estrategia — SMC-SYSTEMS
 
-> Documento vivo. Fase 1 (hallazgos) y Fase 2 (harness) completadas con evidencia de código.
-> Fase 3 (plan de trabajo), Fase 4 (riesgos) y Fase 5 (criterio de aceptación) propuestas.
-> No se ha modificado lógica de trading todavía — solo auditoría + documentación.
+~~> Documento vivo.~~ **STALE** — ver banner superior. Fase 1 (hallazgos) y Fase 2 (harness) completadas con evidencia de código.
+Fase 3 (plan de trabajo), Fase 4 (riesgos) y Fase 5 (criterio de aceptación) **propuestas pero nunca ejecutadas**.
+No se ha modificado lógica de trading todavía — solo auditoría + documentación.
 
 ---
 

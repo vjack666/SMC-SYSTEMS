@@ -1,3 +1,7 @@
+> **⚠️ STALE** — Paso 1 (killzone) completado; Paso 2 (revertido); Pasos 3–7 nunca ejecutados.
+> Estos bugs predata el pivot a R7/R9/R10/thesis-driven. El motor legacy fue suprimido.
+> No es fuente de verdad vigente para bugs activos.
+
 # ETAPA 4 — CORRECCIÓN DE BUGS (un commit = un bug)
 
 Objetivo: cerrar los hallazgos A de la matriz de convergencia, un cambio

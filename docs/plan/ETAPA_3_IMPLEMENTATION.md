@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — ETAPA 3 completada 2026-07-17. Output: `IMPLEMENTATION_PLAN.md`.
+
 # ETAPA 3 — PLAN DE IMPLEMENTACIÓN (orden por dependencia)
 
 Objetivo: ordenar cambios por dependencia, no por importancia.

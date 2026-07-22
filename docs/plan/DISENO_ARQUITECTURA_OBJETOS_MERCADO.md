@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — Arquitectura aprobada. Implementada vía R9 (MarketObject migration).
+
 # Diseno de Arquitectura Final — SMC-SYSTEMS (Objetos de Mercado ICT)
 
 > **Para Hermes:** Este es el PLANO. No implementa codigo. La implementacion

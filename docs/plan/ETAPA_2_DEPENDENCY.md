@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — ETAPA 2 completada 2026-07-17. Output: `DEPENDENCY_TREE.md`.
+
 # ETAPA 2 — ÁRBOL DE DEPENDENCIAS (causa raíz)
 
 Objetivo: encontrar causas raíz y encadenamientos. No prioridades.

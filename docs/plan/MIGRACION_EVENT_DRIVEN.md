@@ -1,6 +1,10 @@
+> **⚠️ SUPERSEDED** — Plan original de migración a event-driven (2026-07-14).
+> Los objetivos fueron alcanzados por R7 (unificación motor) + R9 (MarketObject migration).
+> Este documento NO es fuente de verdad vigente. Fuente: `CRONOGRAMA_Y_ROADMAP.md`.
+
 # Plan técnico: BOS/CHoCH/OB → arquitectura event-driven pura
 
-Estado: PLAN TÉCNICO DE IMPLEMENTACIÓN. NO se modifica código. NO commit/push.
+~~Estado: PLAN TÉCNICO DE IMPLEMENTACIÓN.~~ **SUPERSEDED** por R7/R9 (2026-07-15).
 Fecha: 2026-07-14. Basado en lectura directa del repo (no en resumen).
 
 ================================================================

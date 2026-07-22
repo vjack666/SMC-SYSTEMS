@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — ETAPA 1 completada 2026-07-17. Gate pasado. Output: `VALIDACION_DE_HALLAZGOS.md`.
+
 # ETAPA 1 — VALIDACIÓN DE HALLAZGOS (sin modificar código)
 
 Objetivo: demostrar que cada hallazgo realmente existe, con repro paso a paso.

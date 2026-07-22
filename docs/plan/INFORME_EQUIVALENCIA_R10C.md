@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — Informe de equivalencia completado 2026-07-16. Conclusión: `Legacy ⊆ Semantic`.
+
 # Informe: Redefinición de la equivalencia R10.C (Fase E)
 
 Fecha: 2026-07-16

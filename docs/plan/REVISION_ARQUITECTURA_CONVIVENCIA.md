@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — Revisión completada. La migración fue implementada vía R9 (MarketObject migration).
+
 # Revision Final de Arquitectura — Convivencia MarketObject x DataFrames
 
 > **Para Hermes:** revision FINAL antes del PLAN DE EJECUCION TDD. Solo

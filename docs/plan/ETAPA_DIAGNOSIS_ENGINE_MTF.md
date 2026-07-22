@@ -1,3 +1,5 @@
+> **✅ HISTORICAL** — Fases A–D completadas. Phase E cerrada en `ETAPA_DIAGNOSIS_ENGINE_FASE_E.md`.
+
 # Fase D — Migración multi-TF del Backtest Engine (TradeContext v2)
 
 Fecha: 2026-07-18 · Autor: Hermes (bajo dirección de Ruben)
