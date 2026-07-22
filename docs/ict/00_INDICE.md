@@ -34,9 +34,12 @@ Cada archivo es un “libro”. La app y los agentes deben poder **citar el cont
 
 | ID | Libro | Notas |
 |----|-------|-------|
-| 09 | [Optimizador bayesiano](09_OPTIMIZADOR_BAYESIANO.md) | **Anexo** de validación, no setup ICT |
-| 10 | [Sweep + OTE filtros](10_SWEEP_OTE_FILTRO.md) | Ítem D; OTE casi no-op |
-| 11 | [Manual vs Auto](11_SWEEP_OTE_MANUAL_VS_AUTO.md) | Política híbrida / automation-ready |
+|| 21 | [**Point of Interest (POI)**](21_POI.md) | POI = PD Array en zona correcta + sesgo + respaldo; tiers; stacking MTF; **bonus, no filtro duro** | 📝 1.0 · Marco v30+ |
+|| 22 | [Breaker / MMXM](22_BREAKER_23_OTE_IMPLEMENTATION_GUIDE.md) | OB roto + cambio de rol + mitigación única | 📝 1.0 · detector standalone + wiring pendiente |
+|| 23 | [**OTE**](23_OTE_MATEMATICA_IMPLEMENTACION_CONFLUENCIA.md) | 61.8–78.6% Fib; sweet spot 70.5%; calidad de entrada; wiring pendiente | 📝 1.0 · R3.5 |
+|| 09 | [Optimizador bayesiano](09_OPTIMIZADOR_BAYESIANO.md) | **Anexo** de validación, no setup ICT |
+|| 10 | [Sweep + OTE filtros](10_SWEEP_OTE_FILTRO.md) | Ítem D; OTE casi no-op |
+|| 11 | [Manual vs Auto](11_SWEEP_OTE_MANUAL_VS_AUTO.md) | Política híbrida / automation-ready |
 | 13 | [**Backtest profesional**](13_BACKTEST_PROFESIONAL/00_INDICE.md) | Reloj MTF, fill, costos, OOS, **gap G1–G12** · Plan R6 |
 | 14 | [Stop Loss Estructural](14_STOP_LOSS_ESTRUCTURAL.md) | SL = mecha sweep, no ATR · aplicado v29 |
 | 16 | [Temporalidad de ejecución](16_TEMPORALIDAD_EJECUCION.md) | HTF→LTF→exec; marco v30 | 📝 1.0 |
