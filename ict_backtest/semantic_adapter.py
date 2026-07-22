@@ -81,6 +81,7 @@ def adapt_semantic_to_legacy(
         sweep_at: int | None = None
         bos_at: int | None = None
         bos_obj: MarketObject | None = None
+        sweep_obj: MarketObject | None = None
 
         # Walk parents to find SWEEP (root) and BOS (intermediate)
         visited: set[str] = set()
@@ -89,6 +90,7 @@ def adapt_semantic_to_legacy(
             visited.add(current.id)
             if current.type == ObjectType.SWEEP:
                 sweep_at = current.bar_index
+                sweep_obj = current
             elif current.type in (ObjectType.BOS, ObjectType.CHOCH):
                 if bos_at is None:
                     bos_at = current.bar_index
@@ -97,6 +99,11 @@ def adapt_semantic_to_legacy(
             current = obj_by_id.get(parent_id) if parent_id else None
 
         # --- Build legacy signal dict ---
+        # sweep_high/sweep_low: propagate from sweep object meta so
+        # calc_structural_sl can anchor the SL correctly.  The sweep
+        # object's zone_high/zone_low are the actual wick levels where
+        # liquidity was swept.
+        _sweep_meta = sweep_obj.meta if sweep_obj else {}
         legacy: dict[str, Any] = {
             "direction": sig["direction"],
             "entry_at": sig.get("entry_at", sig["bar_index"]),
@@ -105,6 +112,9 @@ def adapt_semantic_to_legacy(
             "bos_at": bos_at,
             "time": sig.get("time", ""),
             "entry": 0.0,  # placeholder; canonical.py resolves via fill_entry_price
+            # Sweep wick levels for SL anchoring (R10.C fix)
+            "sweep_high": _sweep_meta.get("zone_high"),
+            "sweep_low": _sweep_meta.get("zone_low"),
             # Fields propagated from signal object metadata (R3.5)
             "breaker_active": (bos_obj.meta.get("breaker_active") if bos_obj else None),
             "breaker_type": (bos_obj.meta.get("breaker_type") if bos_obj else None),

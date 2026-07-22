@@ -305,7 +305,27 @@ def evaluate_signals(
         kz = killzone_en(pd.to_datetime(entry_row["time"], utc=True))
         if kz not in ("London Open", "New York AM", "New York PM"):
             continue
-        sweep_row = ltf_df.iloc[s["sweep_at"]]
+        sweep_row = ltf_df.iloc[s["sweep_at"]].copy()
+        # R10.C: inject sweep_high/sweep_low so calc_structural_sl can
+        # anchor the SL correctly.  Priority:
+        #   1. Signal dict values (from semantic adapter, if sweep object
+        #      had zone_high/zone_low in its meta)
+        #   2. Candle high/low (when sweep object meta lacks zone coords,
+        #      the actual candle wick IS the sweep level by definition)
+        #   3. DataFrame columns (legacy path, when run_sequence populated
+        #      sweep_high/sweep_low columns)
+        _sig_sweep_high = s.get("sweep_high")
+        _sig_sweep_low = s.get("sweep_low")
+        if _sig_sweep_high is not None and pd.isna(sweep_row.get("sweep_high", float("nan"))):
+            sweep_row["sweep_high"] = _sig_sweep_high
+        if _sig_sweep_low is not None and pd.isna(sweep_row.get("sweep_low", float("nan"))):
+            sweep_row["sweep_low"] = _sig_sweep_low
+        # Fallback: use candle high/low as sweep levels
+        # (a SWEEP object's wick IS the swept level by definition)
+        if pd.isna(sweep_row.get("sweep_high", float("nan"))):
+            sweep_row["sweep_high"] = sweep_row["high"]
+        if pd.isna(sweep_row.get("sweep_low", float("nan"))):
+            sweep_row["sweep_low"] = sweep_row["low"]
         sl = calc_structural_sl(sweep_row, direction, rng)
         if sl is None:
             continue
