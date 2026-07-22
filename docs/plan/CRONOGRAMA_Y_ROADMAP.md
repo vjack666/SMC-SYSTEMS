@@ -3,7 +3,7 @@
 **Proyecto:** SMC-SYSTEMS (renombrado desde SMC_SUCCESSOR)
 **Repositorio:** https://github.com/vjack666/SMC-SYSTEMS
 **Versión del Roadmap:** 2.8 (Fase 0 SPEC firmada + MDS + principio TZ servidor→conversión)
-**Fecha de Actualización:** 2026-07-21 (cierre R10 + R3.5 + dealing range + limpieza post-commit)
+**Fecha de Actualización:** 2026-07-22 (cierre R10 + R3.5 + dealing range + limpieza post-commit; + reparación wiring Breaker Block 2026-07-22)
 **Estado General:** 🟢 Observador FundedNext operativo. **R4 CERRADO (2026-07-17): ICT puro mecánico SIN edge para live/fondeo** — ver `docs/auditorias/R4_CIERRE_FUNDING_2026-07-17.md`. **R7 UNIFICACIÓN COMPLETADA (2026-07-19):** motores legacy BOS/CHOCH/TREND eliminados (`git rm detectors/bos.py/choch.py/trend.py`); única fuente de verdad `ict_backtest/market_structure.py`. Migración validada por `scripts/diag_etapas.py` (la secuencia H4→M15 vive: run_sequence genera señales). Diseño de temporalidades y roadmap por capacidades en `docs/plan/ARQUITECTURA_TEMPORALIDADES.md` + `docs/plan/ROADMAP_CAPACIDADES.md`. **R10 cerrado (2026-07-21): default canónico `bos_gap=None`/dinámico, sin ATR/indicadores. R3.5 cerrado (2026-07-21): POI tiers/stacking documentados + `ict_backtest/tier_engine.py`. Dealing range/EQ cerrado (2026-07-21): API explícita en `ict_backtest/dealing_range_motor.py`, EQ ambiguo no descarta.**
 
 > **NOTA DE AUDITORÍA (2026-07-21):** este plan está auditado por archivo y sección en
@@ -107,7 +107,7 @@
 | **R1** | **Capa de estado PO3** | `po3_state`, tests, UI | ✅ | Alta |
 | **R2** | **Killzones + TZ unificadas** | UTC canónico, helper único | ✅ | Alta |
 | **R3** | **Huecos arquitectura (liquidez, open día, CHOCH-gate)** | canonical_sweep, PO3-2 | ✅ | Alta |
-| **R3.5** | **Huecos canon ICT en tesis (SMT/Breaker/OTE)** | Libros 14-17/20 hechos; **21 (POI) ✅, 22 (Breaker/MMXM) 🟡 detector standalone + tests, wiring a canónico pendiente, 23 (OTE) 🟡 flag helper + tests, wiring y prevalencia pendiente, SMT Divergence pendiente de implementación real** | 🟡 **En progreso** | Alta |
+| **R3.5** | **Huecos canon ICT en tesis (SMT/Breaker/OTE)** | Libros 14-17/20 hechos; **21 (POI) ✅, 22 (Breaker/MMXM) 🟢 detector + wiring a canónico REPARADO (2026-07-22): bug de start_idx en is_breaker_block (wiring muerto en vivo, falseaba call-site) + NaN→True en _ob_dicts_from_frame corregidos; 14/14 tests verdes; call-site real flag_breaker_block verificado sobre frame, 23 (OTE) 🟢 flag helper + tests + wiring, SMT Divergence 🔴 pendiente de implementación real** | 🟡 **En progreso (Breaker+OTE cerrados, SMT pendiente)** | Alta |
 | **R4** | **Auditoría + medición ICT puro** | Look-ahead ✅; SB/PO3 sin edge; **Turtle v2.8 + funding-gate 6m: REJECT_NO_EDGE** (informe 2026-07-17) | ✅ Cerrado | Alta |
 | **R4-tesis** | **Tesis ejecución óptima (libro 18)** | 3 capas + SL/entry exec TF + RR 1:3 | ✅ | Alta |
 | A12 | Walk-forward OOS celda ganadora | `no_session`×XAUUSD falló 1er pase (PF -0.058, N bajo). **Re-evaluar tras R4 limpio** | 🔴 Pendiente (re-run) | Alta |

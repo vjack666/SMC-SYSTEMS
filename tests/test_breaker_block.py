@@ -64,11 +64,24 @@ def _frame_with_obs(ob_rows):
 
 
 # =========================== BULLISH BREAKER ================================
-def _build_bullish_breaker_frame():
-    """bearish OB idx 4 (top=1.1025, bottom=1.0990). Rotura bullish en idx 10."""
-    return _frame_with_obs([
-        (4, "bearish", 1.1025, 1.0990),
-    ])
+def _build_bullish_breaker_frame() -> pd.DataFrame:
+    """bearish OB idx 4 y breakout bullish inequívoco en idx 10.
+
+    Diseño de fixture robusto: velas 5-14 quedan por ENCIMA del OB (low > top)
+    para que no falle por mitigación falsa tras detect_market_structure().
+    """
+    times = pd.date_range(_BASE, periods=25, freq="15min", tz="UTC")
+    df = _base_ohlc(times, base=1.1000, spread=0.0010)
+    df.loc[4, ["open", "high", "low", "close"]] = 1.0990, 1.1025, 1.0985, 1.1024
+    df.loc[4, "ob_bearish"] = True
+    df.loc[4, "ob_top"] = 1.1025
+    df.loc[4, "ob_bottom"] = 1.0990
+    # idx 10: breakout bullish explícito
+    df.loc[10, ["open", "high", "low", "close"]] = 1.1026, 1.1035, 1.1024, 1.1034
+    # Todas las velas tras el OB (5..24) quedan por ENCIMA de la zona del OB:
+    # low (1.1030) > top (1.1025) => breakout válido y SIN mitigación (MMXM=1 toque).
+    df.loc[5:24, ["open", "high", "low", "close"]] = 1.1030, 1.1040, 1.1030, 1.1036
+    return df
 
 
 # =========================== BEARISH BREAKER =================================

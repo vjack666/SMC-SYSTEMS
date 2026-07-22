@@ -119,6 +119,7 @@ def is_breaker_block(
             top = float(top)
             bottom = float(bottom)
             end_idx = int(ob.get("end_idx") or -1)
+            start_idx = int(ob.get("start_idx") or -1)
         except (TypeError, ValueError):
             continue
 
@@ -129,6 +130,7 @@ def is_breaker_block(
                 "ob_top": top,
                 "ob_bottom": bottom,
                 "end_idx": end_idx,
+                "start_idx": start_idx,
                 "zone_range": _range_size(top, bottom),
                 "bars_since": max(0, current_idx - end_idx) if end_idx >= 0 else 0,
             }
@@ -141,6 +143,7 @@ def is_breaker_block(
                 "ob_top": top,
                 "ob_bottom": bottom,
                 "end_idx": end_idx,
+                "start_idx": start_idx,
                 "zone_range": _range_size(top, bottom),
                 "bars_since": max(0, current_idx - end_idx) if end_idx >= 0 else 0,
             }
@@ -218,8 +221,14 @@ def _empty_result() -> dict:
 def _ob_dicts_from_frame(df: pd.DataFrame) -> list:
     """Extrae dicts de OB desde columnas ``ob_bullish`` / ``ob_bearish``."""
     records = []
-    bull = df["ob_bullish"].to_numpy(bool) if "ob_bullish" in df.columns else np.zeros(len(df), dtype=bool)
-    bear = df["ob_bearish"].to_numpy(bool) if "ob_bearish" in df.columns else np.zeros(len(df), dtype=bool)
+    if "ob_bullish" in df.columns:
+        bull = df["ob_bullish"].notna() & df["ob_bullish"].astype(bool)
+    else:
+        bull = pd.Series(False, index=df.index)
+    if "ob_bearish" in df.columns:
+        bear = df["ob_bearish"].notna() & df["ob_bearish"].astype(bool)
+    else:
+        bear = pd.Series(False, index=df.index)
     ob_top = df["ob_top"].to_numpy() if "ob_top" in df.columns else np.full(len(df), np.nan)
     ob_bottom = df["ob_bottom"].to_numpy() if "ob_bottom" in df.columns else np.full(len(df), np.nan)
 
