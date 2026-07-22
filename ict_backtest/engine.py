@@ -17,6 +17,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ict_backtest.trade_mgmt import apply_trade_management  # Fase 1.2 wiring (call-site real)
+
 
 @dataclass
 class ICTSignal:
@@ -59,6 +61,16 @@ class ICTSignal:
     # anotado como metadato para Trade Management (E1). El TP primario sigue
     # siendo internal (bsl/ssl). None si no hay dia previo o modo historico.
     external_tp: float | None = None
+    # R3.5: flags de setups canónicos como metadatos (Brecha D: no vetan).
+    breaker_active: bool | None = None
+    breaker_type: str | None = None
+    mitigation_level: float | None = None
+    breaker_strength: float | None = None
+    ote_confirmed: bool | None = None
+    ote_zone: tuple[float, float] | None = None
+    smt_divergence_active: bool | None = None
+    smt_divergence_direction: int | None = None
+    smt_divergence_strength: float | None = None
 
 
 @dataclass
@@ -94,7 +106,8 @@ def fill_entry_price(frame: pd.DataFrame, entry_at: int, fill_mode: str) -> floa
 
 
 def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
-                  max_hold_bars: int, cost: dict | None = None) -> tuple[ICTTrade | None, dict[str, Any]]:
+                  max_hold_bars: int, cost: dict | None = None,
+                  *, trade_mgmt: bool = False) -> tuple[ICTTrade | None, dict[str, Any]]:
     """Simula UN trade vela a vela hasta SL/TP/hold_limit. (Rescatado legacy.)
 
     cost: dict opcional con costos de transaccion realistas:
@@ -102,6 +115,12 @@ def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
       - commission_pips: comision ida+vuelta en pips
       - slippage_pips: slippage promedio en pips (adverso al trade)
     Sin cost (cost=None) se conserva el comportamiento teorico anterior.
+
+    trade_mgmt (Fase 1.2, E1, libro 18/20): si True, tras la simulacion
+    SL/TP simple se re-simula el trade con gestion post-entry real
+    (BE + partial exit + trailing) via `apply_trade_management`. El PnL /
+    exit_reason resultantes reflejan la gestion. Si False (default), el
+    comportamiento es IDENTICO al historico (regresion cero).
     """
     # tamaño de pip segun el rango de precios (FX 4 dec => 0.0001; XAU ~0.01)
     ref_price = float(signal.entry)
@@ -132,6 +151,7 @@ def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
 
     exit_idx, exit_price, exit_reason = idx, entry_fill, "hold_limit"
     mfe_r, mae_r = -1e9, 1e9
+    pnl_r = 0.0  # inicializado; recalculado abajo (o por trade_mgmt)
 
     for step in range(1, max_hold_bars + 1):
         j = idx + step
@@ -164,10 +184,33 @@ def simulate_trade(frame: pd.DataFrame, signal: ICTSignal,
                 break
         exit_idx, exit_price = j, float(row["close"])
         mfe_r, mae_r = max(mfe_r, step_mfe), min(mae_r, step_mae)
+    # --- Fase 1.2 (E1, libro 18/20): re-simular con gestion post-entry real ---
+    # Si trade_mgmt=True, aplicamos BE + partial + trailing SOBRE la sub-serie
+    # post-entry (mismo rango que el loop SL/TP simple) y sobreescribimos la
+    # salida con la del modulo ya testeado (apply_trade_management). Esto es
+    # wiring puro: NO se toca la logica de to_breakeven/partial_exit/trailing.
+    # El PnL del modulo es en R; le restamos la comision igual que el base.
+    # Si trade_mgmt=False (default), el bloque se salta y queda IDENTICO.
+    if trade_mgmt:
+        sub_df = frame.iloc[idx: idx + max_hold_bars + 1]
+        tm = apply_trade_management(
+            entry=float(entry_fill), sl=float(sl), tp=float(tp),
+            direction=int(signal.direction), df=sub_df,
+        )
+        tm_reason = tm["exit_reason"]
+        reason_map = {"tp": "TP", "sl": "SL", "be": "BE",
+                      "trailing": "TRAILING", "open": "hold_limit"}
+        exit_reason = reason_map.get(tm_reason, "hold_limit")
+        exit_price = float(tm["exit_price"])
+        # PnL ya ponderado (parcial + remanente) por apply_trade_management;
+        # solo restamos comision en precio. Se respeta abajo (no se recalcula).
+        pnl_r = (float(tm["pnl_r"]) * risk - comm) / risk if risk > 0 else 0.0
     # Salida: pnl en R. El costo de comision se resta en PRECIO (no /risk),
-    # para no inflar pnl_r cuando risk es pequeño (FIX R6.3).
+    # para no inflar pnl_r cuando risk es pequeño (FIX R6.3). Si trade_mgmt
+    # esta activo, pnl_r ya fue calculado arriba (PnL ponderado del modulo).
     pnl_price = (exit_price - entry_fill) if signal.direction == 1 else (entry_fill - exit_price)
-    pnl_r = (pnl_price - comm) / risk
+    if not trade_mgmt:
+        pnl_r = (pnl_price - comm) / risk
     trade = ICTTrade(
         symbol=signal.symbol, entry_time=signal.time,
         exit_time=str(frame.iloc[exit_idx]["time"]), direction=signal.direction,
@@ -186,6 +229,7 @@ def simulate_trade_with_context(
     cost: dict | None = None, *, est_htf_fn=None, ltf_tf: str = "M15",
     backtest_id: str = "",
     market_stack: dict[str, Any] | None = None,
+    trade_mgmt: bool = False,
 ) -> tuple["ICTTrade | None", dict[str, Any], RawDiagnosticData | None]:
     """EMITE RawDiagnosticData para el Diagnosis Engine (Fase D, Paso 2 + multi-TF).
 
@@ -204,7 +248,8 @@ def simulate_trade_with_context(
     builder congela en TradeContext.market_context (Fase D multi-TF). Si es
     None, market_context queda None (contexto v1 sigue valido).
     """
-    trade, meta = simulate_trade(frame, signal, max_hold_bars, cost=cost)
+    trade, meta = simulate_trade(frame, signal, max_hold_bars, cost=cost,
+                                trade_mgmt=trade_mgmt)
     if trade is None:
         return None, meta, None
 

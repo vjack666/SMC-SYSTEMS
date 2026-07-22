@@ -565,6 +565,19 @@ Formato por entrada:
 - Cómo verificarla: batería 103 passed (96 + `test_rr_applied_to_tp.py` 4 +
   `test_e1_applied_trade_mgmt.py` 3). Sin datos reales. Commit pendiente de OK
   de Ruben.
+- **CORRECCIÓN (Fase 1.2, 2026-07-22):** el inciso (b) "E1→simulador" estaba
+  INCOMPLETO. La auditoría técnica de la Fase 1.2 confirmó por grep + lectura
+  que `simulate_trade` (engine.py:106) y `simulate_trade_with_context`
+  (engine.py:194) NUNCA importaban ni llamaban `apply_trade_management` (el
+  módulo era una isla: solo testeado en aislado, nunca invocado por el
+  backtest). El claim "es el call-site real que `run_backtest` llamará por
+  señal" era una PROYECCIÓN, no un hecho cableado. Se cerró recién en Fase 1.2:
+  `simulate_trade` ganó `trade_mgmt: bool = False` y re-simula vía
+  `apply_trade_management` cuando True; propagado a `run_sequence_backtest`/
+  `run`/CLI `--trade-mgmt`. Regresión cero con `trade_mgmt=False`. Test
+  `tests/test_fase1_2_trade_mgmt_wiring.py` (6). Lección de gobernanza: un DEC
+  que afirma "aplicado al simulador" sin call-site real verificado por grep es
+  una deuda documental (ver también regla anti-test-verde-aislado de Ruben).
 
 ## DEC-009m — Phase 0 freeze: inventory del motor de decisión LEGACY (2026-07-21)
 

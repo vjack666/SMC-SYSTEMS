@@ -128,7 +128,7 @@ def test_window_months_se_pasa_a_run_sequence_backtest():
     def _fake_seq(symbol, htf, ltf, counter_trend=False, tp_mode="fixed2r",
                   require_displacement=True, displace_gap=6, bos_gap=10,
                   bos_table=None, frames=None, fill_mode="next_open",
-                  enable_pd_index=False):
+                  enable_pd_index=False, **kwargs):
         captured["called"] = True
         return [sig]
 

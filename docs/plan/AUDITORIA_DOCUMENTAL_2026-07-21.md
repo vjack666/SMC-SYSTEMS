@@ -96,7 +96,7 @@ Si falta algo, se indica exactamente qué.
 - ✅ Sección 3 — Roadmap aplicación al código
 - 🔶 R3.5 — SMT ❌ sin detector, Breaker ❌, OTE ⚠️ fib.py existe pero no integrado
 - 🔶 R4 — E4 Silver Bullet pendiente
-- 🔶 R4-tesis — Exec TF M5/M1 ❌, M3 en TF_FREQ ❌, Killzones London/NY PM ❌
+- 🔶 R4-tesis — Exec TF M5/M1 ❌ → ✅ CERRADO (2026-07-22): wiring en runner cerrado (Fase 1.1). `evaluate_signals` ya consumía `exec_tf` desde 2026-07-20; el runner (`run_backtest.py`) ahora lo propaga (CLI `--exec-tf` + wrappers `run`/`run_sequence_backtest`/`generate_sequence_signals`). Regresión cero con `None`. Falta M3 en TF_FREQ y Killzones L/NY PM (KZ-2 ya corregido en código, ver fila KZ-2).
 - 🔴 R5 — pendiente
 - 🔴 R6 Walk-forward + Optuna — pendiente
 - 🔴 R7 Observador óptimo — pendiente

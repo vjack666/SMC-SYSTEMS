@@ -107,13 +107,22 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
                                bos_table: dict | None = None,
                                frames: dict | None = None,
                                fill_mode: str = "next_open",
-                               enable_pd_index: bool = False) -> list:
+                               enable_pd_index: bool = False,
+                               exec_tf: str | None = None,
+                               use_semantic: bool = False) -> list:
     """R7 thin wrapper — all decision logic lives in ``ict_backtest.canonical``.
 
     ``enable_pd_index`` enciende la Fase C (autoridad de zonas HTF). Por defecto
     False (backtest de rendimiento queda igual a lo historico; ver R4: backtests
     bloqueados hasta Fase G). La capa de AUTORIDAD se mide en backtest solo de
     forma explicita, nunca como filtro.
+
+    ``exec_tf`` (libro 18 / Fase B2) ancla entry/SL/TP al TF de EJECUCION
+    mas fino (M5/M1). Por defecto None (= ltf) => comportamiento historico
+    intacto. Solo se propaga; la logica vive en ``canonical.evaluate_signals``.
+
+    ``use_semantic`` (R10.C): True activa el motor semántico (run_semantic +
+    adaptador). Default False = run_sequence legacy.
     """
     return evaluate_signals(
         symbol,
@@ -128,6 +137,8 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
         frames=frames,
         fill_mode=fill_mode,
         enable_pd_index=enable_pd_index,
+        exec_tf=exec_tf,
+        use_semantic=use_semantic,
     )
 
 
@@ -187,10 +198,13 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            cost: dict | None = None,
                            fill_mode: str = "next_open",
                            enable_pd_index: bool = False,
+                           exec_tf: str | None = None,
+                           trade_mgmt: bool = False,
                            backtest_id: str | None = None,
                            window_months: int | None = None,
                            attach_plan: bool = False,
-                           plan_gate: bool = False) -> dict:
+                           plan_gate: bool = False,
+                           use_semantic: bool = False) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden).
 
     Fase D (Paso2): acumula RawDiagnosticData por trade en `contexts` (en
@@ -269,7 +283,9 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                                         bos_gap=bos_gap, frames=frames,
                                         bos_table=bos_table,
                                         fill_mode=fill_mode,
-                                        enable_pd_index=enable_pd_index)
+                                        enable_pd_index=enable_pd_index,
+                                        exec_tf=exec_tf,
+                                        use_semantic=use_semantic)
     print(f"      features en {time.time()-t0:.1f}s", flush=True)
     print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
     print(f"      {len(signals)} senales", flush=True)
@@ -349,6 +365,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         trade, meta, raw = simulate_trade_with_context(
             ltf_df, sig, max_hold, cost=cost, backtest_id=backtest_id,
             est_htf_fn=est_htf_fn, market_stack=stack,
+            trade_mgmt=trade_mgmt,
         )
         if trade is not None:
             pnls.append(trade.pnl_r)
@@ -402,7 +419,9 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
 
 def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
         counter_trend: bool = False, tp_mode: str = "fixed2r",
-        require_displacement: bool = False, cost: dict | None = None) -> dict:
+        require_displacement: bool = False, cost: dict | None = None,
+        exec_tf: str | None = None, trade_mgmt: bool = False,
+        use_semantic: bool = False) -> dict:
     """Backtest POR DEFECTO (sin --engine) sobre el motor canonico sequence.
 
     R7 T3.1 (DoD #2 / H12): el camino por defecto delega en `run_sequence`
@@ -410,12 +429,21 @@ def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
     divergente: entry en close, RR 1:2). El parametro `model` se portara a
     `SequenceConfig` en T3.3; aqui el motor canonico es event-sequence
     (tesis 18: entry en retorno al cuadro, RR 1:3, SL estructural).
+
+    ``trade_mgmt`` (Fase 1.2 / E1) propaga el flag de gestion post-entry
+    (BE + partial + trailing) a `simulate_trade_with_context`. False (= ltf)
+    preserva el comportamiento historico.
+
+    ``use_semantic`` (R10.C): True activa el motor semántico (run_semantic +
+    adaptador). Default False = run_sequence legacy.
     """
     return run_sequence_backtest(symbol, htf, ltf, max_hold,
                                  counter_trend=counter_trend,
                                  tp_mode=tp_mode,
                                  require_displacement=require_displacement,
-                                 cost=cost)
+                                 cost=cost,
+                                 exec_tf=exec_tf,
+                                 use_semantic=use_semantic)
 
 
 def main() -> None:
@@ -448,9 +476,20 @@ def main() -> None:
     ap.add_argument("--attach-plan", action="store_true",
                     help="Fase 5: adjunta AlignmentReport multi-TF por senal (modo OBSERVE, "
                          "no filtra ni cambia el PnL). Mide calidad de alineacion.")
+    ap.add_argument("--exec-tf", default=None,
+                    help="Libro 18 / Fase B2: TF de EJECUCION fino (M5/M1) para anclar "
+                         "entry/SL/TP. Por defecto None (= ltf, comportamiento historico intacto).")
+    ap.add_argument("--trade-mgmt", action="store_true",
+                    help="Fase 1.2 / E1 (libro 18/20): aplica gestion post-entry real "
+                         "(Break-Even + partial exit + trailing) en la simulacion via "
+                         "trade_mgmt.apply_trade_management. Por defecto OFF "
+                         "(comportamiento historico: SL/TP simples sin gestion).")
     ap.add_argument("--window-months", type=int, default=None,
                     help="Fase D validacion: recorta la ventana LTF a los ultimos N meses "
                          "ANTES de cargar (ahorra I/O + features).")
+    ap.add_argument("--use-semantic", action="store_true",
+                    help="R10.C: activa el motor semantico (run_semantic + adaptador) "
+                         "en lugar de run_sequence legacy. Default = sequence.")
     args = ap.parse_args()
 
     cost = resolve_cost(args.symbol, override=args.cost, no_cost=args.no_cost)
@@ -477,9 +516,12 @@ def main() -> None:
         displace_gap=args.displace_gap, bos_gap=args.bos_gap,
         cost=cost,
         enable_pd_index=True,  # Fase C: autoridad de zonas HTF como METADATA (sin gate, R1 se preserva)
+        exec_tf=args.exec_tf,
+        trade_mgmt=args.trade_mgmt,  # Fase 1.2 / E1: gestion post-entry real
         backtest_id=f"BT-CLI-{uuid.uuid4().hex[:8]}",  # Fase D Paso 2: id estable de corrida
         attach_plan=args.attach_plan,  # Fase 5: calificador de alineacion (modo OBSERVE)
         window_months=args.window_months,  # Fase D validacion: recorte de ventana pre-carga
+        use_semantic=args.use_semantic,  # R10.C: motor semántico
     )
 
 
