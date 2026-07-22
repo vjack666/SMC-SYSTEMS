@@ -35,7 +35,8 @@ def _rr_of(monkeypatch, setup):
         frames["M15"]["swing_low"] = 1.0950
     _inject_signal(monkeypatch, entry_at=3, sweep_at=0, direction=1)
     _force_setup(monkeypatch, setup)
-    sigs = evaluate_signals("SYN", "D1", "M15", frames=frames, enable_pd_index=False)
+    sigs = evaluate_signals("SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+                            use_semantic=False)
     assert sigs, "no se produjo senal"
     sig = sigs[0]
     risk = abs(sig.entry - sig.stop_loss)
@@ -63,7 +64,8 @@ def test_rr_default_3_0_sin_setup(monkeypatch):
     _inject_signal(monkeypatch, entry_at=3, sweep_at=0, direction=1)
     # Todos los detectores en False -> default 3.0.
     _force_setup(monkeypatch, setup="__none__")
-    sigs = evaluate_signals("SYN", "D1", "M15", frames=frames, enable_pd_index=False)
+    sigs = evaluate_signals("SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+                            use_semantic=False)
     sig = sigs[0]
     risk = abs(sig.entry - sig.stop_loss)
     reward = abs(sig.take_profit - sig.entry)

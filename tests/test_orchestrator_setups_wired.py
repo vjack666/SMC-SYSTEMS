@@ -23,6 +23,7 @@ def test_orquestador_anota_setups_en_senal_real(monkeypatch):
 
     signals = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
 
     assert len(signals) == 1

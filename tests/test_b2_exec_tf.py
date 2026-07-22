@@ -145,6 +145,7 @@ def test_exec_tf_kwarg_anchors_sl_to_exec_tf(monkeypatch):
 
     sigs = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False, exec_tf="M5",
+        use_semantic=False,
     )
     assert sigs, "no se produjo senal con exec_tf=M5"
     sl = sigs[0].stop_loss
@@ -165,9 +166,11 @@ def test_exec_tf_none_is_identical_to_ltf(monkeypatch):
 
     sigs_none = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False, exec_tf=None,
+        use_semantic=False,
     )
     sigs_ltf = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False, exec_tf="M15",
+        use_semantic=False,
     )
     assert sigs_none and sigs_ltf, "no se produjo senal"
     assert sigs_none[0].stop_loss == sigs_ltf[0].stop_loss, (
@@ -187,6 +190,7 @@ def test_exec_tf_m1_uses_m1_sweep(monkeypatch):
 
     sigs = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False, exec_tf="M1",
+        use_semantic=False,
     )
     assert sigs, "no se produjo senal con exec_tf=M1"
     sl = sigs[0].stop_loss
@@ -217,6 +221,7 @@ def test_call_site_uses_exec_tf_for_po3_config(monkeypatch):
 
     evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False, exec_tf="M5",
+        use_semantic=False,
     )
     assert captured.get("exec_tf") == "M5", (
         f"Po3MotorConfig no recibio exec_tf=M5: {captured.get('exec_tf')}"

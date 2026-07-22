@@ -171,6 +171,7 @@ def test_flag_ote_long_entry_in_ote_band(monkeypatch):
     _inject_signal(monkeypatch, _ENTRY_AT, _SWEEP_AT, direction=1)
     sigs = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
     assert sigs, "evaluate_signals no produjo senal con run_sequence mockeado"
     assert abs(sigs[0].entry - ote_entry) < 1e-9
@@ -196,6 +197,7 @@ def test_flag_ote_short_entry_in_ote_band(monkeypatch):
     _inject_signal(monkeypatch, _ENTRY_AT, _SWEEP_AT, direction=-1)
     sigs = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
     assert sigs
     assert abs(sigs[0].entry - ote_entry) < 1e-9
@@ -224,6 +226,7 @@ def test_flag_ote_entry_outside_ote_band_false(monkeypatch):
     _inject_signal(monkeypatch, _ENTRY_AT, _SWEEP_AT, direction=1)
     sigs = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
     assert sigs
     flagged = flag_ote(sigs, frames, ltf="M15")

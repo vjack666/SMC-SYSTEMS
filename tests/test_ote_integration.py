@@ -148,7 +148,8 @@ def test_orchestrator_ote_long_entry_confirmed(monkeypatch):
 
     _inject_signal(monkeypatch, _ENTRY_AT, _SWEEP_AT, direction=1)
     sigs = evaluate_signals(
-        "SYN", "D1", "M15", frames=frames, enable_pd_index=False
+        "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
     assert sigs, "evaluate_signals did not return a signal with run_sequence stubbed"
 
@@ -171,7 +172,8 @@ def test_orchestrator_ote_short_entry_confirmed(monkeypatch):
 
     _inject_signal(monkeypatch, _ENTRY_AT, _SWEEP_AT, direction=-1)
     sigs = evaluate_signals(
-        "SYN", "D1", "M15", frames=frames, enable_pd_index=False
+        "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
     assert sigs
 
@@ -196,7 +198,8 @@ def test_orchestrator_ote_outside_band_false(monkeypatch):
 
     _inject_signal(monkeypatch, _ENTRY_AT, _SWEEP_AT, direction=1)
     sigs = evaluate_signals(
-        "SYN", "D1", "M15", frames=frames, enable_pd_index=False
+        "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
     assert sigs
 
@@ -261,7 +264,8 @@ def test_orchestrator_ote_false_does_not_drop_signal(monkeypatch):
 
     _inject_signal(monkeypatch, _ENTRY_AT, _SWEEP_AT, direction=1)
     sigs = evaluate_signals(
-        "SYN", "D1", "M15", frames=frames, enable_pd_index=False
+        "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
     assert len(sigs) == 1
     flagged = flag_ote(sigs, frames, ltf="M15")

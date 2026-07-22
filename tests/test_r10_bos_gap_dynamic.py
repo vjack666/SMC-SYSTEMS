@@ -84,7 +84,8 @@ def test_bos_gap_none_corre_sin_error_y_es_coherente():
     dinamico no crashea y produce ICTSignal con entry_at entero.
     """
     sig = generate_sequence_signals(
-        "XAUUSD", "D1", "H4", bos_gap=None, bos_table=TABLE_SHORT)
+        "XAUUSD", "D1", "H4", bos_gap=None, bos_table=TABLE_SHORT,
+        use_semantic=False)
     assert isinstance(sig, list)
     for s in sig:
         assert isinstance(s.entry_at, int)
@@ -96,11 +97,13 @@ def test_bos_gap_int_preserva_comportamiento_fijo_r7():
     Esto prueba que el camino dinamico es un reemplazo fiel: cuando la tabla
     devuelve el mismo numero que el fijo, las senales son identicas (R7 safe).
     """
-    sig_fixed = generate_sequence_signals("XAUUSD", "D1", "H4", bos_gap=10)
+    sig_fixed = generate_sequence_signals("XAUUSD", "D1", "H4", bos_gap=10,
+                                          use_semantic=False)
     # Tabla que para TODO bucket devuelve 10 => dinamico == fijo.
     table_all_10 = {k: 10 for k in range(0, 20)}
     sig_dyn = generate_sequence_signals(
-        "XAUUSD", "D1", "H4", bos_gap=None, bos_table=table_all_10)
+        "XAUUSD", "D1", "H4", bos_gap=None, bos_table=table_all_10,
+        use_semantic=False)
     assert len(sig_fixed) == len(sig_dyn)
     # Mismos entry_at (misma logica de confirmacion).
     assert [s.entry_at for s in sig_fixed] == [s.entry_at for s in sig_dyn]
@@ -109,5 +112,6 @@ def test_bos_gap_int_preserva_comportamiento_fijo_r7():
 def test_bos_gap_none_sin_tabla_cae_en_fallback():
     """Sin tabla empirica, bos_gap=None usa un fallback deterministico (40)."""
     # No debe romper; usa default 40.
-    sig = generate_sequence_signals("XAUUSD", "D1", "H4", bos_gap=None, bos_table=None)
+    sig = generate_sequence_signals("XAUUSD", "D1", "H4", bos_gap=None, bos_table=None,
+                                    use_semantic=False)
     assert isinstance(sig, list)

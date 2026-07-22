@@ -319,7 +319,8 @@ def test_call_site_evaluate_signals_pasa_htf_poi_fn(monkeypatch):
 
     monkeypatch.setattr(df_mod, "load_frames", fake_load)
 
-    evaluate_signals("SYN", "H4", "M15", enable_pd_index=True, frames=frames)
+    evaluate_signals("SYN", "H4", "M15", enable_pd_index=True, frames=frames,
+                     use_semantic=False)
 
     assert captured.get("htf_poi_fn") is not None, \
         "evaluate_signals NO pasó htf_poi_fn no-None a run_sequence"

@@ -223,6 +223,7 @@ def test_call_site_real_silver_bullet(monkeypatch):
 
     sigs = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False, exec_tf=None,
+        use_semantic=False,
     )
     assert sigs, "evaluate_signals no produjo senal con run_sequence mockeado"
 
@@ -248,6 +249,7 @@ def test_call_site_real_silver_bullet_outside_window(monkeypatch):
         _inject_signal(monkeypatch, entry_at=3, sweep_at=0, direction=1)
         sigs = evaluate_signals(
             "SYN", "D1", "M15", frames=frames, enable_pd_index=False, exec_tf=None,
+            use_semantic=False,
         )
         assert sigs, "canonical no emitio senal en NY PM (inesperado)"
         out = flag_silver_bullet(sigs, frames["M15"], killzone_fn=killzone_en)

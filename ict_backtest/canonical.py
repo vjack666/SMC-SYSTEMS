@@ -154,10 +154,15 @@ def evaluate_signals(
     fill_mode: str = "next_open",
     enable_pd_index: bool = False,
     exec_tf: str | None = None,
+    use_semantic: bool = True,
 ) -> list[ICTSignal]:
     """Canonical ICT signal generator (R7).
 
     Event-sequence sweep→displace→BOS→return, structural SL, RR≥1:3, killzone.
+
+    ``use_semantic`` (R10.C): cuando True (DEFAULT), usa ``run_semantic``
+    (motor semántico causa-por-evento, sin reloj) + adaptador de formato.
+    False = ``run_sequence`` legacy para comparación/regresión.
 
     ``enable_pd_index`` activa la Fase C (capa de autoridad de zonas HTF):
     construye HtfPdIndex y anota ``zone_authority`` en cada señal. Si esta
@@ -220,31 +225,56 @@ def evaluate_signals(
     def est_htf_fn_legacy(i: int) -> dict:
         return extract_htf_layer(est_htf_ctx_fn(i), htf)
 
-    raw_sigs, _ = run_sequence(
-        ltf_df,
-        est_htf_fn_legacy,  # 2º arg (est_htf_fn legacy): dict plano válido.
-        SequenceConfig(
-            counter_trend=counter_trend,
-            tp_mode=tp_mode,
-            require_displacement=require_displacement,
-            displace_gap=displace_gap,
-            # R10 running: sin default hardcodeado; sequence trae None por defecto.
-            bos_gap=bos_gap,
-        ),
-        ltf_tf=ltf,
-        bos_table=bos_table,
-        htf_pd_index=htf_pd_index,
-        ltf_map=ltf_map,
-        # BRECHA A (Fase C): htf_poi_fn REAL consume el POI anclado HTF
-        # (HtfPdIndex ya construido arriba). as_gate=False (default Fase E):
-        # NO veta entradas (el veto destruye edge); el POI se anota como
-        # bonus en poi_present para enriquecer zone_authority/scoring.
-        # Sin índice HTF (enable_pd_index=False) queda None -> no-op,
-        # comportamiento histórico 100% intacto (regresión cero).
-        htf_poi_fn=make_htf_poi_fn(htf_pd_index, ltf_map) if htf_pd_index is not None else None,
-        htf=htf,
-        est_htf_ctx_fn=est_htf_ctx_fn,
-    )
+    # --- R10.C: motor semántico (causa-por-evento, sin reloj) ---
+    # Default: run_semantic (R10.C). use_semantic=False usa run_sequence
+    # legacy para comparación/regresión.
+    if use_semantic:
+        from ict_backtest.event_engine import run_semantic, LAST_META
+        from ict_backtest.semantic_adapter import adapt_semantic_to_legacy
+
+        sem_sigs = run_semantic(
+            ltf_df,
+            est_htf_fn_legacy,
+            SequenceConfig(
+                counter_trend=counter_trend,
+                tp_mode=tp_mode,
+                require_displacement=require_displacement,
+                displace_gap=displace_gap,
+                bos_gap=bos_gap,
+            ),
+            ltf_tf=ltf,
+            max_hold=200,
+            ltf_df=ltf_df,
+        )
+        # Obtener los objetos internos de run_semantic (mismos IDs que las señales)
+        _sem_objs = LAST_META.get("objects", [])
+        raw_sigs = adapt_semantic_to_legacy(sem_sigs, _sem_objs)
+    else:
+        raw_sigs, _ = run_sequence(
+            ltf_df,
+            est_htf_fn_legacy,  # 2º arg (est_htf_fn legacy): dict plano válido.
+            SequenceConfig(
+                counter_trend=counter_trend,
+                tp_mode=tp_mode,
+                require_displacement=require_displacement,
+                displace_gap=displace_gap,
+                # R10 running: sin default hardcodeado; sequence trae None por defecto.
+                bos_gap=bos_gap,
+            ),
+            ltf_tf=ltf,
+            bos_table=bos_table,
+            htf_pd_index=htf_pd_index,
+            ltf_map=ltf_map,
+            # BRECHA A (Fase C): htf_poi_fn REAL consume el POI anclado HTF
+            # (HtfPdIndex ya construido arriba). as_gate=False (default Fase E):
+            # NO veta entradas (el veto destruye edge); el POI se anota como
+            # bonus en poi_present para enriquecer zone_authority/scoring.
+            # Sin índice HTF (enable_pd_index=False) queda None -> no-op,
+            # comportamiento histórico 100% intacto (regresión cero).
+            htf_poi_fn=make_htf_poi_fn(htf_pd_index, ltf_map) if htf_pd_index is not None else None,
+            htf=htf,
+            est_htf_ctx_fn=est_htf_ctx_fn,
+        )
 
     signals: list[ICTSignal] = []
     # FUENTE ÚNICA de volatilidad/riesgo: rango promedio (high-low) del LTF.
@@ -400,6 +430,16 @@ def evaluate_signals(
             ),
             zone_class=zone_class,
             po3_complete=po3_complete,
+            # R3.5: propagar flags R3.5 desde raw_sigs -> ICTSignal.
+            breaker_active=(s.get("breaker_active") if isinstance(s, dict) else getattr(s, "breaker_active", None)),
+            breaker_type=(s.get("breaker_type") if isinstance(s, dict) else getattr(s, "breaker_type", None)),
+            mitigation_level=(s.get("mitigation_level") if isinstance(s, dict) else getattr(s, "mitigation_level", None)),
+            breaker_strength=(s.get("breaker_strength") if isinstance(s, dict) else getattr(s, "breaker_strength", None)),
+            ote_confirmed=(s.get("ote_confirmed") if isinstance(s, dict) else getattr(s, "ote_confirmed", None)),
+            ote_zone=(s.get("ote_zone") if isinstance(s, dict) else getattr(s, "ote_zone", None)),
+            smt_divergence_active=(s.get("smt_divergence_active") if isinstance(s, dict) else getattr(s, "smt_divergence_active", None)),
+            smt_divergence_direction=(s.get("smt_divergence_direction") if isinstance(s, dict) else getattr(s, "smt_divergence_direction", None)),
+            smt_divergence_strength=(s.get("smt_divergence_strength") if isinstance(s, dict) else getattr(s, "smt_divergence_strength", None)),
             )
         )
 
@@ -416,6 +456,14 @@ def evaluate_signals(
     from ict_backtest.setups.rr_map import flag_rr
 
     ltf_df_for_flags = frames.get(ltf) if isinstance(frames, dict) else (frames if isinstance(frames, pd.DataFrame) else None)
+    try:
+        signals = flag_breaker_block(signals, frames, ltf=ltf)
+    except Exception:
+        pass
+    try:
+        signals = flag_ote(signals, frames, ltf=ltf)
+    except Exception:
+        pass
     for _fn in (
         lambda s: flag_silver_bullet(s, ltf_df_for_flags),
         lambda s: flag_turtle_soup(s, frames, ltf) if isinstance(frames, dict) else None,

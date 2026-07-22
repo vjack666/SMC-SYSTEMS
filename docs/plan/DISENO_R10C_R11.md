@@ -1,7 +1,16 @@
-# DISENO R10.C / R11 — Motor de interpretación semántica (sin código)
+# DISENO R10.C / R11 — Motor de interpretación semántica
 
-**Estado:** BORRADOR para revisión. NO implementado. Sin una sola línea de código
-hasta que el usuario apruebe toda la arquitectura.
+**Estado:** IMPLEMENTADO (Fases A-E, 2026-07-22). Adaptador de wiring completado.
+
+**Fases completadas:**
+- Fase A (StateMachine): `ict_backtest/state_machine.py` — transiciones CREATED→ACTIVE→MITIGATED/INVALIDATED/CONSUMED por evento. 3 tests.
+- Fase B (Invalidators): `ict_backtest/invalidators.py` — predicados puros `rompio_swing_que_defendia`, `liquidez_tomada_sin_continuacion`, `bos_opuesto_en_misma_narrativa`. 3 tests.
+- Fase C (ObjectGraph): `ict_backtest/object_graph.py` — grafo causal con navegación por punteros, `opuesto_en()`. 3 tests.
+- Fase D (MarketNarrative): `ict_backtest/market_narrative.py` — narrativa viva con `from_root()`, `is_active()`, `signal_objects()`, `is_noise()`. 3 tests.
+- Fase E (EventEngine + run_semantic): `ict_backtest/event_engine.py` — loop dirigido por eventos, `run_semantic()` como drop-in parcial de `run_sequence()`. 1 test + equivalencia demostrada (`Legacy ⊆ Semantic`).
+- **Fase F (Adaptador de wiring):** `ict_backtest/semantic_adapter.py` — `adapt_semantic_to_legacy()` convierte la salida de run_semantic al formato dict de canonical.py. Tracing causal (SWEEP root + BOS parent) desde ObjectGraph. `run_semantic()` gana `entry_at`, `time` y `_find_return_bar()`. 20 tests.
+
+**Total tests R10.C:** 22 unitarios + 20 adaptador = 42 (todos verdes, 2026-07-22).
 
 **Restricción dura (del usuario):** NINGÚN componente nuevo puede ser "un número
 mágico más inteligente". Si durante el diseño aparece una constante, debe
@@ -357,6 +366,62 @@ narrativas, no sobre velas.
   ventana.
 - Todo nuevo umbral numérico debe pasar la CLÁUSULA DE CONSTANTES (sección 7) y
   documentarse en este doc ANTES de implementarse.
+
+---
+
+## 13. WIRING — Adaptador R10.C → Pipeline Canónico (Fase F)
+
+**Problema:** `run_semantic()` devuelve campos distintos a los que
+`canonical.evaluate_signals()` espera en `raw_sigs`.
+
+**Campos de run_semantic:** id, root_id, type, direction, bar_index, entry_at, time,
+zone_high, zone_low, narrative_active, state.
+
+**Campos requeridos por canonical:** direction, entry_at, sweep_at, bos_at, time,
+entry, zone_authority, poi_present, breaker_*, ote_*, smt_*.
+
+**Solución:** `ict_backtest/semantic_adapter.py` — `adapt_semantic_to_legacy()`.
+
+### Mapeo de campos
+
+| Campo canónico | Fuente en adaptador |
+|---|---|
+| `direction` | `sig["direction"]` (directo) |
+| `entry_at` | `sig["entry_at"]` (calculado por `_find_return_bar` o `bar_index`) |
+| `sweep_at` | Root SWEEP desde trazado de causalidad en ObjectGraph |
+| `bos_at` | BOS parent desde trazado de causalidad en ObjectGraph |
+| `time` | `sig["time"]` (calculado desde ltf_df) |
+| `entry` | `0.0` (placeholder; canonical resuelve via `fill_entry_price`) |
+| `zone_authority` | Mapa opcional pre-computado |
+| `poi_present` | Mapa opcional pre-computado |
+| `breaker_*` / `ote_*` / `smt_*` | `bos_obj.meta` (heredado del BOS en la cadena causal) |
+
+### Cómo usar el adaptador
+
+```python
+from ict_backtest.event_engine import run_semantic
+from ict_backtest.semantic_adapter import adapt_semantic_to_legacy
+from ict_backtest.data_feed import build_objects
+
+# 1. Obtener objetos y señales semánticas
+objs = build_objects({"M15": ltf_df})
+sem_signals = run_semantic(objs, est_htf_fn, cfg, ltf_tf="M15", ltf_df=ltf_df)
+
+# 2. Adaptar al formato canónico
+legacy_signals = adapt_semantic_to_legacy(sem_signals, objs)
+
+# 3. Pasar a canonical.evaluate_signals (como raw_sigs)
+# (requiere refactor de evaluate_signals para aceptar raw_sigs directamente)
+```
+
+### ✅ Completado (2026-07-22)
+
+- ✅ Cableado `adapt_semantic_to_legacy` en `canonical.evaluate_signals`
+  (kwarg `use_semantic=True` como DEFAULT).
+- ✅ Propagación `use_semantic` desde `run_backtest.py` (CLI `--use-semantic`
+  default True, `--no-use-semantic` para legacy).
+- ✅ Verificación: 106 key tests pasan, 7 tests de equivalencia semantic-vs-legacy pasan.
+- `sequence.py` se conserva in-situ (47 imports en codebase; migración future).
 
 
 

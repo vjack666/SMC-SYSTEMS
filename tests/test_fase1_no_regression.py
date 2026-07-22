@@ -84,7 +84,8 @@ def test_evaluate_signals_passes_multitf_context_to_run_sequence(monkeypatch):
     monkeypatch.setattr(df_mod, "load_frames", fake_load)
     monkeypatch.setattr(canon_mod, "run_sequence", spy_run_sequence)
 
-    sigs = evaluate_signals("SYN", "D1", "M15", enable_pd_index=False, frames=frames)
+    sigs = evaluate_signals("SYN", "D1", "M15", enable_pd_index=False, frames=frames,
+                            use_semantic=False)
 
     # run_sequence recibió el contexto multinivel.
     assert captured["est_htf_ctx_fn"] is not None, "run_sequence NO recibió est_htf_ctx_fn"
@@ -143,7 +144,8 @@ def test_evaluate_signals_behavior_identical_to_baseline(monkeypatch):
     monkeypatch.setattr(canon_mod, "run_sequence", spy_run_new)
 
     # Dispara el nuevo path (Fase 1: evaluate_signals con MultiTFContext).
-    evaluate_signals("SYN", "D1", "M15", enable_pd_index=False, frames=frames)
+    evaluate_signals("SYN", "D1", "M15", enable_pd_index=False, frames=frames,
+                     use_semantic=False)
 
     # --- Baseline legacy: run_sequence con est_htf_fn de 1 nivel sobre ms[D1] ---
     legacy_fn = _legacy_htf_fn(frames, "D1", "M15")

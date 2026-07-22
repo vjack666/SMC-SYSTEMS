@@ -109,7 +109,7 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
                                fill_mode: str = "next_open",
                                enable_pd_index: bool = False,
                                exec_tf: str | None = None,
-                               use_semantic: bool = False) -> list:
+                               use_semantic: bool = True) -> list:
     """R7 thin wrapper — all decision logic lives in ``ict_backtest.canonical``.
 
     ``enable_pd_index`` enciende la Fase C (autoridad de zonas HTF). Por defecto
@@ -121,8 +121,9 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
     mas fino (M5/M1). Por defecto None (= ltf) => comportamiento historico
     intacto. Solo se propaga; la logica vive en ``canonical.evaluate_signals``.
 
-    ``use_semantic`` (R10.C): True activa el motor semántico (run_semantic +
-    adaptador). Default False = run_sequence legacy.
+    ``use_semantic`` (R10.C): True (DEFAULT) activa el motor semantico
+    (run_semantic + adaptador). False = run_sequence legacy para
+    comparacion/regresion.
     """
     return evaluate_signals(
         symbol,
@@ -204,7 +205,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            window_months: int | None = None,
                            attach_plan: bool = False,
                            plan_gate: bool = False,
-                           use_semantic: bool = False) -> dict:
+                           use_semantic: bool = True) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden).
 
     Fase D (Paso2): acumula RawDiagnosticData por trade en `contexts` (en
@@ -421,8 +422,8 @@ def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
         counter_trend: bool = False, tp_mode: str = "fixed2r",
         require_displacement: bool = False, cost: dict | None = None,
         exec_tf: str | None = None, trade_mgmt: bool = False,
-        use_semantic: bool = False) -> dict:
-    """Backtest POR DEFECTO (sin --engine) sobre el motor canonico sequence.
+        use_semantic: bool = True) -> dict:
+    """Backtest POR DEFECTO (sin --engine) sobre el motor semantico R10.C.
 
     R7 T3.1 (DoD #2 / H12): el camino por defecto delega en `run_sequence`
     (motor canonico), NO en `build_signals_from_frames` (isla engine
@@ -434,8 +435,9 @@ def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
     (BE + partial + trailing) a `simulate_trade_with_context`. False (= ltf)
     preserva el comportamiento historico.
 
-    ``use_semantic`` (R10.C): True activa el motor semántico (run_semantic +
-    adaptador). Default False = run_sequence legacy.
+    ``use_semantic`` (R10.C): True (DEFAULT) activa el motor semantico
+    (run_semantic + adaptador). False = run_sequence legacy para
+    comparacion/regresion.
     """
     return run_sequence_backtest(symbol, htf, ltf, max_hold,
                                  counter_trend=counter_trend,
@@ -487,9 +489,11 @@ def main() -> None:
     ap.add_argument("--window-months", type=int, default=None,
                     help="Fase D validacion: recorta la ventana LTF a los ultimos N meses "
                          "ANTES de cargar (ahorra I/O + features).")
-    ap.add_argument("--use-semantic", action="store_true",
-                    help="R10.C: activa el motor semantico (run_semantic + adaptador) "
-                         "en lugar de run_sequence legacy. Default = sequence.")
+    ap.add_argument("--use-semantic", action="store_true", default=True,
+                    help="R10.C: activa el motor semantico (run_semantic + adaptador). "
+                         "Default = True. Use --no-use-semantic para el motor legacy.")
+    ap.add_argument("--no-use-semantic", dest="use_semantic", action="store_false",
+                    help="Usa el motor legacy (run_sequence) en vez del semántico.")
     args = ap.parse_args()
 
     cost = resolve_cost(args.symbol, override=args.cost, no_cost=args.no_cost)

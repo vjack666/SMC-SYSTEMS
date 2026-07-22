@@ -163,6 +163,7 @@ def test_call_site_flag_rr_on_real_signal(monkeypatch):
 
     sigs = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
     assert sigs, "evaluate_signals no produjo senal con run_sequence mockeado"
     sig = sigs[0]

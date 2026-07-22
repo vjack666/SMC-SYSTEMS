@@ -47,6 +47,31 @@ _EVENT_BY_TYPE = {
 LAST_META: dict = {}
 
 
+def _find_return_bar(ltf_df: Any, zone_high: float, zone_low: float,
+                     after_bar: int) -> int | None:
+    """Find the first bar AFTER ``after_bar`` where price touches [zone_low, zone_high].
+
+    Returns the bar_index (DataFrame integer position) of the return bar, or
+    ``None`` if price never returns to the zone within the available data.
+    This is the semantic equivalent of ``_touches_zone`` in ``run_sequence``.
+    """
+    if ltf_df is None or not len(ltf_df):
+        return None
+    if zone_high <= zone_low or zone_high <= 0:
+        return None
+    n = len(ltf_df)
+    start = int(after_bar) + 1
+    if start >= n:
+        return None
+    for i in range(start, n):
+        row = ltf_df.iloc[i]
+        low = float(row.get("low", 0))
+        high = float(row.get("high", 0))
+        if low <= zone_high and high >= zone_low:
+            return i
+    return None
+
+
 def _to_objs(ltf_df_or_objs: Any, ltf_tf: str) -> list[MarketObject]:
     if isinstance(ltf_df_or_objs, list):
         return ltf_df_or_objs
@@ -81,12 +106,23 @@ def run_semantic(
     htf_poi_fn: Callable[..., Any] | None = None,
     ltf_tf: str = "M15",
     max_hold: int = 200,
+    *,
+    ltf_df: Any | None = None,
 ) -> list[dict]:
     """Motor canonico semantico. Emite senales SOLO desde objetos vivos.
 
     Sin reloj: la caducidad es por Invalidators (evento), no por N velas.
     max_hold es el unico tope de seguridad (exposicion), reportado en meta.
+
+    ``ltf_df`` (opcional): DataFrame LTF para calcular ``entry_at`` (barra
+    donde el precio retorna a la zona).  Si se omite, ``entry_at`` coincide
+    con ``bar_index`` (compatibilidad con tests existentes).
     """
+    # Resolve ltf_df for entry_at computation.
+    _ltf_df = ltf_df
+    if _ltf_df is None and hasattr(ltf_df_or_objs, "iloc"):
+        _ltf_df = ltf_df_or_objs
+
     objs = _to_objs(ltf_df_or_objs, ltf_tf)
     g = ObjectGraph()
     for o in objs:
@@ -165,12 +201,27 @@ def run_semantic(
             # Tope de seguridad (exposicion), NO ventana de confirmacion.
             if max_hold is not None and o.bar_index > max_hold:
                 used_max_hold += 1
+            # entry_at = barra donde el precio RETORNA a la zona (si ltf_df
+            # esta disponible). Sin ltf_df, entry_at = bar_index (compat
+            # con tests existentes). El entry en canonical.py lee el precio
+            # de entry_at (open de la vela siguiente), asi que debe apuntar
+            # a la vela de retorno, no a la de creacion del objeto.
+            entry_bar = o.bar_index
+            if _ltf_df is not None and o.zone_high > 0 and o.zone_low > 0:
+                ret = _find_return_bar(
+                    _ltf_df, o.zone_high, o.zone_low,
+                    int(o.bar_index),
+                )
+                if ret is not None:
+                    entry_bar = ret
             signals.append({
                 "id": o.id,
                 "root_id": root.id,
                 "type": o.type.value,
                 "direction": o.direction,
                 "bar_index": o.bar_index,
+                "entry_at": entry_bar,
+                "time": str(_ltf_df.iloc[entry_bar]["time"]) if _ltf_df is not None and entry_bar < len(_ltf_df) else "",
                 "zone_high": o.zone_high,
                 "zone_low": o.zone_low,
                 "narrative_active": True,
@@ -181,4 +232,5 @@ def run_semantic(
     LAST_META.clear()
     LAST_META["max_hold_used"] = used_max_hold
     LAST_META["signal_count"] = len(signals)
+    LAST_META["objects"] = objs  # para el adaptador: mismos objetos usados internamente
     return signals

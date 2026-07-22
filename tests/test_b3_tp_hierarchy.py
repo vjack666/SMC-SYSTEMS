@@ -123,6 +123,7 @@ def test_acceptance_call_site_external_tp_pdh_prev_day(monkeypatch):
     sigs = evaluate_signals(
         "SYN", "D1", "M15", frames=frames,
         enable_pd_index=False, exec_tf=None,
+        use_semantic=False,
     )
     assert sigs, "no se produjo senal"
     sig = sigs[0]

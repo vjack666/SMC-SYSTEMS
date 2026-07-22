@@ -214,6 +214,7 @@ def test_call_site_flags_turtle_soup_on_real_signals(monkeypatch):
 
     sigs = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
     assert sigs, "evaluate_signals no produjo senal con frames sinteticos"
     # Aplicamos el flag C3 a las senales devueltas (call-site real).
@@ -240,6 +241,7 @@ def test_call_site_does_not_flag_non_turtle(monkeypatch):
 
     sigs = evaluate_signals(
         "SYN", "D1", "M15", frames=frames, enable_pd_index=False,
+        use_semantic=False,
     )
     assert sigs, "evaluate_signals no produjo senal"
     flag_turtle_soup(sigs, frames, ltf="M15")
