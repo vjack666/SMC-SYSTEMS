@@ -25,13 +25,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 
 from detectors import (
-    BosConfig, detect_bos,
-    detect_choch,
     detect_fvg,
     detect_order_blocks,
-    TrendConfig, detect_trend,
     ZoneConfig, compute_zones,
 )
+from detectors.liquidity_context import canonical_sweep, DEFAULT_SWEEP_LOOKBACK
+from ict_backtest.market_structure import StructureConfig, detect_market_structure
 from fase_wyckoff_m15 import fase_actual as _wyckoff_fase  # noqa: E402
 
 DATA_DIR = Path("data/raw")
@@ -67,41 +66,53 @@ def _atr(frame: pd.DataFrame, period: int = 14) -> float:
 
 
 def analyze_timeframe(df: pd.DataFrame, tf: str) -> dict:
-    """Corre los detectores y devuelve el estado en la ULTIMA vela cerrada."""
-    trend = detect_trend(df, TrendConfig())
-    bos = detect_bos(df, BosConfig())
+    """Corre los detectores y devuelve el estado en la ULTIMA vela cerrada.
+
+    Estructura (BOS/CHOCH/trend/swing) via `market_structure.detect_market_structure`
+    (canonico, reemplaza los detectores legacy detect_bos/detect_choch/detect_trend
+    que fueron eliminados en un refactor). Liquidez (sweep) via
+    `detectors.liquidity_context.canonical_sweep`. OB/FVG/ZONAS se mantienen en
+    sus detectores actuales. NO depende del backtest: son librerias de calculo
+    puras compartidas, no el pipeline run_backtest.
+    """
+    # Estructura canonica: BOS/CHOCH/trend/swing en una sola pasada.
+    ms = detect_market_structure(df, StructureConfig(swing_lookback=5, confirm_bars=2))
+    # Liquidez (sweep) canonico, sin look-ahead.
+    swept = canonical_sweep(df, lookback=DEFAULT_SWEEP_LOOKBACK)
+
     ob = detect_order_blocks(df)
     fvg = detect_fvg(df)
     zones = compute_zones(df, ZoneConfig(swing_lookback=20))
-    choch = detect_choch(df)
 
     last = -1
     close = float(df["close"].iloc[last])
     atr = _atr(df)
 
     # OB mas reciente FORMADO (bordes exactos vivos en la vela donde se creo).
-    # ob_top/ob_bottom solo se rellenan en la vela del evento; el ffill los
-    # propaga. Tomamos la ultima vela con OB real (ob_bullish|ob_bearish).
     ob_formed = ob[ob["ob_bullish"] | ob["ob_bearish"]]
     ob_row = ob_formed.iloc[-1] if len(ob_formed) else None
 
     # FVG sin rellenar mas reciente
-    fvg_state = str(fvg["fvg_fill_status"].iloc[last])
+    fvg_state = str(fvg["fvg_fill_status"].iloc[last]) if "fvg_fill_status" in fvg else "-"
 
-    # liquidez cercana
-    sweep_down = bool(bos["recent_sweep_down"].iloc[last])
-    sweep_up = bool(bos["recent_sweep_up"].iloc[last])
+    # liquidez cercana (sweep canonico)
+    sweep_down = bool(swept["liquidity_sweep_down"].iloc[last])
+    sweep_up = bool(swept["liquidity_sweep_up"].iloc[last])
+
+    # CHOCH como senal legible (igual contrato que data_feed / motor)
+    choch_dir = int(ms["choch_dir"].iloc[last])
+    choch_signal = {1: "CHOCH_BULLISH", -1: "CHOCH_BEARISH"}.get(choch_dir, "NONE")
 
     return {
         "tf": tf,
         "time": str(df["time"].iloc[last]) if "time" in df else "-",
         "close": close,
         "atr": atr,
-        "trend": str(trend["trend"].iloc[last]),
-        "swing_label": str(bos["swing_label"].iloc[last]),
-        "bos_dir": int(bos["bos_direction"].iloc[last]),
-        "bos_status": str(bos["bos_status"].iloc[last]),
-        "bos_level": bos["bos_level"].iloc[last],
+        "trend": str(ms["trend"].iloc[last]),
+        "swing_label": str(ms["swing_label"].iloc[last]),
+        "bos_dir": int(ms["bos_dir"].iloc[last]),
+        "bos_status": str(ms["bos_status"].iloc[last]),
+        "bos_level": ms["bos_level"].iloc[last],
         "ob_top": ob_row["ob_top"] if ob_row is not None else None,
         "ob_bottom": ob_row["ob_bottom"] if ob_row is not None else None,
         "ob_dir": ("bullish" if ob_row is not None and ob_row["ob_bullish"]
@@ -112,8 +123,8 @@ def analyze_timeframe(df: pd.DataFrame, tf: str) -> dict:
         "zone_low": float(zones["zone_low"].iloc[last]),
         "ote_long": (float(zones["ote_long_min"].iloc[last]), float(zones["ote_long_max"].iloc[last])),
         "ote_short": (float(zones["ote_short_min"].iloc[last]), float(zones["ote_short_max"].iloc[last])),
-        "choch": str(choch["choch_signal"].iloc[last]),
-        "choch_status": str(choch["choch_status"].iloc[last]),
+        "choch": choch_signal,
+        "choch_status": str(ms["choch_status"].iloc[last]),
         "sweep_up": sweep_up,
         "sweep_down": sweep_down,
     }

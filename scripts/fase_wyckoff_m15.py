@@ -47,7 +47,9 @@ def _enrich(df: pd.DataFrame) -> pd.DataFrame:
     """Agrega las columnas que WyckoffAgent.analyze() requiere."""
     df = df.copy()
     df["atr"] = add_atr(df, 14)
-    ms = detect_market_structure(df, StructureConfig(swing_lookback=5, confirm_bars=2, atr_period=14))
+    # StructureConfig moderna (post Migración ATR→RANGO, Fase 1) ya NO acepta
+    # atr_period; la volatilidad se deriva de rango high-low en detect_market_structure.
+    ms = detect_market_structure(df, StructureConfig(swing_lookback=5, confirm_bars=2))
     df["swing_label"] = ms["swing_label"]
     df["trend"] = ms["trend"]
     t = str(ms["trend"].iloc[-1])
