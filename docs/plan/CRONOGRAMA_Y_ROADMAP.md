@@ -107,7 +107,7 @@
 | **R1** | **Capa de estado PO3** | `po3_state`, tests, UI | ✅ | Alta |
 | **R2** | **Killzones + TZ unificadas** | UTC canónico, helper único | ✅ | Alta |
 | **R3** | **Huecos arquitectura (liquidez, open día, CHOCH-gate)** | canonical_sweep, PO3-2 | ✅ | Alta |
-| **R3.5** | **Huecos canon ICT en tesis (SMT/Breaker/OTE)** | Libros 14-17/20 hechos; **21 (POI) ✅ 22/23 pendientes** | 🔶 Parcial | Alta |
+| **R3.5** | **Huecos canon ICT en tesis (SMT/Breaker/OTE)** | Libros 14-17/20 hechos; **21 (POI) ✅, 22 (Breaker/MMXM) 🟢 detector creado + tests agregados, wiring a canónico pendiente, 23 (OTE) pendiente** | 🟢 Parcial | Alta |
 | **R4** | **Auditoría + medición ICT puro** | Look-ahead ✅; SB/PO3 sin edge; **Turtle v2.8 + funding-gate 6m: REJECT_NO_EDGE** (informe 2026-07-17) | ✅ Cerrado | Alta |
 | **R4-tesis** | **Tesis ejecución óptima (libro 18)** | 3 capas + SL/entry exec TF + RR 1:3 | ✅ | Alta |
 | A12 | Walk-forward OOS celda ganadora | `no_session`×XAUUSD falló 1er pase (PF -0.058, N bajo). **Re-evaluar tras R4 limpio** | 🔴 Pendiente (re-run) | Alta |

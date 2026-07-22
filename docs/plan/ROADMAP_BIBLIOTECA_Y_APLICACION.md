@@ -94,7 +94,7 @@
 | Hueco (canon ICT) | Por qué es urgente | Estado repo | Tarea |
 |-------------------|-------------------|-------------|-------|
 | **SMT Divergence** (filtrar manipulación real vs continuación) | Sin SMT el robot entra en sweeps que pueden ser continuación, no caza de stops. Es el filtro de entrada más fuerte de ICT. | ❌ Sin detector; ningún libro lo cubre a fondo | Libro `21_SMT_DIVERGENCIA.md` + detector `detectors/smt.py` (par correlacionado EURUSD/DXY, mismo TF) |
-| **Breaker Block / MMXM** (zona de entry alternativa al FVG) | El robot solo entra en FVG; ICT usa breaker como falla de OB que se vuelve resistencia. MMXM es el "mapa" del ciclo. | ❌ `ob.py` existe pero no breaker/MMXM | Libro `22_BREAKER_MMXM.md` + extender `detectors/ob.py` con breaker state |
+|| **Breaker Block / MMXM** (zona de entry alternativa al FVG) | El robot solo entra en FVG; ICT usa breaker como falla de OB que se vuelve resistencia. MMXM es el "mapa" del ciclo. | 🟢 Detector standalone en `ict_backtest/setups/breaker_block.py` + tests agregados; **falta cablear a `canonical.py`** como flag post-señal (no gate duro) | Libro `22_BREAKER_MMXM.md` + detector `ict_backtest/setups/breaker_block.py` |
 | **OTE (Optimal Trade Entry)** | Entry por retrace a 62–79% Fib del swing, no solo "retorno a FVG". `detectors/fib.py` YA existe pero no integrado en la tesis ni en entry. | ⚠️ `fib.py` existe; libro 10 dice OTE ~no-op; tesis no lo integra | Libro `23_OTE_FIB.md` + cablear OTE como zona de entry en `build_signals_from_frames` |
 
 **Acción documental inmediata (esta sesión):**

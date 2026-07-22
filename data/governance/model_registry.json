@@ -514,5 +514,15 @@
     },
     "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-963\\test_save_and_load0\\test_model.pkl",
     "created_at": "2025-01-01T00:00:00Z"
+  },
+  {
+    "model_id": "xgboost__v2025-01-01T00-00-00Z__1784669260772",
+    "name": "xgboost",
+    "version": "2025-01-01T00-00-00Z",
+    "metrics": {
+      "accuracy": 0.75
+    },
+    "path": "C:\\Users\\v_jac\\AppData\\Local\\Temp\\pytest-of-v_jac\\pytest-966\\test_save_and_load0\\test_model.pkl",
+    "created_at": "2025-01-01T00:00:00Z"
   }
 ]
