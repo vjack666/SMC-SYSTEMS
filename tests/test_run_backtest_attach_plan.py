@@ -4,20 +4,43 @@ Valida que con attach_plan=True el backtest adjunta un AlignmentReport por senal
 en m["alignments"], SIN cambiar m["trades"] (el bot opera igual).
 Se mockea load_frames/structure/sequence/simulate/context_mtf para no tocar datos
 reales (el import lazy de context_mtf se suplanta con un module mock).
+
+FIX: el mock de sys.modules se inyecta via fixture autouse por test y se RESTAURA
+al final, para no contaminar otros test files (A1 topdown, POI anchored, etc.).
 """
 
 import sys
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 sys.path.insert(0, str(Path(".").resolve()))
 
 import pandas as pd
 
-# Suplanta el modulo context_mtf ANTES de importar run_backtest (evita import real
-# pesado que crashea en Windows). El lazy import del loop usara este mock.
+# Fake context_mtf module — shared across tests in this file.
 _fake_ctx_mod = mock.MagicMock()
-sys.modules["ict_backtest.v2.context_mtf"] = _fake_ctx_mod
+
+# Save the real module BEFORE any test runs (during collection).
+_original_ctx_mod = sys.modules.get("ict_backtest.v2.context_mtf")
+
+
+@pytest.fixture(autouse=True)
+def _patch_context_mtf():
+    """Inject fake context_mtf for tests in this file, then restore the real one.
+
+    Without this, the module-level sys.modules hack from the old version would
+    permanently replace context_mtf for ALL subsequent test files, causing
+    MagicMock leakage in sequence.py (top_down_allows_trade unpack error).
+    """
+    sys.modules["ict_backtest.v2.context_mtf"] = _fake_ctx_mod
+    yield
+    # Restore the real module (or clean up if it wasn't loaded before).
+    if _original_ctx_mod is not None:
+        sys.modules["ict_backtest.v2.context_mtf"] = _original_ctx_mod
+    elif "ict_backtest.v2.context_mtf" in sys.modules:
+        del sys.modules["ict_backtest.v2.context_mtf"]
 
 
 def _fake_sig():
