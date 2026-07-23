@@ -1,0 +1,98 @@
+{
+  "probe": "fase4_evidencia_viva",
+  "symbol": "EURUSD",
+  "generated_utc": "2026-07-23T15:47:13.841662+00:00",
+  "fuente_datos": "data/raw/*.parquet via rutina_eurusd._load (SIN MT5)",
+  "timeframes": {
+    "D1": {
+      "disponible": true,
+      "filas": 1693,
+      "ultima_vela": "1692",
+      "analyze_s": 0.4
+    },
+    "H4": {
+      "disponible": true,
+      "filas": 10136,
+      "ultima_vela": "10135",
+      "analyze_s": 1.9
+    },
+    "H1": {
+      "disponible": true,
+      "filas": 40739,
+      "ultima_vela": "40738",
+      "analyze_s": 30.1
+    },
+    "M15": {
+      "disponible": true,
+      "filas": 113295,
+      "ultima_vela": "113294",
+      "analyze_s": 78.8
+    },
+    "M5": {
+      "disponible": true,
+      "filas": 325433,
+      "ultima_vela": "325432",
+      "analyze_s": 168.0
+    }
+  },
+  "pipeline": {
+    "bias": "SHORT",
+    "context_alignment": {
+      "macro": "SHORT",
+      "intraday": "SHORT",
+      "poi": "VALID",
+      "poi_tier": "SKIP",
+      "poi_anchored": false,
+      "poi_stacked": false,
+      "poi_quality_bonus": 0,
+      "trigger": "PENDING",
+      "trigger_machine": "PENDING",
+      "premium_discount": "DISCOUNT",
+      "confidence": 65,
+      "stages": {
+        "D1": "✔",
+        "H4": "□",
+        "H1": "✔",
+        "M15_POI": "✔ SKIP SKIP wrong-side",
+        "SMT": "□ PENDING",
+        "M5_TRIGGER": "□ sweep / □ bos / □ fvg (PENDING)"
+      }
+    },
+    "votes_legado": {
+      "LONG": 1,
+      "SHORT": 2
+    },
+    "poi_detalle": {
+      "valid": true,
+      "tier": "SKIP",
+      "anchored": false,
+      "stacked": false,
+      "displacement": false,
+      "quality_bonus": 0,
+      "tier_note": "SKIP wrong-side",
+      "premium_discount": "DISCOUNT"
+    },
+    "trigger_detalle": {
+      "session": null,
+      "long_machine": "PENDING",
+      "short_machine": "PENDING"
+    },
+    "checks": {
+      "tiene_poi_tier": true,
+      "tiene_trigger_machine": true
+    }
+  },
+  "run_cycle": {
+    "duracion_s": 1644.6,
+    "cache_escrito": true,
+    "cache_path": "C:\\Users\\v_jac\\Desktop\\SMC-SYSTEMS\\data\\blackbox\\last_cycle.json",
+    "canonical_estado": "EN CONSTRUCCIÓN",
+    "canonical": "EN CONSTRUCCIÓN",
+    "veredicto_poi_tier": "SKIP",
+    "veredicto_trigger_machine": "PENDING",
+    "errores": [
+      "canonical: timeout"
+    ]
+  },
+  "notas_honestas": []
+}

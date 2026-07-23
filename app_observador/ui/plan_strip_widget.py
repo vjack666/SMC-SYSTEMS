@@ -7,7 +7,8 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame
 
-from app_observador.ui.theme import BG_PANEL, BORDER, TEXT, TEXT_DIM, TEXT_MUTED, ACCENT, GREEN, YELLOW, RED
+from app_observador.ui.theme import BG_PANEL, BORDER, TEXT, TEXT_DIM, TEXT_MUTED, ACCENT, GREEN, YELLOW, RED, RED_SOFT, GREEN_SOFT
+from app_observador.ui.format_helpers import format_canonical, canonical_is_ready
 
 
 _COLOR_MAP = {
@@ -118,7 +119,8 @@ class PlanStripWidget(QWidget):
             tip += "\n" + "\n".join(str(r) for r in reasons[:4])
         self.chip.setToolTip(tip)
 
-        can = result.get("canonical") if isinstance(result.get("canonical"), dict) else None
+        raw_can = result.get("canonical")
+        can = raw_can if isinstance(raw_can, dict) else None
         verd = result.get("veredicto") or {}
 
         if can and can.get("entry") is not None:
@@ -140,26 +142,47 @@ class PlanStripWidget(QWidget):
                 f"font-family: Consolas, 'Cascadia Mono', monospace;"
             )
             reason0 = str(reasons[0])[:90] if reasons else ""
-            self.hint_lbl.setText(
-                f"sequence · {can.get('time', '')}" + (f" · {reason0}" if reason0 else "")
-            )
+            # FASE D: umbral Stellar (RR >= 1:2 = rr >= 2.0). Bajo 2.0 = riesgo.
+            if rr >= 2.0:
+                self.setStyleSheet(f"QFrame#planStrip {{ border: none; }}")
+                self.hint_lbl.setText(
+                    f"sequence · {can.get('time', '')}" + (f" · {reason0}" if reason0 else "")
+                )
+            else:
+                self.setStyleSheet(
+                    f"QFrame#planStrip {{ border: 2px solid {RED}; "
+                    f"background: {RED_SOFT}; }}"
+                )
+                self.hint_lbl.setText(
+                    f"⚠ RR 1:{rr:.2f} < 1:2 (Stellar): riesgo alto" + (f" · {reason0}" if reason0 else "")
+                )
             if color == "VERDE" and rr >= 2.0:
                 self.action_lbl.setText("LIMIT listo")
             elif color == "ROJO":
                 self.action_lbl.setText("No operar")
+            elif rr < 2.0:
+                self.action_lbl.setText("Revisar RR")
             else:
                 self.action_lbl.setText("Esperar / demo")
             return
 
+        # FASE 5 (UI): canonical NO es dict → mostrar los otros 2 estados honestos.
+        # "EN CONSTRUCCIÓN" (str) = el canonical tardó/se colgó → chip gris.
+        # None = corrió limpio pero no hay señal → "sin plan vigente".
+        can_text, can_color = format_canonical(raw_can)
         bias = str(result.get("bias") or verd.get("bias") or "—")
-        self.side_lbl.setText(bias[:28])
-        self.side_lbl.setStyleSheet(f"color: {TEXT}; font-size: 14px; font-weight: 800;")
+        self.side_lbl.setText(can_text if raw_can == "EN CONSTRUCCIÓN" else bias[:28])
+        self.side_lbl.setStyleSheet(f"color: {can_color}; font-size: 14px; font-weight: 800;")
         inv, tgt = verd.get("invalidation"), verd.get("target")
         self.entry_lbl.setText("E —")
         self.sl_lbl.setText(f"SL {_fmt(inv)}" if inv is not None else "SL —")
         self.tp_lbl.setText(f"TP {_fmt(tgt)}" if tgt is not None else "TP —")
         self.rr_lbl.setText("R:R —")
         self.rr_lbl.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
-        reason0 = str(reasons[0])[:100] if reasons else "Sin plan sequence"
-        self.hint_lbl.setText(reason0)
-        self.action_lbl.setText("Sin plan")
+        if raw_can == "EN CONSTRUCCIÓN":
+            self.hint_lbl.setText("⏳ calculando plan… (canonical en construcción)")
+            self.action_lbl.setText("Calculando…")
+        else:
+            reason0 = str(reasons[0])[:100] if reasons else can_text
+            self.hint_lbl.setText(reason0)
+            self.action_lbl.setText("Sin plan")

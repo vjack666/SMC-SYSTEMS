@@ -14,17 +14,65 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from pathlib import Path
 from types import ModuleType
 
 from app_observador.config import (
-    DATA_RAW, MAPS_DIR, ROOT, SYMBOL, TIMEFRAMES, TIMEFRAMES_MAPA, TIMEFRAMES_SCALPING
+    DATA_RAW, MAPS_DIR, ROOT, SYMBOL, SYMBOL_PAIR, TIMEFRAMES, TIMEFRAMES_MAPA, TIMEFRAMES_SCALPING
 )
+from app_observador.core import pipeline as decision_pipeline
 from app_observador.core.blackbox import BLACKBOX_DIR, log_event, log_error
 
 CACHE_PATH = BLACKBOX_DIR / "last_cycle.json"
 _SCRIPTS = ROOT / "scripts"
+
+# §5C: presupuesto de tiempo estricto para el paso 6 (canonical R7). El plan
+# canónico es enriquecimiento best-effort; si no llega dentro de este tiempo,
+# canonical queda 'EN CONSTRUCCIÓN' (honesto) y el cache YA está escrito.
+CANONICAL_TIMEOUT_S = 12
+
+
+def _write_cache_atomic(result: dict) -> None:
+    """Escribe CACHE_PATH de forma atómica (tmp + os.replace).
+
+    Un lector nunca ve JSON a medias: se escribe a un .json.tmp y se renombra
+    con os.replace (atómico en el mismo filesystem).
+    """
+    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = CACHE_PATH.with_suffix(".json.tmp")
+    tmp.write_text(
+        json.dumps(result, ensure_ascii=False, default=str),
+        encoding="utf-8")
+    os.replace(tmp, CACHE_PATH)
+
+
+def _canonical_plan_bounded(symbol: str, timeout_s: float) -> tuple:
+    """Envuelve _canonical_plan en un worker acotado por timeout.
+
+    Devuelve una tupla de estado honesto:
+      ('OK', payload)   -> _canonical_plan corrió (payload = dict o None)
+      ('TIMEOUT', None) -> excedió timeout_s (thread queda huérfano, aceptable)
+      ('ERROR', exc)    -> _canonical_plan lanzó excepción
+
+    _canonical_plan NO se modifica: mantiene el import de ict_backtest adentro,
+    preservando la separación backtest≠dashboard.
+    """
+    ex = ThreadPoolExecutor(max_workers=1)
+    fut = ex.submit(_canonical_plan, symbol)
+    try:
+        return ("OK", fut.result(timeout=timeout_s))
+    except FutureTimeoutError:
+        return ("TIMEOUT", None)
+    except Exception as e:  # noqa: BLE001
+        return ("ERROR", e)
+    finally:
+        # No esperar al thread: si _canonical_plan se colgó en I/O nativo,
+        # queda huérfano pero run_cycle ya retorna con el cache escrito.
+        # (No usamos `with` porque su __exit__ hace shutdown(wait=True).)
+        ex.shutdown(wait=False)
 
 
 def _import_script(name: str) -> ModuleType:
@@ -67,7 +115,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
         return result
 
     # 1) Cargar y analizar cada temporalidad con datos REALES
-    tfs_data: dict[str, object] = {}
+    tfs_data: dict[str, tuple] = {}
     for tf in TIMEFRAMES:
         try:
             df = rut._load(SYMBOL, tf)
@@ -81,12 +129,44 @@ def run_cycle(force_fetch: bool = False) -> dict:
             result["bias"] = "SIN DATOS MT5"
             return result  # sin datos no hay análisis
 
-    d1, h4, m15 = tfs_data["D1"][1], tfs_data["H4"][1], tfs_data["M15"][1]
-    verdict = rut.build_verdict(d1, h4, m15)
+    d1, h4, h1, m15 = (
+        tfs_data["D1"][1], tfs_data["H4"][1],
+        tfs_data["H1"][1], tfs_data["M15"][1],
+    )
+    # FASE M5 TWOPASS: cargar M5 APARTE (no toca TIMEFRAMES ni la estructura UI).
+    # Si no hay M5 -> m5=None -> trigger_engine PENDING honesto (sin inventar).
+    m5_info = None
+    try:
+        df_m5 = rut._load(SYMBOL, "M5")
+        m5_info = rut.analyze_timeframe(df_m5, "M5")
+    except Exception as e:
+        log_error("engine", "m5_fallo_twopass", e, symbol=SYMBOL, tf="M5")
+        result["errores"].append(f"M5: {e}")
+    # FASE SMT: cargar el par correlacionado (SYMBOL_PAIR) en H1 APARTE.
+    # SMT lee EURUSD vs GBPUSD en el MISMO TF (H1). Si no hay segundo par ->
+    # smt=None -> smt_engine PENDING honesto (no inventa correlacion).
+    smt_b_info = None
+    try:
+        sym_pair = SYMBOL_PAIR
+        df_pair = rut._load(sym_pair, "H1")
+        smt_b_info = rut.analyze_timeframe(df_pair, "H1")
+    except Exception as e:
+        log_error("engine", "smt_fallo", e, symbol=SYMBOL_PAIR, tf="H1")
+        result["errores"].append(f"SMT({SYMBOL_PAIR} H1): {e}")
+    # FASE NUCLEO: pipeline jerarquico (no votacion). H1 = Stage 3 (IntradayEngine).
+    # SMT necesita H1 de AMBOS pares -> smt_a = h1 (EURUSD), smt_b = smt_b_info (par).
+    verdict = decision_pipeline.run_pipeline(d1, h4, h1, m15, m5=m5_info, smt_a=h1, smt_b=smt_b_info)
     bias = verdict.get("bias", "NEUTRAL (esperar)")
     result["bias"] = bias
     result["veredicto"] = verdict
-    log_event("engine", "veredicto", symbol=SYMBOL, data={"bias": bias, "votes": verdict.get("votes")})
+    ca = verdict.get("context_alignment", {})
+    log_event("engine", "veredicto", symbol=SYMBOL,
+              data={"bias": bias,
+                    "macro": ca.get("macro"),
+                    "intraday": ca.get("intraday"),
+                    "poi": ca.get("poi"),
+                    "trigger": ca.get("trigger"),
+                    "confidence": ca.get("confidence")})
 
     # 1b) Estructura del mercado (datos reales de analyze_timeframe) para la UI
     for tf in TIMEFRAMES:
@@ -184,51 +264,67 @@ def run_cycle(force_fetch: bool = False) -> dict:
         log_error("engine", "wyckoff_fallo", e, symbol=SYMBOL)
         result["errores"].append(f"wyckoff: {e}")
 
-    # 6) Motor canónico R7 (sequence) → plan Entry/SL/TP compartido con Lab/LIMIT
+    # Cache del ultimo ciclo (la app lo lee en <1s al abrir).
+    # SE ESCRIBE ANTES del paso 6 (canonico R7) a proposito: si el plan canonico
+    # tarda o se cuelga, el dashboard YA tiene el veredicto honesto (votes reales)
+    # y no se queda mudo. Fase C: el veredicto aqui ya NO esta reescrito por canonical.
     try:
-        plan = _canonical_plan(SYMBOL)
-        if plan:
-            result["canonical"] = plan
-            # Overlay veredicto invalidation/target from structural plan when present
-            verd = result.get("veredicto") or {}
-            verd = dict(verd)
-            verd["invalidation"] = plan["sl"]
-            verd["target"] = plan["tp"]
-            verd["canonical_entry"] = plan["entry"]
-            verd["canonical_side"] = plan["side"]
-            verd["canonical_rr"] = plan["rr"]
-            verd["engine"] = plan["engine"]
-            # Align votes lightly with sequence side for Lab direction
-            if plan["side"] == "LONG":
-                verd["votes"] = {"LONG": max(int((verd.get("votes") or {}).get("LONG", 0)), 2),
-                                 "SHORT": int((verd.get("votes") or {}).get("SHORT", 0))}
-            else:
-                verd["votes"] = {"LONG": int((verd.get("votes") or {}).get("LONG", 0)),
-                                 "SHORT": max(int((verd.get("votes") or {}).get("SHORT", 0)), 2)}
-            result["veredicto"] = verd
-            log_event("engine", "canonical_plan", symbol=SYMBOL,
-                      data={"side": plan["side"], "entry": plan["entry"],
-                            "sl": plan["sl"], "tp": plan["tp"], "rr": plan["rr"]})
-        else:
-            result["canonical"] = None
-            log_event("engine", "canonical_plan_empty", symbol=SYMBOL)
+        _write_cache_atomic(result)
     except Exception as e:
+        log_error("engine", "cache_write", e, symbol=SYMBOL)
+
+    # 6) Motor canónico R7 (sequence) → plan Entry/SL/TP compartido con Lab/LIMIT.
+    # §5C: el canonical es enriquecimiento best-effort ACOTADO EN TIEMPO. Primero
+    # marcamos 'EN CONSTRUCCIÓN' y re-escribimos cache (garantía sí-o-sí de no-silencio);
+    # luego intentamos el plan con un presupuesto estricto (_canonical_plan_bounded).
+    # Si tarda/falla, el cache YA tiene el veredicto honesto y canonical honesto.
+    result["canonical"] = "EN CONSTRUCCIÓN"
+    try:
+        _write_cache_atomic(result)
+    except Exception as e:
+        log_error("engine", "cache_write", e, symbol=SYMBOL)
+
+    status, payload = _canonical_plan_bounded(SYMBOL, CANONICAL_TIMEOUT_S)
+    if status == "OK" and payload:
+        result["canonical"] = payload
+        # Overlay veredicto invalidation/target from structural plan when present
+        verd = dict(result.get("veredicto") or {})
+        verd["invalidation"] = payload["sl"]
+        verd["target"] = payload["tp"]
+        verd["canonical_entry"] = payload["entry"]
+        verd["canonical_side"] = payload["side"]
+        verd["canonical_rr"] = payload["rr"]
+        verd["engine"] = payload["engine"]
+        # NOTE (Fase C, 2026-07-22): los votos del veredicto NO se reescriben con el
+        # plan canónico. El consenso D1/H4/M15 es la fuente de verdad del sesgo operativo
+        # (tesis: alineamiento top-down). El plan canónico R7 es UNA señal más y vive en
+        # result["canonical"] (chip propio en plan_strip). No se inventa consenso.
+        result["veredicto"] = verd
+        log_event("engine", "canonical_plan", symbol=SYMBOL,
+                  data={"side": payload["side"], "entry": payload["entry"],
+                        "sl": payload["sl"], "tp": payload["tp"], "rr": payload["rr"]})
+        # Re-escribir cache con canonical ya poblado (el veredicto sigue honesto)
+        try:
+            _write_cache_atomic(result)
+        except Exception as e:
+            log_error("engine", "cache_write", e, symbol=SYMBOL)
+    elif status == "OK":
         result["canonical"] = None
-        log_error("engine", "canonical_plan_fallo", e, symbol=SYMBOL)
-        result["errores"].append(f"canonical: {e}")
+        log_event("engine", "canonical_plan_empty", symbol=SYMBOL)
+    elif status == "TIMEOUT":
+        result["canonical"] = "EN CONSTRUCCIÓN"
+        result["errores"].append("canonical: timeout")
+        log_error("engine", "canonical_timeout",
+                  TimeoutError(f"canonical excedió {CANONICAL_TIMEOUT_S}s"),
+                  symbol=SYMBOL)
+    else:  # status == "ERROR"
+        result["canonical"] = "EN CONSTRUCCIÓN"
+        result["errores"].append(f"canonical: {payload}")
+        log_error("engine", "canonical_plan_fallo", payload, symbol=SYMBOL)
 
     if not result["errores"]:
         log_event("engine", "ciclo_completo", level="INFO", symbol=SYMBOL,
                   data={"color": result["semaforo"]["color"], "bias": bias})
-
-    # Cache del ultimo ciclo (la app lo lee en <1s al abrir)
-    try:
-        CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        CACHE_PATH.write_text(
-            json.dumps(result, ensure_ascii=False, default=str),
-            encoding="utf-8")
-    except Exception as e:
-        log_error("engine", "cache_write", e, symbol=SYMBOL)
     return result
 
 

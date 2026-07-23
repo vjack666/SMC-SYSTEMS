@@ -38,6 +38,7 @@ from app_observador.core.mt5_status import shutdown as mt5_shutdown
 from app_observador.core.engine import load_cached
 from app_observador.ui.sesgo_widget import SesgoWidget
 from app_observador.ui.mapa_widget import MapaWidget
+from app_observador.ui.market_state_widget import MarketStateWidget
 from app_observador.ui.noticias_widget import NoticiasWidget
 from app_observador.ui.resumen_widget import ResumenWidget
 from app_observador.ui.estado_widget import EstadoWidget
@@ -95,6 +96,7 @@ class MainWindow(QMainWindow):
         self.crono = CronoWidget()
         self.lab = LabSetupWidget()
         self.plan_strip = PlanStripWidget()
+        self.market_state = MarketStateWidget()
         self.scanner = ScannerWidget()
         self.chat = ChatWidget()
         self.chat.set_scanner_provider(self.scanner.last_report_text)
@@ -203,6 +205,9 @@ class MainWindow(QMainWindow):
 
         # Semáforo + plan
         tp.addWidget(self.plan_strip)
+
+        # FASE A: Panel MARKET STATE always-on (síntesis del pipeline)
+        tp.addWidget(self.market_state)
 
         # Sesgo + estado (loop/vigilante)
         row1 = QHBoxLayout()
@@ -372,6 +377,7 @@ class MainWindow(QMainWindow):
     def _update_principal(self, result: dict) -> None:
         """Heavy-ish principal chrome — only when Principal is (or becomes) visible."""
         self.plan_strip.update_state(result)
+        self.market_state.update_state(result)
         self.sesgo.update_state(
             result.get("bias", "—"), result.get("wyckoff", {}).get("M15")
         )
@@ -406,7 +412,11 @@ class MainWindow(QMainWindow):
         # Always: lightweight chrome that lives on Principal (cheap labels)
         now = datetime.now(timezone.utc).strftime("%H:%M UTC")
         self.lbl_updated.setText(f"Última actualización: {now}")
-        has_can = bool(result.get("canonical"))
+        # FASE 5 (UI): "EN CONSTRUCCIÓN" (str no vacío) daba True con bool().
+        # canonical_is_ready distingue los 3 estados: solo dict con entry = plan vigente.
+        from app_observador.ui.format_helpers import canonical_is_ready
+
+        has_can = canonical_is_ready(result.get("canonical"))
         self.subtitle.setText(
             "Motor sequence · plan canónico listo · demo LIMIT"
             if has_can

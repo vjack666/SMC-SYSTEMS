@@ -82,18 +82,29 @@ KILLZONES_UTC = {
 }
 
 
+def killzone_en(dt_utc: datetime) -> str:
+    """Nombre de la killzone activa en el datetime dado (calculo en UTC) o ''.
+
+    Parametriza la tabla KILLZONES_UTC por un instante concreto (puro, testeable).
+    Si el datetime llega naive, se asume UTC (defensa, no aborta).
+    """
+    if dt_utc.tzinfo is None:
+        dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+    dt_utc = dt_utc.astimezone(timezone.utc)
+    h = dt_utc.hour + dt_utc.minute / 60.0
+    for nombre, (ini, fin) in KILLZONES_UTC.items():
+        if ini <= h < fin:
+            return nombre
+    return ""
+
+
 def killzone_activa_ahora() -> str:
     """Nombre de la killzone activa AHORA (calculo en UTC) o '' si ninguna.
 
     Usa UTC para ser robusto en cualquier servidor. El display en zona
     operador lo hace la UI con operator_clock_str().
     """
-    ahora = utc_now()
-    h = ahora.hour + ahora.minute / 60.0
-    for nombre, (ini, fin) in KILLZONES_UTC.items():
-        if ini <= h < fin:
-            return nombre
-    return ""
+    return killzone_en(utc_now())
 
 
 def killzone_bandas_operador() -> dict[str, tuple[float, float]]:
