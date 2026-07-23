@@ -152,9 +152,13 @@ def evaluate_signals(
     bos_table: dict | None = None,
     frames: dict | None = None,
     fill_mode: str = "next_open",
-    enable_pd_index: bool = False,
+    enable_pd_index: bool = True,
     exec_tf: str | None = None,
+    itf: str | None = None,
     use_semantic: bool = True,
+    use_bar_engine: bool = False,
+    bar_engine_m5_df: pd.DataFrame | None = None,
+    model: str = "intradia",
 ) -> list[ICTSignal]:
     """Canonical ICT signal generator (R7).
 
@@ -225,12 +229,51 @@ def evaluate_signals(
     def est_htf_fn_legacy(i: int) -> dict:
         return extract_htf_layer(est_htf_ctx_fn(i), htf)
 
+    # --- Bar-by-bar engine (zero look-ahead, M5-driven) ---
+    # use_bar_engine=True uses BarByBarEngine for anti-look-ahead signal
+    # generation. Converts bar engine Signal objects to ICTSignal format.
+    if use_bar_engine:
+        from ict_backtest.bar_engine import BarByBarEngine
+
+        if bar_engine_m5_df is None:
+            raise ValueError("bar_engine_m5_df required when use_bar_engine=True")
+
+        engine = BarByBarEngine(bar_engine_m5_df, min_rr=3.0)
+        bar_signals = engine.run()
+
+        signals = []
+        for sig in bar_signals:
+            side = "LONG" if sig.direction == 1 else "SHORT"
+            signals.append(ICTSignal(
+                symbol=symbol,
+                time=str(sig.entry_time),
+                direction=sig.direction,
+                entry=sig.entry,
+                stop_loss=sig.sl,
+                take_profit=sig.tp,
+                model="bar_engine",
+                sweep_at=None,
+                bos_at=None,
+                entry_at=sig.entry_bar,
+            ))
+        return signals
+
     # --- R10.C: motor semántico (causa-por-evento, sin reloj) ---
     # Default: run_semantic (R10.C). use_semantic=False usa run_sequence
     # legacy para comparación/regresión.
+
+    # --- Capa ITF (3 capas ICT): cargar ITF para deteccion de zona ---
+    # itf=None => comportamiento historico (regresion cero).
+    itf_df_loaded = None
+    if itf is not None and itf in ms:
+        itf_df_loaded = ms[itf]
+
     if use_semantic:
         from ict_backtest.event_engine import run_semantic, LAST_META
         from ict_backtest.semantic_adapter import adapt_semantic_to_legacy
+
+        # Pass 2 exec TF: detect trigger objects on M5/M1 within LTF zones
+        _exec_df_for_sem = ms.get(exec_tf) if (exec_tf and exec_tf != ltf and exec_tf in ms) else None
 
         sem_sigs = run_semantic(
             ltf_df,
@@ -245,6 +288,10 @@ def evaluate_signals(
             ltf_tf=ltf,
             max_hold=200,
             ltf_df=ltf_df,
+            htf_poi_fn=make_htf_poi_fn(htf_pd_index, ltf_map) if htf_pd_index is not None else None,
+            est_htf_ctx_fn=est_htf_ctx_fn,
+            exec_df=_exec_df_for_sem,
+            exec_tf=exec_tf if _exec_df_for_sem is not None else None,
         )
         # Obtener los objetos internos de run_semantic (mismos IDs que las señales)
         _sem_objs = LAST_META.get("objects", [])
@@ -274,6 +321,8 @@ def evaluate_signals(
             htf_poi_fn=make_htf_poi_fn(htf_pd_index, ltf_map) if htf_pd_index is not None else None,
             htf=htf,
             est_htf_ctx_fn=est_htf_ctx_fn,
+            itf_df=itf_df_loaded,
+            itf_tf=itf if itf_df_loaded is not None else None,
         )
 
     signals: list[ICTSignal] = []
@@ -348,11 +397,19 @@ def evaluate_signals(
         # El setup se detecto en el LTF (entry_at/sweep_at son indices LTF).
         # Mapeamos el instante de toque al exec_df (vela cerrada <= ts, anti
         # look-ahead) y recalculamos SOBRE esa vela mas fina.
+        # Two-pass: si run_semantic ya detecto exec objects (exec_sweep_at),
+        # usar esos directamente (ya estan en el exec TF correcto).
         if use_exec:
-            entry_ts = ltf_df.iloc[entry_at]["time"]
-            sweep_ts = ltf_df.iloc[s["sweep_at"]]["time"]
-            entry_at_exec = _exec_idx_at_time(exec_df, entry_ts)
-            sweep_at_exec = _exec_idx_at_time(exec_df, sweep_ts)
+            if "exec_sweep_at" in s:
+                # Two-pass: exec objects already detected by Pass 2
+                sweep_at_exec = s["exec_sweep_at"]
+                entry_at_exec = s.get("exec_entry_at", sweep_at_exec + 1)
+            else:
+                # Legacy re-anchoring: map LTF timestamps to exec TF
+                entry_ts = ltf_df.iloc[entry_at]["time"]
+                sweep_ts = ltf_df.iloc[s["sweep_at"]]["time"]
+                entry_at_exec = _exec_idx_at_time(exec_df, entry_ts)
+                sweep_at_exec = _exec_idx_at_time(exec_df, sweep_ts)
 
             # Entry = open de la vela SIGUIENTE al toque en el exec TF.
             try:
@@ -474,6 +531,7 @@ def evaluate_signals(
     from ict_backtest.setups.turtle_soup import flag_turtle_soup
     from ict_backtest.setups.ote import flag_ote
     from ict_backtest.setups.rr_map import flag_rr
+    from ict_backtest.setups.smt_divergence import flag_smt_divergence
 
     ltf_df_for_flags = frames.get(ltf) if isinstance(frames, dict) else (frames if isinstance(frames, pd.DataFrame) else None)
     try:
@@ -489,13 +547,35 @@ def evaluate_signals(
         lambda s: flag_turtle_soup(s, frames, ltf) if isinstance(frames, dict) else None,
         lambda s: flag_ote(s, frames, ltf) if isinstance(frames, dict) else None,
         lambda s: flag_rr(s),
+        lambda s: flag_smt_divergence(s, frames, ltf=ltf) if isinstance(frames, dict) else None,
     ):
         try:
             _fn(signals)
         except Exception:
             pass  # knob apagado: si un flag falla, no rompe el pipeline base
 
+    # --- Filtro por modelo (2026-07-23, fork a): --model NO es engañoso ---
+    signals = filter_signals_by_model(signals, model)
     return signals
+
+
+def filter_signals_by_model(signals: list, model: str) -> list:
+    """Aplica el filtro duro de ``--model`` (fork a, 2026-07-23).
+
+    Hace que el flag NO sea engañoso: cada modelo significa lo que dice.
+      - "intradia": sin filtro (comportamiento historico, regresion cero).
+      - "po3":      solo senales con ciclo PO3/AMD COMPLETO al entry
+                    (po3_complete is True). Usa la anotacion ya calculada
+                    por compute_po3_complete en evaluate_signals.
+      - "scalping": el runner resuelve exec_tf=M5 (ancla entry/SL/TP finos);
+                    aqui no filtra.
+    """
+    if model == "po3":
+        return [s for s in signals if getattr(s, "po3_complete", None) is True]
+    return signals
+
+
+
 
 
 def latest_plan(

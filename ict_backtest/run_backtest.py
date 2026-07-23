@@ -107,9 +107,11 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
                                bos_table: dict | None = None,
                                frames: dict | None = None,
                                fill_mode: str = "next_open",
-                               enable_pd_index: bool = False,
+                               enable_pd_index: bool = True,
                                exec_tf: str | None = None,
-                               use_semantic: bool = True) -> list:
+                               itf: str | None = None,
+                               use_semantic: bool = True,
+                              model: str = "intradia") -> list:
     """R7 thin wrapper — all decision logic lives in ``ict_backtest.canonical``.
 
     ``enable_pd_index`` enciende la Fase C (autoridad de zonas HTF). Por defecto
@@ -139,7 +141,9 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
         fill_mode=fill_mode,
         enable_pd_index=enable_pd_index,
         exec_tf=exec_tf,
+        itf=itf,
         use_semantic=use_semantic,
+        model=model,
     )
 
 
@@ -200,12 +204,14 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            fill_mode: str = "next_open",
                            enable_pd_index: bool = False,
                            exec_tf: str | None = None,
+                           itf: str | None = None,
                            trade_mgmt: bool = False,
                            backtest_id: str | None = None,
                            window_months: int | None = None,
                            attach_plan: bool = False,
                            plan_gate: bool = False,
-                           use_semantic: bool = True) -> dict:
+                           use_semantic: bool = True,
+                           model: str = "intradia") -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden).
 
     Fase D (Paso2): acumula RawDiagnosticData por trade en `contexts` (en
@@ -218,7 +224,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     senales. No cambia la logica, solo el universo de velas.
     """
     backtest_id = backtest_id or f"BT-{uuid.uuid4().hex[:8]}"
-    tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}"
+    tag = f"SEQ-{'CT' if counter_trend else 'AT'}-{tp_mode}{'-disp' if require_displacement else ''}-{model}"
     # Fase D multi-TF (reglas #1/#4): cadena completa D1/H4/H1/M15/M5/M1.
     # Se cargan TODOS los TF que existan en disco; los ausentes quedan como
     # MISSING en el snapshot (nunca se inventan ni se copian de otro TF).
@@ -286,7 +292,9 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                                         fill_mode=fill_mode,
                                         enable_pd_index=enable_pd_index,
                                         exec_tf=exec_tf,
-                                        use_semantic=use_semantic)
+                                        itf=itf,
+                                        use_semantic=use_semantic,
+                                        model=model)
     print(f"      features en {time.time()-t0:.1f}s", flush=True)
     print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
     print(f"      {len(signals)} senales", flush=True)
@@ -445,7 +453,8 @@ def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
                                  require_displacement=require_displacement,
                                  cost=cost,
                                  exec_tf=exec_tf,
-                                 use_semantic=use_semantic)
+                                 use_semantic=use_semantic,
+                                 model=model)
 
 
 def main() -> None:
@@ -453,6 +462,10 @@ def main() -> None:
     ap.add_argument("--symbol", default="XAUUSD")
     ap.add_argument("--htf", default="D1")
     ap.add_argument("--ltf", default="H4")
+    ap.add_argument("--itf", default=None,
+                    help="TF intermedio para deteccion de zona (FVG/OB). "
+                         "Capa ITF (libro 18): HTF bias -> ITF zona -> exec entry. "
+                         "Si no se pasa, la zona se detecta en ltf (comportamiento historico).")
     ap.add_argument("--model", default="intradia", choices=["intradia", "scalping", "po3"],
                     help="po3 = SOLO ciclo PO3 completo (R4 E2, medicion aislada)")
     ap.add_argument("--max-hold", type=int, default=16)
@@ -494,9 +507,51 @@ def main() -> None:
                          "Default = True. Use --no-use-semantic para el motor legacy.")
     ap.add_argument("--no-use-semantic", dest="use_semantic", action="store_false",
                     help="Usa el motor legacy (run_sequence) en vez del semántico.")
+    ap.add_argument("--use-bar-engine", action="store_true", default=False,
+                    help="Bar-by-bar engine (zero look-ahead): process M5 one bar at a time. "
+                         "Bypasses generate_sequence_signals + simulate_trade; uses own "
+                         "signal generation + trade simulation.")
+    ap.add_argument("--bar-engine-m5", default=None,
+                    help="Path to M5 parquet for bar engine (default: data/raw/{SYMBOL}_M5.parquet).")
+    ap.add_argument("--bar-engine-max-hold", type=int, default=192,
+                    help="Max M5 bars to hold in bar engine simulation (default: 192 = ~16h).")
     args = ap.parse_args()
 
     cost = resolve_cost(args.symbol, override=args.cost, no_cost=args.no_cost)
+
+    # --- Bar-by-bar engine path (bypasses normal sequence + simulate_trade) ---
+    if args.use_bar_engine:
+        import pandas as pd
+        from ict_backtest.bar_engine import BarByBarEngine, compute_metrics
+
+        m5_path = args.bar_engine_m5 or str(ROOT / "data" / "raw" / f"{args.symbol}_M5.parquet")
+        print(f"[bar-engine] Loading M5 from {m5_path} ...", flush=True)
+        m5_df = pd.read_parquet(m5_path)
+        print(f"  M5: {len(m5_df)} bars", flush=True)
+
+        engine = BarByBarEngine(m5_df, min_rr=3.0)
+        t0 = time.time()
+        signals = engine.run()
+        elapsed = time.time() - t0
+        print(f"  Signals: {len(signals)} ({elapsed:.1f}s)", flush=True)
+        print(f"  D1 candles: {engine.state.get_tf('D1').closed_count}", flush=True)
+        print(f"  H4 candles: {engine.state.get_tf('H4').closed_count}", flush=True)
+
+        trades = engine.simulate_trades(signals, max_hold_bars=args.bar_engine_max_hold, cost=cost)
+        result = compute_metrics(trades, signals_generated=len(signals))
+
+        print(f"\n  === BAR ENGINE RESULTS ===")
+        print(f"  Trades: {result.total_trades} / {result.signals_generated} signals")
+        print(f"  Win Rate: {result.winrate:.1%}")
+        print(f"  Profit Factor: {result.pf:.3f}")
+        print(f"  Expectancy: {result.expectancy_r:.3f} R")
+        print(f"  Total R: {result.total_r:.1f}")
+        print(f"  Max DD: {result.max_dd_r:.1f} R")
+        for reason in ["TP", "SL", "hold_limit"]:
+            count = sum(1 for t in trades if t.exit_reason == reason)
+            avg = sum(t.pnl_r for t in trades if t.exit_reason == reason) / count if count else 0
+            print(f"  {reason:12s}: {count:3d} trades  avg: {avg:+.3f} R")
+        return
 
     # R7: checklist alias removed — always sequence.
     if args.sweep:
@@ -520,12 +575,14 @@ def main() -> None:
         displace_gap=args.displace_gap, bos_gap=args.bos_gap,
         cost=cost,
         enable_pd_index=True,  # Fase C: autoridad de zonas HTF como METADATA (sin gate, R1 se preserva)
-        exec_tf=args.exec_tf,
+        exec_tf=args.exec_tf if args.exec_tf else ("M5" if args.model == "scalping" else None),
+        itf=args.itf,
         trade_mgmt=args.trade_mgmt,  # Fase 1.2 / E1: gestion post-entry real
         backtest_id=f"BT-CLI-{uuid.uuid4().hex[:8]}",  # Fase D Paso 2: id estable de corrida
         attach_plan=args.attach_plan,  # Fase 5: calificador de alineacion (modo OBSERVE)
         window_months=args.window_months,  # Fase D validacion: recorte de ventana pre-carga
         use_semantic=args.use_semantic,  # R10.C: motor semántico
+        model=args.model,  # 2026-07-23 fork a: --model po3 filtra por po3_complete; scalping -> exec_tf M5
     )
 
 
