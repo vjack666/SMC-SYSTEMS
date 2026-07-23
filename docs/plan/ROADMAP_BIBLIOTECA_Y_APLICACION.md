@@ -1,9 +1,9 @@
 # Roadmap — Biblioteca 10/10 y aplicación al sistema
 
-**Fecha:** 2026-07-22  \
+**Fecha:** 2026-07-23  \
 **Propósito:** convertir la documentación ICT/Wyckoff en **contrato ejecutable** y cerrar el gap libro → código → backtest → observador.  \
 **No sustituye** `CRONOGRAMA_Y_ROADMAP.md` (hitos A6/A12/R7). Este doc es el plan de **calidad documental + cableado PO3/modelos**.  \
-**Actualización 2026-07-19:** R7 unificación COMPLETADA (motores legacy BOS/CHOCH/TREND eliminados; canónico `ict_backtest/market_structure.py` es única fuente de verdad). **A1 Nivel 2 CERRADA** (Opción B, FSM como compuerta de ejecución en `run_backtest`, `run_sequence` intacto). **MIGRACIÓN ATR→RANGO Fase 1 CERRADA (2026-07-20):** única fuente de volatilidad del motor = `avg_candle_range` (rango high-low puro, sin ATR/Wilder). **Actualización 2026-07-21:** R10 cerrado (default canónico `bos_gap=None` dinámico, sin ATR). R3.5 POI tiers/stacking cerrado (`ict_backtest/tier_engine.py`). Dealing range/EQ cerrado (`ict_backtest/dealing_range_motor.py`), EQ ambiguo no descarta señales.
+**Actualización 2026-07-23:** (a) **Laboratorio de Geometría del Mercado (GREENFIELD)** — módulo `geometry_lab/` D1+D2 cerrados (11 tests verdes); D3 en curso (experimento real M1/M5/M15, EURUSD/GBPUSD/XAUUSD, con null-permutación y exigencia de INVARIANZA DE ESCALA). Hallazgo que corrigió la tesis `24_*`: la curvatura de Menger κ NO es invariante de escala (escala 1/λ); el invariante auténtico es el coseno del ángulo. (b) **Re-baseline sequence EURUSD H4→M15 post-v2.8:** PF 1.155 (258 trades) — mejora de R6.4 (era -4.89). (c) **Auditoría PO3 en paralelo:** `--model po3` produce resultado byte-idéntico a `--counter-trend` ⇒ sospecha de flag muerto en el dispatcher (ver `CRONOGRAMA_Y_ROADMAP.md`).
 
 > **NOTA DE CONTRATO (2026-07-17):** la biblioteca ICT de este doc se convertirá en
 > el **contrato formal de la tesis** en `docs/ict/SPEC_TESIS_FORMAL.md` (Fase 0 del
