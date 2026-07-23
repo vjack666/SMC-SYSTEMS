@@ -18,6 +18,7 @@ import types
 
 import pytest
 
+import ict_backtest.canonical as canonical
 from ict_backtest.canonical import evaluate_signals, filter_signals_by_model
 from ict_backtest.engine import ICTSignal
 
@@ -100,3 +101,38 @@ def test_call_site_po3_filters_real(frames):
     assert len(po3) <= len(intradia)
     for s in po3:
         assert getattr(s, "po3_complete", None) is True
+
+
+# ---------------------------------------------------------------------------
+# Call-site REAL instantáneo: verifica que evaluate_signals propaga `model`
+# hasta filter_signals_by_model SIN cargar el motor legacy (lento en HW).
+# Monkeypatcheamos el motor/detectores para que el camino completo de
+# evaluate_signals corra en <1s y confirmamos que el filtro se invoca
+# con el modelo correcto (eslabón que faltaba cerrar empíricamente).
+# ---------------------------------------------------------------------------
+def test_evaluate_signals_propagates_model_to_filter(monkeypatch):
+    import pandas as pd
+
+    calls = []
+    def _fake_filter(signals, model):
+        calls.append((len(signals), model))
+        return signals
+    monkeypatch.setattr(canonical, "filter_signals_by_model", _fake_filter)
+    # Motor legacy y detectors: no cargan datos reales (evita 40k barras).
+    monkeypatch.setattr(canonical, "run_sequence", lambda *a, **k: ([], None))
+    monkeypatch.setattr(canonical, "detect_market_structure", lambda df, *a, **k: df)
+    monkeypatch.setattr(canonical, "extract_htf_layer", lambda *a, **k: {})
+    # rng fake: avg_candle_range se llama temprano para STRUCT_SL_MAX_RANGE.
+    monkeypatch.setattr(canonical, "avg_candle_range", lambda *a, **k: 0.001)
+
+    df = pd.DataFrame({"time": pd.to_datetime(["2020-01-01"])})
+
+    canonical.evaluate_signals("X", "M15", "M15", model="po3",
+                              use_semantic=False, enable_pd_index=False,
+                              frames={"M15": df})
+    canonical.evaluate_signals("X", "M15", "M15", model="intradia",
+                              use_semantic=False, enable_pd_index=False,
+                              frames={"M15": df})
+
+    models = [m for _, m in calls]
+    assert models == ["po3", "intradia"], f"model no propagó al filtro: {models}"
