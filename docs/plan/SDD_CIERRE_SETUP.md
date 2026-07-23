@@ -517,6 +517,48 @@ Mockeando `engine._canonical_plan` (monkeypatch), `CACHE_PATH` → `tmp_path`:
 
 ---
 
+### 5D Two-pass en run_cycle (latencia M5/SMT aparte) — CERRADO 2026-07-23
+
+> Ticket hermano recomendado por 5C. NO toca el diseño de 5C: mantiene intactos
+> `_write_cache_atomic`, `_canonical_plan_bounded`, `_canonical_plan` y la firma
+> `run_cycle(force_fetch=False)`. Solo mueve la PRIMERA escritura de cache a ANTES
+> de cargar M5/SMT.
+
+**Objetivo**
+El dashboard debe ver el veredicto CORE (sesgo + POI + trigger) en minutos, sin
+esperar a que `analyze_timeframe` de M5/SMT (lentos en este entorno: M5 ~194 s,
+par SMT ~53 s) termine, ni al canonical.
+
+**Qué hace (two-pass)**
+- **PASS 1 (core, rápido):** analiza D1/H4/H1/M15 (TIMEFRAMES), llama
+  `run_pipeline(..., m5=None, smt_a=None, smt_b=None)` → veredicto honesto (trigger
+  PENDING si falta M5, SMT PENDING sin el par). Escribe `estructura` y hace la
+  **escritura atómica INMEDIATA** del cache (con `canonical` aún sin poblar).
+- **PASS 2 (enriquecimiento, best-effort):** carga M5 (`SYMBOL M5`) y SMT
+  (`SYMBOL_PAIR H1`) APARTE; si cargó algo, re-llama
+  `run_pipeline(..., m5=m5_info, smt_a=h1, smt_b=smt_b_info)` → veredicto
+  ENRIQUECIDO y **re-escribe** el cache. Si M5/SMT fallan, el veredicto final =
+  el core (nunca vacío, nunca se inventa M5/SMT).
+- Luego sigue el flujo 5C intacto: noticias/semáforo/mapas/wyckoff + paso 6
+  canonical acotado (`'EN CONSTRUCCIÓN'` + re-escritura best-effort).
+
+**Escrituras de cache (máximo, todas atómicas)**
+1. pass 1 (veredicto core) — NUEVA, inmediata.
+2. pass 2 (veredicto enriquecido con M5/SMT) — si M5/SMT cargaron.
+3. paso 6 canonical (`'EN CONSTRUCCIÓN'` y luego dict si llega) — lógica 5C.
+
+**Contrato conservado**
+- Firma `run_cycle` y `load_cached()` intactas; campos de `result`/`context_alignment`
+  sin cambios de semántica (solo se escriben antes).
+- Return temprano si falta D1/H4/H1/M15 (comportamiento 5C) sin cambios.
+- `_canonical_plan_bounded`, `_write_cache_atomic` y `run_pipeline` NO se modifican.
+
+**Suite:** `tests/test_run_cycle_twopass.py` (8 tests: pass1 sin M5, enriquecimiento
+re-escribe, cache siempre presente parametrizado, pass1 no espera canonical,
+regresión 5C, return temprano sin datos core). Regresión 5A/5B/5C/UI GREEN.
+
+---
+
 ## 6. Orden de implementación por fases (gobernanza Ruben)
 
 Cada fase: demo sintética → tests GREEN → datos reales → evidencia en vivo → doc al día.
@@ -586,6 +628,7 @@ cableados y testeados.
 | Ticket | Estado | Tests | Suite |
 |--------|--------|-------|-------|
 | **5C** Resiliencia `run_cycle` (canonical acotado + cache atómico) | ✅ IMPLEMENTADO | 9 passed | `tests/test_run_cycle_resilient.py` |
+| **5D** Two-pass `run_cycle` (cache core inmediato + enriquecimiento M5/SMT/canonical aparte) | ✅ IMPLEMENTADO | 8 passed | `tests/test_run_cycle_twopass.py` |
 | **5B** POI libro 21 (tier/anchored/stacked/quality_bonus) | ✅ IMPLEMENTADO | 9 passed | `tests/test_poi_engine_book21.py` |
 | **5A** Trigger real (máquina de estados) + gate de killzone | ✅ IMPLEMENTADO | 16 passed | `tests/test_trigger_engine_session.py` |
 | **Fase 4** Integración + evidencia viva EURUSD | ✅ EVIDENCIA GENERADA | — | `docs/evidence/fase4_last_cycle_probe.json` (sonda: `tests/_probe_fase4_evidence.py`) |

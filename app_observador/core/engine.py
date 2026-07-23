@@ -133,34 +133,25 @@ def run_cycle(force_fetch: bool = False) -> dict:
         tfs_data["D1"][1], tfs_data["H4"][1],
         tfs_data["H1"][1], tfs_data["M15"][1],
     )
-    # FASE M5 TWOPASS: cargar M5 APARTE (no toca TIMEFRAMES ni la estructura UI).
-    # Si no hay M5 -> m5=None -> trigger_engine PENDING honesto (sin inventar).
-    m5_info = None
-    try:
-        df_m5 = rut._load(SYMBOL, "M5")
-        m5_info = rut.analyze_timeframe(df_m5, "M5")
-    except Exception as e:
-        log_error("engine", "m5_fallo_twopass", e, symbol=SYMBOL, tf="M5")
-        result["errores"].append(f"M5: {e}")
-    # FASE SMT: cargar el par correlacionado (SYMBOL_PAIR) en H1 APARTE.
-    # SMT lee EURUSD vs GBPUSD en el MISMO TF (H1). Si no hay segundo par ->
-    # smt=None -> smt_engine PENDING honesto (no inventa correlacion).
-    smt_b_info = None
-    try:
-        sym_pair = SYMBOL_PAIR
-        df_pair = rut._load(sym_pair, "H1")
-        smt_b_info = rut.analyze_timeframe(df_pair, "H1")
-    except Exception as e:
-        log_error("engine", "smt_fallo", e, symbol=SYMBOL_PAIR, tf="H1")
-        result["errores"].append(f"SMT({SYMBOL_PAIR} H1): {e}")
+    # ========================================================================
+    # §5D TWO-PASS: separar el veredicto CORE (rápido) del ENRIQUECIMIENTO (lento).
+    # PASS 1 (core): pipeline SIN M5/SMT → veredicto honesto (trigger PENDING si
+    #   falta M5) y ESCRITURA INMEDIATA del cache. El dashboard ve sesgo+POI+trigger
+    #   en minutos, sin esperar a que M5/SMT (analyze_timeframe lento) carguen.
+    # PASS 2 (enriquecimiento): cargar M5/SMT APARTE y re-llamar el pipeline con
+    #   m5=m5_info/smt_b=smt_b_info → veredicto enriquecido y RE-ESCRITURA del cache.
+    # Si M5/SMT fallan, el veredicto final = el core (nunca vacío, nunca inventado).
+    # ========================================================================
+
+    # --- PASS 1: veredicto CORE (sin M5/SMT) --------------------------------
     # FASE NUCLEO: pipeline jerarquico (no votacion). H1 = Stage 3 (IntradayEngine).
-    # SMT necesita H1 de AMBOS pares -> smt_a = h1 (EURUSD), smt_b = smt_b_info (par).
-    verdict = decision_pipeline.run_pipeline(d1, h4, h1, m15, m5=m5_info, smt_a=h1, smt_b=smt_b_info)
+    # Aquí m5=None y smt=None a propósito → trigger/SMT quedan PENDING honestos.
+    verdict = decision_pipeline.run_pipeline(d1, h4, h1, m15, m5=None, smt_a=None, smt_b=None)
     bias = verdict.get("bias", "NEUTRAL (esperar)")
     result["bias"] = bias
     result["veredicto"] = verdict
     ca = verdict.get("context_alignment", {})
-    log_event("engine", "veredicto", symbol=SYMBOL,
+    log_event("engine", "veredicto_core", symbol=SYMBOL,
               data={"bias": bias,
                     "macro": ca.get("macro"),
                     "intraday": ca.get("intraday"),
@@ -186,6 +177,62 @@ def run_cycle(force_fetch: bool = False) -> dict:
             "choch_status": str(info.get("choch_status", "-") or "-"),
         }
     result["estructura"]["WYCKOFF_M15"] = result["wyckoff"].get("M15", {})
+
+    # ESCRITURA INMEDIATA (pass 1): el cache YA tiene el veredicto core honesto
+    # ANTES de cargar M5/SMT (lentos) o el canonical. El dashboard no espera.
+    try:
+        _write_cache_atomic(result)
+    except Exception as e:
+        log_error("engine", "cache_write_pass1", e, symbol=SYMBOL)
+
+    # --- PASS 2: ENRIQUECIMIENTO (M5 + SMT, best-effort) --------------------
+    # FASE M5 TWOPASS: cargar M5 APARTE (no toca TIMEFRAMES ni la estructura UI).
+    # Si no hay M5 -> m5=None -> trigger_engine PENDING honesto (sin inventar).
+    m5_info = None
+    try:
+        df_m5 = rut._load(SYMBOL, "M5")
+        m5_info = rut.analyze_timeframe(df_m5, "M5")
+    except Exception as e:
+        log_error("engine", "m5_fallo_twopass", e, symbol=SYMBOL, tf="M5")
+        result["errores"].append(f"M5: {e}")
+    # FASE SMT: cargar el par correlacionado (SYMBOL_PAIR) en H1 APARTE.
+    # SMT lee EURUSD vs GBPUSD en el MISMO TF (H1). Si no hay segundo par ->
+    # smt=None -> smt_engine PENDING honesto (no inventa correlacion).
+    smt_b_info = None
+    try:
+        sym_pair = SYMBOL_PAIR
+        df_pair = rut._load(sym_pair, "H1")
+        smt_b_info = rut.analyze_timeframe(df_pair, "H1")
+    except Exception as e:
+        log_error("engine", "smt_fallo", e, symbol=SYMBOL_PAIR, tf="H1")
+        result["errores"].append(f"SMT({SYMBOL_PAIR} H1): {e}")
+
+    # Re-llamar el pipeline con M5/SMT solo si cargó ALGO (evita trabajo redundante).
+    # SMT necesita H1 de AMBOS pares -> smt_a = h1 (EURUSD), smt_b = smt_b_info (par).
+    if m5_info is not None or smt_b_info is not None:
+        try:
+            verdict = decision_pipeline.run_pipeline(
+                d1, h4, h1, m15, m5=m5_info, smt_a=h1, smt_b=smt_b_info)
+            bias = verdict.get("bias", bias)
+            result["bias"] = bias
+            result["veredicto"] = verdict
+            ca = verdict.get("context_alignment", {})
+            log_event("engine", "veredicto_enriquecido", symbol=SYMBOL,
+                      data={"bias": bias,
+                            "macro": ca.get("macro"),
+                            "intraday": ca.get("intraday"),
+                            "poi": ca.get("poi"),
+                            "trigger": ca.get("trigger"),
+                            "confidence": ca.get("confidence")})
+            # RE-ESCRITURA (pass 2): cache con veredicto enriquecido (M5/SMT).
+            try:
+                _write_cache_atomic(result)
+            except Exception as e:
+                log_error("engine", "cache_write_pass2", e, symbol=SYMBOL)
+        except Exception as e:
+            # El enriquecimiento es best-effort: si falla, conservamos el core.
+            log_error("engine", "veredicto_enriquecido_fallo", e, symbol=SYMBOL)
+            result["errores"].append(f"enriquecimiento: {e}")
 
     # 1c) TFs de scalping (M1/M5) — OPCIONALES: no abortan si faltan.
     #     Solo EURUSD tiene esos parquet en data/raw; para otros simbolos el
