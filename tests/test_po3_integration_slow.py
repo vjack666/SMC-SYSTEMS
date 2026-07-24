@@ -37,6 +37,18 @@ from ict_backtest.data_feed import load_frames as _real_load_frames
 M15_WINDOW = 4000
 
 
+def _norm_time(ts: "pd.Series") -> "pd.Series":
+    """Normaliza a datetime64[ns] NAIVE para comparar sin error de tz.
+
+    El parquet M15 viene tz-aware (+UTC) pero los otros TF vienen naive;
+    compararlos directo da ``TypeError: Invalid comparison ... and Timestamp``.
+    La normalización solo se usa para calcular la máscara de ventana; las
+    columnas ``time`` originales (tz-aware o naive) se conservan intactas
+    para que ``canonical.evaluate_signals`` las consuma como vienen.
+    """
+    return ts.dt.tz_localize(None) if getattr(ts.dt, "tz", None) is not None else ts
+
+
 def _real_windowed_frames(symbol, timeframes, data_dir=None, start=None, end=None):
     """Carga los parquet REALES y los recorta a una ventana temporal común.
 
@@ -45,11 +57,11 @@ def _real_windowed_frames(symbol, timeframes, data_dir=None, start=None, end=Non
     """
     full = _real_load_frames(symbol, timeframes)
     m15 = full.get("M15")
-    cutoff = m15["time"].iloc[-M15_WINDOW] if m15 is not None else None
+    cutoff = _norm_time(m15["time"]).iloc[-M15_WINDOW] if m15 is not None else None
     out = {}
     for tf, df in full.items():
         if cutoff is not None:
-            df = df[df["time"] >= cutoff]
+            df = df[_norm_time(df["time"]) >= cutoff]
         out[tf] = df.reset_index(drop=True)
     return out
 
