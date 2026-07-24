@@ -159,6 +159,8 @@ def evaluate_signals(
     use_bar_engine: bool = False,
     bar_engine_m5_df: pd.DataFrame | None = None,
     model: str = "intradia",
+    require_poi_quality: bool = False,
+    require_reaction: bool = False,
 ) -> list[ICTSignal]:
     """Canonical ICT signal generator (R7).
 
@@ -480,7 +482,13 @@ def evaluate_signals(
                 "session_range": str(last.get("session_range", "")),
                 "session_open": float(last.get("open", "nan")) if tf_key == "D1" else None,
             }
-        htf_bias = str(htf_ms.iloc[s["entry_at"]]["trend"]) if len(htf_ms) > s["entry_at"] else ""
+        # Brecha E: el sesgo HTF debe leerse por TIEMPO, no por indice de M15.
+        # htf_ms es H4 (~162 velas) pero s["entry_at"] es indice M15 (0..N);
+        # iloc[s["entry_at"]] quedaba out-of-range -> bias="" -> complete=False
+        # siempre. Reusa closed_row_at_time (mismo patron que zona_class arriba).
+        htf_entry_row = closed_row_at_time(htf_ms, ltf_df.iloc[s["entry_at"]]["time"],
+                                           tf_duration(htf))
+        htf_bias = str(htf_entry_row["trend"]) if htf_entry_row is not None else ""
         po3_complete = compute_po3_complete(
             po3_structure if po3_structure else None,
             config=Po3MotorConfig(bias=htf_bias, exec_tf=exec_tf or ltf, htf=htf),
@@ -517,6 +525,7 @@ def evaluate_signals(
             smt_divergence_active=(s.get("smt_divergence_active") if isinstance(s, dict) else getattr(s, "smt_divergence_active", None)),
             smt_divergence_direction=(s.get("smt_divergence_direction") if isinstance(s, dict) else getattr(s, "smt_divergence_direction", None)),
             smt_divergence_strength=(s.get("smt_divergence_strength") if isinstance(s, dict) else getattr(s, "smt_divergence_strength", None)),
+            zone_pd_type=(s.get("zone_pd_type") if isinstance(s, dict) else getattr(s, "zone_pd_type", None)),
             )
         )
 
@@ -556,6 +565,19 @@ def evaluate_signals(
 
     # --- Filtro por modelo (2026-07-23, fork a): --model NO es engañoso ---
     signals = filter_signals_by_model(signals, model)
+
+    # --- Camino B+C: POI quality + reaction confirmation (2026-07-23) ---
+    # Knob apagado por defecto (regresión cero). Cuando require_poi_quality
+    # o require_reaction=True, filtra señales según el estudio de eficacia
+    # de POIs (docs/entrenando_al_backtest/01_poi_efficacy.md).
+    if require_poi_quality or require_reaction:
+        from ict_backtest.poi_quality import flag_poi_quality
+        signals = flag_poi_quality(
+            signals, frames, ltf=ltf,
+            require_poi_quality=require_poi_quality,
+            require_reaction=require_reaction,
+        )
+
     return signals
 
 
