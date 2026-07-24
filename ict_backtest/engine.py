@@ -71,6 +71,10 @@ class ICTSignal:
     smt_divergence_active: bool | None = None
     smt_divergence_direction: int | None = None
     smt_divergence_strength: float | None = None
+    # POI quality (2026-07-23): tipo de zona PD donde ocurre la entrada
+    # ("OB", "FVG", "NONE", etc.). Propagado desde sequence.py state.zone_pd_type.
+    # Usado por poi_quality.py para scoring y filtro de reacción.
+    zone_pd_type: str | None = None
 
 
 @dataclass

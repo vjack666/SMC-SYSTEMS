@@ -146,7 +146,21 @@ def run_cycle(force_fetch: bool = False) -> dict:
     # --- PASS 1: veredicto CORE (sin M5/SMT) --------------------------------
     # FASE NUCLEO: pipeline jerarquico (no votacion). H1 = Stage 3 (IntradayEngine).
     # Aquí m5=None y smt=None a propósito → trigger/SMT quedan PENDING honestos.
-    verdict = decision_pipeline.run_pipeline(d1, h4, h1, m15, m5=None, smt_a=None, smt_b=None)
+    # Régimen de mercado (RANGO PURO, sin ATR): rango reciente vs histórico M15
+    # vía avg_candle_range (FUENTE ÚNICA de volatilidad, Fase 1 ATR->RANGO).
+    regime_range = None
+    try:
+        from ict_backtest._util import avg_candle_range
+        df_m15 = tfs_data["M15"][0]
+        if df_m15 is not None and len(df_m15) >= 20:
+            recent = float(avg_candle_range(df_m15, window=10).iloc[-1])
+            hist = float(avg_candle_range(df_m15, window=50).iloc[-1])
+            regime_range = (recent, hist)
+    except Exception as e:
+        log_error("engine", "regime_fallo", e, symbol=SYMBOL, tf="M15")
+        result["errores"].append(f"regime: {e}")
+    verdict = decision_pipeline.run_pipeline(
+        d1, h4, h1, m15, m5=None, smt_a=None, smt_b=None, regime_range=regime_range)
     bias = verdict.get("bias", "NEUTRAL (esperar)")
     result["bias"] = bias
     result["veredicto"] = verdict
@@ -212,7 +226,8 @@ def run_cycle(force_fetch: bool = False) -> dict:
     if m5_info is not None or smt_b_info is not None:
         try:
             verdict = decision_pipeline.run_pipeline(
-                d1, h4, h1, m15, m5=m5_info, smt_a=h1, smt_b=smt_b_info)
+                d1, h4, h1, m15, m5=m5_info, smt_a=h1, smt_b=smt_b_info,
+                regime_range=regime_range)
             bias = verdict.get("bias", bias)
             result["bias"] = bias
             result["veredicto"] = verdict

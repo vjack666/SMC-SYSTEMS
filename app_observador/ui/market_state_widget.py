@@ -62,6 +62,11 @@ class MarketStateWidget(QFrame):
         self.lbl_pd.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
         lay.addWidget(self.lbl_pd)
 
+        # Régimen de mercado (volatilidad por RANGO PURO, sin ATR)
+        self.lbl_regime = QLabel("RÉGIMEN: —")
+        self.lbl_regime.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
+        lay.addWidget(self.lbl_regime)
+
         # FASE 5 (UI): POI enriquecido (tier/anclado/apilado/bonus)
         self.lbl_poi = QLabel("POI: —")
         self.lbl_poi.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
@@ -131,6 +136,19 @@ class MarketStateWidget(QFrame):
         else:
             self.lbl_pd.setText("PREMIUM/DISCOUNT: EN CONSTRUCCIÓN")
             self.lbl_pd.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
+
+        # Régimen de mercado (RANGO PURO, sin ATR): HIGH_VOL/NORMAL/LOW_VOL
+        regime = ca.get("regime", "—")
+        if regime in ("HIGH_VOL", "NORMAL", "LOW_VOL"):
+            _rmap = {"HIGH_VOL": ("VOLATILIDAD ALTA", RED),
+                     "NORMAL": ("NORMAL", GREEN),
+                     "LOW_VOL": ("VOLATILIDAD BAJA", YELLOW)}
+            _txt, _col = _rmap[regime]
+            self.lbl_regime.setText(f"RÉGIMEN: {_txt}")
+            self.lbl_regime.setStyleSheet(f"color: {_col}; font-size: 12px; font-weight: 700;")
+        else:
+            self.lbl_regime.setText("RÉGIMEN: EN CONSTRUCCIÓN")
+            self.lbl_regime.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
 
         # FASE 5 (UI): POI enriquecido y trigger como máquina de estados.
         # Funciones puras testeables (format_helpers). Solo pintan lo que el

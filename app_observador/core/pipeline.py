@@ -476,6 +476,43 @@ def smt_engine(a: dict | None = None, b: dict | None = None) -> dict:
         "long": long,
         "short": short,
     }
+# ---------------------------------------------------------------------------
+# Stage extra — Régimen de mercado (volatilidad por RANGO PURO, SIN ATR)
+# ---------------------------------------------------------------------------
+# Ruben, Fase 1 (ATR -> RANGO): la volatilidad del sistema se lee de
+# ict_backtest._util.avg_candle_range (rango high-low promedio), NUNCA de ATR.
+# regime_engine es PURO: recibe el rango reciente y el histórico ya calculados
+# por el motor (engine.run_cycle) y clasifica. Sin datos -> PENDING honesto.
+REGIME_HIGH_RATIO = 1.5   # rango reciente >= 1.5x histórico -> HIGH_VOL
+REGIME_LOW_RATIO = 0.6    # rango reciente <= 0.6x histórico -> LOW_VOL
+
+
+def regime_engine(recent: float | None = None, hist: float | None = None) -> dict:
+    """Clasifica el régimen de volatilidad por rango puro (SIN ATR).
+
+    recent = rango promedio de las velas recientes (avg_candle_range corto).
+    hist   = rango promedio histórico (avg_candle_range largo, línea base).
+    ratio = recent / hist. Sin datos válidos -> PENDING (no inventa régimen).
+    """
+    try:
+        r = float(recent)
+        h = float(hist)
+    except (TypeError, ValueError):
+        return {"state": "PENDING", "ratio": None,
+                "note": "régimen PENDING (sin rango calculado)"}
+    if r != r or h != h or h <= 0.0:  # NaN o histórico nulo
+        return {"state": "PENDING", "ratio": None,
+                "note": "régimen PENDING (rango histórico nulo)"}
+    ratio = r / h
+    if ratio >= REGIME_HIGH_RATIO:
+        state, note = "HIGH_VOL", "volatilidad alta (rango expandido)"
+    elif ratio <= REGIME_LOW_RATIO:
+        state, note = "LOW_VOL", "volatilidad baja (rango comprimido)"
+    else:
+        state, note = "NORMAL", "volatilidad normal"
+    return {"state": state, "ratio": round(ratio, 3), "note": note}
+
+
 def _confidence(macro_ok, ctx_aligned, intraday_ok, poi_valid, trigger_valid) -> int:
     """Confianza por ALINEACIÓN de capas, no por conteo de votos."""
     score = 0
@@ -493,7 +530,8 @@ def _confidence(macro_ok, ctx_aligned, intraday_ok, poi_valid, trigger_valid) ->
 
 
 def run_pipeline(d1: dict, h4: dict, h1: dict, m15: dict, m5: dict | None = None,
-                 smt_a: dict | None = None, smt_b: dict | None = None) -> dict:
+                 smt_a: dict | None = None, smt_b: dict | None = None,
+                 regime_range: tuple | None = None) -> dict:
     """Ejecuta el pipeline jerárquico y devuelve el veredicto.
 
     Salida:
@@ -521,6 +559,13 @@ def run_pipeline(d1: dict, h4: dict, h1: dict, m15: dict, m5: dict | None = None
     from .timezone import utc_now
     trig = trigger_engine(m5, poi=poi, now_utc=utc_now())
     smt = smt_engine(smt_a, smt_b)
+
+    # Régimen de mercado (volatilidad por RANGO PURO, sin ATR). El motor pasa
+    # (recent, hist) ya calculados con avg_candle_range; sin datos -> PENDING.
+    if regime_range is not None:
+        regime = regime_engine(regime_range[0], regime_range[1])
+    else:
+        regime = regime_engine(None, None)
 
     # VerdictBuilder: elige el lado del trigger segun el sesgo derivado.
     # NO opera en contra del macro (si el lado ganador no valida, PENDING).
@@ -593,6 +638,8 @@ def run_pipeline(d1: dict, h4: dict, h1: dict, m15: dict, m5: dict | None = None
         "trigger": trigger_state,
         "trigger_machine": trigger_machine,
         "smt": smt["state"],
+        "regime": regime["state"],
+        "regime_note": regime["note"],
         "confidence": confidence,
         "stages": stages,
     }
