@@ -34,7 +34,11 @@ from ict_backtest.data_feed import load_frames as _real_load_frames
 
 # Ventana real acotada: últimas ~4000 velas M15 (~1.5 meses). Reduce el
 # cómputo del motor (lo que lo hace lento) sin dejar de usar datos reales.
-M15_WINDOW = 4000
+# Si seteás la env var PO3_FULL=1, usa TODO el parquet (prueba de fuego del
+# fix de desalineación H4: la ventana corta da 1 señal base y es inservible
+# para medir conteo de PO3 completos). PO3_FULL tarda HORAS.
+import os
+M15_WINDOW = None if os.environ.get("PO3_FULL") == "1" else 4000
 
 
 def _norm_time(ts: "pd.Series") -> "pd.Series":
@@ -57,7 +61,7 @@ def _real_windowed_frames(symbol, timeframes, data_dir=None, start=None, end=Non
     """
     full = _real_load_frames(symbol, timeframes)
     m15 = full.get("M15")
-    cutoff = _norm_time(m15["time"]).iloc[-M15_WINDOW] if m15 is not None else None
+    cutoff = _norm_time(m15["time"]).iloc[-M15_WINDOW] if (m15 is not None and M15_WINDOW) else None
     out = {}
     for tf, df in full.items():
         if cutoff is not None:
