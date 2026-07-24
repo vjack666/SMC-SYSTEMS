@@ -75,19 +75,70 @@ def test_po3_integration_filters_real_eurusd(monkeypatch):
     # Redirige load_frames -> ventana real acotada (evita I/O/cómputo pesado).
     monkeypatch.setattr("ict_backtest.data_feed.load_frames", _real_windowed_frames)
 
-    # Camino de producción (R10.C, use_semantic=True): es lo que usa el runner.
-    intradia = evaluate_signals(
-        symbol="EURUSD", htf="H4", ltf="M15",
-        counter_trend=True, tp_mode="fixed2r",
-        require_displacement=True, enable_pd_index=True,
-        use_semantic=True, model="intradia",
-    )
-    po3 = evaluate_signals(
-        symbol="EURUSD", htf="H4", ltf="M15",
-        counter_trend=True, tp_mode="fixed2r",
-        require_displacement=True, enable_pd_index=True,
-        use_semantic=True, model="po3",
-    )
+    # ---- Watcher de avance: el motor no expone progreso por vela, asi que
+    # medimos "esta vivo" con tiempo + spinner + CPU/mem del proceso, y
+    # escribimos hitos a results/po3_full_run.log. Solo en modo PO3_FULL
+    # (la ventana corta es rapida y no necesita watcher).
+    import threading, time as _t, datetime as _dt, os as _os, sys as _sys
+    _log_path = "results/po3_full_run.log"
+    _os.makedirs("results", exist_ok=True)
+    _stop = threading.Event()
+    _start = _t.time()
+    _spinner = "▏▎▍▌▋▌▍▎▏"
+
+    def _watcher():
+        try:
+            import psutil
+            _proc = psutil.Process()
+        except Exception:
+            _proc = None
+        _i = 0
+        with open(_log_path, "w") as _lf:
+            _lf.write(f"[START] {_dt.datetime.now()} PO3_FULL={_os.environ.get('PO3_FULL')}\n")
+            while not _stop.is_set():
+                _el = _t.time() - _start
+                _mm, _ss = divmod(int(_el), 60)
+                _spin = _spinner[_i % len(_spinner)]
+                if _proc is not None:
+                    try:
+                        _cpu = _proc.cpu_percent(interval=None)
+                        _mem = _proc.memory_info().rss / 1e6
+                        _msg = (f"\r  {_spin} {_mm:02d}:{_ss:02d}  CPU {_cpu:5.1f}%  "
+                                f"RAM {_mem:6.0f}MB  [corriendo... no colgado]")
+                    except Exception:
+                        _msg = f"\r  {_spin} {_mm:02d}:{_ss:02d}  [corriendo... no colgado]"
+                else:
+                    _msg = f"\r  {_spin} {_mm:02d}:{_ss:02d}  [corriendo... no colgado]"
+                print(_msg, end="", flush=True)
+                _lf.write(f"{_dt.datetime.now()} elapsed={_el:.0f}s\n")
+                _lf.flush()
+                _i += 1
+                _stop.wait(30)
+
+    _w = None
+    if _os.environ.get("PO3_FULL") == "1":
+        _w = threading.Thread(target=_watcher, daemon=True)
+        _w.start()
+
+    try:
+        # Camino de producción (R10.C, use_semantic=True): es lo que usa el runner.
+        intradia = evaluate_signals(
+            symbol="EURUSD", htf="H4", ltf="M15",
+            counter_trend=True, tp_mode="fixed2r",
+            require_displacement=True, enable_pd_index=True,
+            use_semantic=True, model="intradia",
+        )
+        po3 = evaluate_signals(
+            symbol="EURUSD", htf="H4", ltf="M15",
+            counter_trend=True, tp_mode="fixed2r",
+            require_displacement=True, enable_pd_index=True,
+            use_semantic=True, model="po3",
+        )
+    finally:
+        if _w is not None:
+            _stop.set()
+            _w.join(timeout=2)
+            print()  # nueva linea tras el spinner
 
     # (1) Hay señales base: intradia no aplica filtro de modelo (regresión cero).
     assert len(intradia) > 0, (
