@@ -31,6 +31,7 @@ from detectors import (
 )
 from detectors.liquidity_context import canonical_sweep, DEFAULT_SWEEP_LOOKBACK
 from ict_backtest.market_structure import StructureConfig, detect_market_structure
+from ict_backtest.setups.ote import ote_zone, OTE_FIB_LOW, OTE_FIB_HIGH
 from fase_wyckoff_m15 import fase_actual as _wyckoff_fase  # noqa: E402
 
 DATA_DIR = Path("data/raw")
@@ -75,18 +76,25 @@ def analyze_timeframe(df: pd.DataFrame, tf: str) -> dict:
     sus detectores actuales. NO depende del backtest: son librerias de calculo
     puras compartidas, no el pipeline run_backtest.
     """
-    # Estructura canonica: BOS/CHOCH/trend/swing en una sola pasada.
-    ms = detect_market_structure(df, StructureConfig(swing_lookback=5, confirm_bars=2))
-    # Liquidez (sweep) canonico, sin look-ahead.
-    swept = canonical_sweep(df, lookback=DEFAULT_SWEEP_LOOKBACK)
+    # Vela en formacion (aun no cierra) EXCLUIDA del calculo de estructura/zonas.
+    # Si se incluye, el rolling high/low de compute_zones (y los swings/BOS) se
+    # recalculan con cada tick -> el OTE/entry/SL/TP "persiguen" el precio y hay
+    # look-ahead de la vela abierta. ICT ancla el OTE a swings YA FORMADOS
+    # (tesis libro 23), no a la vela actual. Todo se computa sobre cerradas.
+    df_closed = df.iloc[:-1] if len(df) > 1 else df
 
-    ob = detect_order_blocks(df)
-    fvg = detect_fvg(df)
-    zones = compute_zones(df, ZoneConfig(swing_lookback=20))
+    # Estructura canonica: BOS/CHOCH/trend/swing en una sola pasada.
+    ms = detect_market_structure(df_closed, StructureConfig(swing_lookback=5, confirm_bars=2))
+    # Liquidez (sweep) canonico, sin look-ahead.
+    swept = canonical_sweep(df_closed, lookback=DEFAULT_SWEEP_LOOKBACK)
+
+    ob = detect_order_blocks(df_closed)
+    fvg = detect_fvg(df_closed)
+    zones = compute_zones(df_closed, ZoneConfig(swing_lookback=20))
 
     last = -1
-    close = float(df["close"].iloc[last])
-    atr = _atr(df)
+    close = float(df["close"].iloc[last])  # precio en vivo (solo reporte, no estructura)
+    atr = _atr(df_closed)
 
     # OB mas reciente FORMADO (bordes exactos vivos en la vela donde se creo).
     ob_formed = ob[ob["ob_bullish"] | ob["ob_bearish"]]
@@ -102,6 +110,23 @@ def analyze_timeframe(df: pd.DataFrame, tf: str) -> dict:
     # CHOCH como senal legible (igual contrato que data_feed / motor)
     choch_dir = int(ms["choch_dir"].iloc[last])
     choch_signal = {1: "CHOCH_BULLISH", -1: "CHOCH_BEARISH"}.get(choch_dir, "NONE")
+
+    # --- OTE anclado a SWINGS REALES de la pierna (tesis libro 23), NO a un
+    # rolling de N velas (conteo fijo = enganoso para forex intradia, PRINCIPIO 1).
+    # Usa el módulo canonico ict_backtest/setups/ote.py: rango r = swing_high -
+    # swing_low de la estructura YA FORMADA (df_closed), retrace 62-79%.
+    sh = ms["swing_high"].dropna()
+    slv = ms["swing_low"].dropna()
+    _sh = float(sh.iloc[-1]) if len(sh) else None
+    _sl = float(slv.iloc[-1]) if len(slv) else None
+    if _sh is not None and _sl is not None and _sh > _sl:
+        r = _sh - _sl
+        # LONG: retrace desde el high hacia abajo (libro 23 §2.2)
+        ote_long = (float(_sh) - OTE_FIB_HIGH * r, float(_sh) - OTE_FIB_LOW * r)
+        # SHORT: retrace desde el low hacia arriba (libro 23 §2.2)
+        ote_short = (float(_sl) + OTE_FIB_LOW * r, float(_sl) + OTE_FIB_HIGH * r)
+    else:
+        ote_long = ote_short = (0.0, 0.0)
 
     return {
         "tf": tf,
@@ -121,8 +146,8 @@ def analyze_timeframe(df: pd.DataFrame, tf: str) -> dict:
         "zone": str(zones["premium_discount_zone"].iloc[last]),
         "zone_high": float(zones["zone_high"].iloc[last]),
         "zone_low": float(zones["zone_low"].iloc[last]),
-        "ote_long": (float(zones["ote_long_min"].iloc[last]), float(zones["ote_long_max"].iloc[last])),
-        "ote_short": (float(zones["ote_short_min"].iloc[last]), float(zones["ote_short_max"].iloc[last])),
+        "ote_long": ote_long,
+        "ote_short": ote_short,
         "choch": choch_signal,
         "choch_status": str(ms["choch_status"].iloc[last]),
         "sweep_up": sweep_up,
