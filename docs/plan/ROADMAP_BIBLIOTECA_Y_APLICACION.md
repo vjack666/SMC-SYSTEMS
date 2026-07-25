@@ -3,6 +3,7 @@
 **Fecha:** 2026-07-23  \
 **Propósito:** convertir la documentación ICT/Wyckoff en **contrato ejecutable** y cerrar el gap libro → código → backtest → observador.  \
 **No sustituye** `CRONOGRAMA_Y_ROADMAP.md` (hitos A6/A12/R7). Este doc es el plan de **calidad documental + cableado PO3/modelos**.  \
+**Actualización 2026-07-24:** **R5 datos CERRADO** (XAUUSD/EURUSD M15 ≥4.5 años en disco). A12 desbloqueado por data. Inventario: `docs/DATA_STATUS.md`.  
 **Actualización 2026-07-23 (2):** (a) **PO3 fork a IMPLEMENTADO** — `--model` AHORA llega al motor: `model="po3"` filtra a señales con `po3_complete is True` (no alias/engañoso); `model="scalping"` → exec_tf=M5; `model="intradia"` sin filtro (regresión cero). Ver `ict_backtest/canonical.py::filter_signals_by_model` + `tests/test_model_po3_wiring.py` (4 unitarios + 8 regresión verdes). (b) **Lab Geometría D3 CERRADO + cos_mean corregido** — era artefacto de aspect-ratio en `run_experiment.py` (medía coseno sobre path anisótropo); ahora `unit_path` dt=1 alinea con `mean_abs_turn` y `cos_mean` es coherente (XAUUSD 0.30, EURUSD/GBPUSD ~1.0). 11 tests verdes. (c) Re-baseline PF 1.155 (258 trades) confirmado; auditoría PO3 ya no es "flag muerto" sino "cableado".
 
 > **NOTA DE CONTRATO (2026-07-17):** la biblioteca ICT de este doc se convertirá en
@@ -236,10 +237,13 @@ contrato era la representación MarketObject, NO eliminar engine.py). Ver
 | `run_sequence` | `ltf_df.iloc[i][col]` | itera `objs` (MarketObject[]) | time, close, bos_level, atr |
 | `_candle_objects` (nueva) | — | DataFrame → `list[MarketObject(CANDLE)]` | TODOS los campos ICT por vela |
 
-### R5 — Datos A6 (bloqueante A12) (1–N días, MT5)
+### R5 — Datos A6 (umbral M15 multi-año) · ✅ CERRADO 2026-07-24
 
-- [ ] Descargar ≥3–4 años M15 XAUUSD (+ EURUSD)
-- [ ] Rebuild contextos harness si aplica (`_ctx/*.pkl`)
+- [x] Descargar / reconstruir ≥3–4 años M15 XAUUSD (+ EURUSD) — verificado en disco
+  (`XAUUSD_M15` ~4.54y, `EURUSD_M15` ~4.56y). Inventario: `docs/DATA_STATUS.md`.
+- [ ] Rebuild contextos harness si aplica (`_ctx/*.pkl`) — opcional, no bloquea A12
+- **Siguiente:** A12 re-run (NO reabrir R5 por docs históricos)
+- **Limpieza 2026-07-25:** borrados stubs falsos `data/raw/GBPUSD_M1.parquet` (50k velas 2026, placeholder) y `data/raw/EURUSD_M30.parquet` (1k velas, basura). Probe Dukascopy: FX intraday topa en 2012 (sin 20 años en ninguna fuente); XAUUSD intraday desde 2006. 20 años reales = solo D1/H4/H1 (8 pares). Estado: 6 TF EURUSD/XAUUSD; GBPUSD 5 TF (sin M1); demás 4 TF. Ver `docs/DATA_STATUS.md`.
 
 ---
 
@@ -306,8 +310,8 @@ MT5: `C:\Program Files\FundedNext MT5 Terminal\terminal64.exe`.
 | S1–S2 | R2 killzones unificadas |
 | S2 | R3 huecos (open día, liquidez, OTE decisión) |
 | S3 | R4 medición aislada + costos |
-| S3–S4 | R5 A6 datos MT5 |
-| S4+ | R6 WF/A12 |
+| S3–S4 | ~~R5 A6 datos MT5~~ ✅ cerrado 2026-07-24 |
+| S4+ | R6 WF / **A12 re-run** (data ya disponible) |
 | Luego | R7 shadow · R8 solo con OK humano |
 
 ---
