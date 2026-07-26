@@ -30,7 +30,7 @@ def add_stochastic(
 ) -> pd.DataFrame:
     low_min = frame["low"].rolling(k_period).min()
     high_max = frame["high"].rolling(k_period).max()
-    denom = (high_max - low_min).replace(0.0, pd.NA)
+    denom = (high_max - low_min).replace(0.0, np.nan)
     raw_k = 100.0 * (frame["close"] - low_min) / denom
     stoch_k = raw_k.rolling(smooth_k).mean()
     stoch_d = stoch_k.rolling(d_period).mean()

@@ -29,8 +29,9 @@ from ict_backtest.setups.ote import (
 
 # ---------------------------------------------------------------------------
 # Synthetic scenario helpers (independent from test_d1_ote.py)
-# ---------------------------------------------------------------------------
-_BASE = pd.Timestamp("2026-01-05 07:00", tz="UTC")
+# London Open base; entry_at=22 -> time 07:00 UTC (London Open killzone,
+# fuente unica KILLZONES_ET con DST: en enero London Open = 07:00-10:00 UTC).
+_BASE = pd.Timestamp("2026-01-05 01:30", tz="UTC")
 _FREQ = "15min"
 _N = 40
 _ENTRY_AT = 22
