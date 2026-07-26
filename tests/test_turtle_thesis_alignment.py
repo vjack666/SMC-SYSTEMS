@@ -77,7 +77,7 @@ def test_killzone_filtra_fuera_de_ventana():
     assert killzone_en(ts_fuera) == ""
     ts_london = pd.Timestamp("2026-07-14 08:00:00", tz="UTC")  # London Open
     assert killzone_en(ts_london) == "London Open"
-    ts_ny = pd.Timestamp("2026-07-14 13:30:00", tz="UTC")  # NY AM
+    ts_ny = pd.Timestamp("2026-07-14 14:30:00", tz="UTC")  # NY AM (10:30 EDT, deuda #5 DST real)
     assert killzone_en(ts_ny) == "New York AM"
 
 

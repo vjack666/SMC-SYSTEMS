@@ -123,8 +123,9 @@ def test_is_silver_bullet_london_open():
 
 def test_is_silver_bullet_ny_am():
     """Sweep y retorno DENTRO de New York AM -> confirmado, sb_killzone='NY_AM'."""
-    sweep = pd.Timestamp("2026-01-05 13:00", tz="UTC")
-    ret = pd.Timestamp("2026-01-05 14:00", tz="UTC")
+    # Invierno EST: NY AM (10-12 ET) = 15-17 UTC (deuda #5: DST real, no banda fija).
+    sweep = pd.Timestamp("2026-01-05 15:30", tz="UTC")
+    ret = pd.Timestamp("2026-01-05 16:00", tz="UTC")
     ok, meta = is_silver_bullet(sweep, ret, 1, killzone_en)
     assert ok is True
     assert meta["sb_killzone"] == "NY_AM"
@@ -150,8 +151,9 @@ def test_is_silver_bullet_different_killzone():
 
 def test_is_silver_bullet_ny_pm_rejected():
     """NY PM NO es killzone SB (solo L / NY_AM) -> NO SB aunque todo en NY PM."""
-    sweep = pd.Timestamp("2026-01-05 15:30", tz="UTC")
-    ret = pd.Timestamp("2026-01-05 16:00", tz="UTC")
+    # Invierno EST: NY PM (14-17 ET) = 19-22 UTC (deuda #5: DST real, no banda fija).
+    sweep = pd.Timestamp("2026-01-05 20:00", tz="UTC")
+    ret = pd.Timestamp("2026-01-05 20:30", tz="UTC")
     ok, meta = is_silver_bullet(sweep, ret, 1, killzone_en)
     assert ok is False
     assert meta["sb_killzone"] is None
@@ -243,7 +245,8 @@ def test_call_site_real_silver_bullet_outside_window(monkeypatch):
     """
     global _BASE
     saved = _BASE
-    _BASE = pd.Timestamp("2026-01-05 15:00", tz="UTC")  # NY PM (canonical la emite)
+    # Invierno EST: NY PM real = 19-22 UTC (deuda #5: DST real, no banda fija).
+    _BASE = pd.Timestamp("2026-01-05 19:30", tz="UTC")  # NY PM (canonical la emite)
     try:
         frames, m15, m5, m1 = _make_frames()
         _inject_signal(monkeypatch, entry_at=3, sweep_at=0, direction=1)

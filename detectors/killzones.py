@@ -22,34 +22,37 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from ict_backtest.rules import server_to_utc, _et_band_to_utc
+from ict_backtest.rules import (
+    KILLZONES_ET,
+    killzone_windows_utc,
+    server_to_utc,
+)
 
-# (nombre_corto, et_ini, et_fin) en horas/min ET locales del mentorship ICT.
-# Se convierten a UTC POR DIA via ZoneInfo('America/New_York') -> DST automático.
-# 'ASIA' usa Asia/Tokyo (sin DST) convertido igual por ZoneInfo.
+# Etiqueta corta por sesión (pintar banda de fondo). Las 3 killzones ICT
+# (tesis §15) provienen de la FUENTE ÚNICA KILLZONES_ET/killzone_windows_utc
+# de ict_backtest/rules.py (ET->UTC por día vía ZoneInfo, DST automático).
+# ASIA es propia de este detector (Asia/Tokyo, sin DST) y solo pinta fondo.
+KZ_SHORT = {
+    "London Open": "LDN_OPEN",
+    "New York AM": "NY_AM",
+    "New York PM": "NY_PM",
+}
+
+# Compat: lista (nombre_corto, (h_ini,m_ini), (h_fin,m_fin)) usada por consumidores
+# de pintura. Derivada de la fuente única + ASIA local.
 SESSIONS = [
-    ("LDN_OPEN", (2, 0), (5, 0)),
-    ("NY_AM", (10, 0), (12, 0)),
-    ("NY_PM", (14, 0), (17, 0)),
-    ("ASIA", (10, 0), (14, 0)),
-]
+    (KZ_SHORT[nombre], ini, fin) for nombre, (ini, fin) in KILLZONES_ET.items()
+] + [("ASIA", (10, 0), (14, 0))]
 
 _TOKYO = ZoneInfo("Asia/Tokyo")
 
 
-def _session_window_utc(name: str, h0: int, h1: int,
-                        day_utc: datetime) -> tuple[datetime, datetime]:
-    """Devuelve (ini_utc, fin_utc) de la sesión para el dia de la vela, vía ZoneInfo.
-
-    ET (DST-aware por día) para LDN_OPEN/NY_AM/NY_PM; Tokyo para ASIA.
-    """
-    if name == "ASIA":
-        ini = datetime(day_utc.year, day_utc.month, day_utc.day, h0, 0,
-                       tzinfo=_TOKYO).astimezone(timezone.utc)
-        fin = datetime(day_utc.year, day_utc.month, day_utc.day, h1, 0,
-                       tzinfo=_TOKYO).astimezone(timezone.utc)
-        return ini, fin
-    return _et_band_to_utc(h0, 0, day_utc), _et_band_to_utc(h1, 0, day_utc)
+def _asia_window_utc(day_utc: datetime) -> tuple[datetime, datetime]:
+    ini = datetime(day_utc.year, day_utc.month, day_utc.day, 10, 0,
+                   tzinfo=_TOKYO).astimezone(timezone.utc)
+    fin = datetime(day_utc.year, day_utc.month, day_utc.day, 14, 0,
+                   tzinfo=_TOKYO).astimezone(timezone.utc)
+    return ini, fin
 
 
 def detect_killzones(df: pd.DataFrame, broker_tz=None) -> pd.DataFrame:
@@ -58,6 +61,8 @@ def detect_killzones(df: pd.DataFrame, broker_tz=None) -> pd.DataFrame:
     broker_tz: ZoneInfo | str (nombre IANA) del servidor (broker MT5). Si se da,
     convierte server->UTC via ZoneInfo (DST) y evalúa en UTC canónico. Si None,
     asume que `time` ya viene en UTC (convención proyecto).
+
+    Las 3 killzones ICT usan killzone_windows_utc (misma tabla que el edge).
     """
     out = df.copy()
     out["kz"] = ""
@@ -71,14 +76,17 @@ def detect_killzones(df: pd.DataFrame, broker_tz=None) -> pd.DataFrame:
         utc_times = (t.dt.tz_localize("UTC")
                      if t.dt.tz is None else t.dt.tz_convert("UTC"))
 
-    for name, (h0, _m0), (h1, _m1) in SESSIONS:
-        mask = pd.Series(False, index=out.index)
-        for i in out.index:
-            utc_dt = utc_times.iloc[i].to_pydatetime()
-            ini, fin = _session_window_utc(name, h0, h1, utc_dt)
-            if ini <= utc_dt < fin:
-                mask.iloc[i] = True
-        out.loc[mask, "kz"] = out.loc[mask, "kz"].astype(str) + (name + " ")
-
-    out["kz"] = out["kz"].str.strip()
+    labels = []
+    for i in out.index:
+        utc_dt = utc_times.iloc[i].to_pydatetime()
+        activos = [
+            KZ_SHORT[nombre]
+            for nombre, (ini, fin) in killzone_windows_utc(utc_dt).items()
+            if ini <= utc_dt < fin
+        ]
+        a_ini, a_fin = _asia_window_utc(utc_dt)
+        if a_ini <= utc_dt < a_fin:
+            activos.append("ASIA")
+        labels.append(" ".join(activos))
+    out["kz"] = labels
     return out

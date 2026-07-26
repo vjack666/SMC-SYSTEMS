@@ -21,6 +21,21 @@ COST_BY_SYMBOL: dict[str, dict[str, float]] = {
     "XAUUSD": {"spread_pips": 3.0, "commission_pips": 0.7, "slippage_pips": 0.5},
     "EURUSD": {"spread_pips": 1.0, "commission_pips": 0.6, "slippage_pips": 0.3},
     "GBPUSD": {"spread_pips": 1.2, "commission_pips": 0.7, "slippage_pips": 0.4},
+    # --- R6 (auditoria 2026-07-23): cobertura de los 8 simbolos de la grilla ---
+    # Asuncion documentada: partimos de DEFAULT y ajustamos el spread al tipico
+    # de broker ECN/raw para cada par (fuentes: spreads promedio publicados por
+    # IC Markets / Pepperstone). Comision ida+vuelta ~0.6-0.7 pips equivalentes
+    # y slippage adverso medio 0.3-0.4 pips, igual criterio que los 3 originales.
+    # USDJPY: par mayor muy liquido, spread ~1.0-1.3 pips (pip = 0.01 JPY).
+    "USDJPY": {"spread_pips": 1.2, "commission_pips": 0.6, "slippage_pips": 0.3},
+    # AUDUSD: mayor liquido, spread tipico ~1.0-1.4 pips.
+    "AUDUSD": {"spread_pips": 1.3, "commission_pips": 0.6, "slippage_pips": 0.3},
+    # USDCAD: algo mas ancho que EURUSD, ~1.5-1.8 pips.
+    "USDCAD": {"spread_pips": 1.6, "commission_pips": 0.7, "slippage_pips": 0.4},
+    # NZDUSD: menos liquido que AUDUSD, ~1.6-2.0 pips.
+    "NZDUSD": {"spread_pips": 1.8, "commission_pips": 0.7, "slippage_pips": 0.4},
+    # USDCHF: ~1.4-1.7 pips.
+    "USDCHF": {"spread_pips": 1.5, "commission_pips": 0.7, "slippage_pips": 0.4},
     "DEFAULT": {"spread_pips": 2.0, "commission_pips": 0.7, "slippage_pips": 0.5},
 }
 

@@ -15,6 +15,7 @@ Those must not be treated as a second "official" ICT motor for new work.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
@@ -99,6 +100,99 @@ def _rr_for_raw_signal(s: dict, ltf_df: pd.DataFrame, direction: int, ltf: str =
     return rr_for(None)
 
 CANONICAL_ENGINE = "sequence"
+
+
+# ---------------------------------------------------------------------------
+# Deuda ROJA #4 (tesis §9) — FUENTE UNICA DE VERDAD de las 3 capas ICT.
+# ---------------------------------------------------------------------------
+# Causa raiz (en espanol plano): la infraestructura de ITF (sequence.run_sequence
+# con itf_df/itf_tf) y de exec TF (canonical two-pass / re-anchor) ya existia,
+# PERO estaba dispersa y era opt-in: cada capa se resolvia con su propio kwarg
+# suelto (itf, exec_tf) y con guardas repartidas (`use_exec = exec_tf != ltf`,
+# `if itf in ms`). No habia un solo lugar que dijera "estos son los 3 roles".
+# Resultado: en el camino real exec_tf==ltf e itf==ltf y el edge colapsaba a 2
+# capas (sesgo + deteccion), sin capa ITF de zona ni exec fino de confirmacion.
+#
+# Regla REPLACE de Ruben: en vez de apilar mas ifs, se REESCRIBE la resolucion
+# de capas en UNA funcion pura (resolve_layer_roles) que asigna los 3 roles de
+# la tesis §9 y marca explicitamente el modo regresion.
+#
+# Mapeo de roles por DEFECTO (tesis §9):
+#     HTF  = sesgo    -> H4  (direccion; parametro `htf`)
+#     ITF  = zona     -> M15 (FVG/OB de entrada; == ltf salvo `itf` distinto)
+#     exec = entry/SL -> M5  (entry, SL y confirmacion fina; SIEMPRE aqui)
+#
+# Regresion: exec_tf=None (o ==ltf) e itf=None colapsan al LTF => comportamiento
+# identico al historico (exec_is_ltf=True).
+
+
+@dataclass(frozen=True)
+class LayerRoles:
+    """Los 3 roles de la cascada ICT resueltos (tesis §9), fuente unica."""
+    htf: str
+    ltf: str
+    itf: str
+    exec_tf: str
+
+    @property
+    def exec_is_ltf(self) -> bool:
+        """True cuando exec colapsa al LTF => modo regresion (sin capa fina)."""
+        return self.exec_tf == self.ltf
+
+    @property
+    def itf_is_ltf(self) -> bool:
+        """True cuando la zona se detecta en el LTF (sin capa ITF separada)."""
+        return self.itf == self.ltf
+
+    @property
+    def three_layers_active(self) -> bool:
+        """True cuando exec fino esta separado del LTF y el HTF del exec."""
+        return (not self.exec_is_ltf) and (self.htf != self.exec_tf)
+
+
+def resolve_layer_roles(
+    *, htf: str, ltf: str, itf: str | None, exec_tf: str | None,
+) -> LayerRoles:
+    """Resuelve los 3 roles de la cascada ICT (tesis §9) en UN solo lugar.
+
+    Regla REPLACE: toda la logica de "que TF cumple cada rol" vive aqui.
+    `itf`/`exec_tf` None colapsan al LTF (regresion cero).
+    """
+    resolved_itf = itf if (itf is not None) else ltf
+    resolved_exec = exec_tf if (exec_tf is not None) else ltf
+    return LayerRoles(htf=htf, ltf=ltf, itf=resolved_itf, exec_tf=resolved_exec)
+
+
+def _resolve_tp(entry: float, risk: float, direction: int,
+                internal_liq: float | None, rr_min: float) -> float:
+    """UNICA regla de resolucion TP/RR del edge (deuda ROJA #3, tesis §13+§20).
+
+    Causa raiz que cierra: el rr_target por setup (rr_map, tesis §20) solo se
+    aplicaba en el fallback SIN liquidez internal; con liquidez presente (el
+    caso real, y siempre tras bug#2 = swing opuesto mas cercano) solo existia
+    una guarda hardcodeada de 2R -> el RR minimo 1:3 NUNCA se ejecutaba.
+
+    Criterio de conciliacion §13 vs §20 (documentado):
+      1. TP primario = liquidez opuesta MAS CERCANA (tesis §13, bug#2).
+      2. El RR minimo del setup (tesis §20: SB 1:2, Turtle 1:1.5, OTE 1:3,
+         default 1:3) es un PISO que SIEMPRE se ejecuta:
+           - liquidez con RR >= rr_min -> TP = liquidez (se respeta §13).
+           - liquidez con RR <  rr_min -> el TP se EXTIENDE a
+             entry ± rr_min*risk (§20 manda; el pool cercano corto queda
+             para gestion/parciales, no como TP formal). NO se descarta la
+             senal: la tesis §13 admite el siguiente pool de liquidez como
+             objetivo y el descarte destruiria el edge sin mandato de tesis.
+      3. Sin liquidez -> TP = entry ± rr_min*risk (fallback historico).
+
+    Sin ifs apilados por camino: LTF y exec TF pasan por ESTA funcion.
+    """
+    rr_floor_tp = entry + rr_min * risk if direction == 1 else entry - rr_min * risk
+    if internal_liq is None:
+        return rr_floor_tp
+    if direction == 1:
+        return internal_liq if internal_liq >= rr_floor_tp else rr_floor_tp
+    return internal_liq if internal_liq <= rr_floor_tp else rr_floor_tp
+
 
 # Explicit R7 debt (DoD H2/H3) — not migrated in this change.
 R7_DOCUMENTED_DEBT = (
@@ -195,6 +289,11 @@ def evaluate_signals(
     ltf_df = ms[ltf]
     htf_df = ms.get(htf, ltf_df)
 
+    # --- Deuda ROJA #4 (tesis §9): resolver los 3 roles en UN solo lugar ---
+    # HTF=sesgo, ITF=zona, exec=entry/SL fino. Fuente unica; el resto del
+    # pipeline consume `roles`, no kwargs sueltos. exec/itf None => regresion.
+    roles = resolve_layer_roles(htf=htf, ltf=ltf, itf=itf, exec_tf=exec_tf)
+
     # --- Fase C (C1): indice de PD arrays HTF vigentes (plumbing que faltaba) ---
     # Solo los TF HTF (no el LTF) alimentan el evaluador de autoridad de zonas.
     # CONTRATO: el indice SOLO se construye si enable_pd_index=True. Con False
@@ -264,18 +363,19 @@ def evaluate_signals(
     # Default: run_semantic (R10.C). use_semantic=False usa run_sequence
     # legacy para comparación/regresión.
 
-    # --- Capa ITF (3 capas ICT): cargar ITF para deteccion de zona ---
-    # itf=None => comportamiento historico (regresion cero).
+    # --- Capa ITF (rol ZONA, tesis §9): resuelta via `roles` (fuente unica) ---
+    # roles.itf colapsa al LTF cuando no se separo (regresion). Solo se carga
+    # un ITF distinto cuando el rol es un TF separado y presente en ms.
     itf_df_loaded = None
-    if itf is not None and itf in ms:
-        itf_df_loaded = ms[itf]
+    if not roles.itf_is_ltf and roles.itf in ms:
+        itf_df_loaded = ms[roles.itf]
 
     if use_semantic:
         from ict_backtest.event_engine import run_semantic, LAST_META
         from ict_backtest.semantic_adapter import adapt_semantic_to_legacy
 
-        # Pass 2 exec TF: detect trigger objects on M5/M1 within LTF zones
-        _exec_df_for_sem = ms.get(exec_tf) if (exec_tf and exec_tf != ltf and exec_tf in ms) else None
+        # Pass 2 exec TF (rol ENTRY/SL fino, tesis §9): resuelto via `roles`.
+        _exec_df_for_sem = ms.get(roles.exec_tf) if (not roles.exec_is_ltf and roles.exec_tf in ms) else None
 
         sem_sigs = run_semantic(
             ltf_df,
@@ -293,7 +393,7 @@ def evaluate_signals(
             htf_poi_fn=make_htf_poi_fn(htf_pd_index, ltf_map) if htf_pd_index is not None else None,
             est_htf_ctx_fn=est_htf_ctx_fn,
             exec_df=_exec_df_for_sem,
-            exec_tf=exec_tf if _exec_df_for_sem is not None else None,
+            exec_tf=roles.exec_tf if _exec_df_for_sem is not None else None,
         )
         # Obtener los objetos internos de run_semantic (mismos IDs que las señales)
         _sem_objs = LAST_META.get("objects", [])
@@ -324,7 +424,7 @@ def evaluate_signals(
             htf=htf,
             est_htf_ctx_fn=est_htf_ctx_fn,
             itf_df=itf_df_loaded,
-            itf_tf=itf if itf_df_loaded is not None else None,
+            itf_tf=roles.itf if itf_df_loaded is not None else None,
         )
 
     signals: list[ICTSignal] = []
@@ -334,11 +434,12 @@ def evaluate_signals(
     rng_series = avg_candle_range(ltf_df, window=50)
 
     # --- Fase B2 (libro 18 ICT): TF de EJECUCION para anclar entry/SL/TP. ---
-    # None o == ltf  => comportamiento historico (regresion cero). Si es otro
-    # TF (M5/M1) ya cargado en `ms`, entry/SL/TP/liq/killzone se recalculan
-    # sobre esa vela mas fina (el SL SIEMPRE en el exec TF, nunca en mayor).
-    use_exec = exec_tf is not None and exec_tf != ltf and exec_tf in ms
-    exec_df = ms[exec_tf] if use_exec else ltf_df
+    # Rol exec resuelto via `roles` (fuente unica, tesis §9). exec_is_ltf =>
+    # regresion (entry/SL/TP en el LTF). Si el rol exec es un TF fino (M5/M1)
+    # presente en ms, entry/SL/TP/liq/killzone se recalculan sobre esa vela
+    # (el SL SIEMPRE en el exec TF, nunca en mayor).
+    use_exec = (not roles.exec_is_ltf) and roles.exec_tf in ms
+    exec_df = ms[roles.exec_tf] if use_exec else ltf_df
     rng_exec_series = avg_candle_range(exec_df, window=50) if use_exec else rng_series
 
     for s in raw_sigs:
@@ -354,6 +455,13 @@ def evaluate_signals(
         if not (rng > 0):
             continue
         kz = killzone_en(pd.to_datetime(entry_row["time"], utc=True))
+        # Deuda ROJA #5 (tesis §15): FILTRO DURO por las 3 killzones
+        # obligatorias (London Open / NY AM / NY PM). killzone_en usa la tabla
+        # unica killzone_windows_utc (ET->UTC por dia via ZoneInfo, DST
+        # automatico) — antes el camino UTC-crudo usaba bandas fijas y perdia
+        # London/NY PM en verano. Filtro duro (no anotador) porque la tesis
+        # exige operar SOLO dentro de killzone; el resto de metadatos de
+        # percepcion (POI, zone_authority) si son anotadores.
         if kz not in ("London Open", "New York AM", "New York PM"):
             continue
         sweep_row = ltf_df.iloc[s["sweep_at"]].copy()
@@ -385,16 +493,10 @@ def evaluate_signals(
             continue
         liq = _tp_liquidity(entry_row, direction, ltf_df)
         tp_ext = liq.get("external")
+        # Deuda ROJA #3: RR minimo por setup SIEMPRE ejecutado (tesis §20),
+        # conciliado con TP-liquidez-cercana (§13, bug#2). Ver _resolve_tp.
         _rr = _rr_for_raw_signal(s, ltf_df, direction, ltf)
-        if liq.get("internal") is not None:
-            tp = liq["internal"]
-            # Guarda minima: liquidez internal no puede quedar < 2R del risk.
-            if direction == 1 and tp <= entry + 2.0 * risk:
-                tp = entry + _rr * risk
-            if direction == -1 and tp >= entry - 2.0 * risk:
-                tp = entry - _rr * risk
-        else:
-            tp = entry + _rr * risk if direction == 1 else entry - _rr * risk
+        tp = _resolve_tp(entry, risk, direction, liq.get("internal"), _rr)
         # --- Fase B2: reanclar entry/SL/TP/liq/killzone al EXEC TF (M5/M1) ---
         # El setup se detecto en el LTF (entry_at/sweep_at son indices LTF).
         # Mapeamos el instante de toque al exec_df (vela cerrada <= ts, anti
@@ -430,27 +532,22 @@ def evaluate_signals(
                 continue
             sl = sl_exec
 
-            # TP = liquidez opuesta del exec TF, o 3R sobre el nuevo risk.
-            entry_row_exec = exec_df.iloc[entry_at_exec]
-            liq_exec = _tp_liquidity(entry_row_exec, direction, exec_df)
-            tp_ext = liq_exec.get("external") or tp_ext
-            _rr_exec = _rr_for_raw_signal(s, ltf_df, direction, ltf)
-            if liq_exec.get("internal") is not None:
-                tp = liq_exec["internal"]
-                if direction == 1 and tp <= entry + 2.0 * risk:
-                    tp = entry + _rr_exec * risk
-                if direction == -1 and tp >= entry - 2.0 * risk:
-                    tp = entry - _rr_exec * risk
-            else:
-                tp = entry + _rr_exec * risk if direction == 1 else entry - _rr_exec * risk
-
-            # Killzone sobre el timestamp del exec TF (mismo instante, mas fino).
-            kz = killzone_en(pd.to_datetime(entry_row_exec["time"], utc=True))
-
-            # Recalcular risk con el SL del exec TF antes de los cortes RR.
+            # Recalcular risk con el SL del exec TF ANTES de resolver el TP:
+            # el RR minimo (tesis §20) debe medirse contra el risk REAL del
+            # exec TF, no contra el risk viejo del LTF.
             risk = abs(entry - sl)
             if risk <= 0 or risk > STRUCT_SL_MAX_RANGE * rng_exec:
                 continue
+
+            # TP = misma regla unica _resolve_tp (deuda ROJA #3): liquidez
+            # opuesta mas cercana del exec TF (§13) con piso rr_min (§20).
+            entry_row_exec = exec_df.iloc[entry_at_exec]
+            liq_exec = _tp_liquidity(entry_row_exec, direction, exec_df)
+            tp_ext = liq_exec.get("external") or tp_ext
+            tp = _resolve_tp(entry, risk, direction, liq_exec.get("internal"), _rr)
+
+            # Killzone sobre el timestamp del exec TF (mismo instante, mas fino).
+            kz = killzone_en(pd.to_datetime(entry_row_exec["time"], utc=True))
         # --- Fin Fase B2 ---
         # --- Brecha C (Opción 2): clase de zona según dealing range HTF ---
         htf_ms = ms.get(htf, ltf_df)
@@ -491,7 +588,7 @@ def evaluate_signals(
         htf_bias = str(htf_entry_row["trend"]) if htf_entry_row is not None else ""
         po3_complete = compute_po3_complete(
             po3_structure if po3_structure else None,
-            config=Po3MotorConfig(bias=htf_bias, exec_tf=exec_tf or ltf, htf=htf),
+            config=Po3MotorConfig(bias=htf_bias, exec_tf=roles.exec_tf, htf=htf),
         )
 
         signals.append(

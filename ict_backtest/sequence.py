@@ -328,7 +328,9 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                  htf_poi_fn=None, ltf_tf: str = "M15", bos_table: dict | None = None,
                  htf_pd_index=None, ltf_map: dict | None = None,
                  htf: str | None = None,
-                 est_htf_ctx_fn=None):
+                 est_htf_ctx_fn=None,
+                 itf_df: pd.DataFrame | None = None,
+                 itf_tf: str | None = None):
     """Recorre el LTF y devuelve lista de dicts de senal.
 
     R9 Paso 3: acepta DataFrame O lista de MarketObject (type=CANDLE). En
@@ -365,6 +367,34 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
         objs = _candle_objects(ltf_df_or_objs, ltf_tf)
     else:
         objs = list(ltf_df_or_objs)
+
+    # --- Capa ITF (3 capas ICT: HTF bias -> ITF zona -> exec entry) ---
+    # Si se provee itf_df, la deteccion de FVG/OB se hace sobre el ITF
+    # (zona de entrada), mientras que sweep/displace/BOS y _touches_zone
+    # siguen en el LTF/exec. Modo permisivo: si ITF no tiene zona,
+    # fallback a LTF (backward compatible).
+    itf_objs: list[MarketObject] | None = None
+    ltf_to_itf: dict[int, int] | None = None
+    if itf_df is not None and itf_tf is not None:
+        itf_objs = _candle_objects(itf_df, itf_tf)
+        # Pre-computar mapping LTF_idx -> ITF_idx (O(n), una sola pasada).
+        # Usa closed_row_at_time para alinear por tiempo con anti look-ahead.
+        from ict_backtest._util import closed_row_at_time, tf_duration
+        _itf_dur = tf_duration(itf_tf)
+        ltf_to_itf = {}
+        _itf_times = pd.to_datetime(itf_df["time"], utc=True, errors="coerce")
+        for _i in range(len(objs)):
+            _t = objs[_i].meta.get("time")
+            if _t is None:
+                ltf_to_itf[_i] = 0
+                continue
+            _tt = pd.to_datetime(_t, utc=True, errors="coerce")
+            _cutoff = _tt - pd.Timedelta(_itf_dur)
+            _matches = _itf_times[_itf_times <= _cutoff]
+            if len(_matches) > 0:
+                ltf_to_itf[_i] = int(_matches.index[-1])
+            else:
+                ltf_to_itf[_i] = 0
 
     state = SequenceState()
     signals: list[dict] = []
@@ -442,23 +472,36 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
             # htf_poi_fn=None es no-op (comportamiento historico intacto).
             poi_ok = (htf_poi_fn is None) or bool(htf_poi_fn(i, target))
             if poi_ok:
-                _fvg = _latest_fvg_zone(obj, target)
-                _ob = _latest_ob_zone(obj, target)
+                # Capa ITF: si hay ITF y mapping, la zona viene del ITF.
+                # Modo permisivo: si ITF no tiene FVG/OB, fallback a LTF.
+                _zone_src = obj  # default: LTF
+                if itf_objs is not None and ltf_to_itf is not None:
+                    _itf_idx = ltf_to_itf.get(i, 0)
+                    if 0 <= _itf_idx < len(itf_objs):
+                        _itf_obj = itf_objs[_itf_idx]
+                        _itf_fvg = _latest_fvg_zone(_itf_obj, target)
+                        _itf_ob = _latest_ob_zone(_itf_obj, target)
+                        if _itf_fvg is not None or _itf_ob is not None:
+                            _zone_src = _itf_obj  # ITF tiene zona -> usar ITF
+                _fvg = _latest_fvg_zone(_zone_src, target)
+                _ob = _latest_ob_zone(_zone_src, target)
                 _zone_obj = None
                 if _fvg is not None:
                     state.zone_high, state.zone_low = _fvg
-                    state.zone_pd_type = str(obj.meta.get("pd_type", "FVG"))
-                    state.zone_pd_tier = str(obj.meta.get("pd_tier", "T2"))
-                    _zone_obj = HtfPdZone(tf=ltf_tf, pd_type=state.zone_pd_type,
+                    state.zone_pd_type = str(_zone_src.meta.get("pd_type", "FVG"))
+                    state.zone_pd_tier = str(_zone_src.meta.get("pd_tier", "T2"))
+                    _zone_tf = itf_tf if (itf_tf and _zone_src is not obj) else ltf_tf
+                    _zone_obj = HtfPdZone(tf=_zone_tf, pd_type=state.zone_pd_type,
                                           pd_tier=state.zone_pd_tier,
                                           direction=target,
                                           zone_high=state.zone_high,
                                           zone_low=state.zone_low)
                 elif _ob is not None:
                     state.zone_high, state.zone_low = _ob
-                    state.zone_pd_type = str(obj.meta.get("pd_type", "OB"))
-                    state.zone_pd_tier = str(obj.meta.get("pd_tier", "T2"))
-                    _zone_obj = HtfPdZone(tf=ltf_tf, pd_type=state.zone_pd_type,
+                    state.zone_pd_type = str(_zone_src.meta.get("pd_type", "OB"))
+                    state.zone_pd_tier = str(_zone_src.meta.get("pd_tier", "T2"))
+                    _zone_tf = itf_tf if (itf_tf and _zone_src is not obj) else ltf_tf
+                    _zone_obj = HtfPdZone(tf=_zone_tf, pd_type=state.zone_pd_type,
                                           pd_tier=state.zone_pd_tier,
                                           direction=target,
                                           zone_high=state.zone_high,
@@ -547,6 +590,7 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     "poi_present": _poi_present,
                     "htf_aligned": state.htf_aligned,
                     "htf_reason": state.htf_reason,
+                    "zone_pd_type": state.zone_pd_type,
                 })
                 state.note("ENTRY", i)
                 phase_seen["ENTRY"] += 1

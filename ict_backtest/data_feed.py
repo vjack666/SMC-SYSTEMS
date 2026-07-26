@@ -171,10 +171,24 @@ def load_tf(symbol: str, timeframe: str, data_dir: Path | str = DATA_DIR,
     df = pd.read_parquet(path)
     if start is not None or end is not None:
         mask = pd.Series(True, index=df.index)
+        # Normalize both sides to tz-naive to prevent comparison mismatch
+        # (parquet can be tz-aware or tz-naive depending on TF)
+        ts_dtype = df["time"].dtype
+        has_tz = hasattr(ts_dtype, "tz") and ts_dtype.tz is not None
         if start is not None:
-            mask &= df["time"] >= pd.Timestamp(start)
+            ts_start = pd.Timestamp(start)
+            if has_tz and ts_start.tzinfo is None:
+                ts_start = ts_start.tz_localize("UTC")
+            elif not has_tz and ts_start.tzinfo is not None:
+                ts_start = ts_start.tz_localize(None)
+            mask &= df["time"] >= ts_start
         if end is not None:
-            mask &= df["time"] <= pd.Timestamp(end)
+            ts_end = pd.Timestamp(end)
+            if has_tz and ts_end.tzinfo is None:
+                ts_end = ts_end.tz_localize("UTC")
+            elif not has_tz and ts_end.tzinfo is not None:
+                ts_end = ts_end.tz_localize(None)
+            mask &= df["time"] <= ts_end
         df = df[mask]
     return build_features(df)
 

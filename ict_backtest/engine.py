@@ -338,6 +338,63 @@ from ict_backtest._util import row_at_time as _row_at_time  # noqa: E402
 from ict_backtest.diagnostics.context_builder import RawDiagnosticData  # noqa: E402
 
 
+def _nearest_opposite_swing(
+    df: pd.DataFrame, row: pd.Series, direction: int, close: float
+) -> float | None:
+    """Swing de liquidez OPUESTO mas cercano en precio al entry (tesis §13).
+
+    Bug #2: la tesis exige el BSL/SSL opuesto MAS CERCANO que el precio toca
+    yendo a favor, NO el promedio del cluster HTF. Para un long, ese objetivo
+    es el ``swing_high`` ya formado mas bajo que este POR ENCIMA del entry
+    (primer pool de buy-side liquidity que el precio alcanzara). Para un short,
+    el ``swing_low`` mas alto que este POR DEBAJO del entry.
+
+    ANTI-LOOK-AHEAD: solo se consideran swings de velas YA CERRADas en o antes
+    de la vela de ``row`` (por ``time``). Nunca se leen swings futuros del TF.
+    El swing es un pivote confirmado (columnas ``swing_high``/``swing_low`` que
+    ``detect_market_structure`` publica con .shift, ya sin look-ahead), y aqui
+    ademas lo recortamos al pasado por seguridad.
+
+    Devuelve None si no hay swing valido (el caller cae al fallback RR).
+    """
+    col = "swing_high" if direction == 1 else "swing_low"
+    if col not in df.columns:
+        return None
+
+    # Recorte anti look-ahead: solo velas con time <= el time del row.
+    sub = df
+    try:
+        row_ts = pd.to_datetime(row.get("time"), utc=True, errors="coerce")
+        if pd.notna(row_ts) and "time" in df.columns:
+            df_ts = pd.to_datetime(df["time"], utc=True, errors="coerce")
+            sub = df[df_ts <= row_ts]
+    except (TypeError, ValueError, KeyError):
+        sub = df
+    if sub is None or not len(sub):
+        return None
+
+    try:
+        vals = pd.to_numeric(sub[col], errors="coerce").dropna()
+    except (TypeError, ValueError, KeyError):
+        return None
+    if vals.empty:
+        return None
+
+    arr = vals.to_numpy(dtype=float)
+    if direction == 1:
+        # buy-side liquidity POR ENCIMA del entry -> el mas bajo (mas cercano).
+        above = arr[arr > close]
+        if above.size == 0:
+            return None
+        return float(above.min())
+    else:
+        # sell-side liquidity POR DEBAJO del entry -> el mas alto (mas cercano).
+        below = arr[arr < close]
+        if below.size == 0:
+            return None
+        return float(below.max())
+
+
 def _tp_liquidity(row: pd.Series, direction: int, df: pd.DataFrame | None = None) -> dict:
     """Jerarquia de liquidez para el TP (MDS_B3_LIQUIDEZ_INT_EXT, tesis §14).
 
@@ -355,18 +412,45 @@ def _tp_liquidity(row: pd.Series, direction: int, df: pd.DataFrame | None = None
     """
     out: dict = {"internal": None, "external": None}
 
-    # --- internal: BSL/SSL del row (detect_liquidity en TF de ejecucion) ---
+    # --- internal: swing de liquidez opuesto MAS CERCANO al entry (tesis §13) ---
+    # Bug #2 (AUDITORIA_FIDELIDAD, contradiccion 2): antes se usaba
+    # bsl_price/ssl_price del row, que detect_liquidity produce como PROMEDIO
+    # (``mid = mean(prices)``) del CLUSTER de swings. En rangos amplios ese
+    # cluster queda lejano y el trade sale por hold_limit (7/11 EURUSD, 11/13
+    # GBPUSD en v29). La tesis §13 exige el BSL/SSL opuesto MAS CERCANO en
+    # PRECIO al entry ("primer swing de liquidez opuesta que el precio toca
+    # yendo a favor").
+    #
+    # Resolucion: con ``df`` disponible, buscamos el swing_high (long) /
+    # swing_low (short) ya FORMADO (anti look-ahead: solo velas cerradas <=
+    # la vela de entry) mas cercano en precio por encima/por debajo del entry.
+    # Sin ``df`` (llamada unitaria legacy) se conserva el fallback a
+    # bsl_price/ssl_price del row -> regresion cero.
+    close = None
     try:
-        if direction == 1:
-            bsl = float(row.get("bsl_price"))
-            if pd.notna(bsl) and bsl > float(row["close"]):
-                out["internal"] = bsl
-        else:
-            ssl = float(row.get("ssl_price"))
-            if pd.notna(ssl) and ssl < float(row["close"]):
-                out["internal"] = ssl
+        close = float(row["close"])
     except (TypeError, ValueError, KeyError):
-        pass
+        close = None
+
+    nearest = None
+    if df is not None and len(df) and close is not None:
+        nearest = _nearest_opposite_swing(df, row, direction, close)
+
+    if nearest is not None:
+        out["internal"] = nearest
+    else:
+        # Fallback (df=None o sin swing valido): BSL/SSL del row (cluster mean).
+        try:
+            if direction == 1:
+                bsl = float(row.get("bsl_price"))
+                if pd.notna(bsl) and bsl > (close if close is not None else float(row["close"])):
+                    out["internal"] = bsl
+            else:
+                ssl = float(row.get("ssl_price"))
+                if pd.notna(ssl) and ssl < (close if close is not None else float(row["close"])):
+                    out["internal"] = ssl
+        except (TypeError, ValueError, KeyError):
+            pass
 
     # --- external: PDH/PDL del dia previo en df (EQ = promedio de ambos) ---
     if df is not None and len(df):

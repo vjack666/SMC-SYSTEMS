@@ -318,6 +318,40 @@ def main() -> None:
         else:
             print(">>> VERDICTO: PF<=1 en out-of-sample => posible overfit o edge debil.", flush=True)
 
+        # ===== R6 FALLA 3: correccion por multiple testing (DSR, F13) =====
+        # El "mejor" set de params salio de `args.trials` hipotesis probadas por
+        # Optuna; el veredicto debe descontar ese look post-hoc. Reusa F13.
+        rep = compute_multiple_testing_report(all_oos_pfs, num_trials=args.trials)
+        print(f">>> DSR (num_trials={args.trials}): {rep['dsr']:.3f} "
+              f"| PBO folds: {rep['pbo']:.3f}", flush=True)
+        if rep["dsr"] < 0.5:
+            print(">>> AVISO: DSR<0.5 => el edge OOS no sobrevive la correccion "
+                  "por multiple testing (posible falso positivo).", flush=True)
+
+
+def compute_multiple_testing_report(oos_values: list[float],
+                                    num_trials: int) -> dict[str, float]:
+    """R6 Falla 3 — DSR/PBO sobre los folds OOS del optimizador (no-breaking).
+
+    Reusa F13 (ml/stats_validator.py). ``oos_values`` son metricas por fold
+    OOS (PF o sharpe-like); ``num_trials`` = hipotesis probadas (trials Optuna).
+    PBO aqui es fraccion de folds bajo la mediana global degradados vs IS —
+    aproximado con compute_pbo sobre la matriz (folds x 2: valor, media).
+    """
+    from ml.stats_validator import compute_deflated_sharpe_ratio, compute_pbo
+    vals = np.asarray([v for v in oos_values if np.isfinite(v)], dtype=float)
+    if vals.size == 0:
+        return {"dsr": 0.0, "pbo": 1.0}
+    # Centramos en 1.0 (PF neutro) para tratarlo como "sharpe-like" > 0 = edge.
+    centered = vals - 1.0
+    dsr = float(compute_deflated_sharpe_ratio(centered, num_trials=max(num_trials, 1)))
+    if vals.size >= 2:
+        matrix = np.column_stack([centered, np.full_like(centered, centered.mean())])
+        pbo = float(compute_pbo(matrix, n_simulations=200, random_state=42))
+    else:
+        pbo = 0.0
+    return {"dsr": dsr, "pbo": pbo}
+
 
 if __name__ == "__main__":
     main()

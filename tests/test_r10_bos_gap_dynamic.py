@@ -22,12 +22,15 @@ run_sequence no existen todavia.
 import sys
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ict_backtest.sequence import confirmation_window
 from ict_backtest.run_backtest import generate_sequence_signals
+from ict_backtest.canonical import evaluate_signals
+from ict_backtest.data_feed import load_frames
 
 
 # Tabla empirica sintetica pero determinista para el test (la real se genera
@@ -55,6 +58,28 @@ def _make_objs(high, low, n):
     return objs
 
 
+@pytest.fixture(scope="module")
+def xauusd_frames():
+    """Cache de frames XAUUSD recortados a 1 mes para tests rapidos.
+
+    Carga D1+H4 (los TFs que estos tests necesitan) y recorta a junio 2026
+    post-carga para evitar el bug tz-aware vs tz-naive en load_tf.
+    """
+    tfs = ("D1", "H4")
+    raw = load_frames("XAUUSD", tfs)
+    # Recortar a 1 mes despues de build_features (post-carga, sin bug tz).
+    cutoff = pd.Timestamp("2026-06-01")
+    trimmed = {}
+    for tf, df in raw.items():
+        # Algunos parquets son tz-naive (H4), otros tz-UTC (M1); normalizar.
+        tcol = df["time"]
+        if tcol.dt.tz is not None:
+            tcol = tcol.dt.tz_localize(None)
+        mask = (tcol >= cutoff) & (tcol < cutoff + pd.DateOffset(months=1))
+        trimmed[tf] = df.loc[mask].reset_index(drop=True)
+    return trimmed
+
+
 def test_confirmation_window_es_matematica_pura_sin_indicadores():
     """La ventana varia con la FUERZA del quiebre (rango vela / rango ctx)."""
     # Contexto: rango promedio = 10 (todas las velas ctx miden 10).
@@ -75,7 +100,7 @@ def test_confirmation_window_es_matematica_pura_sin_indicadores():
     assert w_fuerte > w_debil  # coherencia interna de la tabla
 
 
-def test_bos_gap_none_corre_sin_error_y_es_coherente():
+def test_bos_gap_none_corre_sin_error_y_es_coherente(xauusd_frames):
     """Con bos_gap=None el camino dinamico corre y devuelve senales validas.
 
     No exigimos que dos tablas arbitrarias cambien el timing en este
@@ -83,35 +108,35 @@ def test_bos_gap_none_corre_sin_error_y_es_coherente():
     confirmation_window. Aqui solo garantizamos NO-REGRESION: el motor
     dinamico no crashea y produce ICTSignal con entry_at entero.
     """
-    sig = generate_sequence_signals(
+    sig = evaluate_signals(
         "XAUUSD", "D1", "H4", bos_gap=None, bos_table=TABLE_SHORT,
-        use_semantic=False)
+        use_semantic=False, frames=xauusd_frames)
     assert isinstance(sig, list)
     for s in sig:
         assert isinstance(s.entry_at, int)
 
 
-def test_bos_gap_int_preserva_comportamiento_fijo_r7():
+def test_bos_gap_int_preserva_comportamiento_fijo_r7(xauusd_frames):
     """bos_gap=int (fijo) da EXACTAMENTE lo mismo que la tabla que lo imita.
 
     Esto prueba que el camino dinamico es un reemplazo fiel: cuando la tabla
     devuelve el mismo numero que el fijo, las senales son identicas (R7 safe).
     """
-    sig_fixed = generate_sequence_signals("XAUUSD", "D1", "H4", bos_gap=10,
-                                          use_semantic=False)
+    sig_fixed = evaluate_signals("XAUUSD", "D1", "H4", bos_gap=10,
+                                  use_semantic=False, frames=xauusd_frames)
     # Tabla que para TODO bucket devuelve 10 => dinamico == fijo.
     table_all_10 = {k: 10 for k in range(0, 20)}
-    sig_dyn = generate_sequence_signals(
+    sig_dyn = evaluate_signals(
         "XAUUSD", "D1", "H4", bos_gap=None, bos_table=table_all_10,
-        use_semantic=False)
+        use_semantic=False, frames=xauusd_frames)
     assert len(sig_fixed) == len(sig_dyn)
     # Mismos entry_at (misma logica de confirmacion).
     assert [s.entry_at for s in sig_fixed] == [s.entry_at for s in sig_dyn]
 
 
-def test_bos_gap_none_sin_tabla_cae_en_fallback():
+def test_bos_gap_none_sin_tabla_cae_en_fallback(xauusd_frames):
     """Sin tabla empirica, bos_gap=None usa un fallback deterministico (40)."""
     # No debe romper; usa default 40.
-    sig = generate_sequence_signals("XAUUSD", "D1", "H4", bos_gap=None, bos_table=None,
-                                    use_semantic=False)
+    sig = evaluate_signals("XAUUSD", "D1", "H4", bos_gap=None, bos_table=None,
+                           use_semantic=False, frames=xauusd_frames)
     assert isinstance(sig, list)

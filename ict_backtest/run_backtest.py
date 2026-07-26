@@ -111,7 +111,9 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
                                exec_tf: str | None = None,
                                itf: str | None = None,
                                use_semantic: bool = True,
-                              model: str = "intradia") -> list:
+                               model: str = "intradia",
+                               require_poi_quality: bool = False,
+                               require_reaction: bool = False) -> list:
     """R7 thin wrapper — all decision logic lives in ``ict_backtest.canonical``.
 
     ``enable_pd_index`` enciende la Fase C (autoridad de zonas HTF). Por defecto
@@ -144,6 +146,8 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
         itf=itf,
         use_semantic=use_semantic,
         model=model,
+        require_poi_quality=require_poi_quality,
+        require_reaction=require_reaction,
     )
 
 
@@ -211,7 +215,9 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            attach_plan: bool = False,
                            plan_gate: bool = False,
                            use_semantic: bool = True,
-                           model: str = "intradia") -> dict:
+                           model: str = "intradia",
+                           require_poi_quality: bool = False,
+                           require_reaction: bool = False) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden).
 
     Fase D (Paso2): acumula RawDiagnosticData por trade en `contexts` (en
@@ -294,7 +300,9 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                                         exec_tf=exec_tf,
                                         itf=itf,
                                         use_semantic=use_semantic,
-                                        model=model)
+                                        model=model,
+                                        require_poi_quality=require_poi_quality,
+                                        require_reaction=require_reaction)
     print(f"      features en {time.time()-t0:.1f}s", flush=True)
     print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
     print(f"      {len(signals)} senales", flush=True)
@@ -430,7 +438,9 @@ def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
         counter_trend: bool = False, tp_mode: str = "fixed2r",
         require_displacement: bool = False, cost: dict | None = None,
         exec_tf: str | None = None, trade_mgmt: bool = False,
-        use_semantic: bool = True) -> dict:
+        use_semantic: bool = True,
+        require_poi_quality: bool = False,
+        require_reaction: bool = False) -> dict:
     """Backtest POR DEFECTO (sin --engine) sobre el motor semantico R10.C.
 
     R7 T3.1 (DoD #2 / H12): el camino por defecto delega en `run_sequence`
@@ -454,7 +464,9 @@ def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
                                  cost=cost,
                                  exec_tf=exec_tf,
                                  use_semantic=use_semantic,
-                                 model=model)
+                                 model=model,
+                                 require_poi_quality=require_poi_quality,
+                                 require_reaction=require_reaction)
 
 
 def main() -> None:
@@ -499,6 +511,12 @@ def main() -> None:
                          "(Break-Even + partial exit + trailing) en la simulacion via "
                          "trade_mgmt.apply_trade_management. Por defecto OFF "
                          "(comportamiento historico: SL/TP simples sin gestion).")
+    ap.add_argument("--require-poi-quality", action="store_true",
+                    help="Camino B: filtra senales cuyo POI (zona) tiene score < 0.85. "
+                         "OB=1.0, FVG=0.89, OTE=0.83, NONE=0.50. Por defecto OFF.")
+    ap.add_argument("--require-reaction", action="store_true",
+                    help="Camino C: exige al menos 1 vela con cuerpo >= 1x rango promedio "
+                         "en la direccion correcta entre sweep y entry. Por defecto OFF.")
     ap.add_argument("--window-months", type=int, default=None,
                     help="Fase D validacion: recorta la ventana LTF a los ultimos N meses "
                          "ANTES de cargar (ahorra I/O + features).")
@@ -581,8 +599,10 @@ def main() -> None:
         backtest_id=f"BT-CLI-{uuid.uuid4().hex[:8]}",  # Fase D Paso 2: id estable de corrida
         attach_plan=args.attach_plan,  # Fase 5: calificador de alineacion (modo OBSERVE)
         window_months=args.window_months,  # Fase D validacion: recorte de ventana pre-carga
-        use_semantic=args.use_semantic,  # R10.C: motor semántico
+        use_semantic=args.use_semantic,  # R10.C: motor semantico
         model=args.model,  # 2026-07-23 fork a: --model po3 filtra por po3_complete; scalping -> exec_tf M5
+        require_poi_quality=args.require_poi_quality,  # Camino B: filtro calidad POI
+        require_reaction=args.require_reaction,  # Camino C: confirmacion de reaccion
     )
 
 

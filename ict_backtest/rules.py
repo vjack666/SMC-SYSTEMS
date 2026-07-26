@@ -23,10 +23,11 @@ from zoneinfo import ZoneInfo
 
 from signals.po3 import evaluate_po3
 
-# Bandas killzone en UTC canónico (convención del proyecto / docs ict/01_KILLZONES).
-# Usadas SOLO cuando broker_tz=None (ts ya viene en UTC crudo, camino legacy de
-# canonical.py). NO son offsets fijos: son el rango UTC canónico ya convertido.
-# Clave -> (hora_ini, hora_fin) en horas decimales UTC.
+# DEPRECATED (deuda ROJA #5): tabla de bandas UTC FIJAS todo el año. Era un
+# offset fijo disfrazado (London 7-10 UTC solo vale en invierno EST; en verano
+# EDT London real es 06-09 UTC). killzone_en YA NO la usa: se conserva SOLO
+# porque scripts de diagnóstico (deep_diagnostic/forensic_audit) y el dashboard
+# la importan para imprimir referencias. NO usar en lógica de edge.
 KILLZONES_UTC: dict[str, tuple[float, float]] = {
     "Asia": (0.0, 3.0),
     "London Open": (7.0, 10.0),
@@ -35,9 +36,11 @@ KILLZONES_UTC: dict[str, tuple[float, float]] = {
     "London Close": (15.5, 17.5),
 }
 
-# Bandas killzone en ET FIJO (horario local del mentorship ICT). Se convierten a
-# UTC POR DIA usando ZoneInfo('America/New_York') -> DST automático. NUNCA offset
-# fijo. Clave -> ((h_ini, m_ini), (h_fin, m_fin)) en ET local.
+# FUENTE ÚNICA de killzones del edge (tesis §15): las 3 ventanas OBLIGATORIAS
+# (London Open / NY AM / NY PM) definidas en ET FIJO (horario local del
+# mentorship ICT). Se convierten a UTC POR DIA usando
+# ZoneInfo('America/New_York') -> DST automático. NUNCA offset fijo.
+# Clave -> ((h_ini, m_ini), (h_fin, m_fin)) en ET local.
 KILLZONES_ET: dict[str, tuple[tuple[int, int], tuple[int, int]]] = {
     "London Open": ((2, 0), (5, 0)),    # 02:00-05:00 ET  (London 07:00-10:00 UK)
     "New York AM": ((10, 0), (12, 0)),  # 10:00-12:00 ET  (Silver Bullet)
@@ -82,11 +85,24 @@ def _et_band_to_utc(et_h: int, et_m: int, day_utc: datetime) -> datetime:
     return et_local.astimezone(timezone.utc)
 
 
+def killzone_windows_utc(day_utc: datetime) -> dict[str, tuple[datetime, datetime]]:
+    """Tabla de PRIMERA CLASE de las 3 killzones (tesis §15) para un día dado.
+
+    Devuelve {'London Open'|'New York AM'|'New York PM': (ini_utc, fin_utc)}
+    con las ventanas ET fijas de KILLZONES_ET convertidas al UTC REAL de ese
+    día vía ZoneInfo('America/New_York') -> DST automático, sin offset fijo.
+    Es la ÚNICA fuente que consume killzone_en (con o sin broker_tz).
+    """
+    return {
+        nombre: (_et_band_to_utc(h0, m0, day_utc), _et_band_to_utc(h1, m1, day_utc))
+        for nombre, ((h0, m0), (h1, m1)) in KILLZONES_ET.items()
+    }
+
+
 def _killzone_en_utc(utc_ts: datetime) -> str:
-    """Evalúa las bandas KILLZONES_UTC (camino legacy, broker_tz=None)."""
-    h = utc_ts.hour + utc_ts.minute / 60.0
-    for nombre, (ini, fin) in KILLZONES_UTC.items():
-        if ini <= h < fin:
+    """Killzone activa evaluando la tabla de ventanas UTC del día (DST-aware)."""
+    for nombre, (ini, fin) in killzone_windows_utc(utc_ts).items():
+        if ini <= utc_ts < fin:
             return nombre
     return ""
 
@@ -94,28 +110,27 @@ def _killzone_en_utc(utc_ts: datetime) -> str:
 def killzone_en(ts: datetime, broker_tz: ZoneInfo | str | None = None) -> str:
     """Killzone activa para un timestamp de vela. Backtest-safe.
 
-    REGLA DE ZONA HORARIA (MDS_KILLZONES / DEC-009i):
-    - Si `broker_tz` se pasa: PRIMERO server_to_utc (nunca evaluar sobre hora
-      broker cruda). Luego se evalúan las bandas ICT definidas en ET fijo,
-      convirtiendo ese ET a UTC POR DIA via ZoneInfo (DST automático).
-    - Si `broker_tz` es None: se asume que `ts` YA viene en UTC canónico (ruta
-      legacy de canonical.py) y se evalúa contra KILLZONES_UTC.
+    REESCRITURA DE RAÍZ (deuda ROJA #5, tesis §15). CAUSA RAÍZ del bug: había
+    DOS caminos. Con broker_tz se evaluaba ET->UTC por día (correcto); sin
+    broker_tz (el camino del EDGE, canonical.evaluate_signals) se evaluaba
+    contra KILLZONES_UTC, bandas UTC FIJAS todo el año — un offset fijo
+    disfrazado que en verano (EDT) perdía London (real 06-09 UTC) y NY PM
+    (real 18-21 UTC). Ahora AMBOS caminos usan la MISMA tabla de ventanas
+    killzone_windows_utc (ET->UTC por día vía ZoneInfo, DST automático).
 
-    Devuelve 'London Open' | 'New York AM' | 'New York PM' | '' según corresponda.
+    REGLA DE ZONA HORARIA (MDS_KILLZONES / DEC-009i):
+    - broker_tz dado: PRIMERO server_to_utc (nunca evaluar hora broker cruda).
+    - broker_tz None: se asume que `ts` YA viene en UTC canónico (convención
+      del proyecto; ruta de canonical.py). Naive => UTC.
+
+    Devuelve 'London Open' | 'New York AM' | 'New York PM' | ''.
     """
     if broker_tz is not None:
         utc_ts = server_to_utc(ts, broker_tz)
-        # Bandas en ET fijo -> UTC por dia (DST automatico, sin offset fijo).
-        for nombre, ((h0, m0), (h1, m1)) in KILLZONES_ET.items():
-            ini = _et_band_to_utc(h0, m0, utc_ts)
-            fin = _et_band_to_utc(h1, m1, utc_ts)
-            if ini <= utc_ts < fin:
-                return nombre
-        return ""
-    # Legacy: ts ya en UTC.
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    return _killzone_en_utc(ts)
+    else:
+        utc_ts = ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
+        utc_ts = utc_ts.astimezone(timezone.utc)
+    return _killzone_en_utc(utc_ts)
 
 
 def _dir_setup(bias: str, votes: dict | None, m15: dict, counter_trend: bool = False) -> str:

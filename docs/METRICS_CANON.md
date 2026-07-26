@@ -3,8 +3,13 @@
 **Única fuente de números de performance para la documentación.**  
 Los libros ICT/Wyckoff **no inventan** PF/WR: enlazan aquí o a reportes crudos.
 
-**Actualizado:** 2026-07-17  (R6.4 M2 + v2 mtf multi-TF corrido) 
+**Actualizado:** 2026-07-24  (corrección estado R5/datos; números de corridas históricas intactos)  
 **Regla:** si un número cambia en código/corrida, se actualiza **solo este archivo** (+ el reporte crudo). Los libros citan la sección, no copian cifras sueltas.
+
+> **ENMIENDA DATOS R5 (2026-07-24):** `XAUUSD_M15` **ya existe** (~4.5 años, 2022-01→2026-07).  
+> Inventario vivo: `docs/DATA_STATUS.md`. Las frases de §0 que dicen "XAUUSD M15 ausente / EXCLUIDO por falta M15"  
+> describen la **corrida del 2026-07-17**, no el disco de hoy. **No reabrir R5 por data.**  
+> Bloqueo real de edge = **re-run A12** (+ calidad de motor), no "bajar el parquet del oro".
 
 > **Pendiente R6 (reloj profesional):** tras cerrar HTF closed-only + next-open + costs default (`docs/plan/PLAN_BACKTEST_PROFESIONAL.md`), re-medir Capa 2/3 y **reemplazar** las cifras de §3 si cambian. Hasta entonces, §3 sigue siendo post-auditoría swing/CHOCH (2026-07-11), **sin** fix multi-TF incompleto.
 
@@ -25,7 +30,7 @@ Los libros ICT/Wyckoff **no inventan** PF/WR: enlazan aquí o a reportes crudos.
 **Veredicto EURUSD M15:** 🔴 **GATE R6 NO PASA** (PF<1.10 incluso en teoría).
 - El reloj (G1) y el fill (G2) apenas cambian el PF (el motor ya genera señales donde open≈close).
 - Los costos (G3) hunden ~2R adicionales (de -2.5 a -4.9), como dicta la física.
-- N=18 es muestra pequeña (requiere R5: más datos para N≥200/fold en M3).
+- N=18 es muestra pequeña (la ventana de esa ablation era ~8000 velas; A12 multi-año ya puede usar M15 largo en disco).
 
 ### R6.4 M2 — Multi-símbolo (2026-07-16, extensión) · RESULTADO HONESTO
 
@@ -44,8 +49,10 @@ Mismo motor canónico (generate_sequence_signals, SL estructural + RR 1:3 + kill
 **Motor:** `ict_backtest/v2/run_v2.py --mode mtf` (cascada D1→H4→H1→M15, filtro top-down
 premium/discount + sesgo HTF). **Costos ON**, OOS 0.3.
 **Datos:** 7 majors (EURUSD, GBPUSD, USDJPY, AUDUSD, NZDUSD, USDCAD, USDCHF). Ventana
-disponible ~6 meses (2026-01-18→2026-07-16, H1/M15 bajados de MT5 demo esta sesión).
-XAUUSD EXCLUIDO (falta M15). Reporte: `docs/avances/BACKTEST_V2_MTF_REPORTE_2026-07-17.md`.
+disponible ~6 meses (2026-01-18→2026-07-16, H1/M15 bajados de MT5 demo esa sesión).
+**XAUUSD EXCLUIDO en ESA corrida** (en 2026-07-17 el runner/local no tenía M15 usable;
+hoy el parquet existe — ver enmienda arriba / `docs/DATA_STATUS.md`).  
+Reporte snapshot: `docs/avances/BACKTEST_V2_MTF_REPORTE_2026-07-17.md`.
 
 | Símbolo | orders | trades | WR    | PF      | R     | OOS_PF   | coverage |
 |---------|-------:|-------:|------:|--------:|------:|---------:|----------|
@@ -62,34 +69,34 @@ XAUUSD EXCLUIDO (falta M15). Reporte: `docs/avances/BACKTEST_V2_MTF_REPORTE_2026
 **Veredicto v2 mtf:** 🔴 **GATE NO PASA** (ningún símbolo PF OOS ≥ 1.10; sample 0-4 trades).
 El filtro multi-TF deja pasar tan pocos setups que el PF negativo de R6.4 desaparece por
 falta de operaciones, no por edge. Coverage `v2_partial` = 86.1% (C06 POI anclado MISSING).
-Conclusión: el nuevo motor añade disciplina top-down, pero la brecha real sigue siendo
-**POI anclado (C06) + R5 datos ≥3-4 años** (XAUUSD M15 ausente). No se declara edge alguno.
+Conclusión (2026-07-17): el nuevo motor añade disciplina top-down, pero esa corrida
+no demostró edge (N 0–4). **Post-2026-07-24:** datos multi-año XAUUSD/EURUSD M15 ya en disco
+(R5 cerrado a nivel datos). La brecha abierta es **re-run A12 + edge del motor**, no "falta parquet".
 
 > ⚠️ **AUDITADO 2026-07-17 (docs/auditorias/AUDIT_R6_V2_MTF_Y_EDGEDIAG_2026-07-17.md):**
 > este backtest **NO es reproducible** — el commit eb691c5 no versionó `ict_backtest/v2/`.
-> El veredicto es provisional hasta versionar el motor + resolver Fallas 2/3/4 (ablación
-> edge_diagnosis rota, sin DSR/PBO, concentración en XAUUSD excluido).
+> El veredicto es provisional hasta versionar el motor + resolver fallas de ablación/DSR-PBO.
+> **Falla "XAUUSD M15 ausente" = RESUELTA en datos (2026-07-24).**
 
-**Veredicto global:** 🔴 GATE R6 NO PASA en NINGÚN símbolo en modo producción.
+**Veredicto global:** 🔴 GATE R6 NO PASA en NINGÚN símbolo en modo producción (ablation R6.4).
 - Reloj (G1→G2): ruido (<0.1 PF en todos). El motor ya opera open≈close.
 - Costos (G2→G3): HUNDEN todo (USDCHF +9.99→-0.13; USDCAD +5.09→-8.64). Es física, no bug.
 - USDCHF/USDCAD dan PF + en TEORÍA (sin costos, WR 40-48%): el motor detecta
   estructura direccional real, pero el edge es MÁS FINO que el costo de transacción.
   No es "sin edge", es "edge < costo". Mejorar EDGE (RR/filtro), no quitar costos.
 - Conclusión: el cuello NO es reloj/look-ahead (limpio desde R4/R6.1). Es edge < costo
-  en todos lados. Siguiente paso real = R5 (XAUUSD M15 + 3-4 años) para A12, y/o
-  mejorar el motor (RR, filtro, símbolos de mayor rango).
-- N baja (18-38): requiere R5 para N≥200/fold en walk-forward A12.
+  en las ventanas cortas medidas. **Siguiente paso real = A12 walk-forward multi-año
+  (data R5 ya disponible)** y/o mejorar el motor (RR, filtro, símbolos de mayor rango).
+- N baja (18-38) en R6.4 era por ventana ~8000 velas, no porque falte el archivo M15 largo.
 
 **Bug G3 encontrado y corregido:** `simulate_trade` dividía la comisión por `risk`
 (inflaba pnl_r cuando risk~0 por SL mal ubicado a <1 pip del entry en hold_limit
 lejano → PF falsamente -70). Fix: comisión en precio + piso risk 1 pip. Test:
 `test_cost_does_not_inflate_pnl_with_small_risk`.
 
-**Conclusión:** EURUSD M15 con el motor canónico actual NO tiene edge. No es un
-bug de R6 — es el veredicto honesto del backtest. Próximo paso sugerido: R5
-(más datos) + probar otro símbolo/TF (XAUUSD H1) antes de declarar el stack
-intradía inviable.
+**Conclusión:** EURUSD M15 con el motor canónico de esa ablation NO tiene edge en ~3 meses.
+No es un bug de R6 — es el veredicto honesto de esa ventana. Próximo paso sugerido:
+**A12 con XAUUSD/EURUSD M15 multi-año ya en disco** (y re-baseline con costs ON), no re-descargar R5.
 
 ---
 
@@ -98,7 +105,7 @@ intradía inviable.
 | Gate | Criterio | Estado |
 |------|----------|--------|
 | Edge diagnosis OOS | PF ≥ 1.10 en >1 símbolo | ✅ (XAUUSD 1.376, USDCAD 1.264, …) |
-| Walk-forward celda top (A12) | PurgedKFold, DSR>0, N≥200/fold, PF≥1.10 | 🔴 Falló 1er pase (pocos datos) |
+| Walk-forward celda top (A12) | PurgedKFold, DSR>0, N≥200/fold, PF≥1.10 | 🔴 Pendiente re-run (1er pase falló; **data multi-año ya disponible**) |
 | Costos en métricas | spread + commission + slippage explícitos | ⚠️ Cableado (`--cost`), no siempre aplicado |
 | Harness | 100% escenarios | ✅ Objetivo de merge |
 

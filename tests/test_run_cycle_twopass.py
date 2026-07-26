@@ -84,7 +84,7 @@ def _make_pipeline():
     Pass 1 (core): m5=None, smt_b=None → trigger PENDING honesto.
     Pass 2 (enriquecido): m5 y smt presentes → trigger CONFIRMED + smt en veredicto.
     """
-    def _pipe(d1, h4, h1, m15, m5=None, smt_a=None, smt_b=None):
+    def _pipe(d1, h4, h1, m15, m5=None, smt_a=None, smt_b=None, **kwargs):
         has_m5 = m5 is not None
         has_smt = smt_b is not None
         return {
