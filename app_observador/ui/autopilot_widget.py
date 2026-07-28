@@ -25,8 +25,10 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -74,28 +76,28 @@ class _Light(QWidget):
         self._label = label
         lay = QVBoxLayout(self)
         lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.setSpacing(8)
+        lay.setSpacing(10)
+        lay.setContentsMargins(10, 8, 10, 8)
 
         self._dot = QLabel()
-        self._dot.setFixedSize(64, 64)
+        self._dot.setFixedSize(88, 88)
         self._dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._dot, 0, Qt.AlignmentFlag.AlignCenter)
 
         self._txt = QLabel(label)
         self._txt.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._txt.setWordWrap(True)
-        self._txt.setFixedWidth(140)
-        self._txt.setStyleSheet("color: #e6e6e6; font-size: 12px; font-weight: 700;")
+        self._txt.setStyleSheet("color: #f2f2f2; font-size: 15px; font-weight: 800;")
         lay.addWidget(self._txt, 0, Qt.AlignmentFlag.AlignCenter)
 
         # --- lista de checks (✓/✗) debajo de la etiqueta ---
         self._checks = QWidget()
+        self._checks.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self._checks_lay = QVBoxLayout(self._checks)
         self._checks_lay.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self._checks_lay.setSpacing(2)
-        self._checks_lay.setContentsMargins(8, 0, 8, 0)
-        self._checks.setFixedWidth(156)
-        lay.addWidget(self._checks, 0, Qt.AlignmentFlag.AlignCenter)
+        self._checks_lay.setSpacing(6)
+        self._checks_lay.setContentsMargins(4, 0, 4, 0)
+        lay.addWidget(self._checks, 0, Qt.AlignmentFlag.AlignTop)
 
         self._set_state(False, dim=True)
 
@@ -110,8 +112,8 @@ class _Light(QWidget):
         for ok, text in items:
             lbl = QLabel(f"{'✓' if ok else '✗'}  {text}")
             lbl.setStyleSheet(
-                f"color: {'#1f9d55' if ok else '#c0392b'};"
-                f" font-size: 11px; font-weight: 600;"
+                f"color: {'#3ddc84' if ok else '#ff6b6b'};"
+                f" font-size: 13px; font-weight: 600;"
             )
             lbl.setWordWrap(True)
             self._checks_lay.addWidget(lbl)
@@ -125,8 +127,8 @@ class _Light(QWidget):
             ring = GREEN if on else RED
         self._dot.setStyleSheet(
             f"QLabel {{"
-            f"  border: 3px solid {ring};"
-            f"  border-radius: 32px;"  # círculo (64x64)
+            f"  border: 4px solid {ring};"
+            f"  border-radius: 44px;"  # círculo (88x88)
             f"  background: qradialgradient(cx:50%, cy:50%, radius:60%,"
             f"    stop:0% {fill},"
             f"    stop:75% {'#0e3a22' if on else '#3a1616' if not dim else '#15171c'},"
@@ -145,9 +147,14 @@ class AutopilotWidget(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self._was_on = False
+        # memoria de eventos del cruce (el motor es stateless por ciclo)
+        self._k_prev: float | None = None
+        self._d_prev: float | None = None
+        self._cross_latch: dict | None = None  # {"side": "BULL"|"BEAR", "age": int}
 
         lay = QVBoxLayout(self)
-        lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+        lay.setContentsMargins(14, 14, 14, 14)
         lay.setSpacing(16)
 
         # --- botón maestro ---
@@ -155,14 +162,14 @@ class AutopilotWidget(QWidget):
         self.btn.setStyleSheet(_BTN_OFF)
         self.btn.setMinimumWidth(260)
         self.btn.clicked.connect(self._toggle)
-        lay.addWidget(self.btn, 0, Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self.btn, 0, Qt.AlignmentFlag.AlignHCenter)
 
         self.lbl_status = QLabel("BOT APAGADO")
         self.lbl_status.setStyleSheet("color: #c7ccd4; font-size: 14px; font-weight: 700;")
         self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self.lbl_status)
 
-        # --- panel semáforo ---
+        # --- panel semáforo (llena el ancho de la pestaña) ---
         self._build_semaphore(lay)
 
         expl = QLabel("Encendés vos. Se apaga solo al cumplir +$60 o -2% del saldo.")
@@ -188,25 +195,59 @@ class AutopilotWidget(QWidget):
         frame.setObjectName("semaframe")
         frame.setStyleSheet(
             f"QFrame#semaframe {{ background: {BG_PANEL}; border: 1px solid {BORDER};"
-            f" border-radius: 12px; padding: 16px; }}"
+            f" border-radius: 12px; padding: 22px 18px; }}"
         )
         flay = QVBoxLayout(frame)
-        flay.setSpacing(14)
+        flay.setSpacing(18)
+        frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         title = QLabel("SEGUIMIENTO DEL ESTOCÁSTICO (M15)")
-        title.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px; font-weight: 700; letter-spacing: 1px;")
+        title.setStyleSheet(f"color: {TEXT_DIM}; font-size: 13px; font-weight: 700; letter-spacing: 1px;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         flay.addWidget(title)
 
-        grid = QGridLayout()
-        grid.setSpacing(18)
+        # --- flujo horizontal de 4 etapas (llena el ancho de la pestaña) ---
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        row.setContentsMargins(4, 14, 4, 30)
         self._lights: dict[str, _Light] = {}
-        positions = [(0, 0), (0, 1), (1, 0), (1, 1)]
-        for (key, label), (r, c) in zip(_PHASES, positions):
+        n = len(_PHASES)
+        for i, (key, label) in enumerate(_PHASES):
+            stage = QFrame()
+            stage.setObjectName("stage")
+            stage.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            stage.setStyleSheet(
+                f"QFrame#stage {{ background: {BG_PANEL}; border: 1px solid {BORDER};"
+                f" border-radius: 10px; padding: 16px 14px; }}"
+            )
+            slay = QVBoxLayout(stage)
+            slay.setSpacing(9)
+            slay.setContentsMargins(6, 8, 6, 8)
+            slay.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+            num = QLabel(f"{i + 1}")
+            num.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            num.setFixedSize(26, 26)
+            num.setStyleSheet(
+                "QLabel { color: #0e1116; background: #7f8896; border-radius: 13px;"
+                " font-size: 14px; font-weight: 800; }"
+            )
+            slay.addWidget(num, 0, Qt.AlignmentFlag.AlignCenter)
+
             light = _Light(label)
             self._lights[key] = light
-            grid.addWidget(light, r, c, Qt.AlignmentFlag.AlignCenter)
-        flay.addLayout(grid)
+            slay.addWidget(light, 0, Qt.AlignmentFlag.AlignCenter)
+
+            row.addWidget(stage, 1)
+
+            # conector "→" entre etapas
+            if i < n - 1:
+                arrow = QLabel("→")
+                arrow.setStyleSheet(f"color: {TEXT_DIM}; font-size: 22px; font-weight: 800;")
+                arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                row.addWidget(arrow, 0)
+
+        flay.addLayout(row)
 
         self.banner = QLabel("BOT APAGADO")
         self.banner.setStyleSheet(
@@ -217,7 +258,7 @@ class AutopilotWidget(QWidget):
         self.banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
         flay.addWidget(self.banner)
 
-        lay.addWidget(frame, 0, Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(frame)
 
     # ── acciones ───────────────────────────────────────────────────────
     def _toggle(self) -> None:
@@ -264,17 +305,17 @@ class AutopilotWidget(QWidget):
         """Visor fiel del motor grande: lee el cache de run_cycle.
 
         No recalcula nada (MT5/stochastic_signal quedaron eliminados).
-        Si el motor aún no escribió cache, espera al próximo tick.
+        Mantiene memoria de eventos del cruce K/D entre ticks (el motor
+        es stateless por ciclo y el cache solo mira la vela actual).
         """
         result = engine.load_cached()
         if not result:
             self.banner.setText("Esperando análisis del motor…")
             return
 
-        states = self._lights_from_cache(result)
-        all_green = all(states.values())
-        details = self._phase_details(result)
+        states, details = self._build_state(result)
 
+        all_green = all(states.values())
         for key, light in self._lights.items():
             light._set_state(states[key])
             light.set_checks(details[key])
@@ -361,3 +402,108 @@ class AutopilotWidget(QWidget):
                 (aligned, f"intraday alineado ({intraday})"),
             ],
         }
+
+    # ── memoria de cruce (reglas R1-R5) ───────────────────────────────
+    def _build_state(self, result: dict) -> tuple[dict[str, bool], dict[str, list[tuple[bool, str]]]]:
+        """Calcula luces + checks CON memoria de eventos entre ticks.
+
+        Single source of truth para los VALORES: el cache del motor
+        (engine.load_cached). La MEMORIA del cruce vive en el widget
+        (es UI de seguimiento, no recalcula MT5).
+
+        R1 EXTREMO — luz ON si está en zona AHORA o hay cruce vigente
+                          (memoria) que aún no expira.
+        R2 CRUCE    — registra el lado (BULL/BEAR) y lo mantiene vigente.
+        R3 TENDENCIA— lado del cruce vs bias del motor:
+                          "a favor de tendencia" o "RETROCESO contra tendencia"
+                          (se indica en el monitor).
+        R5 CADUCIDAD— memoria expira a 12 ticks (~60s).
+        """
+        verd = result.get("veredicto") or {}
+        ca = verd.get("context_alignment") or {}
+        stoch = result.get("stoch_m15") or {}
+
+        k = float(stoch.get("k", 50.0))
+        d = float(stoch.get("d", 50.0))
+        extreme = bool(stoch.get("extreme", False))
+        cross = bool(stoch.get("cross", False))
+
+        # ── deducir lado del cruce AHORA (K cruzó D) vs tick previo ──
+        side_now: str | None = None
+        if cross:
+            kp, dp = self._k_prev, self._d_prev
+            if kp is not None and dp is not None:
+                if kp <= dp and k > d:
+                    side_now = "BULL"
+                elif kp >= dp and k < d:
+                    side_now = "BEAR"
+            if side_now is None:
+                # sin previos: inferir por posición relativa de K vs D
+                side_now = "BULL" if k > d else "BEAR"
+
+        # ── actualizar latch (R2) ──
+        if side_now:
+            self._cross_latch = {"side": side_now, "age": 0}
+        elif self._cross_latch is not None:
+            self._cross_latch["age"] += 1
+            if self._cross_latch["age"] > 12:  # R5: expira
+                self._cross_latch = None
+
+        # recordar k/d para el próximo tick
+        self._k_prev, self._d_prev = k, d
+
+        latch = self._cross_latch
+        cross_vigente = latch is not None and latch["age"] <= 12
+
+        # ── R1: luz EXTREMO vigente por memoria del cruce ──
+        extreme_state = extreme or (latch is not None and latch["age"] <= 12)
+
+        # ── R3: lado del cruce vs bias del motor ──
+        macro = str(ca.get("macro", "")).upper()
+        bias_side = "BULL" if macro == "BULLISH" else "BEAR" if macro == "BEARISH" else None
+        retroceso = bool(latch and bias_side and latch["side"] != bias_side)
+
+        stoch_confirm = bool(stoch.get("confirm", False))
+        trigger_ready = str(ca.get("trigger", "")).upper() == "READY"
+        aligned = str(ca.get("alignment", "")).upper() == "ALIGNED"
+
+        states = {
+            "extreme": extreme_state,
+            "cross": cross_vigente,
+            "confirm": stoch_confirm and trigger_ready,
+            "trend": aligned,
+        }
+
+        # ── checks extendidos con la memoria ──
+        extreme_checks = [(extreme, "en zona (sobrecompra/sobreventa)")]
+        if extreme_state and not extreme and latch is not None:
+            extreme_checks.append((True, f"cruce {latch['side']} vigente en memoria"))
+
+        cross_label = (
+            f"cruce {latch['side']} registrado" if latch is not None else "cruce K/D confirmado"
+        )
+        cross_checks = [(cross_vigente, cross_label)]
+
+        trend_checks = [
+            (aligned, f"macro alineado ({macro})"),
+            (aligned, f"intraday alineado ({str(ca.get('intraday', '')).upper()})"),
+        ]
+        if latch is not None and bias_side:
+            if retroceso:
+                trend_checks.append(
+                    (False, f"RETROCESO contra tendencia ({latch['side']} vs {bias_side})")
+                )
+            else:
+                trend_checks.append((True, f"a favor de tendencia ({latch['side']})"))
+
+        details = {
+            "extreme": extreme_checks,
+            "cross": cross_checks,
+            "confirm": [
+                (stoch_confirm, "cruce confirmado"),
+                (trigger_ready, "motor en READY"),
+            ],
+            "trend": trend_checks,
+        }
+        return states, details
+
