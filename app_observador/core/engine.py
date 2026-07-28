@@ -16,6 +16,8 @@ import importlib
 import json
 import os
 import sys
+
+import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from pathlib import Path
 from types import ModuleType
@@ -164,6 +166,35 @@ def run_cycle(force_fetch: bool = False) -> dict:
     bias = verdict.get("bias", "NEUTRAL (esperar)")
     result["bias"] = bias
     result["veredicto"] = verdict
+
+    # Exponer el estocástico M15 en el cache para que el semáforo de la
+    # pestaña "Auto" lo consuma SIN recalcular (single source of truth).
+    try:
+        from indicators.indicators import add_stochastic
+
+        df_m15 = tfs_data["M15"][0]
+        if df_m15 is not None and len(df_m15) >= 3:
+            st = df_m15 if {"stoch_k", "stoch_d"}.issubset(df_m15.columns) else add_stochastic(df_m15)
+            sk = st["stoch_k"].to_numpy()
+            sd = st["stoch_d"].to_numpy()
+            n = len(sk)
+            j = n - 1
+            while j > 0 and (pd.isna(sk[j]) or pd.isna(sd[j])):
+                j -= 1
+            if j >= 1:
+                ki, di = float(sk[j]), float(sd[j])
+                kp, dp = float(sk[j - 1]), float(sd[j - 1])
+                bull = (kp <= dp) and (ki > di)
+                bear = (kp >= dp) and (ki < di)
+                result["stoch_m15"] = {
+                    "k": ki,
+                    "d": di,
+                    "extreme": (ki < 20.0 and di < 20.0) or (ki > 80.0 and di > 80.0),
+                    "cross": bull or bear,
+                    "confirm": (bull or bear) and abs(ki - di) >= 1.0,
+                }
+    except Exception as e:
+        log_error("engine", "stoch_m15_fallo", e, symbol=SYMBOL)
     ca = verdict.get("context_alignment", {})
     log_event("engine", "veredicto_core", symbol=SYMBOL,
               data={"bias": bias,
