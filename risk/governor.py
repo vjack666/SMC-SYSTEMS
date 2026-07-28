@@ -24,6 +24,10 @@ class GovernorConfig:
     caution_total_dd: float = 5.0
     defensive_total_dd: float = 7.0
     lockdown_total_dd: float = 8.0
+    # Per-trade floating close limits in USD (grid mode). 0.0 = disabled,
+    # keeping the historical behavior unchanged. DEMO launch uses 60.0/60.0.
+    profit_limit_usd: float = 0.0
+    loss_limit_usd: float = 0.0
 
 
 def next_state(current: GovernorState, cfg: GovernorConfig | None = None) -> GovernorState:

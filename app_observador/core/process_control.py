@@ -21,10 +21,12 @@ _NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 LOOP_SCRIPT = "loop_analisis.py"
 VIGILANTE_SCRIPT = "vigilante_riesgo.py"
+DEMO_GRID_SCRIPT = "run_demo_grid.py"
 
 _SCRIPT_PATHS = {
     LOOP_SCRIPT: ROOT / "scripts" / LOOP_SCRIPT,
     VIGILANTE_SCRIPT: ROOT / "scripts" / VIGILANTE_SCRIPT,
+    DEMO_GRID_SCRIPT: ROOT / "scripts" / DEMO_GRID_SCRIPT,
 }
 
 # Cache: script_name -> (monotonic_ts, running_bool)

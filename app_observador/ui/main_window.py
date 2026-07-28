@@ -44,6 +44,8 @@ from app_observador.ui.resumen_widget import ResumenWidget
 from app_observador.ui.estado_widget import EstadoWidget
 from app_observador.ui.crono_widget import CronoWidget
 from app_observador.ui.lab_setup_widget import LabSetupWidget
+from app_observador.ui.senal_widget import SenalWidget
+from app_observador.ui.autopilot_widget import AutopilotWidget
 from app_observador.ui.plan_strip_widget import PlanStripWidget
 from app_observador.ui.scanner_widget import ScannerWidget
 from app_observador.ui.chat_widget import ChatWidget
@@ -95,6 +97,8 @@ class MainWindow(QMainWindow):
         self.estado = EstadoWidget()
         self.crono = CronoWidget()
         self.lab = LabSetupWidget()
+        self.senal = SenalWidget()
+        self.autopilot = AutopilotWidget()
         self.plan_strip = PlanStripWidget()
         self.market_state = MarketStateWidget()
         self.scanner = ScannerWidget()
@@ -230,6 +234,13 @@ class MainWindow(QMainWindow):
             lay.addWidget(widget, 1)
             return page
 
+        # SEGUNDA pestaña: SETUP DEL DIA (señal del sistema + macro). insertTab(1)
+        # la deja inmediatamente despues de "Principal".
+        tabs.insertTab(1, _full_tab(self.senal), "Señal")
+
+        # TERCERA pestaña: AUTO (semi-automatización grid DEMO).
+        tabs.insertTab(2, _full_tab(self.autopilot), "Auto")
+
         tabs.addTab(_full_tab(self.lab), "Lab Setup")
         tabs.addTab(_full_tab(self.noticias), "Noticias")
         tabs.addTab(_full_tab(self.scanner), "Escáner")
@@ -354,15 +365,20 @@ class MainWindow(QMainWindow):
             if "Principal" in self._dirty_tabs:
                 self._update_principal(result)
                 self._dirty_tabs.discard("Principal")
+        elif name == "Señal":
+            if "Señal" in self._dirty_tabs:
+                self.senal.update_state(result)
+                self._dirty_tabs.discard("Señal")
         elif name == "Lab Setup":
             if "Lab Setup" in self._dirty_tabs:
                 self.lab.update_state(result)
                 self._dirty_tabs.discard("Lab Setup")
         elif name == "Noticias":
             if "Noticias" in self._dirty_tabs:
-                self.noticias.update_state(
-                    result.get("noticias", []), result.get("fuente_noticias", "")
-                )
+                # Diario ICT: usa el result completo (estructura/bias/veredicto/
+                # noticias) para armar el informe en columnas. Pinta cache al toque
+                # o dispara generación async según la franja horaria.
+                self.noticias.set_result(result)
                 self._dirty_tabs.discard("Noticias")
         elif name == "Escáner":
             if "Escáner" in self._dirty_tabs:
@@ -426,6 +442,7 @@ class MainWindow(QMainWindow):
         # Mark all detail tabs dirty; flush only the active one now
         self._dirty_tabs = {
             "Principal",
+            "Señal",
             "Lab Setup",
             "Noticias",
             "Escáner",
@@ -500,6 +517,11 @@ def main() -> int:
     app.setStyle("Fusion")
     app.setStyleSheet(app_stylesheet())
     QApplication.setApplicationName("SMC_OBSERVADOR")
+    # La X oculta la ventana a la bandeja (closeEvent hace event.ignore()+hide()).
+    # Sin esto, al no quedar ventanas visibles Qt mata el event loop y el
+    # proceso muere -> al reabrir, el server SMC_observador_ui queda zombie y
+    # la nueva instancia sale silenciosa (se "cierra sola").
+    app.setQuitOnLastWindowClosed(False)
 
     # Single-instance tipo WhatsApp: si ya hay otro observador vivo, le avisamos
     # que se muestre y este proceso sale. Si somos el primero, arrancamos el

@@ -24,6 +24,7 @@ from regime import detect_regimes
 from risk.governor import GovernorConfig, GovernorState, next_state
 from risk.sizer import close_position, compute_lot, send_market_order
 from signals.pipeline import ScalpingConfig, build_scalping_context
+from strategy.live_grid import GridBook, GridConfig
 
 POLL_INTERVAL = 5
 
@@ -51,6 +52,7 @@ class PaperTradingRunner:
         drift_baseline_path: Path = Path("ml/models/quality_filter.drift_baseline.json"),
         drift_threshold: float = 0.2,
         drift_check_every: int = 60,
+        grid_config: GridConfig | None = None,
     ):
         self.symbols = symbols
         self.timeframe = timeframe
@@ -68,6 +70,7 @@ class PaperTradingRunner:
         self.deviation = deviation
         self.kill_switch_path = kill_switch_path
         self.connector_config = connector_config or ConnectionConfig()
+        self.grid_config = grid_config or GridConfig()
 
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.state_path = state_dir / "positions.json"
@@ -106,8 +109,14 @@ class PaperTradingRunner:
 
         self.connector: MT5Connector | None = None
         self.positions: dict[str, PaperPosition] = {}
+        self.grid_books: dict[str, GridBook] = {}
         self.last_completed: dict[str, int] = {}
         self.governor = GovernorState()
+        # Set when a grid closes on PROFIT_LIMIT/LOSS_LIMIT ("la meta"):
+        # the run() loop then shuts down cleanly (state saved) so the
+        # semi-automation process exits on goal. SL/TP fallback and
+        # max-hold closes do NOT set it (keep scanning).
+        self._goal_reached = False
         self.trade_log: list[dict[str, Any]] = []
         self.running = False
         self.live_positions_tickets: dict[str, int] = {}
@@ -368,6 +377,8 @@ class PaperTradingRunner:
         self.connector.save_parquet(df, symbol, self.timeframe, self.data_dir)
 
     def _check_position(self, symbol: str) -> None:
+        if self.grid_config.enabled:
+            self._check_grid(symbol)
         pos = self.positions.get(symbol)
         if pos is None or pos.status != PositionStatus.OPEN:
             return
@@ -504,6 +515,186 @@ class PaperTradingRunner:
         self.positions[symbol] = pos
         self._log(f"{symbol} {side.value} OPEN entry={entry:.5f} sl={sl:.5f} tp={tp:.5f} vol={volume:.2f} conf={confidence:.2f}")
 
+    # ------------------------------------------------------------------
+    # Grid mode (flag-gated; additive to the single-position path)
+    # ------------------------------------------------------------------
+
+    def _open_grid(self, symbol: str, direction: int, confidence: float, entry: float, sl: float, tp: float) -> None:
+        """Open a 3-layer averaging grid (L1 now; L2/L3 pending at grid levels)."""
+        if direction == 0 or symbol in self.grid_books:
+            return
+        if self.governor.mode == "LOCKDOWN":
+            self._log(f"{symbol} SKIP grid — governor LOCKDOWN")
+            return
+
+        side = "BUY" if direction == 1 else "SELL"
+        book = GridBook(symbol=symbol, side=side, entry=entry, cfg=self.grid_config)
+        book.stop_loss = sl
+        book.take_profit = tp
+        book.confidence = confidence
+        book.open_time = datetime.now(timezone.utc)
+
+        if self.mode == TradeMode.LIVE:
+            result = send_market_order(
+                symbol=symbol,
+                action=side,
+                volume=self.grid_config.l1_lot,
+                stop_loss=sl,
+                take_profit=tp,
+                comment="SMC_GRID_L1",
+                magic=self.magic,
+                deviation=self.deviation,
+            )
+            if result["retcode"] != 10009:
+                self._log(f"{symbol} GRID L1 ORDER FAILED: retcode={result['retcode']} {result['comment']}")
+                return
+            book.layers[0].ticket = result["ticket"]
+            book.layers[0].price = float(result["price"])
+
+        self.grid_books[symbol] = book
+        self._log(
+            f"{symbol} GRID {side} OPEN L1 entry={book.layers[0].price:.5f} "
+            f"lots={self.grid_config.l1_lot:.2f}/{self.grid_config.l2_lot:.2f} "
+            f"step={self.grid_config.grid_step_pips}p conf={confidence:.2f}"
+        )
+
+    def _open_grid_layer_live(self, book: GridBook, layer) -> None:
+        result = send_market_order(
+            symbol=book.symbol,
+            action=book.side,
+            volume=layer.lot,
+            stop_loss=0.0,
+            take_profit=0.0,
+            comment="SMC_GRID_LX",
+            magic=self.magic,
+            deviation=self.deviation,
+        )
+        if result["retcode"] == 10009:
+            layer.ticket = result["ticket"]
+            layer.price = float(result["price"])
+        else:
+            layer.opened = False
+            self._log(f"{book.symbol} GRID layer ORDER FAILED: retcode={result['retcode']}")
+
+    def _close_grid(self, symbol: str, price: float, reason: str, pnl_override: float | None = None) -> None:
+        book = self.grid_books.get(symbol)
+        if book is None:
+            return
+
+        if self.mode == TradeMode.LIVE:
+            import MetaTrader5 as mt5
+
+            for layer in book.opened_layers:
+                if layer.ticket is None:
+                    continue
+                positions = mt5.positions_get(ticket=layer.ticket)
+                if positions:
+                    p = positions[0]
+                    close_position(
+                        ticket=p.ticket,
+                        symbol=p.symbol,
+                        volume=p.volume,
+                        position_type=p.type,
+                        magic=self.magic,
+                    )
+
+        pnl = pnl_override if pnl_override is not None else book.floating_pnl(price)
+        close_time = datetime.now(timezone.utc)
+        self._log(
+            f"{symbol} GRID {book.side} CLOSED ({reason}) layers={len(book.opened_layers)} "
+            f"price={price:.5f} pnl={pnl:.2f}"
+        )
+        self.trade_log.append({
+            "symbol": symbol,
+            "side": "LONG" if book.side == "BUY" else "SHORT",
+            "entry_price": book.entry,
+            "exit_price": price,
+            "stop_loss": getattr(book, "stop_loss", 0.0),
+            "take_profit": getattr(book, "take_profit", 0.0),
+            "volume": sum(l.lot for l in book.opened_layers),
+            "open_time": getattr(book, "open_time", close_time).isoformat(),
+            "close_time": close_time.isoformat(),
+            "status": "CLOSED_MANUAL",
+            "pnl": pnl,
+            "pips": (pnl / (sum(l.lot for l in book.opened_layers) * 100000)) if book.opened_layers else 0.0,
+            "signal_confidence": getattr(book, "confidence", 0.0),
+            "reason": reason,
+        })
+
+        if pnl < 0:
+            self.governor.consecutive_losses += 1
+            dd_pct = abs(pnl) / (book.entry * max(sum(l.lot for l in book.opened_layers), 0.01) * 100000) * 100
+            self.governor.day_drawdown_pct += dd_pct
+        else:
+            self.governor.consecutive_losses = 0
+        self.governor = next_state(self.governor, self.governor_config)
+
+        del self.grid_books[symbol]
+        save_trade_log(self.trade_log, self.trades_path)
+
+        if reason in ("PROFIT_LIMIT", "LOSS_LIMIT"):
+            self._goal_reached = True
+            self._log(f"{symbol} GOAL REACHED ({reason}) — runner will shut down")
+
+    def _check_grid(self, symbol: str) -> None:
+        """Per-candle grid management: fill pending layers, then close on
+        +/- floating limits (priority) or SL/TP/max-hold fallback."""
+        book = self.grid_books.get(symbol)
+        if book is None:
+            return
+
+        import MetaTrader5 as mt5
+
+        rates = mt5.copy_rates_from_pos(symbol, self._get_mt5_tf(), 0, 2)
+        if rates is None or len(rates) < 2:
+            return
+
+        last_candle = rates[1]
+        high = float(last_candle["high"])
+        low = float(last_candle["low"])
+        close = float(last_candle["close"])
+
+        book.open_bar_index += 1
+
+        newly = book.check_pending(low, high)
+        for layer in newly:
+            if self.mode == TradeMode.LIVE:
+                self._open_grid_layer_live(book, layer)
+            if layer.opened:
+                self._log(f"{symbol} GRID layer opened at {layer.price:.5f} lot={layer.lot:.2f}")
+
+        # PRIORITY 1: floating profit/loss limits from the risk governor.
+        profit_lim = float(self.governor_config.profit_limit_usd)
+        loss_lim = float(self.governor_config.loss_limit_usd)
+        best_price = high if book.side == "BUY" else low
+        worst_price = low if book.side == "BUY" else high
+        if loss_lim > 0.0 and book.floating_pnl(worst_price) <= -loss_lim:
+            self._close_grid(symbol, worst_price, "LOSS_LIMIT", pnl_override=-loss_lim)
+            return
+        if profit_lim > 0.0 and book.floating_pnl(best_price) >= profit_lim:
+            self._close_grid(symbol, best_price, "PROFIT_LIMIT", pnl_override=profit_lim)
+            return
+
+        # PRIORITY 2: absolute fallbacks — structural SL, TP, max hold.
+        sl = getattr(book, "stop_loss", None)
+        tp = getattr(book, "take_profit", None)
+        if book.side == "BUY":
+            if sl and low <= sl:
+                self._close_grid(symbol, sl, "SL fallback")
+                return
+            if tp and high >= tp:
+                self._close_grid(symbol, tp, "TP fallback")
+                return
+        else:
+            if sl and high >= sl:
+                self._close_grid(symbol, sl, "SL fallback")
+                return
+            if tp and low <= tp:
+                self._close_grid(symbol, tp, "TP fallback")
+                return
+        if book.open_bar_index >= self.max_hold_bars:
+            self._close_grid(symbol, close, "max hold expired")
+
     def _process_symbol(self, symbol: str) -> None:
         self._reconnect_if_needed()
 
@@ -589,7 +780,10 @@ class PaperTradingRunner:
                 self._check_position(symbol)
                 return
 
-        self._open_position(symbol, direction, confidence, entry, sl, tp)
+        if self.grid_config.enabled:
+            self._open_grid(symbol, direction, confidence, entry, sl, tp)
+        else:
+            self._open_position(symbol, direction, confidence, entry, sl, tp)
         self._check_position(symbol)
 
     def _append_trade_csv(self, pos: PaperPosition) -> None:
@@ -740,6 +934,9 @@ class PaperTradingRunner:
                         except Exception as e:
                             self._log(f"{symbol} error: {e}")
                     self._save_state()
+                    if self._goal_reached:
+                        self._log("Goal reached — clean shutdown (state saved)")
+                        break
                     time.sleep(POLL_INTERVAL)
             except KeyboardInterrupt:
                 self._log("Shutting down...")
