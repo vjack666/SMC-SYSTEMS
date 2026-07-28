@@ -88,7 +88,33 @@ class _Light(QWidget):
         self._txt.setStyleSheet("color: #e6e6e6; font-size: 12px; font-weight: 700;")
         lay.addWidget(self._txt, 0, Qt.AlignmentFlag.AlignCenter)
 
+        # --- lista de checks (✓/✗) debajo de la etiqueta ---
+        self._checks = QWidget()
+        self._checks_lay = QVBoxLayout(self._checks)
+        self._checks_lay.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self._checks_lay.setSpacing(2)
+        self._checks_lay.setContentsMargins(8, 0, 8, 0)
+        self._checks.setFixedWidth(156)
+        lay.addWidget(self._checks, 0, Qt.AlignmentFlag.AlignCenter)
+
         self._set_state(False, dim=True)
+
+    def set_checks(self, items: list[tuple[bool, str]]) -> None:
+        """Pinta la ista de checks de la fase (✓ verde / ✗ rojo)."""
+        # limpiar widgets previos
+        while self._checks_lay.count():
+            item = self._checks_lay.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        for ok, text in items:
+            lbl = QLabel(f"{'✓' if ok else '✗'}  {text}")
+            lbl.setStyleSheet(
+                f"color: {'#1f9d55' if ok else '#c0392b'};"
+                f" font-size: 11px; font-weight: 600;"
+            )
+            lbl.setWordWrap(True)
+            self._checks_lay.addWidget(lbl)
 
     def _set_state(self, on: bool, dim: bool = False) -> None:
         if dim:
@@ -247,9 +273,11 @@ class AutopilotWidget(QWidget):
 
         states = self._lights_from_cache(result)
         all_green = all(states.values())
+        details = self._phase_details(result)
 
         for key, light in self._lights.items():
             light._set_state(states[key])
+            light.set_checks(details[key])
 
         bias = str(result.get("bias", ""))
         if all_green:
@@ -294,4 +322,42 @@ class AutopilotWidget(QWidget):
             "cross": cross,
             "confirm": confirm,
             "trend": trend,
+        }
+
+    @staticmethod
+    def _phase_details(result: dict) -> dict[str, list[tuple[bool, str]]]:
+        """Sub-condiciones reales de cada fase, para la ista de checks.
+
+        Solo expone lo que el motor YA calcula (single source of truth):
+          - extreme/cross: 1 check ciego (el motor solo tira el bool).
+          - confirm: 2 checks (cruce confirmado + motor en READY).
+          - trend: 2 checks (macro alineado + intraday alineado).
+        """
+        verd = result.get("veredicto") or {}
+        ca = verd.get("context_alignment") or {}
+        stoch = result.get("stoch_m15") or {}
+
+        stoch_confirm = bool(stoch.get("confirm", False))
+        trigger_ready = str(ca.get("trigger", "")).upper() == "READY"
+        macro = str(ca.get("macro", "")).upper()
+        intraday = str(ca.get("intraday", "")).upper()
+        # TENDENCIA A FAVOR = context_alignment del motor == ALIGNED
+        # (el motor ya decidió si macro/intraday coinciden; no reinvento la lógica).
+        aligned = str(ca.get("alignment", "")).upper() == "ALIGNED"
+
+        return {
+            "extreme": [
+                (bool(stoch.get("extreme", False)), "en zona (sobrecompra/sobreventa)"),
+            ],
+            "cross": [
+                (bool(stoch.get("cross", False)), "cruce K/D confirmado"),
+            ],
+            "confirm": [
+                (stoch_confirm, "cruce confirmado"),
+                (trigger_ready, "motor en READY"),
+            ],
+            "trend": [
+                (aligned, f"macro alineado ({macro})"),
+                (aligned, f"intraday alineado ({intraday})"),
+            ],
         }

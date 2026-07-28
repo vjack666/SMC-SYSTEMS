@@ -82,3 +82,40 @@ def test_extreme_red_when_stoch_not_in_zone():
     states = w._lights_from_cache(cache)
     assert states["extreme"] is False
     assert states["cross"] is False
+
+
+def _details(cache):
+    w = aw.AutopilotWidget()
+    return w._phase_details(cache)
+
+
+def test_phase_details_extreme_single_check():
+    d = _details(_fake_cache(True, True, True, True, "READY", "BUY"))
+    # Fase 1: 1 solo check (el motor solo expone el bool)
+    assert d["extreme"] == [(True, "en zona (sobrecompra/sobreventa)")]
+
+
+def test_phase_details_confirm_two_checks():
+    # trigger PENDING -> segundo check en False (motor no autoriza)
+    d = _details(_fake_cache(True, True, True, True, "PENDING", "BUY"))
+    assert d["confirm"] == [
+        (True, "cruce confirmado"),
+        (False, "motor en READY"),
+    ]
+
+
+def test_phase_details_trend_two_checks():
+    d = _details(_fake_cache(True, True, True, True, "READY", "BUY"))
+    assert d["trend"] == [
+        (True, "macro alineado (BULLISH)"),
+        (True, "intraday alineado (BULLISH)"),
+    ]
+
+
+def test_phase_details_trend_divergent_shows_bearish():
+    # contexto divergente (alignment != ALIGNED): ambos checks en False,
+    # pero muestran el lado real que el motor reportó.
+    d = _details(_fake_cache(True, True, True, False, "READY", "BUY"))
+    assert d["trend"][0][0] is False
+    assert d["trend"][1][0] is False
+    assert "BULLISH" in d["trend"][0][1]
