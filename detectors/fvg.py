@@ -34,6 +34,15 @@ def detect_fvg(frame: pd.DataFrame) -> pd.DataFrame:
     data.loc[data["fvg_bullish"], "fvg_mid"] = bullish_mid[data["fvg_bullish"]]
     data.loc[data["fvg_bearish"], "fvg_mid"] = bearish_mid[data["fvg_bearish"]]
 
+    data["fvg_low"] = np.where(
+        data["fvg_bullish"], np.round(prev2_high, 5),
+        np.where(data["fvg_bearish"], np.round(data["high"], 5), np.nan),
+    )
+    data["fvg_high"] = np.where(
+        data["fvg_bullish"], np.round(data["low"], 5),
+        np.where(data["fvg_bearish"], np.round(prev2_low, 5), np.nan),
+    )
+
     data["fvg_fill_status"] = _track_fvg_fill(data)
 
     # --- Fase B1 (SPEC §3/§4): etiquetas de tipo y jerarquía (metadatos) ---
