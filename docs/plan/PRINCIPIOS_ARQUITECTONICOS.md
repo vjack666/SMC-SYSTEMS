@@ -172,6 +172,23 @@ Bollinger, o cualquier indicador derivado en **código de análisis estructural*
 (lectura de mercado, detección de estructura, ranking, censo, scoring, bias,
 veredicto, fichas técnicas).
 
+### Política de producción — sizing por `exec_m5_score`
+
+`exec_m5_score` es un observable estructural del M5 (entradas previas útiles/
+inútiles). No es un indicador técnico derivado y, por tanto, cumple P5.
+Se usa **solo** para modular el tamaño de posición en producción:
+
+| `exec_m5_score` | Multiplicador | Producción |
+|---|---|---|
+| 0 | 1.0 | Normal (sin histéresis previa) |
+| 1 | 0.5 | Reducir (histéresis débil) |
+| 2 | 1.0 | Normal (recuperado) |
+| >= 3 | 1.25 | Aumentar (confirmación recurrente) |
+
+Regla: el multiplicador se aplica SOBRE el sizing base del riesgo diario.
+No redefine el riesgo: es un factor multiplicativo unitario dentro del plan
+de ejecución.
+
 Herramientas permitidas (lista completa y excluyente):
 - **Niveles de precio reales:** swing high/low, BOS level, CHOCH level, sweep
   level (prior_high/prior_low), FVG zone (high/low), OB zone (top/bottom),

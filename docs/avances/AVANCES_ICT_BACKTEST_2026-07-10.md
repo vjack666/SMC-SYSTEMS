@@ -1,13 +1,17 @@
 # Avances ICT Backtest — 2026-07-10
 
+**Tipo:** SNAPSHOT HISTÓRICO del 2026-07-10 (no es inventario de datos actual).  
+Inventario vivo: `docs/DATA_STATUS.md` (desde 2026-07-24 XAUUSD_M15 existe ~4.5 años).
+
 Proyecto: SMC-SYSTEMS. Módulo nuevo: `ict_backtest/`. Objetivo: validación de
 estrategia ICT desde cero (SIN ML en la regla; ML solo en Capa 3 para ajustar
 parámetros). Todo verificado con datos reales XAUUSD (MT5 FundedNext).
 
-## Contexto de datos (MT5 FundedNext)
+## Contexto de datos (MT5 FundedNext) — *estado al 2026-07-10*
 - XAUUSD_H4.parquet: 10.066 velas, 2020 → 2026 (~6.5 años). Local.
 - XAUUSD_D1.parquet: disponible, mismo rango.
-- XAUUSD_M15: **NO EXISTE** en data/raw (solo D1 y H4 del oro). Para volumen M15 se usa EURUSD_M15 (50.000 velas, 2024-07-04 → 2026-07-10).
+- XAUUSD_M15: **NO EXISTÍA ese día** en data/raw (solo D1 y H4 del oro). Para volumen M15 se usaba EURUSD_M15 (50.000 velas, 2024-07-04 → 2026-07-10).
+  **Actualización 2026-07-24:** el parquet ya existe y cumple R5 — no usar esta sección como bloqueo.
 - `ict_backtest/data_feed.py` carga parquet y corre detectores (bos, choch,
   displacement, fvg, liquidity, order_blocks, trend) produciendo las columnas
   que el motor consume.

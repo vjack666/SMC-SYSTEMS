@@ -127,15 +127,18 @@ engine.py:160,229 _coerce_ts duplicada / strategy_mtf.py:101-103 no-op (H22)
 ruido / mantenimiento
 ```
 
-### XAUUSD en MTF (corolario de H14)
+### XAUUSD en MTF (corolario de H14) — reconfirmado 2026-07-24
 ```
-run_bt_v2_mtf.py:16 excluye XAUUSD ("falta M15")            (decision de codigo obsoleta)
+run_bt_v2_mtf.py excluye XAUUSD
         ↓
-pero data/raw/XAUUSD_M15.parquet YA EXISTE (H14 resuelto)   (validado ETAPA 1)
+comentario actual del script: hang del motor canónico con oro
+(el claim viejo "falta M15" está OBSOLETO)
         ↓
-el filtro de simbolos es OBSOLETO, no falta de datos
+data/raw/XAUUSD_M15.parquet YA EXISTE (~4.5 años)   (R5 cerrado; docs/DATA_STATUS.md)
         ↓
-XAUUSD queda fuera del MTF por un hardcode ya no valido
+bloqueo real = runner/hang o decisión de exclusión, NO descarga de datos
+        ↓
+A12 no requiere re-bajar M15; requiere re-run + (si v2 mtf) arreglar hang
 ```
 
 ---

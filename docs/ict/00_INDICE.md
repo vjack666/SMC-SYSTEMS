@@ -29,6 +29,7 @@ Cada archivo es un “libro”. La app y los agentes deben poder **citar el cont
 | 18 | [**Ejecución óptima: 3 capas + SL/Entry por TF**](18_EJECUCION_OPTIMA_TF_SL_ENTRY.md) | **Regla dura**: SL/entry SIEMPRE en exec TF; RR 1:3; 3 killzones | 📝 1.0 · Marco v30 |
 | 20 | [**TESIS ICT COMPLETA**](20_TESIS_ICT.md) | Unifica PO3+liquidez+temporalidad+POI | 📝 1.0 · Síntesis |
 | 21 | [**Point of Interest (POI)**](21_POI.md) | POI = PD Array en zona correcta + sesgo + respaldo; tiers; stacking MTF; **bonus, no filtro duro** | 📝 1.0 · Marco v30+ |
+| 25 | [**SMT Divergence**](25_SMT_DIVERGENCIA.md) | Divergencia entre instrumentos correlacionados = trampa institucional; metadata-only (BONUS), no entry filter | ✅ 1.0 · R3.5 |
 
 ## Libros de integración / validación
 
@@ -43,6 +44,12 @@ Cada archivo es un “libro”. La app y los agentes deben poder **citar el cont
 | 13 | [**Backtest profesional**](13_BACKTEST_PROFESIONAL/00_INDICE.md) | Reloj MTF, fill, costos, OOS, **gap G1–G12** · Plan R6 |
 | 14 | [Stop Loss Estructural](14_STOP_LOSS_ESTRUCTURAL.md) | SL = mecha sweep, no ATR · aplicado v29 |
 | 16 | [Temporalidad de ejecución](16_TEMPORALIDAD_EJECUCION.md) | HTF→LTF→exec; marco v30 | 📝 1.0 |
+
+## Tesis de investigación (NO-ICT · geometría del mercado)
+
+| ID | Documento | Alcance | Estado docs |
+|----|-----------|---------|-------------|
+| 24 | [**Geometría del Mercado**](24_GEOMETRIA_DEL_MERCADO.md) | Marco teórico + hipótesis + modelo matemático + diseño experimental para buscar leyes geométricas invariantes en la trayectoria del precio (sin ICT, sin indicadores). Refutar H0 es conclusión válida | 📝 1.0 · Draft teórico, pendiente revisión |
 
 ## Auditoría y SDD (no “libros de setup”, pero del pack ICT)
 

@@ -115,8 +115,8 @@ Basado en esta auditoría se ejecutaron las siguientes correcciones:
 - **Ausencia**: No hay "inducements" explícitos ni "interaction features".
 
 ### F15 — Production Monitoring
-- **Estado**: ✅ **Complete**
-- **Evidencia**: 7 archivos — drift_detector (PSI), alerter (UUID + persistencia), equity_telemetry (Sharpe/Sortino/Calmar), dashboard, performance_tracker, harness_adapter, config. Ningún stub.
+- **Estado**: ✅ **Complete** (en su momento) — **CORRECCIÓN 2026-07-22 (ver `docs/auditorias/AUDITORIA_DASHBOARD_2026-07-22.md`):** la evidencia citada ("alerter (UUID + persistencia)") describe un estado YA NO PRESENTE. Hoy `monitoring/` tiene solo 5 archivos: `dashboard.py`, `config.py`, `drift_detector.py`, `equity_telemetry.py`, `performance_tracker.py`. **NO existe `alerter.py`** — los 7 campos `alert_*` de `MonitoringConfig` son config muerta (sin consumidor). El `generate_dashboard` inicializa `result["alerts"]=[]` y nunca lo llena. Asimismo F16 "Governance & Automation" (model_registry / retraining_scheduler / auto_report_generator) NO existen en el árbol actual → esa sección está STALE. El dashboard real es un módulo de MONITOREO EN VIVO (paper/live) desacoplado del pipeline de backtest.
+- **Evidencia original**: 7 archivos — drift_detector (PSI), alerter (UUID + persistencia), equity_telemetry (Sharpe/Sortino/Calmar), dashboard, performance_tracker, harness_adapter, config. Ningún stub.
 
 ### F16 — Governance & Automation
 - **Estado**: ✅ **Complete**

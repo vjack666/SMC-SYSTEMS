@@ -1,10 +1,15 @@
 # Reporte — Backtest v2 mtf (motor multi-TF) + Mapa ICT M15
 
-**Fecha:** 2026-07-17
-**Autor:** Hermes (ejecución) · revisión Ruben
+**Fecha:** 2026-07-17  
+**Tipo:** SNAPSHOT HISTÓRICO (no es inventario de datos actual)  
+**Autor:** Hermes (ejecución) · revisión Ruben  
 **Alcance:** correr el motor v2 mtf (D1→H4→H1→M15) con costos ON y validación OOS sobre
 los 7 símbolos disponibles; construir el mapa ICT M15 estilo TradingView (6 meses);
 comparar contra R6.4 (legacy H4→M15).
+
+> **ENMIENDA 2026-07-24:** en la fecha de este reporte XAUUSD M15 faltaba o no se usó.
+> Hoy `data/raw/XAUUSD_M15.parquet` existe (~4.5 años). Estado vivo: `docs/DATA_STATUS.md`.
+> No usar este reporte para reabrir R5. `run_bt_v2_mtf.py` puede seguir excluyendo oro por hang del motor.
 
 ---
 
@@ -14,7 +19,7 @@ comparar contra R6.4 (legacy H4→M15).
   premium/discount + sesgo HTF).
 - Costos: ON (default producción). OOS: 0.3 (30% final fuera de muestra).
 - Símbolos: EURUSD, GBPUSD, USDJPY, AUDUSD, NZDUSD, USDCAD, USDCHF.
-  **XAUUSD EXCLUIDO** (falta M15 localmente).
+  **XAUUSD EXCLUIDO en esa corrida** (falta M15 **localmente el 2026-07-17** — resuelto después).
 - Ventana: datos disponibles ~6 meses (2026-01-18 → 2026-07-16). El H1/M15 se descargó
   esta sesión vía `scripts/download_h1_mtf.py` (MT5 MetaQuotes-Demo, ~6 meses de histórico).
 - Scripts nuevos: `scripts/run_bt_v2_mtf.py`, `scripts/build_m15_structure.py`,
@@ -76,7 +81,8 @@ negativo desaparece por falta de trades. El veredicto R6 (gate no pasa en produc
 mantiene. La brecha real es la MISMA advertida en AGENTS.md:
 
 - **Falta POI anclado (C06 missing)** en el motor.
-- **Falta R5 (datos ≥3–4 años)** — la cuenta MT5 demo solo da ~6 meses. XAUUSD M15 ausente.
+- **Falta R5 (datos ≥3–4 años)** — en 2026-07-17 la demo daba ~6 meses y XAUUSD M15 no estaba usable.
+  **Actualización 2026-07-24:** R5 cerrado en disco (ver `docs/DATA_STATUS.md`).
 
 El filtro multi-TF añade disciplina, no edge. Para declarar "stack ICT intradía sin edge"
 hace falta cerrar la brecha B (POI anclado) y A1 (3 capas reales) sobre datos profundos.
@@ -97,8 +103,8 @@ hace falta cerrar la brecha B (POI anclado) y A1 (3 capas reales) sobre datos pr
 
 ## 7. Pendiente (no resuelto en esta sesión)
 
-- R5: bajar ≥3–4 años M15 (XAUUSD bloqueado por datos demo). Requiere terminal FundedNext real.
-- A12: walk-forward OOS de `no_session`×XAUUSD (bloqueado por R5).
+- ~~R5: bajar ≥3–4 años M15~~ ✅ cerrado 2026-07-24 en disco.
+- A12: walk-forward OOS de `no_session`×XAUUSD (**re-run pendiente**, data ya disponible).
 - C06 POI anclado en motor v2.
 - (Opcional) unir frames M15 en GIF animado.
 
