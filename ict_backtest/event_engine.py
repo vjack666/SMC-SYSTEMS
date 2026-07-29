@@ -263,62 +263,71 @@ def run_semantic(
         LAST_META["gate_reasons"] = gate_reasons
         LAST_META["pre_gate_count"] = len(gate_reasons) + len(filtered)
 
-    # --- Pass 2 (exec TF): detect trigger objects on M5/M1 and match to LTF zones ---
-    # The ICT thesis requires exec TF to independently confirm entry via
-    # SWEEP/FVG/BOS within the LTF zone.  This is the "Two-pass" architecture:
-    #   Pass 1 (above): LTF (M15) detects zones (BOS, FVG, OB, SWEEP)
-    #   Pass 2 (below): exec TF (M5/M1) detects trigger objects within those zones
+    # --- Pass 2 (exec TF): detect trigger objects on M5/M1 and score them
+    # against LTF zones. Scoring replaces old binary filter:
+    #   +1 SWEEP overlap, +1 FVG overlap, +1 BOS overlap after LTF BOS.
+    # signal is never dropped only for missing exec confirmation.
     if exec_df is not None and exec_tf is not None and signals:
         from ict_backtest.data_feed import build_objects as _build_objects
         exec_objs = _build_objects({exec_tf: exec_df})
-        # Build exec objects indexed by bar_index for fast lookup
+        # Pre-index exec objects by bar for overlap checks
         exec_by_bar: dict[int, MarketObject] = {}
+        exec_by_type_dir: dict[tuple[str, int], list[MarketObject]] = {}
         for eo in exec_objs:
             if eo.bar_index is not None:
                 exec_by_bar[int(eo.bar_index)] = eo
+                t = eo.type.value if hasattr(eo.type, "value") else str(eo.type)
+                exec_by_type_dir.setdefault((t, int(eo.direction) or 0), []).append(eo)
 
-        matched_signals: list[dict] = []
         for sig in signals:
             sig_dir = sig["direction"]
             ltf_bos_bar = sig.get("bar_index", 0)
             ltf_zh = sig.get("zone_high", 0)
             ltf_zl = sig.get("zone_low", 0)
             if ltf_zh <= 0 or ltf_zl <= 0:
-                matched_signals.append(sig)
                 continue
 
-            # Find exec SWEEP that overlaps LTF zone and occurs AFTER LTF BOS
-            exec_sweep = None
-            exec_entry_bar = None
-            for eo in exec_objs:
-                if eo.type != ObjectType.SWEEP:
-                    continue
+            # exec objects after LTF BOS window (+50 bars tolerance)
+            _after = [eo for eo in exec_objs
+                      if (int(eo.bar_index) if eo.bar_index is not None else 0) > ltf_bos_bar
+                      and (int(eo.bar_index) if eo.bar_index is not None else 0) <= ltf_bos_bar + 50]
+            score = 0
+            matched_types: list[str] = []
+            exec_sweep_obj = None
+            for eo in _after:
+                t = eo.type.value if hasattr(eo.type, "value") else str(eo.type)
                 if eo.direction != sig_dir:
                     continue
-                eo_bar = int(eo.bar_index) if eo.bar_index is not None else 0
-                if eo_bar <= ltf_bos_bar:
+                if eo.zone_high <= 0 and eo.zone_low <= 0:
                     continue
-                # Price overlap: exec zone must touch LTF zone
                 if eo.zone_high >= ltf_zl and eo.zone_low <= ltf_zh:
-                    exec_sweep = eo
-                    break
+                    if t == "SWEEP":
+                        score += 1
+                        if exec_sweep_obj is None:
+                            exec_sweep_obj = eo
+                        matched_types.append("sweep")
+                    elif t == "FVG":
+                        score += 1
+                        matched_types.append("fvg")
+                    elif t == "BOS":
+                        score += 1
+                        matched_types.append("bos")
 
-            if exec_sweep is not None:
-                # Find exec entry bar: first exec bar after sweep that returns to zone
-                sweep_bar = int(exec_sweep.bar_index)
-                exec_entry_bar = _find_return_bar(
-                    exec_df, ltf_zh, ltf_zl, sweep_bar,
-                )
+            sig["exec_m5_score"] = score
+            sig["exec_m5_matches"] = matched_types
+            if exec_sweep_obj is not None:
+                sweep_bar = int(exec_sweep_obj.bar_index)
+                exec_entry_bar = _find_return_bar(exec_df, ltf_zh, ltf_zl, sweep_bar)
                 sig["exec_sweep_at"] = sweep_bar
-                sig["exec_sweep_high"] = exec_sweep.zone_high
-                sig["exec_sweep_low"] = exec_sweep.zone_low
+                sig["exec_sweep_high"] = exec_sweep_obj.zone_high
+                sig["exec_sweep_low"] = exec_sweep_obj.zone_low
                 sig["exec_entry_at"] = exec_entry_bar if exec_entry_bar is not None else sweep_bar + 1
-                sig["exec_tf"] = exec_tf
-                matched_signals.append(sig)
-            # If no exec SWEEP matches, signal is dropped (no exec confirmation)
+            sig["exec_tf"] = exec_tf
 
-        signals = matched_signals
         LAST_META["exec_objects_count"] = len(exec_objs)
-        LAST_META["exec_matched_count"] = len(signals)
+        score_vals = [s.get("exec_m5_score", 0) for s in signals]
+        LAST_META["exec_score_max"] = max(score_vals) if score_vals else 0
+        LAST_META["exec_score_min"] = min(score_vals) if score_vals else 0
+        LAST_META["exec_signals_with_any"] = sum(1 for v in score_vals if v > 0)
 
     return signals
