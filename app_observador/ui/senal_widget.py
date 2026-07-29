@@ -209,10 +209,11 @@ class SenalWidget(QWidget):
         self._grid_page.hide()  # arranca en fase estocástico
         root.addWidget(self._grid_page, 1)
 
-        # Timer de monitoreo grid (2s) — solo trabaja cuando hay operación abierta
+        # Timer de monitoreo grid (5s) — solo trabaja cuando hay operación abierta.
+        # Subido de 2s para no saturar MT5 (imperceptible para un grid por pips).
         self._tick = QTimer(self)
         self._tick.timeout.connect(self._poll_grid)
-        self._tick.setInterval(2000)
+        self._tick.setInterval(5000)
         self._tick.start()
 
         self._mt5_ready = False

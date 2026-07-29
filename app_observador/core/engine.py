@@ -223,16 +223,21 @@ def run_cycle(force_fetch: bool = False) -> dict:
         result["estructura"][tf] = {
             "trend": info.get("trend", ""),
             "bos_dir": int(info.get("bos_dir", 0)),
+            "bos_signal": str(info.get("bos_signal", "NONE")),
+            "bos_distance_bars": int(info.get("bos_distance_bars", 0) or 0),
             "bos_status": str(info.get("bos_status", "")),
             "bos_level": float(info.get("bos_level", 0.0) or 0.0),
             "sweep_up": bool(info.get("sweep_up", False)),
+            "sweep_up_bars": int(info.get("sweep_up_bars", 0) or 0),
             "sweep_down": bool(info.get("sweep_down", False)),
+            "sweep_down_bars": int(info.get("sweep_down_bars", 0) or 0),
             "ote_long": [float(x) for x in info.get("ote_long", (0.0, 0.0))],
             "ote_short": [float(x) for x in info.get("ote_short", (0.0, 0.0))],
             # datos reales ya calculados por analyze_timeframe (para puntuar modelos ICT)
             "ob_dir": str(info.get("ob_dir", "-") or "-"),
             "fvg_state": str(info.get("fvg_state", "-") or "-"),
             "choch_status": str(info.get("choch_status", "-") or "-"),
+            "range_pips": float(info.get("range_pips", 0.0) or 0.0),
         }
     result["estructura"]["WYCKOFF_M15"] = result["wyckoff"].get("M15", {})
 
