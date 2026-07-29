@@ -70,3 +70,34 @@ Validar **walk-forward real OOS** de la celda ganadora `no_session` × XAUUSD
   o redirigir a archivo (`> log 2>&1`). El `--status` (`check_edge_progress.bat`) es el medidor.
 - Regla dura: NO tocar `signals/pipeline.py`.
 - REGLA #0 de esta tarea: nada de app_observador/ ni UI — cumplido, solo se corrió el harness y se documentó.
+
+---
+
+## Cierre parcial R3.5 — 2026-07-29 (rama `feature/r3.5-ict-gaps`)
+
+> Este bloque registra lo avanzado **post edge-diagnosis** en la misma rama.
+
+### Hecho en esta tanda
+- **PRINCIPIO 5 SIN ATR:** `atr_period` → `range_window`, ATR removido de `detectors/liquidity.py`, `detectors/liquidity_context.py`, `scripts/rutina_eurusd.py`. Ahora usa `avg_candle_range` (high-low).
+- **Scan-back M15:** reemplazo `.iloc[-1]` ciego por `_last_event()` con `lookback` para BOS/sweep en `rutina_eurusd.py`.
+- **Exposición dashboard:** `engine.py` expone `bos_signal`, `bos_distance_bars`, `sweep_up_bars`, `sweep_down_bars`, `range_pips` en `result["estructura"][tf]`.
+- **`context_alignment` ampliado** en `pipeline.py`: suma `htf_gate`, `bos_signal`, `sweep_*_bars`, `range_pips`, `smt_note`, `setup_quality_pct`.
+- **`setup_quality_pct` (0-100):** score combinado POI tier + anchored H4 + BOS distance + sweep opposite + proximity; mostrado en `MarketStateWidget` (`CALIDAD SETUP: X%`).
+- **SMT divergencia:** detector + cable + tests 13/13 PASS (GBPUSD como par correlacionado).
+- **Dead code removido:** `_swing_range_for_row()` eliminado; fix `np.bool_` por `bool` en `_last_event()`.
+
+### Commits
+- `fa21a22` feat(semafaro): wiring BOS/sweep bars + range_pips al dashboard y fix np.bool_/test
+- `cc1adc5` feat(pipeline/setup-quality): agregar setup_quality_pct a context_alignment y test
+- `1c1b065` feat(dashboard/quality): mostrar setup_quality_pct en MarketStateWidget
+
+### Estado tests
+- `test_rutina_eurusd_wiring.py` 10/10 PASS
+- `test_bar_engine.py` 18/18 PASS
+- `test_d1_ote.py`, `test_breaker_block.py`, `test_smt_divergence.py` PASS
+- Total suite: 65/65 PASS
+
+### Pendiente R3.5
+- `two-pass-exec-tf`: solo `sdd/two-pass-exec-tf/proposal.md`, cero código.
+- Documentar en `docs/plan/PRINCIPIOS_ARQUITECTONICOS.md` el cierre PRINCIPIO 5.
+- Actualizar `docs/ict/R3.5_ICT_CANONICAL_GAPS_SDD.md` a estado "Cerrado parcial".

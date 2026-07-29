@@ -160,10 +160,56 @@ toda la arquitectura. Restricción dura del usuario: ningún componente nuevo pu
 ser "un número mágico más inteligente"; toda constante debe justificarse como
 derivable de contexto/MarketObjects/narrativa.
 
+---
+
+## PRINCIPIO 5 — Geometría pura, cero indicadores en análisis de mercado
+
+> Toda lectura, clasificación o ranking del mercado debe usar exclusivamente
+> **geometría del precio + matemática pura**, nunca indicadores técnicos derivados.
+
+Queda **PROHIBIDO** el uso de ATR, medias móviles, RSI, estocástico, bandas de
+Bollinger, o cualquier indicador derivado en **código de análisis estructural**
+(lectura de mercado, detección de estructura, ranking, censo, scoring, bias,
+veredicto, fichas técnicas).
+
+Herramientas permitidas (lista completa y excluyente):
+- **Niveles de precio reales:** swing high/low, BOS level, CHOCH level, sweep
+  level (prior_high/prior_low), FVG zone (high/low), OB zone (top/bottom),
+  PD Array (zone_high/zone_low)
+- **Distancias en pips:** `abs(close - nivel)`, `min(abs(close - zone_high),
+  abs(close - zone_low))`
+- **Ratios geométricos:** distancia / leg_range, porcentaje de retracción
+  (OTE 61.8-78.6%), posición porcentual en el rango PD
+- **Conteos y estados:** edad en velas, estado activo/invalidado, dirección
+- **Operaciones aritméticas puras:** suma, resta, multiplicación, división,
+  comparación, valor absoluto, mínimo, máximo
+
+**Única excepción:** el módulo de **activación de entradas automáticas del bot**
+(trigger de ejecución) puede usar indicadores (estocástico, bollinger, etc.)
+exclusivamente para decidir el momento exacto de la orden de entrada. Nunca para
+leer, clasificar o rankear el mercado.
+
+**Vigencia:** inmediata. Cualquier código nuevo de análisis que introduzca ATR
+o indicadores será rechazado en revisión. Código existente debe migrarse.
+
+**Cumplimiento confirmado 2026-07-29:**
+- ATR removido de `detectors/liquidity.py`, `detectors/liquidity_context.py`,
+  `scripts/rutina_eurusd.py`.
+- Reemplazo: `atr_period` → `range_window`; cálculo puro high-low (`avg_candle_range`).
+- Cobertura: detección OB/FVG, `_last_event()` scan-back, `setup_quality_pct`.
+- Guarda CI: `grep -E atr|ATR|_atr detectors/ scripts/ app_observador/core/pipeline.py`
+  no debe matchear en ruta de análisis estructural.
+
+---
+
 ## PROCESO DE CUMPLIMIENTO
 
 1. Ante un parámetro nuevo/observable, Hermes aplica el Principio 3 (4 preguntas).
 2. Si es arbitrario → propone sustitución por concepto para R10+; documenta.
 3. Si afecta fase congelada (R7) → documenta, NO implementa.
-4. El `grep`-equivalente de "constantes arbitrarias" (estilo test T3.2A) puede
+4. **Guarda anti-indicadores:** antes de cualquier cambio en análisis de mercado,
+   verificar que no introduzca ATR, medias móviles, RSI, estocástico u otros
+   indicadores derivados en el camino de lectura de mercado. Usar `grep` de
+   `atr|ATR|_atr|rsi|RSI|ema|EMA|sma|SMA|stoch|bollinger` como gate.
+5. El `grep`-equivalente de "constantes arbitrarias" (estilo test T3.2A) puede
    usarse como guarda arquitectónico en R10+.
