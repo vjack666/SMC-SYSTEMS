@@ -50,3 +50,5 @@ scripts/_verify_imports.py
 
 # Graphify map (generado localmente, vive fuera del repo)
 graphify-out/
+data/*.parquet
+*.parquet
