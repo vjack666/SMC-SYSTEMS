@@ -13,6 +13,7 @@ caja negra. Cada paso queda registrado en blackbox para análisis de errores.
 from __future__ import annotations
 
 import importlib
+import gc
 import json
 import os
 import sys
@@ -35,6 +36,10 @@ _SCRIPTS = ROOT / "scripts"
 # canónico es enriquecimiento best-effort; si no llega dentro de este tiempo,
 # canonical queda 'EN CONSTRUCCIÓN' (honesto) y el cache YA está escrito.
 CANONICAL_TIMEOUT_S = 12
+
+# Executor persistente para canonical plan (NO se crea/destruye por ciclo).
+# Evita leak de threads (shutdown con wait=False dejaba pools huérfanos).
+_CANONICAL_POOL: ThreadPoolExecutor | None = None
 
 
 def _write_cache_atomic(result: dict) -> None:
@@ -62,19 +67,19 @@ def _canonical_plan_bounded(symbol: str, timeout_s: float) -> tuple:
     _canonical_plan NO se modifica: mantiene el import de ict_backtest adentro,
     preservando la separación backtest≠dashboard.
     """
-    ex = ThreadPoolExecutor(max_workers=1)
-    fut = ex.submit(_canonical_plan, symbol)
+    global _CANONICAL_POOL
+    if _CANONICAL_POOL is None:
+        _CANONICAL_POOL = ThreadPoolExecutor(max_workers=1)
+    fut = _CANONICAL_POOL.submit(_canonical_plan, symbol)
     try:
         return ("OK", fut.result(timeout=timeout_s))
     except FutureTimeoutError:
         return ("TIMEOUT", None)
     except Exception as e:  # noqa: BLE001
         return ("ERROR", e)
-    finally:
-        # No esperar al thread: si _canonical_plan se colgó en I/O nativo,
-        # queda huérfano pero run_cycle ya retorna con el cache escrito.
-        # (No usamos `with` porque su __exit__ hace shutdown(wait=True).)
-        ex.shutdown(wait=False)
+    # NOTA: No hacemos shutdown(). El executor es persistente y se reusa
+    # entre ciclos. Si timeout, el thread queda huérfano pero es 1 thread
+    # que el SO recolecta cuando termine su I/O.
 
 
 def _import_script(name: str) -> ModuleType:
@@ -135,6 +140,14 @@ def run_cycle(force_fetch: bool = False) -> dict:
         tfs_data["D1"][1], tfs_data["H4"][1],
         tfs_data["H1"][1], tfs_data["M15"][1],
     )
+
+    # Cachear DataFrames+infos para reuso (canonical plan, mapas on-demand)
+    try:
+        from app_observador.core.data_cache import store_tfs_data
+        store_tfs_data(SYMBOL, tfs_data)
+    except Exception:
+        pass
+
     # ========================================================================
     # §5D TWO-PASS: separar el veredicto CORE (rápido) del ENRIQUECIMIENTO (lento).
     # PASS 1 (core): pipeline SIN M5/SMT → veredicto honesto (trigger PENDING si
@@ -233,10 +246,15 @@ def run_cycle(force_fetch: bool = False) -> dict:
     # --- PASS 2: ENRIQUECIMIENTO (M5 + SMT, best-effort) --------------------
     # FASE M5 TWOPASS: cargar M5 APARTE (no toca TIMEFRAMES ni la estructura UI).
     # Si no hay M5 -> m5=None -> trigger_engine PENDING honesto (sin inventar).
+    # NOTA: el resultado se cachea para evitar el loop scalping duplicado abajo.
+    from app_observador.core.data_cache import store_analyzed as _cache_info
     m5_info = None
+    _m5_loaded = False
     try:
         df_m5 = rut._load(SYMBOL, "M5")
         m5_info = rut.analyze_timeframe(df_m5, "M5")
+        _cache_info(SYMBOL, "M5", m5_info)
+        _m5_loaded = True
     except Exception as e:
         log_error("engine", "m5_fallo_twopass", e, symbol=SYMBOL, tf="M5")
         result["errores"].append(f"M5: {e}")
@@ -283,10 +301,31 @@ def run_cycle(force_fetch: bool = False) -> dict:
     # 1c) TFs de scalping (M1/M5) — OPCIONALES: no abortan si faltan.
     #     Solo EURUSD tiene esos parquet en data/raw; para otros simbolos el
     #     check de scalping quedara en "sin datos M1/M5".
+    #     M5 se salta si ya se cargó en PASS 2 (evita analyze_timeframe duplicado).
     for tf in TIMEFRAMES_SCALPING:
+        if tf == "M5" and _m5_loaded and m5_info is not None:
+            result["estructura"][tf] = {
+                "trend": m5_info.get("trend", ""),
+                "bos_dir": int(m5_info.get("bos_dir", 0)),
+                "bos_status": str(m5_info.get("bos_status", "")),
+                "bos_level": float(m5_info.get("bos_level", 0.0) or 0.0),
+                "sweep_up": bool(m5_info.get("sweep_up", False)),
+                "sweep_down": bool(m5_info.get("sweep_down", False)),
+                "ote_long": [float(x) for x in m5_info.get("ote_long", (0.0, 0.0))],
+                "ote_short": [float(x) for x in m5_info.get("ote_short", (0.0, 0.0))],
+                "ob_dir": str(m5_info.get("ob_dir", "-") or "-"),
+                "fvg_state": str(m5_info.get("fvg_state", "-") or "-"),
+                "choch_status": str(m5_info.get("choch_status", "-") or "-"),
+            }
+            continue
         try:
             df = rut._load(SYMBOL, tf)
             info = rut.analyze_timeframe(df, tf)
+            # Cachear info para reuso
+            try:
+                _cache_info(SYMBOL, tf, info)
+            except Exception:
+                pass
             result["estructura"][tf] = {
                 "trend": info.get("trend", ""),
                 "bos_dir": int(info.get("bos_dir", 0)),
@@ -334,18 +373,12 @@ def run_cycle(force_fetch: bool = False) -> dict:
         log_error("engine", "semaforo_fallo", e, symbol=SYMBOL)
         result["errores"].append(f"semaforo: {e}")
 
-    # 4) Regenerar mapas ICT (usando los df/info reales de los 3 TF de contexto)
-    try:
-        MAPS_DIR.mkdir(parents=True, exist_ok=True)
-        for tf in TIMEFRAMES_MAPA:
-            df, info = tfs_data[tf]
-            path = mapa.save_tf_png(SYMBOL, tf, df, info, MAPS_DIR)
-            result["mapas"][tf] = str(path)
-        log_event("engine", "mapas_generados", symbol=SYMBOL,
-                  data={"paths": result["mapas"]})
-    except Exception as e:
-        log_error("engine", "mapas_fallo", e, symbol=SYMBOL)
-        result["errores"].append(f"mapas: {e}")
+    # 4) Mapas ICT — ya NO se regeneran automáticamente en cada ciclo.
+    #     Se generan SOLO bajo demanda (botón "Regenerar mapa" en la pestaña Mapa).
+    #     Los paths a PNGs existentes se resuelven al vuelo en mapa_widget.
+    result["mapas"] = {tf: str(MAPS_DIR / f"{SYMBOL}_{tf}.png") for tf in TIMEFRAMES_MAPA}
+    log_event("engine", "mapas_skip_auto", symbol=SYMBOL,
+              data={"note": "maps deferred to on-demand"})
 
     # 5) Fase Wyckoff M15 real
     try:
@@ -415,6 +448,10 @@ def run_cycle(force_fetch: bool = False) -> dict:
         result["errores"].append(f"canonical: {payload}")
         log_error("engine", "canonical_plan_fallo", payload, symbol=SYMBOL)
 
+    # Liberar memoria cíclica cada ciclo. Los DataFrames viejos que ya no
+    # referencia nadie se recolectan, evitando que RAM crezca indefinidamente.
+    gc.collect()
+
     if not result["errores"]:
         log_event("engine", "ciclo_completo", level="INFO", symbol=SYMBOL,
                   data={"color": result["semaforo"]["color"], "bias": bias})
@@ -422,27 +459,74 @@ def run_cycle(force_fetch: bool = False) -> dict:
 
 
 def _canonical_plan(symbol: str) -> dict | None:
-    """R7: last sequence signal H4→M15 (or D1→H4 fallback) as live plan."""
+    """R7: last sequence signal H4→M15 (or D1→H4 fallback) as live plan.
+
+    Primero intenta usar los DataFrames cacheados por run_cycle (evita recargar
+    parquets de disco). Si no hay cache, cae a load_frames tradicional.
+    """
     from ict_backtest.canonical import latest_plan
     from ict_backtest.data_feed import load_frames
+
+    def _cap(df, max_rows=2500):
+        """Cap rows to keep latency bounded."""
+        if len(df) > max_rows:
+            return df.iloc[-max_rows:].reset_index(drop=True)
+        return df.reset_index(drop=True)
 
     # Prefer H4→M15 (intraday exec). Fall back to D1→H4 if M15 missing.
     for htf, ltf in (("H4", "M15"), ("D1", "H4")):
         try:
-            frames = load_frames(symbol, tuple(dict.fromkeys([htf, ltf, "D1"])))
-            # Cap bars for latency: keep last ~2k LTF rows
-            capped = {}
-            for tf, df in frames.items():
-                if len(df) > 2500:
-                    capped[tf] = df.iloc[-2500:].reset_index(drop=True)
-                else:
-                    capped[tf] = df.reset_index(drop=True)
+            # Intentar usar cache primero
+            from app_observador.core.data_cache import get_tfs_entry
+            _df_htf = get_tfs_entry(symbol, htf)
+            _df_ltf = get_tfs_entry(symbol, ltf)
+            _df_d1 = get_tfs_entry(symbol, "D1")
+            if _df_htf is not None and _df_ltf is not None:
+                frames = {
+                    htf: _cap(_df_htf[0]),
+                    ltf: _cap(_df_ltf[0]),
+                    "D1": _cap(_df_d1[0]) if _df_d1 is not None else load_frames(symbol, ("D1",))["D1"],
+                }
+                plan = latest_plan(symbol, htf=htf, ltf=ltf, frames=frames, max_age_bars=64)
+                if plan:
+                    return plan
+                continue  # cache no tenía plan activo -> probar fallback
+            # Cache miss → cargar desde disco
+            frames = load_frames(symbol, (htf, ltf, "D1"))
+            capped = {tf: _cap(df) for tf, df in frames.items()}
             plan = latest_plan(symbol, htf=htf, ltf=ltf, frames=capped, max_age_bars=64)
             if plan:
                 return plan
         except Exception:
             continue
     return None
+
+
+def regenerate_maps(result: dict | None = None) -> dict[str, str]:
+    """Regenera los 4 PNGs (D1/H4/H1/M15) bajo demanda.
+
+    Devuelve dict {tf: path_str}. Usa el último result del ciclo para
+    los DataFrames cacheados. Si no hay data disponible, devuelve paths vacíos.
+    """
+    MAPS_DIR.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, str] = {}
+    try:
+        from app_observador.core.data_cache import get_tfs_data
+        tfs_data = get_tfs_data()
+        if not tfs_data:
+            log_error("engine", "mapas_sin_cache", Exception("no cached data"), symbol=SYMBOL)
+            return {tf: "" for tf in TIMEFRAMES_MAPA}
+        mapa = _import_script("mapa_precio")
+        for tf in TIMEFRAMES_MAPA:
+            if tf not in tfs_data:
+                continue
+            df, info = tfs_data[tf]
+            path = mapa.save_tf_png(SYMBOL, tf, df, info, MAPS_DIR)
+            paths[tf] = str(path)
+        log_event("engine", "mapas_generados_manual", symbol=SYMBOL, data={"paths": paths})
+    except Exception as e:
+        log_error("engine", "mapas_manual_fallo", e, symbol=SYMBOL)
+    return paths
 
 
 def load_cached() -> dict | None:

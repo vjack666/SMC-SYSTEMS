@@ -22,18 +22,43 @@ _COLOR_BG = {
 }
 
 
+def _tail_lines(path: Path, n: int = 500) -> list[str]:
+    """Lee las últimas N líneas de un archivo grande sin cargarlo completo.
+
+    Lee desde el final en bloques de 4 KB. Devuelve hasta n líneas (no vacías).
+    """
+    try:
+        with open(path, "rb") as f:
+            total = f.seek(0, 2)  # seek to end
+            if total == 0:
+                return []
+            buf: list[bytes] = []
+            pos = total
+            remaining = n * 2  # safety margin: read more if needed
+            block_size = 4096
+            while pos > 0 and remaining > 0:
+                read_size = min(block_size, pos)
+                pos -= read_size
+                f.seek(pos)
+                block = f.read(read_size)
+                buf.append(block)
+                remaining -= block.count(b"\n")
+            data = b"".join(reversed(buf)).decode("utf-8", errors="replace")
+        lines = [l.strip() for l in data.splitlines() if l.strip()]
+        return lines[-n:]
+    except Exception:
+        return []
+
+
 def _ciclos_hoy() -> list[dict]:
-    """Lee eventos ciclo_completo de hoy desde la caja negra."""
+    """Lee eventos ciclo_completo de hoy desde la caja negra (solo cola del log)."""
     out: list[dict] = []
     log = BLACKBOX_DIR / "app.log"
     if not log.exists():
         return out
     hoy = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     try:
-        for ln in log.read_text(encoding="utf-8").splitlines():
-            ln = ln.strip()
-            if not ln:
-                continue
+        for ln in _tail_lines(log, n=500):
             o = json.loads(ln)
             if o.get("event") != "ciclo_completo":
                 continue

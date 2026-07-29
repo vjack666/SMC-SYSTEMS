@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox, QPushButton, QHBoxLayout
 
 from app_observador.config import MAPS_DIR, SYMBOL, TIMEFRAMES
 
@@ -23,10 +23,17 @@ class MapaWidget(QWidget):
         self.title.setStyleSheet("color: #aaa; font-weight: bold;")
         layout.addWidget(self.title)
 
+        top_row = QHBoxLayout()
         self.selector = QComboBox()
         self.selector.addItems(TIMEFRAMES)
         self.selector.currentTextChanged.connect(self._on_select)
-        layout.addWidget(self.selector)
+        top_row.addWidget(self.selector, 1)
+        self.btn_regenerate = QPushButton("🔄 Regenerar")
+        self.btn_regenerate.setFixedWidth(110)
+        self.btn_regenerate.setStyleSheet("background-color: #2a5a2a; color: #fff;")
+        self.btn_regenerate.clicked.connect(self._on_regenerate)
+        top_row.addWidget(self.btn_regenerate)
+        layout.addLayout(top_row)
 
         self.img = QLabel("Cargando mapa...")
         self.img.setAlignment(Qt.AlignCenter)
@@ -43,6 +50,26 @@ class MapaWidget(QWidget):
 
     def _path(self, tf: str) -> Path:
         return MAPS_DIR / f"{SYMBOL}_{tf}.png"
+
+    def _on_regenerate(self) -> None:
+        """Regenera los 4 PNGs bajo demanda y refresca el mapa actual."""
+        self.img.setText("Generando mapa...")
+        self.img.setPixmap(QPixmap())
+        QTimer.singleShot(10, self._do_regenerate)
+
+    def _do_regenerate(self) -> None:
+        try:
+            from app_observador.core.engine import regenerate_maps
+            paths = regenerate_maps()
+            if paths.get(self._tf):
+                # Invalidar caché local
+                self._last_mtime.pop(self._tf, None)
+                self._pix_cache.pop(self._tf, None)
+                self._show(self._tf)
+            else:
+                self.img.setText(f"Error generando mapa {self._tf}")
+        except Exception as e:
+            self.img.setText(f"Error: {e}")
 
     def _on_select(self, tf: str) -> None:
         self._tf = tf

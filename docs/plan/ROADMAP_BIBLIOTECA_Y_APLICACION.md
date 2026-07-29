@@ -5,6 +5,7 @@
 **No sustituye** `CRONOGRAMA_Y_ROADMAP.md` (hitos A6/A12/R7). Este doc es el plan de **calidad documental + cableado PO3/modelos**.  \
 **Actualización 2026-07-24:** **R5 datos CERRADO** (XAUUSD/EURUSD M15 ≥4.5 años en disco). A12 desbloqueado por data. Inventario: `docs/DATA_STATUS.md`.  
 **Actualización 2026-07-23 (2):** (a) **PO3 fork a IMPLEMENTADO** — `--model` AHORA llega al motor: `model="po3"` filtra a señales con `po3_complete is True` (no alias/engañoso); `model="scalping"` → exec_tf=M5; `model="intradia"` sin filtro (regresión cero). Ver `ict_backtest/canonical.py::filter_signals_by_model` + `tests/test_model_po3_wiring.py` (4 unitarios + 8 regresión verdes). (b) **Lab Geometría D3 CERRADO + cos_mean corregido** — era artefacto de aspect-ratio en `run_experiment.py` (medía coseno sobre path anisótropo); ahora `unit_path` dt=1 alinea con `mean_abs_turn` y `cos_mean` es coherente (XAUUSD 0.30, EURUSD/GBPUSD ~1.0). 11 tests verdes. (c) Re-baseline PF 1.155 (258 trades) confirmado; auditoría PO3 ya no es "flag muerto" sino "cableado".
+> **Actualización 2026-07-28 — Dashboard performance optimization:** 7 cuellos de botella identificados y corregidos en `app_observador/`: (1) mapas matplotlib on-demand (botón "🔄 Regenerar"), (2) M5 no se carga 2 veces, (3) `_canonical_plan` usa data_cache, (4) ThreadPoolExecutor persistente (sin leak por ciclo), (5) `crono_widget` lee tail del log, (6) `gc.collect()` periódico, (7) nuevo módulo `data_cache.py`. Fluidez de UI recuperada al cambiar pestañas.
 
 > **NOTA DE CONTRATO (2026-07-17):** la biblioteca ICT de este doc se convertirá en
 > el **contrato formal de la tesis** en `docs/ict/SPEC_TESIS_FORMAL.md` (Fase 0 del
@@ -286,7 +287,7 @@ MT5: `C:\Program Files\FundedNext MT5 Terminal\terminal64.exe`.
 ### R7 — Observador óptimo (sin bot)
 
 - [ ] Panel: fases A/M/D visuales en mapa o checklist
-- [ ] Diario: ficha “réplica del ciclo” del día
+- [x] Diario: ficha “réplica del ciclo” del día — **IMPLEMENTADO 2026-07-27** como pestaña `Noticias` rediseñada ("Diario ICT"): informe en 3 columnas tipo periódico (masthead + dateline + section rules + bylines) desde datos reales de `engine.run_cycle`, acrónimos ICT marcados + glosario, LLM opcional async, cache por franja. Módulo: `app_observador/core/news_ai.py` + `app_observador/ui/noticias_widget.py`. 24 tests GREEN.
 - [ ] Shadow mode: log “hubiera entrado PO3” sin orden
 - [ ] **No** reactivar loop 24/7 en máquinas que lo desactiven (`start_local.ps1`)
 
