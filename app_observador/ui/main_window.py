@@ -49,6 +49,7 @@ from app_observador.ui.plan_strip_widget import PlanStripWidget
 from app_observador.ui.scanner_widget import ScannerWidget
 from app_observador.ui.chat_widget import ChatWidget
 from app_observador.ui.contexto_multiactivo_widget import ContextoMultiactivoWidget
+from app_observador.ui.contexto_multiactivo_widget import _SYMBOLS
 from app_observador.ui.theme import app_stylesheet, btn_primary, btn_danger, btn_ghost
 
 # Canal de envío de alertas (popup/beep) eliminado: se empieza de 0.
@@ -58,18 +59,19 @@ from app_observador.ui.theme import app_stylesheet, btn_primary, btn_danger, btn
 class _Worker(QThread):
     finished = Signal(dict)
 
-    def __init__(self, force_fetch: bool = False) -> None:
+    def __init__(self, force_fetch: bool = False, symbol: str | None = None) -> None:
         super().__init__()
         self._force = force_fetch
+        self._symbol = symbol
 
     def run(self) -> None:
         try:
             from app_observador.core import engine
-            result = engine.run_cycle(force_fetch=self._force)
+            result = engine.run_cycle(force_fetch=self._force, symbol=self._symbol)
             self.finished.emit(result)
         except Exception as e:
             log_error("main_window", "worker_crash", e)
-            self.finished.emit({"errores": [f"worker: {e}"]})
+            self.finished.emit({"errores": [f"worker: {e}"], "symbol": self._symbol})
 
 
 def _make_tray_icon() -> QIcon:
@@ -103,16 +105,6 @@ class MainWindow(QMainWindow):
         self.scanner = ScannerWidget()
         self.chat = ChatWidget()
         self.contexto_multiactivo = ContextoMultiactivoWidget()
-        self.contexto_multiactivo.update_state({
-            "symbol": SYMBOL,
-            "bias": "Bullish",
-            "bias_razon": "Stub: esperando motor para llenar sesgo real.",
-            "estructura": "Stub: esperando motor.",
-            "zonas": "Stub: esperando motor.",
-            "ejecucion": "Stub: esperando motor.",
-            "sesion": "Stub: esperando motor.",
-            "recomendacion": "En construcción: falta motor, esperar ciclo.",
-        })
         self.chat.set_scanner_provider(self.scanner.last_report_text)
         self.chat.set_context_provider(self._chat_app_context)
         self.scanner.cycle_refreshed.connect(self._on_scanner_cycle)
@@ -144,7 +136,31 @@ class MainWindow(QMainWindow):
         # Primer ciclo real (en background, refresca cache + mapas)
         self._run_cycle()
 
-        # Loop observador siempre ON por defecto (además del ensure del panel ESTADO)
+        # Preload Contexto multiactivo: mostrar progreso y lanzar pares restantes
+        # en background inmediatamente despues del primer ciclo principal.
+        try:
+            self.contexto_multiactivo.update_state(
+                _build_contexto_state(
+                    self._last_result or {
+                        "symbol": SYMBOL,
+                        "bias": "NEUTRAL",
+                        "veredicto": {},
+                        "estructura": {},
+                        "wyckoff": {},
+                    },
+                    force_symbol=SYMBOL,
+                )
+            )
+            self.contexto_multiactivo.set_preload_progress(1, len(_SYMBOLS), SYMBOL)
+            self.contexto_multiactivo.mark_loading(SYMBOL, False)
+            rest = [s for s in _SYMBOLS if s != SYMBOL]
+            if rest:
+                self._contexto_queue = rest[:]
+                QTimer.singleShot(0, self._contexto_next)
+        except Exception as e:
+            log_error("main_window", "preload_contexto_init", e)
+
+        # Loop observador siempre ON por defecto
         try:
             from app_observador.core.process_control import ensure_loop_running
 
@@ -251,6 +267,7 @@ class MainWindow(QMainWindow):
         tabs.insertTab(2, _full_tab(self.autopilot), "Auto")
 
         tabs.addTab(_full_tab(self.lab), "Lab Setup")
+        tabs.addTab(_full_tab(self.contexto_multiactivo), "Contexto")
         tabs.addTab(_full_tab(self.noticias), "Noticias")
         tabs.addTab(_full_tab(self.scanner), "Escáner")
         tabs.addTab(_full_tab(self.chat), "Chat")
@@ -322,12 +339,12 @@ class MainWindow(QMainWindow):
                 2500,
             )
 
-    def _run_cycle(self, force_fetch: bool = False) -> None:
+    def _run_cycle(self, force_fetch: bool = False, *, symbol: str | None = None) -> None:
         self.btn.setEnabled(False)
         self.btn.setText("Analizando…")
         self.lbl_updated.setText("Analizando… (puede tardar ~30–60s con sequence)")
         self.subtitle.setText("Motor sequence · calculando plan canónico…")
-        self._worker = _Worker(force_fetch=force_fetch)
+        self._worker = _Worker(force_fetch=force_fetch, symbol=symbol)
         self._worker.finished.connect(self._on_result)
         self._worker.start()
 
@@ -382,6 +399,10 @@ class MainWindow(QMainWindow):
             if "Lab Setup" in self._dirty_tabs:
                 self.lab.update_state(result)
                 self._dirty_tabs.discard("Lab Setup")
+        elif name == "Contexto":
+            if "Contexto" in self._dirty_tabs:
+                self.contexto_multiactivo.update_state(self._build_contexto_state(result))
+                self._dirty_tabs.discard("Contexto")
         elif name == "Noticias":
             if "Noticias" in self._dirty_tabs:
                 # Diario ICT: usa el result completo (estructura/bias/veredicto/
@@ -414,7 +435,6 @@ class MainWindow(QMainWindow):
         # Levels for LIMIT button without full Lab HTML rebuild if possible
         try:
             from app_observador.core.position_sizer_bridge import extract_levels
-
             levels = extract_levels(result)
             self.btn_ps.setEnabled(levels is not None)
         except Exception:
@@ -426,6 +446,84 @@ class MainWindow(QMainWindow):
                 self.btn_ps.setEnabled(levels_ok)
             except Exception:
                 pass
+
+    def _build_contexto_state(self, result: dict) -> dict:
+        """Build state dict for ContextoMultiactivoWidget from engine result."""
+        symbol = result.get("symbol") or result.get("SYMBOL") or "EURUSD"
+        estruct = result.get("estructura") or {}
+        m15 = estruct.get("M15") or {}
+        h4 = estruct.get("H4") or {}
+        d1 = estruct.get("D1") or {}
+        wyk = result.get("wyckoff") or {}
+        wyk_m15 = wyk.get("M15") or {}
+
+        bias = str(result.get("bias", "") or "NEUTRAL")
+        bias_razon = "Alineación macro + intraday del motor." if bias not in ("NEUTRAL", "") else "Sin sesgo claro todavía."
+
+        bos_dir = int(m15.get("bos_dir") or 0)
+        choch_dir = int(m15.get("choch_dir") or 0)
+        if bos_dir == 1 and choch_dir == 1:
+            estructura_txt = "BOS alcista + CHOCH confirmado en M15."
+        elif bos_dir == -1 and choch_dir == -1:
+            estructura_txt = "BOS bajista + CHOCH confirmado en M15."
+        elif bos_dir != 0:
+            estructura_txt = f"BOS {'alcista' if bos_dir==1 else 'bajista'} en M15; CHOCH pendiente."
+        elif h4.get("bos_dir"):
+            estructura_txt = f"H4 muestra BOS {'alcista' if h4['bos_dir']==1 else 'bajista'}; M15 sin ruptura aún."
+        else:
+            estructura_txt = "Sin BOS/CHOCH claros todavía. Esperar ruptura o sweep."
+
+        zonas = []
+        if m15.get("fvg_state") and m15["fvg_state"] not in ("-", ""):
+            zonas.append(f"FVG {m15.get('fvg_type','')} activo")
+        if m15.get("ob_active"):
+            zonas.append(f"OB {'comprador' if m15.get('ob_dir')=='LONG' else 'vendedor'} intacto")
+        if not zonas:
+            zonas.append("Sin zonas activas claras ahora")
+        zonas_txt = "; ".join(zonas)
+
+        ejec_tf = "M15"
+        ejec_senal = "Sweep + retorno a OB / FVG respetado."
+        if not m15.get("bos_dir"):
+            ejec_tf = "H4 → M15"
+            ejec_senal = "Primero buscar sweep/barrido; luego confirmar CHOCH."
+        ejecucion_txt = f"Timeframe de ejecución: {ejec_tf}. Señal válida = {ejec_senal}"
+
+        sesion_txt = "Killzone Londres + NY."
+        sesion_parts = []
+        try:
+            from app_observador.core.timezone import killzone_activa_ahora
+            if killzone_activa_ahora():
+                sesion_parts.append("killzone activa ahora")
+            else:
+                sesion_parts.append("killzone fuera ahora")
+        except Exception:
+            sesion_parts.append("zona de sesión disponible")
+        sesion_txt = "Killzone " + ", ".join(sesion_parts) + ". Operar con volumen cuando hay liquidez."
+
+        recomendacion = "En construcción: "
+        recomendacion += ", ".join([
+            x for x in [
+                "sweep limpio en M15" if not m15.get("sweep_up") and not m15.get("sweep_down") else "",
+                "CHOCH" if not choch_dir else "",
+                "POI anclado a narrativa HTF" if not str(result.get("veredicto") or {}).__contains__("anchored") else "",
+            ] if x
+        ])
+        if recomendacion == "En construcción: ":
+            recomendacion = "Checklist verde: sesgo definido, estructura clara, zonas y confirmación M5 listas."
+        else:
+            recomendacion += " — esperar confirmación antes de entrar."
+
+        return {
+            "symbol": str(symbol),
+            "bias": bias,
+            "bias_razon": bias_razon,
+            "estructura": estructura_txt,
+            "zonas": zonas_txt,
+            "ejecucion": ejecucion_txt,
+            "sesion": sesion_txt,
+            "recomendacion": recomendacion,
+        }
 
     def _apply_result(self, result: dict, alert: bool = True) -> None:
         self._last_result = result
@@ -450,6 +548,7 @@ class MainWindow(QMainWindow):
             "Principal",
             "Señal",
             "Lab Setup",
+            "Contexto",
             "Noticias",
             "Escáner",
             "Mapa ICT",
@@ -499,6 +598,7 @@ class MainWindow(QMainWindow):
         self.btn.setEnabled(True)
         self.btn.setText("Actualizar")
         self._apply_result(result, alert=True)
+        self._contexto_maybe_update(result)
 
     def _on_scanner_cycle(self, result: dict) -> None:
         """When Escáner runs a fresh cycle, keep the rest of the UI in sync."""
@@ -515,6 +615,130 @@ class MainWindow(QMainWindow):
             card = ""
         return build_chat_context(self._last_result, scanner_text=card or None)
 
+
+    def preload_contexto(self, symbols: list[str]) -> None:
+        if getattr(self, "_contexto_preloading", False):
+            return
+        self._contexto_preloading = True
+        self._contexto_queue = list(symbols)
+        self._contexto_next()
+
+    def _contexto_next(self) -> None:
+        if not getattr(self, "_contexto_queue", []):
+            self._contexto_preloading = False
+            return
+        sym = self._contexto_queue.pop(0)
+        try:
+            w = self.contexto_multiactivo
+            w.set_preload_progress(
+                len(w._cache),
+                len(getattr(w, "_SYMBOLS", _SYMBOLS)),
+                sym,
+            )
+            w.mark_loading(sym, True)
+        except Exception:
+            pass
+        worker = _Worker(force_fetch=False, symbol=sym)
+        worker.finished.connect(self._on_contexto_preload)
+        worker.start()
+
+    def _on_contexto_preload(self, result: dict) -> None:
+        try:
+            self.contexto_multiactivo.update_state(
+                _build_contexto_state(result, force_symbol=result.get("symbol")),
+            )
+        except Exception:
+            pass
+        self._contexto_next()
+
+    def _contexto_maybe_update(self, result: dict) -> None:
+        try:
+            sym = result.get("symbol")
+            if sym in _SYMBOLS:
+                self.contexto_multiactivo.update_state(
+                    _build_contexto_state(result, force_symbol=sym),
+                )
+        except Exception:
+            pass
+
+def _build_contexto_state(result: dict, *, force_symbol: str | None = None) -> dict:
+    """Build state dict for ContextoMultiactivoWidget from engine result."""
+    symbol = force_symbol or result.get("symbol") or result.get("SYMBOL") or "EURUSD"
+    estruct = result.get("estructura") or {}
+    m15 = estruct.get("M15") or {}
+    h4 = estruct.get("H4") or {}
+    wyk = result.get("wyckoff") or {}
+    wyk_m15 = wyk.get("M15") or {}
+
+    bias = str(result.get("bias", "") or "NEUTRAL")
+    bias_razon = "Alineación macro + intraday del motor." if bias not in ("NEUTRAL", "") else "Sin sesgo claro todavía."
+
+    bos_dir = int(m15.get("bos_dir") or 0)
+    choch_dir = int(m15.get("choch_dir") or 0)
+    if bos_dir == 1 and choch_dir == 1:
+        estructura_txt = "BOS alcista + CHOCH confirmado en M15."
+    elif bos_dir == -1 and choch_dir == -1:
+        estructura_txt = "BOS bajista + CHOCH confirmado en M15."
+    elif bos_dir != 0:
+        estructura_txt = f"BOS {'alcista' if bos_dir==1 else 'bajista'} en M15; CHOCH pendiente."
+    elif h4.get("bos_dir"):
+        estructura_txt = f"H4 muestra BOS {'alcista' if h4['bos_dir']==1 else 'bajista'}; M15 sin ruptura aún."
+    else:
+        estructura_txt = "Sin BOS/CHOCH claros todavía. Esperar ruptura o sweep."
+
+    zonas = []
+    if m15.get("fvg_state") and m15["fvg_state"] not in ("-", ""):
+        zonas.append(f"FVG {m15.get('fvg_type','')} activo")
+    if m15.get("ob_active"):
+        zonas.append(f"OB {'comprador' if m15.get('ob_dir')=='LONG' else 'vendedor'} intacto")
+    if not zonas:
+        zonas.append("Sin zonas activas claras ahora")
+    zonas_txt = "; ".join(zonas)
+
+    ejec_tf = "M15"
+    ejec_senal = "Sweep + retorno a OB / FVG respetado."
+    if not m15.get("bos_dir"):
+        ejec_tf = "H4 → M15"
+        ejec_senal = "Primero buscar sweep/barrido; luego confirmar CHOCH."
+    ejecucion_txt = f"Timeframe de ejecución: {ejec_tf}. Señal válida = {ejec_senal}"
+
+    sesion_txt = "Killzone Londres + NY."
+    sesion_parts = []
+    try:
+        from app_observador.core.timezone import killzone_activa_ahora
+        if killzone_activa_ahora():
+            sesion_parts.append("killzone activa ahora")
+        else:
+            sesion_parts.append("killzone fuera ahora")
+    except Exception:
+        sesion_parts.append("zona de sesión disponible")
+    sesion_txt = "Killzone " + ", ".join(sesion_parts) + ". Operar con volumen cuando hay liquidez."
+
+    recomendacion = "En construcción: "
+    recomendacion += ", ".join(
+        [
+            x for x in [
+                "sweep limpio en M15" if not m15.get("sweep_up") and not m15.get("sweep_down") else "",
+                "CHOCH" if not choch_dir else "",
+                "POI anclado a narrativa HTF" if not str(result.get("veredicto") or {}).__contains__("anchored") else "",
+            ] if x
+        ]
+    )
+    if recomendacion == "En construcción: ":
+        recomendacion = "Checklist verde: sesgo definido, estructura clara, zonas y confirmación M5 listas."
+    else:
+        recomendacion += " — esperar confirmación antes de entrar."
+
+    return {
+        "symbol": str(symbol),
+        "bias": bias,
+        "bias_razon": bias_razon,
+        "estructura": estructura_txt,
+        "zonas": zonas_txt,
+        "ejecucion": ejecucion_txt,
+        "sesion": sesion_txt,
+        "recomendacion": recomendacion,
+    }
 
 def main() -> int:
     from scripts._single_instance import SingleInstanceUi

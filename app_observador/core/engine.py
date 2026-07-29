@@ -106,12 +106,12 @@ def _import_script(name: str) -> ModuleType:
     return importlib.import_module(name)
 
 
-def run_cycle(force_fetch: bool = False) -> dict:
+def run_cycle(force_fetch: bool = False, symbol: str | None = None) -> dict:
     """Corre un ciclo de análisis completo y devuelve el estado para la UI.
 
-    Devuelve un dict con: semaforo (color, reasons), bias, veredicto,
-    noticias, mapas (paths), fases_wyckoff, errores.
+    symbol: si se pasa, usa ese activo; si no, usa config.SYMBOL.
     """
+    target = symbol or SYMBOL
     result: dict = {
         "semaforo": {"color": "DESCCONOCIDO", "reasons": []},
         "bias": "SIN DATOS",
@@ -122,6 +122,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
         "wyckoff": {},
         "estructura": {},
         "errores": [],
+        "symbol": target,
     }
 
     try:
@@ -140,13 +141,13 @@ def run_cycle(force_fetch: bool = False) -> dict:
     tfs_data: dict[str, tuple] = {}
     for tf in TIMEFRAMES:
         try:
-            df = rut._load(SYMBOL, tf)
+            df = rut._load(target, tf)
             info = rut.analyze_timeframe(df, tf)
             tfs_data[tf] = (df, info)
-            log_event("engine", "tf_analizado", symbol=SYMBOL, tf=tf,
+            log_event("engine", "tf_analizado", symbol=target, tf=tf,
                       data={"trend": info.get("trend"), "bos_dir": info.get("bos_dir")})
         except Exception as e:
-            log_error("engine", "tf_fallo", e, symbol=SYMBOL, tf=tf)
+            log_error("engine", "tf_fallo", e, symbol=target, tf=tf)
             result["errores"].append(f"{tf}: {e}")
             result["bias"] = "SIN DATOS MT5"
             return result  # sin datos no hay análisis
@@ -159,7 +160,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
     # Cachear DataFrames+infos para reuso (canonical plan, mapas on-demand)
     try:
         from app_observador.core.data_cache import store_tfs_data
-        store_tfs_data(SYMBOL, tfs_data)
+        store_tfs_data(target, tfs_data)
     except Exception:
         pass
 
@@ -187,7 +188,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
             hist = float(avg_candle_range(df_m15, window=50).iloc[-1])
             regime_range = (recent, hist)
     except Exception as e:
-        log_error("engine", "regime_fallo", e, symbol=SYMBOL, tf="M15")
+        log_error("engine", "regime_fallo", e, symbol=target, tf="M15")
         result["errores"].append(f"regime: {e}")
     verdict = decision_pipeline.run_pipeline(
         d1, h4, h1, m15, m5=None, smt_a=None, smt_b=None, regime_range=regime_range)
@@ -222,9 +223,9 @@ def run_cycle(force_fetch: bool = False) -> dict:
                     "confirm": (bull or bear) and abs(ki - di) >= 1.0,
                 }
     except Exception as e:
-        log_error("engine", "stoch_m15_fallo", e, symbol=SYMBOL)
+        log_error("engine", "stoch_m15_fallo", e, symbol=target)
     ca = verdict.get("context_alignment", {})
-    log_event("engine", "veredicto_core", symbol=SYMBOL,
+    log_event("engine", "veredicto_core", symbol=target,
               data={"bias": bias,
                     "macro": ca.get("macro"),
                     "intraday": ca.get("intraday"),
@@ -278,7 +279,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
     try:
         _write_cache_atomic(result)
     except Exception as e:
-        log_error("engine", "cache_write_pass1", e, symbol=SYMBOL)
+        log_error("engine", "cache_write_pass1", e, symbol=target)
 
     # --- PASS 2: ENRIQUECIMIENTO (M5 + SMT, best-effort) --------------------
     # FASE M5 TWOPASS: cargar M5 APARTE (no toca TIMEFRAMES ni la estructura UI).
@@ -293,7 +294,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
         _cache_info(SYMBOL, "M5", m5_info)
         _m5_loaded = True
     except Exception as e:
-        log_error("engine", "m5_fallo_twopass", e, symbol=SYMBOL, tf="M5")
+        log_error("engine", "m5_fallo_twopass", e, symbol=target, tf="M5")
         result["errores"].append(f"M5: {e}")
     # FASE SMT: cargar el par correlacionado (SYMBOL_PAIR) en H1 APARTE.
     # SMT lee EURUSD vs GBPUSD en el MISMO TF (H1). Si no hay segundo par ->
@@ -318,7 +319,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
             result["bias"] = bias
             result["veredicto"] = verdict
             ca = verdict.get("context_alignment", {})
-            log_event("engine", "veredicto_enriquecido", symbol=SYMBOL,
+            log_event("engine", "veredicto_enriquecido", symbol=target,
                       data={"bias": bias,
                             "macro": ca.get("macro"),
                             "intraday": ca.get("intraday"),
@@ -329,10 +330,10 @@ def run_cycle(force_fetch: bool = False) -> dict:
             try:
                 _write_cache_atomic(result)
             except Exception as e:
-                log_error("engine", "cache_write_pass2", e, symbol=SYMBOL)
+                log_error("engine", "cache_write_pass2", e, symbol=target)
         except Exception as e:
             # El enriquecimiento es best-effort: si falla, conservamos el core.
-            log_error("engine", "veredicto_enriquecido_fallo", e, symbol=SYMBOL)
+            log_error("engine", "veredicto_enriquecido_fallo", e, symbol=target)
             result["errores"].append(f"enriquecimiento: {e}")
 
     # 1c) TFs de scalping (M1/M5) — OPCIONALES: no abortan si faltan.
@@ -376,11 +377,11 @@ def run_cycle(force_fetch: bool = False) -> dict:
                 "fvg_state": str(info.get("fvg_state", "-") or "-"),
                 "choch_status": str(info.get("choch_status", "-") or "-"),
             }
-            log_event("engine", "tf_scalping_analizado", symbol=SYMBOL, tf=tf)
+            log_event("engine", "tf_scalping_analizado", symbol=target, tf=tf)
         except Exception as e:
             # sin datos M1/M5 -> no es error fatal, el check lo refleja
             result["estructura"][tf] = {}
-            log_event("engine", "tf_scalping_sin_datos", symbol=SYMBOL, tf=tf,
+            log_event("engine", "tf_scalping_sin_datos", symbol=target, tf=tf,
                       data={"error": str(e)[:120]})
 
     stage1_s = round(time.perf_counter() - _t0, 3)
@@ -390,10 +391,10 @@ def run_cycle(force_fetch: bool = False) -> dict:
         relevant, fuente = news.load_events(no_fetch=not force_fetch)
         result["noticias"] = relevant
         result["fuente_noticias"] = fuente
-        log_event("engine", "noticias", symbol=SYMBOL,
+        log_event("engine", "noticias", symbol=target,
                   data={"count": len(relevant), "fuente": fuente})
     except Exception as e:
-        log_error("engine", "noticias_fallo", e, symbol=SYMBOL)
+        log_error("engine", "noticias_fallo", e, symbol=target)
         result["errores"].append(f"noticias: {e}")
 
     # 3) Semáforo FundedNext real
@@ -407,27 +408,27 @@ def run_cycle(force_fetch: bool = False) -> dict:
             trade_plan = None
         color, reasons = sem.evaluate(bias, result["noticias"], trade_plan)
         result["semaforo"] = {"color": color, "reasons": reasons}
-        log_event("engine", "semaforo", symbol=SYMBOL, data={"color": color})
+        log_event("engine", "semaforo", symbol=target, data={"color": color})
     except Exception as e:
-        log_error("engine", "semaforo_fallo", e, symbol=SYMBOL)
+        log_error("engine", "semaforo_fallo", e, symbol=target)
         result["errores"].append(f"semaforo: {e}")
 
     # 4) Mapas ICT — ya NO se regeneran automáticamente en cada ciclo.
     #     Se generan SOLO bajo demanda (botón "Regenerar mapa" en la pestaña Mapa).
     #     Los paths a PNGs existentes se resuelven al vuelo en mapa_widget.
-    result["mapas"] = {tf: str(MAPS_DIR / f"{SYMBOL}_{tf}.png") for tf in TIMEFRAMES_MAPA}
-    log_event("engine", "mapas_skip_auto", symbol=SYMBOL,
+    result["mapas"] = {tf: str(MAPS_DIR / f"{target}_{tf}.png") for tf in TIMEFRAMES_MAPA}
+    log_event("engine", "mapas_skip_auto", symbol=target,
               data={"note": "maps deferred to on-demand"})
 
     # 5) Fase Wyckoff M15 real
     _t1 = time.perf_counter()
     try:
-        fase = wyk.fase_actual(SYMBOL, "M15")
+        fase = wyk.fase_actual(target, "M15")
         result["wyckoff"]["M15"] = fase
-        log_event("engine", "wyckoff", symbol=SYMBOL, tf="M15",
+        log_event("engine", "wyckoff", symbol=target, tf="M15",
                   data={"fase": fase.get("phase_es"), "sesgo": fase.get("bias")})
     except Exception as e:
-        log_error("engine", "wyckoff_fallo", e, symbol=SYMBOL)
+        log_error("engine", "wyckoff_fallo", e, symbol=target)
         result["errores"].append(f"wyckoff: {e}")
 
     stage2_s = round(time.perf_counter() - _t1, 3)
@@ -439,7 +440,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
     try:
         _write_cache_atomic(result)
     except Exception as e:
-        log_error("engine", "cache_write", e, symbol=SYMBOL)
+        log_error("engine", "cache_write", e, symbol=target)
 
     # 6) Motor canónico R7 (sequence) → plan Entry/SL/TP compartido con Lab/LIMIT.
     # §5C: el canonical es enriquecimiento best-effort ACOTADO EN TIEMPO. Primero
@@ -450,10 +451,10 @@ def run_cycle(force_fetch: bool = False) -> dict:
     try:
         _write_cache_atomic(result)
     except Exception as e:
-        log_error("engine", "cache_write", e, symbol=SYMBOL)
+        log_error("engine", "cache_write", e, symbol=target)
 
     _t2 = time.perf_counter()
-    status, payload = _canonical_plan_bounded(SYMBOL, CANONICAL_TIMEOUT_S)
+    status, payload = _canonical_plan_bounded(target, CANONICAL_TIMEOUT_S)
     stage3_s = round(time.perf_counter() - _t2, 3)
 
     if status == "OK" and payload:
@@ -471,27 +472,27 @@ def run_cycle(force_fetch: bool = False) -> dict:
         # (tesis: alineamiento top-down). El plan canónico R7 es UNA señal más y vive en
         # result["canonical"] (chip propio en plan_strip). No se inventa consenso.
         result["veredicto"] = verd
-        log_event("engine", "canonical_plan", symbol=SYMBOL,
+        log_event("engine", "canonical_plan", symbol=target,
                   data={"side": payload["side"], "entry": payload["entry"],
                         "sl": payload["sl"], "tp": payload["tp"], "rr": payload["rr"]})
         # Re-escribir cache con canonical ya poblado (el veredicto sigue honesto)
         try:
             _write_cache_atomic(result)
         except Exception as e:
-            log_error("engine", "cache_write", e, symbol=SYMBOL)
+            log_error("engine", "cache_write", e, symbol=target)
     elif status == "OK":
         result["canonical"] = None
-        log_event("engine", "canonical_plan_empty", symbol=SYMBOL)
+        log_event("engine", "canonical_plan_empty", symbol=target)
     elif status == "TIMEOUT":
         result["canonical"] = "EN CONSTRUCCIÓN"
         result["errores"].append("canonical: timeout")
         log_error("engine", "canonical_timeout",
                   TimeoutError(f"canonical excedió {CANONICAL_TIMEOUT_S}s"),
-                  symbol=SYMBOL)
+                  symbol=target)
     else:  # status == "ERROR"
         result["canonical"] = "EN CONSTRUCCIÓN"
         result["errores"].append(f"canonical: {payload}")
-        log_error("engine", "canonical_plan_fallo", payload, symbol=SYMBOL)
+        log_error("engine", "canonical_plan_fallo", payload, symbol=target)
 
     total_s = round(stage1_s + stage2_s + stage3_s, 3)
     warnings: list[str] = []
@@ -506,7 +507,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
         if value > threshold:
             msg = f"{name}={value:.1f}s > {threshold:.0f}s"
             warnings.append(msg)
-            log_event("engine", "cycle_timing", symbol=SYMBOL,
+            log_event("engine", "cycle_timing", symbol=target,
                       data={"stage": name, "s": value, "threshold_s": threshold})
     result["resource_timing"] = {
         "stage1_s": stage1_s,
@@ -527,7 +528,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
     gc.collect()
 
     if not result["errores"]:
-        log_event("engine", "ciclo_completo", level="INFO", symbol=SYMBOL,
+        log_event("engine", "ciclo_completo", level="INFO", symbol=target,
                   data={"color": result["semaforo"]["color"], "bias": bias})
     return result
 

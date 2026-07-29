@@ -108,6 +108,13 @@ class ContextoMultiactivoWidget(QWidget):
         header.setStyleSheet(f"color: {TEXT}; font-size: 15px; font-weight: 800;")
         root.addWidget(header)
 
+        self.lbl_progress = QLabel("Iniciando contexto…")
+        self.lbl_progress.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
+        root.addWidget(self.lbl_progress)
+
+        self._cache: Dict[str, Dict] = {}
+        self._loading: Dict[str, bool] = {s: False for s in _SYMBOLS}
+
         # Selector de activos
         toolbar = QHBoxLayout()
         toolbar.setSpacing(6)
@@ -173,12 +180,37 @@ class ContextoMultiactivoWidget(QWidget):
         state.setdefault("sesion", "")
         state.setdefault("recomendacion", "")
 
-        self._current_state = dict(state)
-        symbol = state.get("symbol") or self._active_symbol
-        if symbol in _SYMBOLS:
+        sym = state.get("symbol") or self._active_symbol
+        if sym in _SYMBOLS:
+            self._cache[sym] = dict(state)
+            self._loading[sym] = False
+            self._update_progress_label()
+            self._current_state = dict(state)
+            self._active_symbol = sym
+            self._highlight_symbol_button(sym)
+        self._render_state(self._active_symbol)
+
+    def _update_progress_label(self) -> None:
+        done = len(self._cache)
+        total = len(_SYMBOLS)
+        self.lbl_progress.setText(f"Iniciando contexto… {done}/{total}")
+
+    def set_preload_progress(self, done: int, total: int, current_symbol: str = "") -> None:
+        if current_symbol:
+            self.lbl_progress.setText(f"Iniciando contexto… {done}/{total} ({current_symbol})")
+        elif done >= total:
+            self.lbl_progress.setText("Contexto listo.")
+        else:
+            self.lbl_progress.setText(f"Iniciando contexto… {done}/{total}")
+
+    def mark_loading(self, symbol: str, loading: bool = True) -> None:
+        if symbol not in _SYMBOLS:
+            return
+        self._loading[symbol] = loading
+        if loading:
             self._active_symbol = symbol
             self._highlight_symbol_button(symbol)
-        self._render_state(self._active_symbol)
+            self._render_state(symbol)
 
     def _on_symbol_clicked(self, symbol: str) -> None:
         self._active_symbol = symbol
@@ -210,29 +242,38 @@ class ContextoMultiactivoWidget(QWidget):
             f"}}"
         )
 
+    def _apply_sections(self, bias, estructura, zonas, ejecucion, sesion, recomendacion) -> None:
+        self._section_sesgo.set_body(bias)
+        self._section_estructura.set_body(estructura)
+        self._section_zonas.set_body(zonas)
+        self._section_ejecucion.set_body(ejecucion)
+        self._section_sesion.set_body(sesion)
+        self._section_recomendacion.set_body(recomendacion)
+
     def _render_state(self, symbol: str) -> None:
-        state = self._current_state
-        if state.get("symbol") not in _SYMBOLS:
-            state["symbol"] = symbol
+        use_symbol = symbol or self._active_symbol
+        if self._loading.get(use_symbol, False):
+            self._apply_sections(
+                bias="Cargando…",
+                estructura="Cargando…",
+                zonas="Cargando…",
+                ejecucion="Cargando…",
+                sesion="Cargando…",
+                recomendacion="Calculando. Si falta data para este par, el sistema lo indica abajo.",
+            )
+            return
 
-        bias = state.get("bias", "") or ""
-        bias_razon = state.get("bias_razon", "") or ""
+        state = self._cache.get(use_symbol)
+        if state is None:
+            state = self._current_state if self._current_state.get("symbol") == use_symbol else {}
+        if not state:
+            state = _DEFAULT_STATE
 
-        if bias and bias.lower().startswith("bull"):
-            bias_color = GREEN
-        elif bias and bias.lower().startswith("bear"):
-            bias_color = RED
-        else:
-            bias_color = TEXT
-
-        combined = f"{bias} — {bias_razon}".strip(" — ") if bias_razon else bias
-        self._section_sesgo.lbl_body.setText(combined)
-
-        self._section_estructura.set_body(state.get("estructura", ""))
-        self._section_zonas.set_body(state.get("zonas", ""))
-        self._section_ejecucion.set_body(state.get("ejecucion", ""))
-        self._section_sesion.set_body(state.get("sesion", ""))
-
-        rec = state.get("recomendacion", "")
-        text = rec or "En construcción: aún no hay datos suficientes, esperar siguiente ciclo."
-        self._section_recomendacion.set_body(text)
+        self._apply_sections(
+            bias=state.get("bias", "") or "",
+            estructura=state.get("estructura", "") or "",
+            zonas=state.get("zonas", "") or "",
+            ejecucion=state.get("ejecucion", "") or "",
+            sesion=state.get("sesion", "") or "",
+            recomendacion=state.get("recomendacion", "") or "En construcción: aún no hay datos suficientes, esperar siguiente ciclo.",
+        )

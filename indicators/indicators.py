@@ -45,6 +45,25 @@ def add_atr(frame: pd.DataFrame, period: int = 14) -> pd.Series:
     return tr.rolling(period).mean()
 
 
+def add_bollinger(
+    frame: pd.DataFrame,
+    period: int = 20,
+    std: float = 2.0,
+    source_col: str = "close",
+) -> pd.DataFrame:
+    if source_col not in frame.columns:
+        raise ValueError(f"Column not found: {source_col}")
+    sma = frame[source_col].rolling(period).mean()
+    rolling_std = frame[source_col].rolling(period).std(ddof=0)
+    upper = sma + std * rolling_std
+    lower = sma - std * rolling_std
+    return pd.DataFrame({
+        "bb_mid": sma,
+        "bb_upper": upper,
+        "bb_lower": lower,
+    })
+
+
 def add_order_blocks(
     frame: pd.DataFrame,
     lookback: int = 5,
