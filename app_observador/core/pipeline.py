@@ -683,6 +683,8 @@ def run_pipeline(d1: dict, h4: dict, h1: dict, m15: dict, m5: dict | None = None
         "regime_note": regime["note"],
         "confidence": confidence,
         "setup_quality_pct": int(setup_quality_pct),
+        "exec_m5_score": int(m15.get("exec_m5_score", 0) or 0),
+        "exec_m5_matches": m15.get("exec_m5_matches", []),
         "stages": stages,
     }
 

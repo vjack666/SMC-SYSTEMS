@@ -50,6 +50,10 @@ class MarketStateWidget(QFrame):
         self.lbl_setup_quality.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
         lay.addWidget(self.lbl_setup_quality)
 
+        self.lbl_exec_m5 = QLabel("CONFIRMACIÓN M5: —")
+        self.lbl_exec_m5.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
+        lay.addWidget(self.lbl_exec_m5)
+
         self.lbl_sesion = QLabel("SESIONES: —")
         self.lbl_sesion.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
         lay.addWidget(self.lbl_sesion)
@@ -116,6 +120,21 @@ class MarketStateWidget(QFrame):
         else:
             self.lbl_setup_quality.setText("CALIDAD SETUP: —")
             self.lbl_setup_quality.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
+
+        # Confirmación M5 (score 0-3, tipo SWEEP/FVG/BOS)
+        score = ca.get("exec_m5_score")
+        matches = ca.get("exec_m5_matches", [])
+        if isinstance(score, int):
+            color_exec = GREEN if score >= 2 else (YELLOW if score == 1 else TEXT_DIM)
+            from collections import Counter
+            c = Counter(matches)
+            parts = [f"{k}×{v}" for k, v in c.items()]
+            detail = ", ".join(parts) if parts else "sin coincidencias"
+            self.lbl_exec_m5.setText(f"CONFIRMACIÓN M5: {score} ({detail})")
+            self.lbl_exec_m5.setStyleSheet(f"color: {color_exec}; font-size: 12px; font-weight: 700;")
+        else:
+            self.lbl_exec_m5.setText("CONFIRMACIÓN M5: —")
+            self.lbl_exec_m5.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
 
         # Sesiones (reutiliza timezone.py; el motor no calcula esto)
         try:
