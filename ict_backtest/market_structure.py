@@ -67,7 +67,6 @@ class StructureConfig:
     # sin indicadores. Ver _util.avg_candle_range.
 
 
-
 def _swing_points(frame: pd.DataFrame, lookback: int) -> tuple[pd.Series, pd.Series]:
     """Detecta swing high/low SIN look-ahead.
 
@@ -137,6 +136,9 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
     d["swing_high"], d["swing_low"] = sh, sl
     d["swing_label"] = _label_swings(sh, sl)
 
+    if "time" not in d.columns:
+        d["time"] = pd.Series([pd.NaT] * len(d), index=d.index)
+
     # BOS: close (cuerpo) rompe el swing previo, CONFIRMADO por `confirm_bars`
     # cierres consecutivos (filtra fakeouts).
     bull_break = d["close"] > sh.shift(1)
@@ -147,11 +149,12 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
     d["bos_level"] = np.where(d["bos_dir"] == 1, sh.shift(1),
                       np.where(d["bos_dir"] == -1, sl.shift(1), np.nan))
 
-    d["bos_status"], d["bos_age"] = _track_structure(d, config, is_choch=False)
+    d["bos_status"], d["bos_age"], d["_bos_origin_time"], d["_bos_confirm_time"] = _track_structure(d, config, is_choch=False)
     # CHOCH real (hallazgo #2): rompe el swing que produjo el ULTIMO BOS,
     # en direccion OPUESTA a ese BOS. No es una copia de BOS.
     last_bos_dir = d["_last_bos_dir"].to_numpy()
     last_bos_level = d["_last_bos_level"].to_numpy()
+    last_bos_idx = d["_last_bos_idx"].to_numpy()
     up_choch = (d["close"].to_numpy() > last_bos_level) & (last_bos_dir == -1)
     dn_choch = (d["close"].to_numpy() < last_bos_level) & (last_bos_dir == 1)
     choch_raw = np.select([up_choch, dn_choch], [1, -1], default=0)
@@ -159,19 +162,21 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
     d["choch_dir"] = _consecutive_break(
         pd.Series(choch_raw != 0, index=d.index), config.confirm_bars
     ).astype(int) * choch_raw
-    d = d.drop(columns=["_last_bos_dir", "_last_bos_level"])
-    d["choch_status"], d["choch_age"] = _track_structure(d, config, is_choch=True)
+    d = d.drop(columns=["_last_bos_dir", "_last_bos_level", "_last_bos_idx"])
+    d["choch_status"], d["choch_age"], d["choch_origin_time"], d["choch_confirm_time"] = _track_structure(d, config, is_choch=True)
     d["trend"] = _derive_trend(d)
     return d
 
 
-def _track_structure(d: pd.DataFrame, config: StructureConfig, is_choch: bool = False) -> tuple[pd.Series, pd.Series]:
+def _track_structure(d: pd.DataFrame, config: StructureConfig, is_choch: bool = False) -> tuple[pd.Series, pd.Series, pd.Series, pd.Series]:
     """Sigue validez de BOS o CHOCH vela a vela.
 
     Invalidacion: el cierre CRUZA de nuevo el nivel roto (por cuerpo).
     EVENT-DRIVEN (Fase D): la estructura vive por EVENTO (cruce del nivel =
     invalidated). NO hay caducidad por tiempo/volatilidad ("aged"): nunca muere
     por un contador de velas ni por un umbral de volatilidad.
+
+    Retorna 4 series (status, age, origin_time, confirm_time).
     """
     n = len(d)
     status = pd.Series(["none"] * n, index=d.index, dtype=object)
@@ -187,8 +192,12 @@ def _track_structure(d: pd.DataFrame, config: StructureConfig, is_choch: bool = 
     sh = d["swing_high"].to_numpy()
     slv = d["swing_low"].to_numpy()
     bos_level = d["bos_level"].to_numpy() if "bos_level" in d.columns else np.full(n, np.nan)
+    time = d["time"].to_numpy(dtype=str) if "time" in d.columns else np.full(n, "")
     last_dir_col = np.zeros(n, dtype=int)
     last_level_col = np.full(n, np.nan)
+    last_idx_col = np.full(n, -1, dtype=int)
+    origin_time = pd.Series([""] * n, index=d.index, dtype=object)
+    confirm_time = pd.Series([""] * n, index=d.index, dtype=object)
 
     for i in range(1, n):
         dr = int(dir_col[i])
@@ -196,28 +205,31 @@ def _track_structure(d: pd.DataFrame, config: StructureConfig, is_choch: bool = 
             last_dir, last_idx, active = dr, i, True
             rest_bars = 0
             if is_choch:
+                origin_ts = str(time[last_idx]) if last_idx >= 0 else ""
+                origin_time.iloc[i] = origin_ts
                 last_level = float(sh[i]) if dr == 1 else float(slv[i])
             else:
                 last_level = float(bos_level[i]) if pd.notna(bos_level[i]) else last_level
+            confirm_time.iloc[i] = str(time[i])
         if active:
             age.iloc[i] = i - last_idx
             crossed = ((last_dir == 1 and close[i] < last_level) or
                        (last_dir == -1 and close[i] > last_level))
             if crossed:
                 status.iloc[i], active = "invalidated", False
-            # EVENT-DRIVEN (Fase D): la estructura vive por EVENTO (cruce del
-            # nivel = invalidated). Se ELIMINO la caducidad por tiempo/volatilidad
-            # ("aged"). Nunca muere por contador de velas.
             else:
                 status.iloc[i] = "active"
         last_dir_col[i] = last_dir
         last_level_col[i] = last_level
+        if last_idx >= 0:
+            last_idx_col[i] = last_idx
 
     if not is_choch:
-        # Columnas temporales para que el CHOCH real use el ultimo BOS (hallazgo #2).
         d["_last_bos_dir"] = last_dir_col
         d["_last_bos_level"] = last_level_col
-    return status, age
+        d["_last_bos_idx"] = last_idx_col
+        return status, age, pd.Series([""] * n, index=d.index, dtype=object), pd.Series([""] * n, index=d.index, dtype=object)
+    return status, age, origin_time, confirm_time
 
 
 def _derive_trend(d: pd.DataFrame) -> pd.Series:

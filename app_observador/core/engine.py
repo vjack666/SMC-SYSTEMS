@@ -255,6 +255,8 @@ def run_cycle(force_fetch: bool = False) -> dict:
             "choch_status": str(info.get("choch_status", "-") or "-"),
             "choch_age": int(info.get("choch_age", 0) or 0),
             "choch_bars": int(info.get("choch_bars", 0) or 0),
+            "choch_origin_time": str(info.get("choch_origin_time", "-") or "-"),
+            "choch_confirm_time": str(info.get("choch_confirm_time", "-") or "-"),
             "fvg_state": str(info.get("fvg_state", "-") or "-"),
             "fvg_type": str(info.get("fvg_type", "") or ""),
             "fvg_size": float(info.get("fvg_size", 0.0) or 0.0),
