@@ -162,8 +162,13 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
     d["choch_dir"] = _consecutive_break(
         pd.Series(choch_raw != 0, index=d.index), config.confirm_bars
     ).astype(int) * choch_raw
+    # CHOCH level/origin son el swing del ULTIMO BOS; _track_structure sobreescribe mal.
+    _choch_level_src = last_bos_level.copy()
+    _choch_origin_src = d["time"].iloc[last_bos_idx].to_numpy(dtype=str).copy()
     d = d.drop(columns=["_last_bos_dir", "_last_bos_level", "_last_bos_idx"])
     d["choch_status"], d["choch_age"], d["choch_origin_time"], d["choch_confirm_time"] = _track_structure(d, config, is_choch=True)
+    d["choch_level"] = _choch_level_src
+    d["choch_origin_time"] = _choch_origin_src
     d["trend"] = _derive_trend(d)
     return d
 
