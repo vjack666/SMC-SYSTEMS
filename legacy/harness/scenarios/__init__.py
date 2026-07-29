@@ -1,2 +1,0 @@
-"""Scenario definitions and loading."""
-

@@ -1,9 +1,0 @@
-name: paper_trading_smoke
-module: paper_trading
-fixture: paper_trading_smoke.yaml
-expected:
-  module: paper_trading
-  status: configured
-tags:
-  - smoke
-  - paper_trading

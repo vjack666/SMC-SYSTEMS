@@ -36,7 +36,6 @@ from app_observador.core.blackbox import log_event, log_error
 from app_observador.core.data_retention import run_retention
 from app_observador.core.mt5_status import shutdown as mt5_shutdown
 from app_observador.core.engine import load_cached
-from app_observador.ui.sesgo_widget import SesgoWidget
 from app_observador.ui.mapa_widget import MapaWidget
 from app_observador.ui.market_state_widget import MarketStateWidget
 from app_observador.ui.noticias_widget import NoticiasWidget
@@ -49,6 +48,7 @@ from app_observador.ui.autopilot_widget import AutopilotWidget
 from app_observador.ui.plan_strip_widget import PlanStripWidget
 from app_observador.ui.scanner_widget import ScannerWidget
 from app_observador.ui.chat_widget import ChatWidget
+from app_observador.ui.contexto_multiactivo_widget import ContextoMultiactivoWidget
 from app_observador.ui.theme import app_stylesheet, btn_primary, btn_danger, btn_ghost
 
 # Canal de envío de alertas (popup/beep) eliminado: se empieza de 0.
@@ -90,7 +90,6 @@ class MainWindow(QMainWindow):
         self.resize(1366, 820)
 
         # Widgets — semáforo vive SOLO en plan_strip (chip compacto), no duplicado
-        self.sesgo = SesgoWidget()
         self.mapa = MapaWidget()
         self.noticias = NoticiasWidget()
         self.resumen = ResumenWidget()
@@ -103,6 +102,17 @@ class MainWindow(QMainWindow):
         self.market_state = MarketStateWidget()
         self.scanner = ScannerWidget()
         self.chat = ChatWidget()
+        self.contexto_multiactivo = ContextoMultiactivoWidget()
+        self.contexto_multiactivo.update_state({
+            "symbol": SYMBOL,
+            "bias": "Bullish",
+            "bias_razon": "Stub: esperando motor para llenar sesgo real.",
+            "estructura": "Stub: esperando motor.",
+            "zonas": "Stub: esperando motor.",
+            "ejecucion": "Stub: esperando motor.",
+            "sesion": "Stub: esperando motor.",
+            "recomendacion": "En construcción: falta motor, esperar ciclo.",
+        })
         self.chat.set_scanner_provider(self.scanner.last_report_text)
         self.chat.set_context_provider(self._chat_app_context)
         self.scanner.cycle_refreshed.connect(self._on_scanner_cycle)
@@ -213,10 +223,9 @@ class MainWindow(QMainWindow):
         # FASE A: Panel MARKET STATE always-on (síntesis del pipeline)
         tp.addWidget(self.market_state)
 
-        # Sesgo + estado (loop/vigilante)
+        # Estado del loop/vigilante
         row1 = QHBoxLayout()
         row1.setSpacing(8)
-        row1.addWidget(self.sesgo, 2)
         row1.addWidget(self.estado, 1)
         tp.addLayout(row1)
 
@@ -394,9 +403,6 @@ class MainWindow(QMainWindow):
         """Heavy-ish principal chrome — only when Principal is (or becomes) visible."""
         self.plan_strip.update_state(result)
         self.market_state.update_state(result)
-        self.sesgo.update_state(
-            result.get("bias", "—"), result.get("wyckoff", {}).get("M15")
-        )
         verd = result.get("veredicto", {}) or {}
         self.resumen.update_state(
             result.get("estructura"),

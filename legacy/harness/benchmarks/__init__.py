@@ -1,2 +1,0 @@
-"""Benchmark suite placeholder."""
-

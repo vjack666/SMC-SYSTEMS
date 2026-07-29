@@ -1,4 +1,0 @@
-events: []
-parameters:
-  lookback: 40
-  scenario: bullish_exhaustion
