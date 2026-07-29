@@ -14,6 +14,34 @@ import pandas as pd
 
 
 # ---------------------------------------------------------------------------
+# Helpers scoring M5 (0-3)
+# ---------------------------------------------------------------------------
+def _near_level(level: float, m15_zone_mid: float, tol: float = 0.0020) -> bool:
+    return abs(level - m15_zone_mid) <= tol
+
+
+def _score_m5_for_signal(
+    last_m5_low: float,
+    last_m5_high: float,
+    last_m5_close: float,
+    last_m5_open: float,
+    m15_zone_high: float,
+    m15_zone_low: float,
+    direction: int,
+) -> tuple[int, list[str]]:
+    matches: list[str] = []
+    # simple proximity-based scoring (±20 pips = 0.0020)
+    touches_m15 = (last_m5_low <= m15_zone_high + 0.0020) and (last_m5_high >= m15_zone_low - 0.0020)
+    if touches_m15:
+        matches.append("overlap")
+    if direction == 1 and last_m5_close > last_m5_open and last_m5_low <= m15_zone_low + 0.0020:
+        matches.append("displacement")
+    if direction == -1 and last_m5_close < last_m5_open and last_m5_high >= m15_zone_high - 0.0020:
+        matches.append("displacement")
+    return len(matches), matches
+
+
+# ---------------------------------------------------------------------------
 # Tipos internos (privados)
 # ---------------------------------------------------------------------------
 class _Candle:
@@ -136,6 +164,8 @@ class BarByBarSignal:
     m15_zone_high: float
     m15_zone_low: float
     exec_tf: str = "M5"
+    exec_m5_score: int = 0
+    exec_m5_matches: list[str] = field(default_factory=list)
     meta: dict[str, Any] = field(default_factory=dict)
 
 
@@ -226,11 +256,16 @@ def analyze_bar_by_bar(
                     if risk <= 0.00001:
                         continue
                     tp = entry + min_rr * risk
+                    score, matches = _score_m5_for_signal(
+                        last_m5.low, last_m5.high, last_m5.close, last_m5.open,
+                        m15.zone_high, m15.zone_low, 1,
+                    )
                     signals.append(BarByBarSignal(
                         direction=1, entry=entry, sl=sl, tp=tp,
                         entry_bar=i, entry_time=row["time"],
                         d1_bias=bias, m15_zone_high=m15.zone_high,
                         m15_zone_low=m15.zone_low,
+                        exec_m5_score=score, exec_m5_matches=matches,
                         meta={"type": "sweep_long", "m5_sweep_low": last_m5.low},
                     ))
                     last_sig_bar = i
@@ -244,11 +279,16 @@ def analyze_bar_by_bar(
                     if risk <= 0.00001:
                         continue
                     tp = entry - min_rr * risk
+                    score, matches = _score_m5_for_signal(
+                        last_m5.low, last_m5.high, last_m5.close, last_m5.open,
+                        m15.zone_high, m15.zone_low, -1,
+                    )
                     signals.append(BarByBarSignal(
                         direction=-1, entry=entry, sl=sl, tp=tp,
                         entry_bar=i, entry_time=row["time"],
                         d1_bias=bias, m15_zone_high=m15.zone_high,
                         m15_zone_low=m15.zone_low,
+                        exec_m5_score=score, exec_m5_matches=matches,
                         meta={"type": "sweep_short", "m5_sweep_high": last_m5.high},
                     ))
                     last_sig_bar = i
@@ -369,6 +409,8 @@ def to_plain_dicts(signals: list[BarByBarSignal]) -> list[dict[str, Any]]:
             "m15_zone_high": s.m15_zone_high,
             "m15_zone_low": s.m15_zone_low,
             "exec_tf": s.exec_tf,
+            "exec_m5_score": s.exec_m5_score,
+            "exec_m5_matches": s.exec_m5_matches,
             "meta": s.meta,
         }
         out.append(d)
