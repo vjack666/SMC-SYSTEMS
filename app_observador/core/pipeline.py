@@ -608,6 +608,41 @@ def run_pipeline(d1: dict, h4: dict, h1: dict, m15: dict, m5: dict | None = None
         macro["ok"], ctx["aligned"], intraday["ok"], poi["valid"], trigger_valid
     ) + smt_conf + poi.get("quality_bonus", 0)
 
+    # Setup quality: calidad combinada del setup (0-100) a partir de POI +
+    # BOS/CHOCH/sweep reales del LTF, SIN reloj ni look-ahead.
+    # Componentes: POI tier (max 30), anchored H4 (+10), BOS distance (<8b +25,
+    # <=16b +10), sweep en contra del sesgo (+15), proximidad precio a POI
+    # (retrace <= fib 0.618 +10, <= 0.786 +5).
+    setup_quality_pct = 0
+    if bias in ("LONG", "SHORT") and poi.get("valid"):
+        # 1) POI tier (peso mayor: el POI es el gatillo físico)
+        setup_quality_pct += {"T1": 30, "T2": 20, "T3": 10}.get(poi.get("tier", "PENDING"), 0)
+        # 2) HTF anchor
+        if poi.get("anchored"):
+            setup_quality_pct += 10
+        # 3) BOS distance (evento estructural reciente en dirección del sesgo)
+        _bdir = m15.get("bos_dir", 0)
+        _bdist = int(m15.get("bos_distance_bars", 0) or 0)
+        _bias_side_dir = 1 if bias == "LONG" else (-1 if bias == "SHORT" else 0)
+        if _bias_side_dir != 0 and _bdir == _bias_side_dir and _bdist > 0:
+            if _bdist <= 8:
+                setup_quality_pct += 25
+            elif _bdist <= 16:
+                setup_quality_pct += 10
+        # 4) Sweep en dirección opuesta al sesgo = liquidez tomada = favorable
+        _sweep_opposite = ((bias == "LONG" and bool(m15.get("sweep_down")))
+                         or (bias == "SHORT" and bool(m15.get("sweep_up"))))
+        if _sweep_opposite:
+            setup_quality_pct += 15
+        # 5) Proximidad precio actual al OTE (cuán dentro de la pierna está)
+        # Aproximación: usa retrace del último swing_formado hacia precio.
+        # Fase 1 simple: usar bos_distance como proxy (menor distance = más cerca).
+        if _bdist > 0 and _bdist <= 6:
+            setup_quality_pct += 10
+        elif _bdist > 0 and _bdist <= 12:
+            setup_quality_pct += 5
+    setup_quality_pct = max(0, min(100, setup_quality_pct))
+
     # Stage M5: checks REALES (no stub). Muestra el lado elegido si valido.
     if chosen is not None:
         c = chosen["checks"]
@@ -647,6 +682,7 @@ def run_pipeline(d1: dict, h4: dict, h1: dict, m15: dict, m5: dict | None = None
         "regime": regime["state"],
         "regime_note": regime["note"],
         "confidence": confidence,
+        "setup_quality_pct": int(setup_quality_pct),
         "stages": stages,
     }
 

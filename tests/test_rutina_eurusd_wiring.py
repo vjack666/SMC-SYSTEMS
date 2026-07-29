@@ -109,7 +109,7 @@ def test_pipeline_emits_context_alignment_not_democracy():
     # Salida nueva: context_alignment es la fuente de verdad
     assert "context_alignment" in out, "falta context_alignment"
     ca = out["context_alignment"]
-    for k in ("macro", "intraday", "poi", "trigger", "confidence", "stages"):
+    for k in ("macro", "intraday", "poi", "trigger", "confidence", "setup_quality_pct", "stages"):
         assert k in ca, f"falta clave {k} en context_alignment"
     # trigger siempre presente (M5 es stub EN CONSTRUCCION)
     assert ca["trigger"] in ("PENDING", "VALID"), "trigger debe estar definido (aun PENDING)"
