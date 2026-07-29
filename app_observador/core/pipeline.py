@@ -685,6 +685,11 @@ def run_pipeline(d1: dict, h4: dict, h1: dict, m15: dict, m5: dict | None = None
         "setup_quality_pct": int(setup_quality_pct),
         "exec_m5_score": int(m15.get("exec_m5_score", 0) or 0),
         "exec_m5_matches": m15.get("exec_m5_matches", []),
+        "exec_position_size_multiplier": {
+            0: 1.0,
+            1: 0.5,
+            2: 1.0,
+        }.get(int(m15.get("exec_m5_score", 0) or 0), 1.25),
         "stages": stages,
     }
 

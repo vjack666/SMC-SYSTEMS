@@ -17,6 +17,7 @@ import gc
 import json
 import os
 import sys
+import time
 
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
@@ -31,6 +32,19 @@ from app_observador.core.blackbox import BLACKBOX_DIR, log_event, log_error
 
 CACHE_PATH = BLACKBOX_DIR / "last_cycle.json"
 _SCRIPTS = ROOT / "scripts"
+
+# Slow-stage timing budget for run_cycle() watchdog.
+# Non-canonical stages: 20s budget. Canonical stage: 600s budget.
+_STAGE_THRESHOLD_S = {
+    "stage1_load_analyze": 20.0,
+    "stage2_wyckoff": 20.0,
+    "stage3_canonical": 600.0,
+    "stage_total": 20.0,
+}
+# Rolling window size for recent completed-cycle durations.
+_RESOURCE_WINDOW_SIZE = 5
+# Thread-safe-ish list for recent totals. run_cycle() appends 1 entry per call.
+_RECENT_CYCLE_TIMES: list[float] = []
 
 # §5C: presupuesto de tiempo estricto para el paso 6 (canonical R7). El plan
 # canónico es enriquecimiento best-effort; si no llega dentro de este tiempo,
@@ -122,6 +136,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
         return result
 
     # 1) Cargar y analizar cada temporalidad con datos REALES
+    _t0 = time.perf_counter()
     tfs_data: dict[str, tuple] = {}
     for tf in TIMEFRAMES:
         try:
@@ -351,6 +366,8 @@ def run_cycle(force_fetch: bool = False) -> dict:
             log_event("engine", "tf_scalping_sin_datos", symbol=SYMBOL, tf=tf,
                       data={"error": str(e)[:120]})
 
+    stage1_s = round(time.perf_counter() - _t0, 3)
+
     # 2) Noticias rojas reales (usa cache del dia; si no hay cache, baja RSS)
     try:
         relevant, fuente = news.load_events(no_fetch=not force_fetch)
@@ -386,6 +403,7 @@ def run_cycle(force_fetch: bool = False) -> dict:
               data={"note": "maps deferred to on-demand"})
 
     # 5) Fase Wyckoff M15 real
+    _t1 = time.perf_counter()
     try:
         fase = wyk.fase_actual(SYMBOL, "M15")
         result["wyckoff"]["M15"] = fase
@@ -394,6 +412,8 @@ def run_cycle(force_fetch: bool = False) -> dict:
     except Exception as e:
         log_error("engine", "wyckoff_fallo", e, symbol=SYMBOL)
         result["errores"].append(f"wyckoff: {e}")
+
+    stage2_s = round(time.perf_counter() - _t1, 3)
 
     # Cache del ultimo ciclo (la app lo lee en <1s al abrir).
     # SE ESCRIBE ANTES del paso 6 (canonico R7) a proposito: si el plan canonico
@@ -415,7 +435,10 @@ def run_cycle(force_fetch: bool = False) -> dict:
     except Exception as e:
         log_error("engine", "cache_write", e, symbol=SYMBOL)
 
+    _t2 = time.perf_counter()
     status, payload = _canonical_plan_bounded(SYMBOL, CANONICAL_TIMEOUT_S)
+    stage3_s = round(time.perf_counter() - _t2, 3)
+
     if status == "OK" and payload:
         result["canonical"] = payload
         # Overlay veredicto invalidation/target from structural plan when present
@@ -452,6 +475,35 @@ def run_cycle(force_fetch: bool = False) -> dict:
         result["canonical"] = "EN CONSTRUCCIÓN"
         result["errores"].append(f"canonical: {payload}")
         log_error("engine", "canonical_plan_fallo", payload, symbol=SYMBOL)
+
+    total_s = round(stage1_s + stage2_s + stage3_s, 3)
+    warnings: list[str] = []
+    budgets = {
+        "stage1_load_analyze": stage1_s,
+        "stage2_wyckoff": stage2_s,
+        "stage3_canonical": stage3_s,
+        "stage_total": total_s,
+    }
+    for name, value in budgets.items():
+        threshold = _STAGE_THRESHOLD_S.get(name, 20.0)
+        if value > threshold:
+            msg = f"{name}={value:.1f}s > {threshold:.0f}s"
+            warnings.append(msg)
+            log_event("engine", "cycle_timing", symbol=SYMBOL,
+                      data={"stage": name, "s": value, "threshold_s": threshold})
+    result["resource_timing"] = {
+        "stage1_s": stage1_s,
+        "stage2_s": stage2_s,
+        "stage3_s": stage3_s,
+        "total_s": total_s,
+        "warnings": warnings,
+    }
+    try:
+        _RECENT_CYCLE_TIMES.append(total_s)
+        if len(_RECENT_CYCLE_TIMES) > _RESOURCE_WINDOW_SIZE:
+            del _RECENT_CYCLE_TIMES[0]
+    except Exception:
+        pass
 
     # Liberar memoria cíclica cada ciclo. Los DataFrames viejos que ya no
     # referencia nadie se recolectan, evitando que RAM crezca indefinidamente.
