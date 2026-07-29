@@ -161,13 +161,12 @@ class LabSetupWidget(QWidget):
     # ------------------------------------------------------------------ update
     def update_state(self, result: dict | None = None) -> None:
         self._last_result = result
+        from app_observador.core.position_sizer_bridge import extract_levels
         # Skip heavy HTML rebuild when tab is not visible (caller may still set _last_result)
         if result is not None and not self.isVisible():
             # Still keep LIMIT button state for top bar when parent asks via extract_levels
             levels = None
             try:
-                from app_observador.core.position_sizer_bridge import extract_levels
-
                 levels = extract_levels(result)
             except Exception:
                 levels = None
@@ -218,6 +217,9 @@ class LabSetupWidget(QWidget):
         conf = wyk.get("confidence")
         conf_txt = f" {conf:.0%}" if isinstance(conf, (int, float)) else ""
         sig = WYCKOFF_SIGNIFICADO.get(fase, "")
+        # FASE B: eventos ya calculados por fase_wyckoff_m15 (WyckoffAgent).
+        eventos = wyk.get("eventos") or []
+        evt_txt = ", ".join(str(e) for e in eventos) if eventos else "ninguno claro"
         regla = ""
         if RULEBOOK.exists():
             regla = "  [docs/WYCKOFF_RULEBOOK.md]"
@@ -225,6 +227,7 @@ class LabSetupWidget(QWidget):
             f"<p style='font-size:14px;'>"
             f"<b style='color:#c9a3ff'>Fase M15: {wyk.get('phase_es','INDEFINIDA')}</b> "
             f"(sesgo {sesgo_w}{conf_txt}){regla}</p>"
+            f"<p style='color:#9fe3ff;'><b>Eventos:</b> {evt_txt}</p>"
             f"<p style='color:#cfcfcf;'>{sig}</p>"
             f"<p style='color:#888;'>Wyckoff es una LEY del mercado (oferta/demanda), "
             f"no una opinion. Te dice en que tramo del ciclo esta el precio.</p>"

@@ -76,10 +76,17 @@ GATE R6 NO PASA en ningún símbolo en producción. Números en `docs/METRICS_CA
 > anclado) y A1 (3 capas reales) — exactamente lo que el cronograma marca como R3.5 / Fase v30
 > pendiente, FUERA del alcance de R6.
 
-**Bloqueo real = DATOS (R5/A6), no motor:** `data/raw/XAUUSD_M15.parquet` NO EXISTE (solo D1/H4);
-los M15 actuales son solo 2.02 años (2024-07→2026-07). A12 (walk-forward OOS de `no_session`×XAUUSD,
-celda ganadora PF 1.642) está BLOQUEADO hasta que se baje XAUUSD M15 + ≥3-4 años. Esto requiere
-MT5 FundedNext logueado en vivo (`update_mt5_data.py`); el venv de este entorno solo tiene stub de MT5.
+**R5/A6 DATOS (actualizado 2026-07-24 — NO repetir el mito "falta XAUUSD M15"):**
+- `data/raw/XAUUSD_M15.parquet` **EXISTE** (~109k velas, **2022-01 → 2026-07 ≈ 4.5 años**).
+- EURUSD M15 también ≥4.5 años. XAUUSD tiene los 6 TF (D1/H4/H1/M15/M5/M1). Fuente viva: `docs/DATA_STATUS.md`.
+- **R5 (umbral datos ≥3–4 años M15 XAUUSD/EURUSD) = CERRADO a nivel de disco.**
+- **A12 NO está bloqueado por falta de parquet.** Está **pendiente de re-run** walk-forward OOS
+  (`no_session`×XAUUSD, celda top histórica PF 1.642) con motor limpio post-R4/R6 (costs ON, no look-ahead).
+  El 1er pase A12 falló (PF ~-0.058, N baja) con datos/setup viejos — hay que re-medirlo, no "bajar el archivo".
+- Caveats honestos: (1) M1/M5 de majors principales vienen de HistData+resample/merge, no solo MT5 demo;
+  (2) scripts viejos tipo `run_bt_v2_mtf.py` aún **excluyen XAUUSD por hang del motor v2**, no por data ausente
+  — eso es deuda de código/runner, no de descarga.
+- Inventario canónico: `docs/DATA_STATUS.md`. No reabrir R5 por docs históricos de julio-10/17.
 
 **Regla commit/push (Ruben):** NO hacer commit ni push sin OK expreso y con `docs/plan/CRONOGRAMA_Y_ROADMAP.md`
 + `docs/plan/ROADMAP_BIBLIOTECA_Y_APLICACION.md` al día en el mismo commit.

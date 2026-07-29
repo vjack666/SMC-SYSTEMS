@@ -186,3 +186,40 @@ debug session:
 (`backtest/engine.py`, `backtest/validation/`) is solid and unchanged. A new,
 better visualizer will be designed from scratch later — engine and viewer fully
 decoupled, correct `st.rerun()` ordering, and a bounded dataset.
+
+---
+
+## Backtest largo PO3 (2026-07-24 / 25) — SIN resultado concluyente
+
+Se corrió el backtest largo de PO3 (test `PO3_FULL` sobre EURUSD parquet COMPLETO,
+H4→M15, use_semantic=True, 15 workers, ~5.2h). El test de cableado pasó (el flag
+`--model po3` filtra de verdad: po3 es subconjunto estricto de intradía con
+`po3_complete=True`), PERO no arrojó ninguna conclusión de edge/rentabilidad:
+los conteos exactos de señales se perdieron (ventana del Runner Monitor cerrada,
+sin tee a archivo) y el test mide cableado, no PF/WR/N.
+
+El test hermano `test_call_site_po3_filters_real` (use_semantic=False, lento,
+~5.7h) salió con exit 1. Hipótesis: con `use_semantic=False` el campo
+`po3_complete` no se computa, así que el assert del filtro po3 no se cumple —
+coherente con que po3 es un filtro SEMÁNTICO (necesita use_semantic=True, que es
+como sí corrió PO3_FULL). No es evidencia de bug en el motor, sino de que el
+filtro po3 requiere el modo semántico.
+
+**Veredicto:** backtest largo ejecutado, cableado del flag po3 confirmado, pero
+NO se obtuvo medida de edge concluyente. Falta: (1) persistir conteos a JSON en
+el test, (2) medir PF/WR/N de las señales po3 filtradas (pendiente R3.5 / Fase
+v30). El GATE R6 sigue sin pasar en producción (ver METRICS_CANON.md §0).
+
+## Limpieza de disco (2026-07-25)
+
+Liberados ~115 GB sin tocar juegos instalados, quotex/SMC ni Chrome:
+- Downloads: 58.6 GB (ROMs ya instaladas + tradingview; cédula movida a
+  `Documentos ruben trabajo`).
+- Temp: chocolatey, pip-*, caches, tmp_*/pyright-*/PSES-*/playwright-*, ROMs
+  `.rar` de Temp.
+- Docker WSL `docker_data.vhdx`: 56 GB (basura muerta, sin contenedores; Docker
+  queda instalado y sano).
+- Hitman (IO Interactive): 30 MB.
+- Protegido por regla: EA DLC Unlocker y GUIDs de juegos/emuladores en Temp,
+  quotex_hub_edge, Wondershare (proceso Filmora vivo), pagefile.sys, modelos
+  Ollama.

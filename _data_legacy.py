@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -47,7 +47,7 @@ def _download_frame(data_dir: Path, symbol: str, timeframe: str) -> pd.DataFrame
         raise ValueError(f"Unsupported timeframe: {timeframe}")
 
     _ensure_symbol_in_market_watch(symbol)
-    rates = mt5.copy_rates_range(symbol, tf_val, datetime(2020, 1, 1), datetime(2026, 7, 7))
+    rates = mt5.copy_rates_range(symbol, tf_val, datetime(2020, 1, 1), datetime.now(timezone.utc))
     if rates is None or len(rates) == 0:
         rates = mt5.copy_rates_from_pos(symbol, tf_val, 0, 50_000)
     if rates is None or len(rates) == 0:
