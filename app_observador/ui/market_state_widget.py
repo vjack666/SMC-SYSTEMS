@@ -46,6 +46,10 @@ class MarketStateWidget(QFrame):
         self.lbl_conf.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
         lay.addWidget(self.lbl_conf)
 
+        self.lbl_setup_quality = QLabel("CALIDAD SETUP: —")
+        self.lbl_setup_quality.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
+        lay.addWidget(self.lbl_setup_quality)
+
         self.lbl_sesion = QLabel("SESIONES: —")
         self.lbl_sesion.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
         lay.addWidget(self.lbl_sesion)
@@ -102,6 +106,16 @@ class MarketStateWidget(QFrame):
         else:
             self.lbl_conf.setText("CONFIANZA: EN CONSTRUCCIÓN")
             self.lbl_conf.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
+
+        # Calidad del setup (score combinado 0-100)
+        sq = ca.get("setup_quality_pct")
+        if isinstance(sq, (int, float)):
+            color_sq = GREEN if sq >= 70 else (YELLOW if sq >= 40 else RED)
+            self.lbl_setup_quality.setText(f"CALIDAD SETUP: {int(sq)}%")
+            self.lbl_setup_quality.setStyleSheet(f"color: {color_sq}; font-size: 12px; font-weight: 700;")
+        else:
+            self.lbl_setup_quality.setText("CALIDAD SETUP: —")
+            self.lbl_setup_quality.setStyleSheet(f"color: {TEXT_DIM}; font-size: 12px;")
 
         # Sesiones (reutiliza timezone.py; el motor no calcula esto)
         try:
