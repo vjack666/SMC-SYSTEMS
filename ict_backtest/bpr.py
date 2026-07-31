@@ -1,4 +1,4 @@
-"""ict_backtest/bpr.py — Balanced Price Range (BPR): geometría + invalidación.
+"""ict_backtest/bpr.py — Balanced Price Range (BPR): geometría + invalidación + decay.
 
 BPR = solape en precio de un FVG y un OB de la misma dirección (tesis 21_POI T1).
 
@@ -7,15 +7,19 @@ Geometría (sin indicadores):
     bpr_high = min(fvg_high, ob_high)
     hay_BPR  <=> bpr_low < bpr_high
 
-Invalidación event-driven (como OB, no por edad sola):
+Invalidación event-driven (como OB, NO por edad sola):
     1) Cierre de cuerpo más allá del extremo lejano del BPR
        - BPR bull: close < bpr_low  → invalidated
        - BPR bear: close > bpr_high → invalidated
     2) mitigated_touch: high/low toca el cuadro sin cierre más allá
 
+Decay temporal de score (tesis 21 §5 — frescura):
+    La edad NO invalida el BPR. Solo reduce bpr_score (calidad / bonus).
+    score(age) = max(floor, base * 0.5 ** (age / half_life_bars))
+
 Estados: none | just_created | active | mitigated_touch | invalidated
 
-NO modifica BOS/CHOCH. NO usa ATR/RSI. Solo high/low/open/close.
+NO modifica BOS/CHOCH. NO usa ATR/RSI. Solo high/low/open/close + age en barras.
 """
 
 from __future__ import annotations
@@ -31,7 +35,7 @@ BprStatus = Literal["none", "just_created", "active", "mitigated_touch", "invali
 
 @dataclass(frozen=True)
 class BprConfig:
-    """Parámetros de construcción e invalidación BPR."""
+    """Parámetros de construcción, invalidación y decay de score."""
 
     lookback: int = 30
     min_depth: float = 0.0
@@ -39,6 +43,12 @@ class BprConfig:
     invalidate_on_body_close: bool = True
     track_mitigation_touch: bool = True
     require_ob_active: bool = True
+
+    score_base: float = 1.0
+    score_floor: float = 0.15
+    half_life_bars: int = 48
+    freeze_decay_on_touch: bool = False
+    depth_boost: float = 0.0
 
 
 def overlap_interval(
@@ -54,8 +64,30 @@ def overlap_interval(
     return None
 
 
+def bpr_score_at_age(
+    age: int,
+    *,
+    base: float = 1.0,
+    half_life_bars: int = 48,
+    floor: float = 0.15,
+    frozen: bool = False,
+    frozen_score: float | None = None,
+) -> float:
+    """Decay exponencial por half-life en barras.
+
+    score = max(floor, base * 0.5 ** (age / half_life))
+    frozen=True → devuelve frozen_score (o base).
+    """
+    if frozen:
+        return float(frozen_score if frozen_score is not None else base)
+    if half_life_bars <= 0:
+        return float(max(floor, base))
+    age = max(0, int(age))
+    raw = base * (0.5 ** (age / float(half_life_bars)))
+    return float(max(floor, raw))
+
+
 def _fvg_gap_bounds(data: pd.DataFrame, i: int) -> tuple[float, float, int] | None:
-    """Gap real del FVG en barra i. dir +1 bull / -1 bear."""
     row = data.iloc[i]
     if bool(row.get("fvg_bullish", False)):
         if "fvg_zone_low" in data.columns and pd.notna(row.get("fvg_zone_low")):
@@ -75,7 +107,6 @@ def _fvg_gap_bounds(data: pd.DataFrame, i: int) -> tuple[float, float, int] | No
 def _ob_bounds(
     data: pd.DataFrame, j: int, *, use_body: bool
 ) -> tuple[float, float, int] | None:
-    """Intervalo del OB en barra j. dir +1 bull / -1 bear."""
     row = data.iloc[j]
     bull = bool(row.get("ob_bullish", False))
     bear = bool(row.get("ob_bearish", False))
@@ -104,11 +135,7 @@ def _ob_bounds(
 
 
 def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFrame:
-    """Anota columnas BPR sobre un frame que ya tenga FVG y OB detectados.
-
-    Columnas: bpr_bullish/bearish, bpr_low/high, bpr_depth, bpr_status, bpr_age.
-    pd_type=BPR, pd_tier=T1 en barras live.
-    """
+    """Anota BPR + bpr_score (decay temporal) sobre frame con FVG/OB."""
     cfg = cfg or BprConfig()
     data = frame.copy().reset_index(drop=True)
     n = len(data)
@@ -118,6 +145,7 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
     bpr_lo = np.full(n, np.nan)
     bpr_hi = np.full(n, np.nan)
     bpr_depth = np.full(n, np.nan)
+    bpr_score = np.zeros(n, dtype=float)
     status: list[str] = ["none"] * n
     age = np.zeros(n, dtype=int)
 
@@ -127,6 +155,9 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
     active_idx = -1
     active_alive = False
     touched = False
+    active_base = cfg.score_base
+    frozen = False
+    frozen_score: float | None = None
 
     for i in range(n):
         if active_alive:
@@ -144,12 +175,23 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
 
             if invalidated:
                 status[i] = "invalidated"
+                bpr_score[i] = 0.0
                 active_alive = False
                 active_dir = 0
                 touched = False
+                frozen = False
+                frozen_score = None
             else:
                 if cfg.track_mitigation_touch:
                     if low_i <= active_hi and high_i >= active_lo:
+                        if not touched and cfg.freeze_decay_on_touch:
+                            frozen_score = bpr_score_at_age(
+                                age[i],
+                                base=active_base,
+                                half_life_bars=cfg.half_life_bars,
+                                floor=cfg.score_floor,
+                            )
+                            frozen = True
                         touched = True
                 status[i] = "mitigated_touch" if touched else "active"
                 bpr_lo[i] = active_lo
@@ -158,6 +200,14 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
                     bpr_bull[i] = True
                 else:
                     bpr_bear[i] = True
+                bpr_score[i] = bpr_score_at_age(
+                    int(age[i]),
+                    base=active_base,
+                    half_life_bars=cfg.half_life_bars,
+                    floor=cfg.score_floor,
+                    frozen=frozen,
+                    frozen_score=frozen_score,
+                )
 
         gap = _fvg_gap_bounds(data, i)
         if gap is None:
@@ -204,11 +254,21 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
         else:
             bpr_bear[i] = True
 
+        active_base = cfg.score_base * (1.0 + cfg.depth_boost * float(depth))
+        bpr_score[i] = bpr_score_at_age(
+            0,
+            base=active_base,
+            half_life_bars=cfg.half_life_bars,
+            floor=cfg.score_floor,
+        )
+
         active_dir = f_dir
         active_lo, active_hi = lo, hi
         active_idx = i
         active_alive = True
         touched = False
+        frozen = False
+        frozen_score = None
 
     data["bpr_bullish"] = bpr_bull
     data["bpr_bearish"] = bpr_bear
@@ -217,6 +277,7 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
     data["bpr_depth"] = bpr_depth
     data["bpr_status"] = status
     data["bpr_age"] = age
+    data["bpr_score"] = bpr_score
 
     is_bpr = bpr_bull | bpr_bear
     if "pd_type" not in data.columns:
@@ -235,15 +296,7 @@ def validate_bpr_invalidation(
     *,
     cfg: BprConfig | None = None,
 ) -> dict:
-    """Auditoría de consistencia de la máquina de estados BPR.
-
-    Invariantes:
-      I1: just_created solo con flags e intervalo válido
-      I2: no active inmediatamente tras invalidated sin create
-      I3: invalidated solo si close cruza extremo lejano (si cfg lo exige)
-      I4: depth en (0, 1] en just_created
-      I5: nunca low >= high en estados live
-    """
+    """Invariantes I1–I5 (geometría/invalidación) + I6–I8 (score/decay)."""
     cfg = cfg or BprConfig()
     violations: list[str] = []
     n = len(data)
@@ -258,6 +311,8 @@ def validate_bpr_invalidation(
     last_live_lo = float("nan")
     last_live_hi = float("nan")
     last_live_dir = 0
+    prev_score_in_life: float | None = None
+    has_score = "bpr_score" in data.columns
 
     for i in range(n):
         st = status[i]
@@ -265,6 +320,27 @@ def validate_bpr_invalidation(
         hi = data["bpr_high"].iloc[i]
         bull = bool(data["bpr_bullish"].iloc[i]) if "bpr_bullish" in data.columns else False
         bear = bool(data["bpr_bearish"].iloc[i]) if "bpr_bearish" in data.columns else False
+        sc = float(data["bpr_score"].iloc[i]) if has_score else float("nan")
+
+        if st in ("none", "invalidated"):
+            if has_score and st == "invalidated" and sc != 0.0:
+                violations.append(f"I6@{i}: invalidated con score={sc}")
+            if has_score and st == "none" and sc != 0.0:
+                violations.append(f"I6@{i}: none con score={sc}")
+            if st == "invalidated":
+                if cfg.invalidate_on_body_close and pd.notna(last_live_lo):
+                    close_i = float(data.iloc[i]["close"])
+                    ok_reason = (
+                        (last_live_dir == 1 and close_i < last_live_lo)
+                        or (last_live_dir == -1 and close_i > last_live_hi)
+                    )
+                    if not ok_reason:
+                        violations.append(
+                            f"I3@{i}: invalidated sin close más allá del extremo "
+                            f"(close={close_i}, box=[{last_live_lo},{last_live_hi}])"
+                        )
+                prev_score_in_life = None
+            continue
 
         if st == "just_created":
             if not (bull or bear):
@@ -276,6 +352,10 @@ def validate_bpr_invalidation(
                 violations.append(f"I4@{i}: depth={depth} fuera de (0,1]")
             last_live_lo, last_live_hi = float(lo), float(hi)
             last_live_dir = 1 if bull else -1
+            if has_score:
+                if sc + 1e-12 < cfg.score_floor:
+                    violations.append(f"I7@{i}: score {sc} < floor {cfg.score_floor}")
+                prev_score_in_life = sc
 
         elif st in ("active", "mitigated_touch"):
             if i > 0 and status[i - 1] == "invalidated":
@@ -285,19 +365,15 @@ def validate_bpr_invalidation(
             if pd.notna(lo):
                 last_live_lo, last_live_hi = float(lo), float(hi)
                 last_live_dir = 1 if bull else (-1 if bear else last_live_dir)
-
-        elif st == "invalidated":
-            if cfg.invalidate_on_body_close and pd.notna(last_live_lo):
-                close_i = float(data.iloc[i]["close"])
-                ok_reason = (
-                    (last_live_dir == 1 and close_i < last_live_lo)
-                    or (last_live_dir == -1 and close_i > last_live_hi)
-                )
-                if not ok_reason:
-                    violations.append(
-                        f"I3@{i}: invalidated sin close más allá del extremo "
-                        f"(close={close_i}, box=[{last_live_lo},{last_live_hi}])"
-                    )
+            if has_score:
+                if sc + 1e-12 < cfg.score_floor:
+                    violations.append(f"I7@{i}: score {sc} < floor")
+                if prev_score_in_life is not None and not cfg.freeze_decay_on_touch:
+                    if sc > prev_score_in_life + 1e-9:
+                        violations.append(
+                            f"I8@{i}: score subió con la edad {prev_score_in_life}→{sc}"
+                        )
+                prev_score_in_life = sc
 
     return {
         "ok": len(violations) == 0,
