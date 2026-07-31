@@ -79,10 +79,8 @@ def test_real_fixture_bos_choch_ratio():
 def test_real_fixture_tf_classification():
     """Clasificacion HTF/ITF/LTF sobre EURUSD 50k M5 sin inventar metricas."""
     report = json.load(open("backtest/output/audit_report_EURUSD.json", encoding="utf-8"))
-    tf = report.get("tf_levels", {})
-    assert "htf_levels_count" in tf
-    assert "itf_levels_count" in tf
-    bos_by_tf = report.get("bos", {}).get("by_tf", {})
-    choch_by_tf = report.get("choch", {}).get("by_tf", {})
+    summary = report.get("summary", {})
+    bos_by_tf = summary.get("bos", {}).get("by_tf", {})
+    choch_by_tf = summary.get("choch", {}).get("by_tf", {})
     assert set(bos_by_tf) == {"HTF", "ITF", "LTF"}
     assert set(choch_by_tf) == {"HTF", "ITF", "LTF"}

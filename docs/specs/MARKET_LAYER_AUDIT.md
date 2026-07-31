@@ -249,10 +249,16 @@ Entregables:
 - Traza forense: evento `choch_detected` con `new_state=ACTIVE/INVALIDATED`, no solo `PENDING`.
 - Plots BOS/CHOCH: ahora marcan puntos de posible giro estructural, no pullbacks rutinarios.
 
-### Calibración pendiente: CHOCH LTF = 0
-- Dato anómalo: EURUSD 50k M5 con clasificación HTF/ITF/LTF dio CHOCH LTF = 0.
-- Diagnóstico: el clasificador usa niveles agregados H4/H1 convertidos a M5; al agregar, casi todos los niveles significativos pasan a HTF/ITF y no queda una base LTF pura.
-- Acción siguiente: calibración de la clasificación sin borrar aún código ni tests; documentado como faltante para la fase 3 final.
+### Calibración resuelta: Fase 4 cerrada
+- Clasificador HTF/ITF/LTF cambiado a **alineación temporal multi-TF**.
+- Módulo: `ict_backtest/structure_mtf_align.py`
+- Runner: `backtest/scripts/run_layer_audit.py` consume `align_structure_mtf`
+- EURUSD 50k M5: CHOCH LTF = 365, CHOCH HTF = 1
+- Partición exhaustiva: `partition_ok = True`
+
+### Calibración pendiente residual
+- CHOCH HTF = 1 es coherente, pero muy bajo; requiere ampliar datos reales multi-TF para confirmar distribución.
+- Si no hay frames H4/H1 de calidad, el sistema degrada a 100% LTF sin inventar niveles.
 
 ---
 

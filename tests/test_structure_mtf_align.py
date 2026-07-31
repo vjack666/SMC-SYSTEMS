@@ -59,32 +59,32 @@ def test_partition_exhaustive():
     assert summary["bos"]["total"] == sum(summary["bos"]["by_tf"].values())
     assert summary["choch"]["total"] == sum(summary["choch"]["by_tf"].values())
 
-
 def test_real_fixture_ratio():
-    report = json.load(open("backtest/output/audit_report_EURUSD.json", encoding="utf-8"))
-    bos = int(report.get("bos", {}).get("total", 0))
-    choch = int(report.get("choch", {}).get("total", 0))
+    summary = json.load(open("backtest/output/audit_report_EURUSD.json", encoding="utf-8"))["summary"]
+    bos = int(summary.get("bos", {}).get("total", 0))
+    choch = int(summary.get("choch", {}).get("total", 0))
     assert bos >= choch, f"Fixture real inválido: BOS={bos} < CHOCH={choch}"
 
 
 def test_real_fixture_tf_classification():
-    report = json.load(open("backtest/output/audit_report_EURUSD.json", encoding="utf-8"))
-    bos_by_tf = report.get("bos", {}).get("by_tf", {})
-    choch_by_tf = report.get("choch", {}).get("by_tf", {})
+    """Clasificacion HTF/ITF/LTF sobre EURUSD 50k M5 sin inventar metricas."""
+    summary = json.load(open("backtest/output/audit_report_EURUSD.json", encoding="utf-8")).get("summary", {})
+    bos_by_tf = summary.get("bos", {}).get("by_tf", {})
+    choch_by_tf = summary.get("choch", {}).get("by_tf", {})
     assert set(bos_by_tf) == {"HTF", "ITF", "LTF"}
     assert set(choch_by_tf) == {"HTF", "ITF", "LTF"}
 
 
 def test_real_fixture_ltf_nonzero():
-    report = json.load(open("backtest/output/audit_report_EURUSD.json", encoding="utf-8"))
-    choch_by_tf = report.get("choch", {}).get("by_tf", {})
-    # Criterio de aceptación mínimo: debe existir CHOCH LTF > 0 en 50k M5
+    """Criterio de aceptación mínimo: debe existir CHOCH LTF > 0 en 50k M5."""
+    summary = json.load(open("backtest/output/audit_report_EURUSD.json", encoding="utf-8")).get("summary", {})
+    choch_by_tf = summary.get("choch", {}).get("by_tf", {})
     assert choch_by_tf.get("LTF", 0) >= 1, "CHOCH LTF debe ser >= 1"
 
 
 def test_real_fixture_htf_nonzero():
     """CHOCH HTF debe ser >= 1 si existen frames H4/H1 suficientes en data/raw."""
-    report = json.load(open("backtest/output/audit_report_EURUSD.json", encoding="utf-8"))
-    choch_by_tf = report.get("choch", {}).get("by_tf", {})
+    summary = json.load(open("backtest/output/audit_report_EURUSD.json", encoding="utf-8")).get("summary", {})
+    choch_by_tf = summary.get("choch", {}).get("by_tf", {})
     if choch_by_tf.get("HTF", 0) < 1:
         pytest.xfail("CHOCH HTF=0 en fixture actual: requiere verificar presencia/calidad de H4/H1 en data/raw")
