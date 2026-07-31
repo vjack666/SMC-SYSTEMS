@@ -1,0 +1,23 @@
+{
+  "symbol": "EURUSD",
+  "start": "2025-11-21T14:15:00+00:00",
+  "end": "2026-07-24T20:55:00+00:00",
+  "total_bars_m5": 50000,
+  "htf_bars_built": {
+    "H1": 49991,
+    "H4": 49967,
+    "D1": 49823
+  },
+  "bos": {
+    "total": 903,
+    "bullish": 435,
+    "bearish": 468
+  },
+  "choch": {
+    "total": 1955,
+    "confirmed": 1928,
+    "expired": 27,
+    "pending": 0
+  },
+  "trace_path": "backtest\\evidence\\forensic_trace_EURUSD.jsonl"
+}
