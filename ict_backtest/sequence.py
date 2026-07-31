@@ -59,7 +59,7 @@ _CANDLE_FIELDS = (
     "bos_dir", "choch_dir", "fvg_bullish", "fvg_bearish", "ob_direction",
     "ob_bullish", "ob_bearish", "liquidity_sweep_up", "liquidity_sweep_down",
     "displacement_bullish", "displacement_bearish", "high", "low", "open",
-    "close", "atr", "bos_level", "time",
+    "close", "atr", "bos_level", "time", "fvg_zone_low", "fvg_zone_high",
 )
 
 
@@ -233,13 +233,24 @@ def _htf_has_poi(est_htf: dict, target: int) -> bool:
 def _latest_fvg_zone(obj: MarketObject, direction: int) -> tuple[float, float] | None:
     """Cuadro del FVG mas reciente en la direccion del setup.
 
-    Devuelve (zone_high, zone_low) del FVG. El trader traza ESTE cuadro y
-    espera el retorno (mitigation). Si no hay FVG, None.
+    Devuelve (zone_high, zone_low) del GAP, no de la vela del impulse.
+    Prioriza fvg_zone_high/fvg_zone_low si estan en meta; si falta,
+    no inventa proxy por high/low de la vela porque dibuja el impulso,
+    no el hueco. Fallback seguro = None.
     """
-    if direction == 1 and bool(obj.meta.get("fvg_bullish", False)):
-        return (float(obj.meta.get("high")), float(obj.meta.get("low")))
-    if direction == -1 and bool(obj.meta.get("fvg_bearish", False)):
-        return (float(obj.meta.get("high")), float(obj.meta.get("low")))
+    meta = obj.meta or {}
+    if direction == 1 and bool(meta.get("fvg_bullish", False)):
+        z_high = meta.get("fvg_zone_high")
+        z_low = meta.get("fvg_zone_low")
+        if z_high is not None and z_low is not None:
+            return (float(z_high), float(z_low))
+        return None
+    if direction == -1 and bool(meta.get("fvg_bearish", False)):
+        z_high = meta.get("fvg_zone_high")
+        z_low = meta.get("fvg_zone_low")
+        if z_high is not None and z_low is not None:
+            return (float(z_high), float(z_low))
+        return None
     return None
 
 
