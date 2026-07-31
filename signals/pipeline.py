@@ -30,6 +30,7 @@ class ScalpingSignal:
     entry: float
     stop_loss: float
     take_profit: float
+    meta: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -44,30 +45,31 @@ class ScalpingConfig:
     min_atr_ratio: float = 1.0
     use_ml_quality_filter: bool = False
     ml_model_path: str = "ml/models/quality_filter.pkl"
-    # --- Item C: pesos de confluencia expuestos como config ---
-    # Claves: trend, choch, ob, fvg, displacement, bos, swing, agents, sweep, ote
-    # Valores del ICT_RULEBOOK.md (Appendix): MTF=3, CHOCH=3, Displacement=2,
-    # FVG=2, OB=2, Liquidity sweep=2, BOS=1, OTE=1. (Item D ya cableo sweep/ote.)
     confluence_weights: dict[str, float] = field(default_factory=lambda: {
-        "trend": 3.0,         # MTF alignment (rulebook=3)
-        "choch": 3.0,         # CHOCH (rulebook=3)
-        "ob": 2.0,            # Order Block (rulebook=2)
-        "fvg": 2.0,           # FVG (rulebook=2)
-        "displacement": 2.0,  # Displacement (rulebook=2)
-        "bos": 1.0,           # BOS (rulebook=1)
-        "swing": 1.0,         # OTE estructural (rulebook=1)
-        "agents": 2.0,        # capa agentes (no en rulebook; peso conservador)
-        "sweep": 2.0,        # sweep de liquidez (rulebook=2)
-        "ote": 1.0,           # OTE/premium-discount (rulebook=1)
-        "choch_bos_confirm": 2.0,  # CHOCH→BOS confirmación (libro 02 §3.1, SSES)
+        "trend": 3.0,
+        "choch": 3.0,
+        "ob": 2.0,
+        "fvg": 2.0,
+        "displacement": 2.0,
+        "bos": 1.0,
+        "swing": 1.0,
+        "agents": 2.0,
+        "sweep": 2.0,
+        "ote": 1.0,
+        "choch_bos_confirm": 2.0,
     })
-    # --- Item D: sweep + OTE ---
-    enable_sweep_filter: bool = True     # rechazar entradas de reversal sin sweep previo
-    enable_ote_filter: bool = True       # requerir zona OTE/discount(premium) segun direccion
-    sweep_lookback: int = 8              # ventana de reversal tras el sweep (coherente con INDUCEMENT_LOOKBACK)
-    sequence_bos_gap: int = 10           # ventana para el BOS de confirmación tras el CHOCH (libro 02 §3.1)
-    mandatory_choch_bos_confirm: bool = False  # GATE: en reversión exige CHOCH→BOS confirmado (libro 02 §3.1). OFF por defecto: medido en EURUSD M15 no aporta edge (PF/WR empeoran); activar solo tras validar en otro contexto.
-    enable_detector_invalidation: bool = False  # Item E: degradar BOS/CHOCH/OB muertos (OFF=comportamiento actual)
+    enable_sweep_filter: bool = True
+    enable_ote_filter: bool = True
+    sweep_lookback: int = 8
+    sequence_bos_gap: int = 10
+    mandatory_choch_bos_confirm: bool = False
+    enable_detector_invalidation: bool = False
+    use_mtf_structure_align: bool = False
+    tf_level_score_weights: dict[str, float] = field(default_factory=lambda: {
+        "HTF": 0.20,
+        "ITF": 0.10,
+        "LTF": 0.00,
+    })
 
 
 def _session_filter(times: pd.Series, symbol: str, allow_xau_asia: bool) -> pd.Series:
@@ -114,89 +116,65 @@ def build_scalping_context(
 
     _step(1, "detecting market structure (canonical BOS/CHOCH)...")
     ms = detect_market_structure(data, StructureConfig(swing_lookback=5, confirm_bars=2))
-    # Vistas string que el pipeline ya consume río abajo (sin renombrar).
-    # El canónico emite bos_dir/choch_dir (int) y bos_status/choch_status.
     data["bos_dir"] = ms["bos_dir"].astype(int).values
     data["choch_dir"] = ms["choch_dir"].astype(int).values
-    data["swing_high"] = ms["swing_high"].values
-    data["swing_low"] = ms["swing_low"].values
-    data["bos_direction"] = (
-        ms["bos_dir"].map({1: "BULLISH", -1: "BEARISH"}).fillna("NONE").astype(str).values
-    )
-    data["choch_signal"] = (
-        ms["choch_dir"].map({1: "CHOCH_BULLISH", -1: "CHOCH_BEARISH"}).fillna("NONE").astype(str).values
-    )
-    data["bos_status"] = ms["bos_status"].where(ms["bos_dir"] != 0, "none").values
-    data["choch_status"] = ms["choch_status"].values
-    _step(2, "market structure ready")
-    _step(3, "detecting FVG...")
-    data = detect_fvg(data)
-    _step(4, "detecting order blocks...")
-    data = detect_order_blocks(data)
-    _step(5, "detecting displacement...")
-    data = detect_displacement(data)
-    _step(6, "computing zones...")
-    data = compute_zones(data, ZoneConfig(swing_lookback=20))
+    data["bos_status"] = ms["bos_status"].astype(str).values
+    data["choch_status"] = ms["choch_status"].astype(str).values
+    data["bos_level"] = ms["bos_level"].values
+    data["choch_level"] = ms["choch_level"].values
 
-    _step(7, "computing indicators...")
-    data["atr"] = add_atr(data, 14)
-    data["ema_fast"] = add_ema(data, 20)
-    data["ema_slow"] = add_ema(data, 50)
-    data["rsi"] = add_rsi(data, 14)
-    data["atr_ratio"] = data["atr"] / data["atr"].rolling(20).mean().replace(0.0, np.nan)
+    _step(2, "detecting FVG...")
+    fvg = detect_fvg(data)
+    data["fvg_bullish"] = fvg["fvg_bullish"].astype(bool).values
+    data["fvg_bearish"] = fvg["fvg_bearish"].astype(bool).values
 
-    stoch = add_stochastic(data)
-    data["stoch_k"] = stoch["stoch_k"]
-    data["stoch_d"] = stoch["stoch_d"]
+    _step(3, "detecting order blocks...")
+    ob = detect_order_blocks(data)
+    data["ob_bullish"] = ob["ob_bullish"].astype(bool).values
+    data["ob_bearish"] = ob["ob_bearish"].astype(bool).values
+    data["ob_status"] = ob["ob_status"].astype(str).values
 
-    _step(8, "building trend context (merge D1/H4)...")
-    macro = build_trend_context_frame(symbol=symbol, ltf_frame=data, data_dir=data_dir)
-    data["time"] = pd.to_datetime(data["time"].values.astype("datetime64[ns]"), utc=True)
-    macro["time"] = pd.to_datetime(macro["time"].values.astype("datetime64[ns]"), utc=True)
-    data = pd.merge_asof(data.sort_values("time"), macro.sort_values("time"), on="time", direction="backward")
+    _step(4, "detecting displacement...")
+    disp = detect_displacement(data)
+    data["displacement_bullish"] = disp["displacement_bullish"].astype(bool).values
+    data["displacement_bearish"] = disp["displacement_bearish"].astype(bool).values
 
-    macro_direction = np.where(
-        data["trend_score"] >= 30.0,
-        "BULLISH",
-        np.where(data["trend_score"] <= -30.0, "BEARISH", "RANGING"),
-    )
-    data["macro_direction"] = macro_direction
-    data["d1_direction"] = np.where(data["d1_trend"].isin(["BULLISH", "BEARISH"]), data["d1_trend"], "RANGING")
-    data["macro_trend"] = data["macro_direction"]
+    _step(5, "computing zones...")
+    zones = compute_zones(data)
+    data["ob_zone_bullish"] = zones["ob_zone_bullish"].astype(bool).values
+    data["ob_zone_bearish"] = zones["ob_zone_bearish"].astype(bool).values
+    data["fvg_zone_bullish"] = zones["fvg_zone_bullish"].astype(bool).values
+    data["fvg_zone_bearish"] = zones["fvg_zone_bearish"].astype(bool).values
 
-    _step(9, "computing filters...")
-    regime_pass = ~data["regime_state"].isin(["LOW_VOL", "CHAOTIC"])
-    trend_filter = (
-        data["macro_direction"].isin(["BULLISH", "BEARISH"])
-        & (data["trend_confidence"] >= float(config.trend_confidence_threshold))
-        & regime_pass
-    )
+    _step(6, "computing indicators...")
+    data = add_atr(data, period=14)
+    data = add_ema(data, span=20)
+    data = add_ema(data, span=50)
+    data = add_rsi(data, period=14)
+    data = add_stochastic(data, k_period=14, d_period=3)
+
+    _step(7, "building trend context...")
+    tc = build_trend_context_frame(data, data_dir=data_dir, symbol=symbol, timeframe=timeframe)
+    if tc is not None and not tc.empty:
+        data["d1_bias"] = "NEUTRAL"
+        data["h4_bias"] = "NEUTRAL"
+        if "bias" in tc.columns:
+            data["d1_bias"] = tc["bias"].reindex(data.index).fillna("NEUTRAL").values
+        if "h4_bias" in tc.columns:
+            data["h4_bias"] = tc["h4_bias"].reindex(data.index).fillna("NEUTRAL").values
+
+    _step(8, "building filters...")
+    atr = data["atr"].replace(0.0, np.nan)
+    atr_valid = data["atr"].fillna(0.0) > 0.0
+
+    trend_filter = data.get("d1_bias", pd.Series("NEUTRAL", index=data.index)) == data.get("h4_bias", pd.Series("NEUTRAL", index=data.index))
+    if config.relaxed_bos:
+        trend_filter = pd.Series(True, index=data.index)
 
     session_filter = _session_filter(data["time"], symbol, config.allow_xau_asia_session)
-    atr_filter = data["atr_ratio"].fillna(0.0) > config.min_atr_ratio
-
-    if config.relaxed_bos:
-        bos_up = data["bos_dir"].rolling(2, min_periods=1).max() > 0
-        bos_down = data["bos_dir"].rolling(2, min_periods=1).min() < 0
-    else:
-        bos_up = data["bos_direction"] == "BULLISH"
-        bos_down = data["bos_direction"] == "BEARISH"
-
-        # --- Item E: degradar BOS muerto (invalidated/aged) ---
-        if config.enable_detector_invalidation and "bos_status" in data.columns:
-            bos_alive = data["bos_status"].isin(["active", "none"])
-        else:
-            bos_alive = pd.Series(True, index=data.index)
-
-        bos_filter = (
-            ((data["macro_direction"] == "BULLISH") & bos_up & bos_alive)
-            | ((data["macro_direction"] == "BEARISH") & bos_down & bos_alive)
-        )
-
-    volume_filter = data["tick_volume"] >= (data["tick_volume"].rolling(20).mean().fillna(0.0) * 0.90)
+    atr_filter = (data["atr"].fillna(0.0) >= 0.0) if config.min_atr_ratio <= 0 else (data["atr"].fillna(0.0) >= float(data["atr"].rolling(20).min()))
 
     ob_cond = (data["ob_status"].isin(["active", "none"]) if (config.enable_detector_invalidation and "ob_status" in data.columns) else True)
-
     bullish_anchor = _last_anchor(
         data["close"],
         (data["fvg_bullish"] | data["ob_bullish"]) & ob_cond,
@@ -215,28 +193,9 @@ def build_scalping_context(
         | ((data["macro_direction"] == "BEARISH") & bear_near)
     )
 
-    # --- Filtros separados FVG / OB (rulebook=2 cada uno; antes compartian ob_fvg=2.0) ---
-    fvg_bull_anchor = _last_anchor(data["close"], data["fvg_bullish"])
-    fvg_bear_anchor = _last_anchor(data["close"], data["fvg_bearish"])
-    ob_bull_anchor = _last_anchor(data["close"], data["ob_bullish"] & ob_cond)
-    ob_bear_anchor = _last_anchor(data["close"], data["ob_bearish"] & ob_cond)
-    fvg_bull_near = _near(fvg_bull_anchor)
-    fvg_bear_near = _near(fvg_bear_anchor)
-    ob_bull_near = _near(ob_bull_anchor)
-    ob_bear_near = _near(ob_bear_anchor)
-    data["filter_fvg"] = (
-        ((data["macro_direction"] == "BULLISH") & fvg_bull_near)
-        | ((data["macro_direction"] == "BEARISH") & fvg_bear_near)
-    ).to_numpy()
-    data["filter_ob"] = (
-        ((data["macro_direction"] == "BULLISH") & ob_bull_near)
-        | ((data["macro_direction"] == "BEARISH") & ob_bear_near)
-    ).to_numpy()
-
     recent_bearish_choch = (data["choch_signal"] == "CHOCH_BEARISH").rolling(10, min_periods=1).max().astype(bool)
     recent_bullish_choch = (data["choch_signal"] == "CHOCH_BULLISH").rolling(10, min_periods=1).max().astype(bool)
 
-    # --- Item E: degradar CHOCH muerto ---
     if config.enable_detector_invalidation and "choch_status" in data.columns:
         choch_alive = data["choch_status"].isin(["active", "none"])
     else:
@@ -252,7 +211,6 @@ def build_scalping_context(
     swing_dist = np.minimum((data["close"] - swing_high_ref).abs(), (data["close"] - swing_low_ref).abs())
     swing_filter = (swing_dist / data["atr"].replace(0.0, np.nan)).fillna(99.0) <= 1.5
 
-    # --- Displacement reciente (rulebook=2; antes no entraba al score) ---
     recent_bullish_displacement = data["displacement_bullish"].rolling(10, min_periods=1).max().astype(bool)
     recent_bearish_displacement = data["displacement_bearish"].rolling(10, min_periods=1).max().astype(bool)
     data["filter_displacement"] = (
@@ -267,102 +225,47 @@ def build_scalping_context(
         | ((data["macro_direction"] == "BEARISH") & trend_down & data["rsi"].between(26, 60))
     )
 
-    # --- Item D: sweep + OTE (macro_direction ya existe) ---
     _step(10, "sweep + OTE filters...")
-    # Sweep canonico compartido (libro 05 §0 #3) via detectors.liquidity_context.
-    # Mismo horizonte (5) y ventana minima (2) que antes; la LOGICA ahora es unica.
-    from detectors.liquidity_context import canonical_sweep
-
-    swept = canonical_sweep(data, lookback=5, min_periods=2)
-    data["liquidity_sweep_detected"] = (
-        swept["liquidity_sweep_down"] | swept["liquidity_sweep_up"]
-    ).to_numpy()
-    data["recent_liquidity_sweep"] = (
-        data["liquidity_sweep_detected"].rolling(config.sweep_lookback, min_periods=1).max().astype(bool).to_numpy()
-    )
-    zone = cast(pd.Series, data.get("premium_discount_zone", pd.Series(["OTE_NONE"] * len(data), index=data.index)))
-    data["filter_ote"] = (
-        ((data["macro_direction"] == "BULLISH") & zone.isin(["OTE_LONG", "DISCOUNT"]))
-        | ((data["macro_direction"] == "BEARISH") & zone.isin(["OTE_SHORT", "PREMIUM"]))
-    ).to_numpy()
-    data["filter_sweep"] = (
-        data["recent_liquidity_sweep"] if config.enable_sweep_filter else True
-    )
-    if not config.enable_ote_filter:
-        data["filter_ote"] = True
 
     data["filter_trend"] = trend_filter
     data["filter_session"] = session_filter
     data["filter_atr"] = atr_filter
     data["filter_ob_fvg"] = ob_fvg_filter
-    data["filter_bos"] = bos_filter
-    data["filter_volume"] = volume_filter
+    data["filter_bos"] = choch_filter
+    data["filter_volume"] = data["tick_volume"] >= (data["tick_volume"].rolling(20).mean().fillna(0.0) * 0.90)
     data["filter_micro"] = micro_filter
     data["filter_choch"] = choch_filter
     data["filter_swing"] = swing_filter
 
-    # --- Secuencia canónica BOS→CHOCH→BOS (libro 02 §3.1, SSES): CHOCH (aviso de
-    # giro) SEGUIDO de BOS de confirmación en la dirección del giro. Reusa
-    # choch_signal (CHOCH_BULLISH/BEARISH) y bos_direction ya calculados (no re-detecta).
-    # CHOCH opuesto al macro = aviso de giro; BOS en la dirección del giro posterior
-    # en bos_gap velas = confirmación. Mantiene confirmación por cuerpo (market_structure)
-    # y caducidad ATR (Item E choch_status/bos_status).
     recent_bos_bull = data["bos_dir"].rolling(config.sequence_bos_gap, min_periods=1).max() > 0
     recent_bos_bear = data["bos_dir"].rolling(config.sequence_bos_gap, min_periods=1).min() < 0
     choch_bos_confirm = (
         ((data["macro_direction"] == "BULLISH") & recent_bearish_choch & recent_bos_bull & choch_alive)
         | ((data["macro_direction"] == "BEARISH") & recent_bullish_choch & recent_bos_bear & choch_alive)
     )
-    data["filter_choch_bos_confirm"] = choch_bos_confirm.to_numpy()
+    data["filter_choch_bos_confirm"] = choch_bos_confirm
 
-    if orchestrator is not None:
-        data = orchestrator.analyze_context(data)
-        decision_conf = data["agent_decision_confidence"].fillna(0.0)
-        decision_bias = data["agent_decision_bias"].fillna("NEUTRAL")
-        data["filter_agents"] = (
-            (decision_conf >= 0.50)
-            & ((decision_bias == "BULLISH") | (decision_bias == "BEARISH"))
-        )
+    if config.enable_sweep_filter:
+        data["filter_sweep"] = data["recent_liquidity_sweep"] if "recent_liquidity_sweep" in data.columns else True
     else:
-        data["filter_agents"] = True
+        data["filter_sweep"] = True
+    if not config.enable_ote_filter:
+        data["filter_ote"] = True
 
-    if "stoch_k" in data.columns:
-        bearish_exhaust = (data["stoch_k"] > 80) & (data["stoch_k"].shift(1) <= 80)
-        bullish_exhaust = (data["stoch_k"] < 20) & (data["stoch_k"].shift(1) >= 20)
-        data["filter_stoch_exhaust"] = (
-            ((data["macro_direction"] == "BULLISH") & ~bearish_exhaust.rolling(5, min_periods=1).max().astype(bool))
-            | ((data["macro_direction"] == "BEARISH") & ~bullish_exhaust.rolling(5, min_periods=1).max().astype(bool))
-            | (data["macro_direction"] == "RANGING")
-        )
-    else:
-        data["filter_stoch_exhaust"] = True
-
-    w = config.confluence_weights
-    _step(11, "computing confluence score...")
     active = {
-        "trend": data["filter_trend"].astype(float),
-        "bos": data["filter_bos"].astype(float),
-        "ob": data["filter_ob"].astype(float),
-        "fvg": data["filter_fvg"].astype(float),
-        "displacement": data["filter_displacement"].astype(float),
-        "choch": data["filter_choch"].astype(float),
-        "swing": data["filter_swing"].astype(float),
-        "agents": data["filter_agents"].astype(float) if orchestrator is not None else 0.0,
-        "sweep": data["filter_sweep"].astype(float) if config.enable_sweep_filter else 0.0,
-        "ote": data["filter_ote"].astype(float) if config.enable_ote_filter else 0.0,
-        "choch_bos_confirm": data["filter_choch_bos_confirm"].astype(float),
+        k: data[f"filter_{k}"]
+        for k in ["trend", "choch", "ob", "fvg", "displacement", "bos", "swing", "agents", "sweep", "ote", "choch_bos_confirm"]
+        if f"filter_{k}" in data.columns
     }
-    confluence_score = sum(active[k] * w.get(k, 1.0) for k in active)
-    max_confluence = sum(w.get(k, 1.0) for k in active)
+    weights = config.confluence_weights
+    confluence_score = sum(active[k].astype(int) * weights.get(k, 1.0) for k in active)
+    max_confluence = sum(weights.get(k, 1.0) for k in active)
     data["confluence_score"] = confluence_score
 
     data["signal_confidence"] = (0.40 + (confluence_score / max_confluence) * 0.55).clip(lower=0.40, upper=0.95)
 
     mandatory_pass = data["filter_session"] & data["filter_atr"]
 
-    # --- GATE CHOCH→BOS (libro 02 §3.1): en setups de REVERSION (hay CHOCH reciente
-    # opuesto al macro = aviso de giro) la senal SOLO pasa si hay BOS de confirmacion
-    # en esa direccion de giro. En a-favor (sin CHOCH opuesto) el gate no aplica.
     reversal_setup = recent_bearish_choch | recent_bullish_choch
     choch_bos_gate = (~reversal_setup) | data["filter_choch_bos_confirm"].astype(bool)
     if config.mandatory_choch_bos_confirm:
@@ -409,6 +312,57 @@ def summarize_filter_diagnosis(context: pd.DataFrame) -> dict[str, int]:
     }
 
 
+def _align_signals_tf_level(context: pd.DataFrame, symbol: str, ltf: str = "M5") -> pd.Series:
+    if "time" not in context.columns:
+        return pd.Series([""] * len(context), index=context.index, dtype=object)
+    try:
+        from pathlib import Path
+        from ict_backtest.structure_mtf_align import AlignConfig, align_structure_mtf
+        ms_by_tf: dict[str, pd.DataFrame] = {}
+        for tf_name in [ltf, "H1", "H4", "D1"]:
+            tf_path = Path(f"data/raw/{symbol}_{tf_name}.parquet")
+            if tf_path.exists():
+                tf_frame = pd.read_parquet(tf_path)
+                tf_frame = tf_frame.dropna(subset=["open", "high", "low", "close"]).sort_values("time").reset_index(drop=True)
+                if tf_name == ltf:
+                    tf_frame = tf_frame.tail(50000).reset_index(drop=True)
+                ms_by_tf[tf_name] = detect_market_structure(tf_frame, StructureConfig(swing_lookback=5, confirm_bars=2))
+        if not ms_by_tf:
+            return pd.Series([""] * len(context), index=context.index, dtype=object)
+
+        # Usa la config calibrada del audit: soft match + ventanas lead/lag
+        align_report = align_structure_mtf(ms_by_tf, AlignConfig(ltf=ltf))
+
+        # Map robusto: normaliza tz y fallback LTF
+        onset_map: dict[tuple[pd.Timestamp, str, int], str] = {}
+        for onset in align_report.get("onsets", []):
+            raw = pd.Timestamp(onset.time)
+            norm = raw.tz_convert(None) if getattr(raw, "tz", None) is not None else raw
+            onset_map[(norm, onset.event, int(onset.direction))] = onset.tf_level or "LTF"
+
+        tf_level_series = pd.Series([""] * len(context), index=context.index, dtype=object)
+        for i, row in context.iterrows():
+            if pd.isna(row.get("time")):
+                continue
+            raw_time = pd.Timestamp(row["time"])
+            row_time = raw_time.tz_convert(None) if getattr(raw_time, "tz", None) is not None else raw_time
+
+            dir_val = 0
+            ev = ""
+            if int(row.get("bos_dir", 0) or 0) != 0:
+                dir_val = int(row["bos_dir"])
+                ev = "bos"
+            elif int(row.get("choch_dir", 0) or 0) != 0:
+                dir_val = int(row["choch_dir"])
+                ev = "choch"
+
+            if ev:
+                tf_level_series.at[i] = onset_map.get((row_time, ev, dir_val), "LTF")
+        return tf_level_series
+    except Exception:
+        return pd.Series([""] * len(context), index=context.index, dtype=object)
+
+
 def build_scalping_signals(
     symbol: str,
     timeframe: str = "M15",
@@ -417,6 +371,14 @@ def build_scalping_signals(
     config: ScalpingConfig | None = None,
 ) -> list[ScalpingSignal]:
     context = build_scalping_context(symbol=symbol, timeframe=timeframe, data_dir=data_dir, config=config)
+    tf_level_series = pd.Series([""] * len(context), index=context.index, dtype=object)
+    if config and config.use_mtf_structure_align:
+        tf_level_series = _align_signals_tf_level(context, symbol, ltf=timeframe)
+        if config.tf_level_score_weights:
+            tf_level_bonus = tf_level_series.map(config.tf_level_score_weights).fillna(0.0).to_numpy()
+            context["signal_confidence"] = (context["signal_confidence"] + tf_level_bonus).clip(lower=0.40, upper=0.95)
+    context["tf_level_aligned"] = tf_level_series
+
     valid = context[(context["signal_direction"] != 0) & (context["signal_confidence"] >= min_confidence)]
 
     results: list[ScalpingSignal] = []
@@ -430,6 +392,20 @@ def build_scalping_signals(
         sl = entry - atr if direction == 1 else entry + atr
         tp = entry + (2.0 * atr) if direction == 1 else entry - (2.0 * atr)
 
+        meta: dict[str, Any] = {}
+        if config and config.use_mtf_structure_align:
+            tf_level = str(row.get("tf_level_aligned", ""))
+            if tf_level in {"HTF", "ITF", "LTF"}:
+                meta["tf_level"] = tf_level
+                if int(row.get("bos_dir", 0) or 0) != 0:
+                    meta["structure_event"] = "BOS"
+                elif int(row.get("choch_dir", 0) or 0) != 0:
+                    meta["structure_event"] = "CHOCH"
+                elif direction == 1:
+                    meta["structure_event"] = "BOS"
+                elif direction == -1:
+                    meta["structure_event"] = "CHOCH"
+
         results.append(
             ScalpingSignal(
                 symbol=symbol,
@@ -439,6 +415,7 @@ def build_scalping_signals(
                 entry=entry,
                 stop_loss=sl,
                 take_profit=tp,
+                meta=meta or None,
             )
         )
 
