@@ -6,19 +6,17 @@ invalidado, segun la teoria ICT (innercircletrader) y SMC (dailypriceaction):
   BOS (Break of Structure):
     - Alcista: el close (cuerpo) supera el ULTIMO swing high.
     - Bajista: el close (cuerpo) perfora el ULTIMO swing low.
-    - Si el swing roto es HH/HL (en tendencia), es continuacion.
-    - Si el swing roto es LH/LL (en correccion), es BOS de correccion (no cambia tendencia).
+    - Continuacion: ruptura EN LA MISMA direccion del bias de estructura.
     - ACTIVO desde el break hasta que el precio CRUZA de nuevo el nivel roto
       (invalidacion). EVENT-DRIVEN: no hay caducidad por tiempo/volatilidad.
 
   CHOCH (Change of Character):
-    - Es el BOS que rompe el swing que DEFINE la tendencia opuesta.
-    - Alcista (HH -> LH -> LL luego sube y rompe el LH/estructura): confirma giro a alcista.
-    - Bajista (LL -> HL -> HH luego baja y rompe el HL): confirma giro a bajista.
-    - REGLA CLAVE (dailypriceaction): un CHOCH valido debe romper el swing que
-      produjo el ULTIMO BOS. Si rompe un swing equivocado, no cuenta.
-    - ACTIVO hasta invalidacion (precio rompe en sentido contrario el swing del CHOCH)
-      o invalidacion por cruce del nivel.
+    - Primera ruptura EN CONTRA del bias de estructura actual.
+    - Alcista: bias era bajista y el close rompe el swing high de esa estructura.
+    - Bajista: bias era alcista y el close rompe el swing low de esa estructura.
+    - Tras un CHOCH el bias se invierte; las siguientes rupturas a favor son BOS.
+    - REGLA CLAVE: BOS y CHOCH son mutuamente excluyentes en la misma vela.
+      Un break es O BOS O CHOCH, nunca ambos.
 
 Confirmacion ORIENTADA A LA REALIDAD DEL MERCADO (no velas fijas):
   - CONFIRMACION: la ruptura se marca solo con el CUERPO (close), nunca la mecha
@@ -27,19 +25,15 @@ Confirmacion ORIENTADA A LA REALIDAD DEL MERCADO (no velas fijas):
     rompiendo el nivel (LuxAlgo Market Structure ICT, feb 2026: "two consecutive
     candle bodies close beyond a previous swing level").
   - CADUCIDAD: EVENT-DRIVEN (Fase D). La estructura vive hasta el cruce del
-    nivel (invalidated). NO hay "aged" por tiempo ni por volatilidad; se ELIMINO
-    la dependencia de ATR (migracion ATR -> rango, Fase 1). La unica metrica de
-    volatilidad del sistema es avg_candle_range (rango high-low), sin indicadores.
+    nivel (invalidated). NO hay "aged" por tiempo ni por volatilidad.
 
-El detector de este modulo es EVENT-DRIVEN y SECUENCIAL: no evalua todo de
-golpe, sino que va marcando el estado de estructura vela a vela (memoria de
-estado), que es justo lo que necesita el motor para la Capa 2 (event-sequence).
+El detector es EVENT-DRIVEN y SECUENCIAL: marca estado vela a vela (memoria),
+que es lo que necesita el motor Capa 2 (event-sequence).
 
 Fuentes (verificadas 2026-07-12):
   - LuxAlgo — Market Structure & ICT Concepts: confirmacion por 2 cuerpos consecutivos.
-  - TradingStrategyGuides — "a wick alone does not confirm a structure break;
-    price must close (full candle body) beyond the previous swing point".
-  - Strike.money — BOS: estructura -> break -> confirmation (cierre decisivo) -> continuation.
+  - TradingStrategyGuides — wick alone does not confirm; body close beyond swing.
+  - Strike.money — BOS: estructura -> break -> confirmation -> continuation.
 """
 
 from __future__ import annotations
@@ -58,14 +52,8 @@ class StructureConfig:
     # 1 = una sola vela (comportamiento original); 2 = filtra fakeouts (LuxAlgo).
     confirm_bars: int = 2
     # NOTE (migracion event-driven, Fase D): se ELIMINO la caducidad por
-    # tiempo/volatilidad (max_age_atr / max_age_bars / "aged"). Las
-    # estructuras ahora viven por EVENTO (cruce del nivel = invalidated),
-    # no por un contador de velas. Ver docs/plan/MARKET_OBJECT_MODEL.md.
-    # NOTE (migracion ATR -> rango, Fase 1): se ELIMINO `atr_period` y el
-    # calculo de ATR (Wilder), que era CODIGO MUERTO tras eliminar el "aged".
-    # La volatilidad del sistema es UNA sola: avg_candle_range (rango high-low),
-    # sin indicadores. Ver _util.avg_candle_range.
-
+    # tiempo/volatilidad (max_age_atr / max_age_bars / "aged").
+    # NOTE (migracion ATR -> rango, Fase 1): se ELIMINO atr_period.
 
 
 def _swing_points(frame: pd.DataFrame, lookback: int) -> tuple[pd.Series, pd.Series]:
@@ -126,9 +114,15 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
 
     Devuelve columnas:
       swing_high, swing_low, swing_label
-      bos_dir (1/-1/0), bos_level, bos_status (active/invalidated/aged/none), bos_age
-      choch_dir (1/-1/0), choch_status, choch_age
+      bos_dir (1/-1/0), bos_level, bos_status, bos_age
+      choch_dir (1/-1/0), choch_level, choch_status, choch_age
+      structure_label ("BOS" | "CHOCH" | "") — etiqueta mutua excluyente del onset
       trend (BULLISH/BEARISH/RANGING) derivado de HH/HL vs LH/LL
+
+    Regla de etiquetado (ICT):
+      - Primera ruptura en CONTRA del bias de estructura → CHOCH
+      - Ruptura a FAVOR del bias (o sin bias previo) → BOS
+      - Tras CHOCH el bias se invierte; el siguiente break a favor es BOS
     """
     if config is None:
         config = StructureConfig()
@@ -137,29 +131,78 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
     d["swing_high"], d["swing_low"] = sh, sl
     d["swing_label"] = _label_swings(sh, sl)
 
-    # BOS: close (cuerpo) rompe el swing previo, CONFIRMADO por `confirm_bars`
-    # cierres consecutivos (filtra fakeouts).
+    n = len(d)
+    close = d["close"].to_numpy(dtype=float)
+    sh_arr = sh.to_numpy(dtype=float)
+    sl_arr = sl.to_numpy(dtype=float)
+
+    # Rupturas confirmadas por cuerpo (sin clasificar aun).
     bull_break = d["close"] > sh.shift(1)
     bear_break = d["close"] < sl.shift(1)
-    bull_conf = _consecutive_break(bull_break, config.confirm_bars)
-    bear_conf = _consecutive_break(bear_break, config.confirm_bars)
-    d["bos_dir"] = np.select([bull_conf, bear_conf], [1, -1], default=0)
-    d["bos_level"] = np.where(d["bos_dir"] == 1, sh.shift(1),
-                      np.where(d["bos_dir"] == -1, sl.shift(1), np.nan))
+    bull_conf = _consecutive_break(bull_break, config.confirm_bars).to_numpy()
+    bear_conf = _consecutive_break(bear_break, config.confirm_bars).to_numpy()
+
+    bos_dir = np.zeros(n, dtype=int)
+    choch_dir = np.zeros(n, dtype=int)
+    bos_level = np.full(n, np.nan)
+    choch_level = np.full(n, np.nan)
+    structure_label = np.array([""] * n, dtype=object)
+
+    # bias de estructura: 0=ninguno, 1=alcista, -1=bajista
+    bias = 0
+    # nivel del ultimo swing ya etiquetado (evita re-disparar el mismo break)
+    last_bull_level = float("nan")
+    last_bear_level = float("nan")
+
+    for i in range(1, n):
+        prev_sh = sh_arr[i - 1] if i > 0 else np.nan
+        prev_sl = sl_arr[i - 1] if i > 0 else np.nan
+
+        # --- ruptura alcista confirmada ---
+        if bull_conf[i] and np.isfinite(prev_sh):
+            # solo onset: no re-etiquetar el mismo nivel ya roto
+            if not (np.isfinite(last_bull_level) and abs(prev_sh - last_bull_level) < 1e-12):
+                level = float(prev_sh)
+                if bias == -1:
+                    # primera ruptura EN CONTRA → CHOCH alcista
+                    choch_dir[i] = 1
+                    choch_level[i] = level
+                    structure_label[i] = "CHOCH"
+                else:
+                    # a favor o sin bias → BOS alcista
+                    bos_dir[i] = 1
+                    bos_level[i] = level
+                    structure_label[i] = "BOS"
+                bias = 1
+                last_bull_level = level
+                # al cambiar de lado, permitir de nuevo el otro lado
+                last_bear_level = float("nan")
+
+        # --- ruptura bajista confirmada ---
+        if bear_conf[i] and np.isfinite(prev_sl):
+            if not (np.isfinite(last_bear_level) and abs(prev_sl - last_bear_level) < 1e-12):
+                level = float(prev_sl)
+                if bias == 1:
+                    # primera ruptura EN CONTRA → CHOCH bajista
+                    choch_dir[i] = -1
+                    choch_level[i] = level
+                    structure_label[i] = "CHOCH"
+                else:
+                    # a favor o sin bias → BOS bajista
+                    bos_dir[i] = -1
+                    bos_level[i] = level
+                    structure_label[i] = "BOS"
+                bias = -1
+                last_bear_level = level
+                last_bull_level = float("nan")
+
+    d["bos_dir"] = bos_dir
+    d["choch_dir"] = choch_dir
+    d["bos_level"] = bos_level
+    d["choch_level"] = choch_level
+    d["structure_label"] = structure_label
 
     d["bos_status"], d["bos_age"] = _track_structure(d, config, is_choch=False)
-    # CHOCH real (hallazgo #2): rompe el swing que produjo el ULTIMO BOS,
-    # en direccion OPUESTA a ese BOS. No es una copia de BOS.
-    last_bos_dir = d["_last_bos_dir"].to_numpy()
-    last_bos_level = d["_last_bos_level"].to_numpy()
-    up_choch = (d["close"].to_numpy() > last_bos_level) & (last_bos_dir == -1)
-    dn_choch = (d["close"].to_numpy() < last_bos_level) & (last_bos_dir == 1)
-    choch_raw = np.select([up_choch, dn_choch], [1, -1], default=0)
-    # CHOCH tambien requiere confirmacion por cuerpo consecutivo.
-    d["choch_dir"] = _consecutive_break(
-        pd.Series(choch_raw != 0, index=d.index), config.confirm_bars
-    ).astype(int) * choch_raw
-    d = d.drop(columns=["_last_bos_dir", "_last_bos_level"])
     d["choch_status"], d["choch_age"] = _track_structure(d, config, is_choch=True)
     d["trend"] = _derive_trend(d)
     return d
@@ -170,8 +213,7 @@ def _track_structure(d: pd.DataFrame, config: StructureConfig, is_choch: bool = 
 
     Invalidacion: el cierre CRUZA de nuevo el nivel roto (por cuerpo).
     EVENT-DRIVEN (Fase D): la estructura vive por EVENTO (cruce del nivel =
-    invalidated). NO hay caducidad por tiempo/volatilidad ("aged"): nunca muere
-    por un contador de velas ni por un umbral de volatilidad.
+    invalidated). NO hay caducidad por tiempo/volatilidad ("aged").
     """
     n = len(d)
     status = pd.Series(["none"] * n, index=d.index, dtype=object)
@@ -180,43 +222,29 @@ def _track_structure(d: pd.DataFrame, config: StructureConfig, is_choch: bool = 
     last_level = float("nan")
     last_idx = -1
     active = False
-    low = d["low"].to_numpy()
-    high = d["high"].to_numpy()
     close = d["close"].to_numpy()
     dir_col = d["choch_dir"].to_numpy() if is_choch else d["bos_dir"].to_numpy()
-    sh = d["swing_high"].to_numpy()
-    slv = d["swing_low"].to_numpy()
-    bos_level = d["bos_level"].to_numpy() if "bos_level" in d.columns else np.full(n, np.nan)
-    last_dir_col = np.zeros(n, dtype=int)
-    last_level_col = np.full(n, np.nan)
+    level_col = (
+        d["choch_level"].to_numpy() if is_choch and "choch_level" in d.columns
+        else d["bos_level"].to_numpy() if "bos_level" in d.columns
+        else np.full(n, np.nan)
+    )
 
     for i in range(1, n):
         dr = int(dir_col[i])
         if dr != 0:
             last_dir, last_idx, active = dr, i, True
-            rest_bars = 0
-            if is_choch:
-                last_level = float(sh[i]) if dr == 1 else float(slv[i])
-            else:
-                last_level = float(bos_level[i]) if pd.notna(bos_level[i]) else last_level
+            lvl = level_col[i]
+            last_level = float(lvl) if pd.notna(lvl) else last_level
         if active:
             age.iloc[i] = i - last_idx
             crossed = ((last_dir == 1 and close[i] < last_level) or
                        (last_dir == -1 and close[i] > last_level))
             if crossed:
                 status.iloc[i], active = "invalidated", False
-            # EVENT-DRIVEN (Fase D): la estructura vive por EVENTO (cruce del
-            # nivel = invalidated). Se ELIMINO la caducidad por tiempo/volatilidad
-            # ("aged"). Nunca muere por contador de velas.
             else:
                 status.iloc[i] = "active"
-        last_dir_col[i] = last_dir
-        last_level_col[i] = last_level
 
-    if not is_choch:
-        # Columnas temporales para que el CHOCH real use el ultimo BOS (hallazgo #2).
-        d["_last_bos_dir"] = last_dir_col
-        d["_last_bos_level"] = last_level_col
     return status, age
 
 
@@ -235,6 +263,11 @@ if __name__ == "__main__":
     from ict_backtest.data_feed import load_frames
     fr = load_frames("XAUUSD", ("H4",))
     ms = detect_market_structure(fr["H4"])
-    print("BOS activos:", int((ms["bos_status"] == "active").sum()))
-    print("CHOCH activos:", int((ms["choch_status"] == "active").sum()))
+    bos_onsets = int((ms["bos_dir"] != 0).sum())
+    choch_onsets = int((ms["choch_dir"] != 0).sum())
+    print("BOS onsets:", bos_onsets)
+    print("CHOCH onsets:", choch_onsets)
+    print("structure_label:", ms["structure_label"].value_counts().to_dict())
+    print("BOS activos (bars):", int((ms["bos_status"] == "active").sum()))
+    print("CHOCH activos (bars):", int((ms["choch_status"] == "active").sum()))
     print("trend counts:", ms["trend"].value_counts().to_dict())
