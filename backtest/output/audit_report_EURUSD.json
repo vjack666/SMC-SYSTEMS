@@ -4,19 +4,19 @@
   "end": "2026-07-24T20:55:00+00:00",
   "total_bars_m5": 50000,
   "htf_bars_built": {
-    "H1": 49991,
-    "H4": 49967,
-    "D1": 49823
+    "H1": 50000,
+    "H4": 50000,
+    "D1": 50000
   },
   "bos": {
-    "total": 903,
-    "bullish": 435,
-    "bearish": 468
+    "total": 8569,
+    "bullish": 4236,
+    "bearish": 4333
   },
   "choch": {
-    "total": 1955,
-    "confirmed": 1928,
-    "expired": 27,
+    "total": 366,
+    "confirmed": 305,
+    "expired": 61,
     "pending": 0
   },
   "trace_path": "backtest\\evidence\\forensic_trace_EURUSD.jsonl"

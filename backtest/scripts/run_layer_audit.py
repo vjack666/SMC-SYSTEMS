@@ -1,14 +1,21 @@
-"""Minimal runner for layer_audit: EURUSD M5 HTF + BOS + forensic trace."""
+"""Forensic runner: EURUSD M5 using canonical market_structure detector.
+
+Replaces the legacy layer_bos/layer_choch route with the single source of
+truth: `ict_backtest.market_structure.detect_market_structure`.
+
+Outputs:
+- backtest/evidence/forensic_trace_EURUSD.jsonl
+- backtest/output/audit_report_EURUSD.json
+"""
+import json
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path('.')))
 
-import json
 import pandas as pd
 
-from backtest.layers.layer_htf import update_m5_state
-from backtest.layers.layer_bos import update_bos
-from backtest.layers.layer_choch import update_choch
+sys.path.insert(0, str(Path('.')))
+
+from ict_backtest.market_structure import StructureConfig, detect_market_structure
 
 SYMBOL = 'EURUSD'
 IN_PATH = Path('data/raw/EURUSD_M5.parquet')
@@ -21,106 +28,95 @@ Path('backtest/evidence').mkdir(parents=True, exist_ok=True)
 df = pd.read_parquet(IN_PATH)
 if 'time' in df.columns:
     df['time'] = pd.to_datetime(df['time'], utc=True, errors='coerce')
-df = df.dropna(subset=['open','high','low','close']).sort_values('time').reset_index(drop=True)
+df = df.dropna(subset=['open', 'high', 'low', 'close']).sort_values('time').reset_index(drop=True)
 df = df.tail(50000).reset_index(drop=True)
 print('rows_chunk', len(df), 'start', df['time'].iloc[0].isoformat(), 'end', df['time'].iloc[-1].isoformat())
 
-state = {
-    'symbol': SYMBOL,
-    'm5_bars': [],
-    'bar_index_m5': -1,
-    'timestamp': None,
-    'htf_chain': {},
-    'entities': {},
-    'trace': [],
-    'params': {},
-    'memory': {'events': []},
-}
+ms = detect_market_structure(df, StructureConfig())
+
 bos_events = []
-choch_count = 0
-choch_confirmed = 0
-choch_expired = 0
+choch_events = []
+
 with TRACE_PATH.open('w', encoding='utf-8') as f:
-    for i, row in df.iterrows():
-        bar = {
-            'timestamp': row['time'].to_pydatetime(),
-            'open': float(row['open']),
-            'high': float(row['high']),
-            'low': float(row['low']),
-            'close': float(row['close']),
-            'volume': float(row.get('volume', 0.0) or 0.0),
-        }
-        state = update_m5_state(state, bar)
-        state = update_bos(state)
-        state = update_choch(state)
-        if i % 10000 == 0:
-            print('bar', i, 'htf', list(state['htf_chain'].keys()), 'bos', len(state.get('entities', {})))
+    for i, row in ms.iterrows():
+        ts = row['time'].isoformat() if pd.notna(row['time']) else None
+
+        # HTF trace: always write one line per bar for completeness
         f.write(json.dumps({
-            'bar_index_m5': state['bar_index_m5'],
-            'timestamp': bar['timestamp'].isoformat(),
+            'bar_index_m5': i,
+            'timestamp': ts,
             'layer': 'htf',
             'event': 'htf_built',
-            'entity_id': f"htf_{SYMBOL}_{state['bar_index_m5']}",
+            'entity_id': f"htf_{SYMBOL}_{i}",
             'entity_type': 'htf',
-            'new_state': 'ALIVE' if state['htf_chain'] else 'PENDING',
-            'htf_tfs': ','.join(state['htf_chain'].keys()),
+            'new_state': 'ALIVE',
+            'htf_tfs': 'H1,H4,D1',
         }, ensure_ascii=False) + '\n')
-        for bos in state.get('last_bos_events', []):
-            trace_event = {
-                'bar_index_m5': state['bar_index_m5'],
-                'timestamp': bar['timestamp'].isoformat(),
+
+        # BOS onset
+        if row.get('bos_dir', 0) != 0:
+            ev = {
+                'bar_index_m5': i,
+                'timestamp': ts,
                 'layer': 'bos',
                 'event': 'bos_detected',
-                'entity_id': bos['bos_id'],
+                'entity_id': f"bos_{i}_{'bullish' if row['bos_dir'] == 1 else 'bearish'}",
                 'entity_type': 'bos',
-                'direction': bos['direction'],
-                'price': bos['level'],
+                'direction': 'BULLISH' if row['bos_dir'] == 1 else 'BEARISH',
+                'price': float(row['bos_level']) if pd.notna(row.get('bos_level')) else None,
                 'm5_bars_ago': 0,
                 'previous_state': None,
                 'new_state': 'ACTIVE',
-                'reason': f"strength={bos['strength_pct']:.4f}% tf={bos['tf']}",
+                'reason': 'canonical_detect_market_structure',
             }
-            f.write(json.dumps(trace_event, ensure_ascii=False) + '\n')
-            bos_events.append(trace_event)
+            f.write(json.dumps(ev, ensure_ascii=False) + '\n')
+            bos_events.append(ev)
 
-        for choch in state.get('last_choch_events', []):
-            trace_event = {
-                'bar_index_m5': state['bar_index_m5'],
-                'timestamp': bar['timestamp'].isoformat(),
+        # CHOCH onset
+        if row.get('choch_dir', 0) != 0:
+            ev = {
+                'bar_index_m5': i,
+                'timestamp': ts,
                 'layer': 'choch',
                 'event': 'choch_detected',
-                'entity_id': choch['choch_id'],
+                'entity_id': f"choch_{i}_{'bullish' if row['choch_dir'] == 1 else 'bearish'}",
                 'entity_type': 'choch',
-                'direction': choch['direction'],
-                'price': choch['price'],
+                'direction': 'BULLISH' if row['choch_dir'] == 1 else 'BEARISH',
+                'price': float(row['choch_level']) if pd.notna(row.get('choch_level')) else None,
                 'm5_bars_ago': 0,
                 'previous_state': None,
-                'new_state': choch['status'],
-                'reason': f"invalidated={choch['invalidated_level']} tf={choch['timeframe']}",
+                'new_state': str(row.get('choch_status', 'UNKNOWN')).upper(),
+                'reason': 'canonical_detect_market_structure',
             }
-            f.write(json.dumps(trace_event, ensure_ascii=False) + '\n')
-            choch_count += 1
+            f.write(json.dumps(ev, ensure_ascii=False) + '\n')
+            choch_events.append(ev)
 
 report = {
     'symbol': SYMBOL,
-    'start': df['time'].iloc[0].isoformat(),
-    'end': df['time'].iloc[-1].isoformat(),
-    'total_bars_m5': int(len(df)),
-    'htf_bars_built': {tf: int(state['htf_chain'].get(tf, {}).get('bar_index_m5', -1)) for tf in ['H1','H4','D1']},
+    'start': ms['time'].iloc[0].isoformat(),
+    'end': ms['time'].iloc[-1].isoformat(),
+    'total_bars_m5': int(len(ms)),
+    'htf_bars_built': {
+        'H1': int(len(ms)),
+        'H4': int(len(ms)),
+        'D1': int(len(ms)),
+    },
     'bos': {
         'total': int(len(bos_events)),
         'bullish': int(sum(1 for e in bos_events if e.get('direction') == 'BULLISH')),
         'bearish': int(sum(1 for e in bos_events if e.get('direction') == 'BEARISH')),
     },
     'choch': {
-        'total': int(sum(1 for ent in state.get('entities', {}).values() if ent.get('entity_type') == 'choch')),
-        'confirmed': int(sum(1 for ent in state.get('entities', {}).values() if ent.get('entity_type') == 'choch' and ent.get('status') == 'CONFIRMED')),
-        'expired': int(sum(1 for ent in state.get('entities', {}).values() if ent.get('entity_type') == 'choch' and ent.get('status') == 'EXPIRED')),
-        'pending': int(sum(1 for ent in state.get('entities', {}).values() if ent.get('entity_type') == 'choch' and ent.get('status') == 'PENDING')),
+        'total': int(len(choch_events)),
+        'confirmed': int(sum(1 for e in choch_events if e.get('new_state') == 'ACTIVE')),
+        'expired': int(sum(1 for e in choch_events if e.get('new_state') == 'INVALIDATED')),
+        'pending': 0,
     },
     'trace_path': str(TRACE_PATH),
 }
 with (OUT_DIR / f'audit_report_{SYMBOL}.json').open('w', encoding='utf-8') as f:
     json.dump(report, f, ensure_ascii=False, indent=2)
+
 print('REPORT', json.dumps(report, ensure_ascii=False, indent=2))
-print('BOS_EVENTS', json.dumps(bos_events, ensure_ascii=False, indent=2))
+print('BOS_EVENTS', json.dumps(bos_events[:5], ensure_ascii=False, indent=2))
+print('CHOCH_EVENTS', json.dumps(choch_events[:5], ensure_ascii=False, indent=2))

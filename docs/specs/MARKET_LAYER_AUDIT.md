@@ -157,15 +157,15 @@ Entregables:
 ### 3.2 Capa BOS
 Responsable: detectar rompimiento de estructura HTF en M5.  
 Entregables:
-- `ict_backtest/layers/layer_bos.py`: detecta BOS alcista/bajista/internal/external
-- Tests TDD: BOS manual sobre dataset sintético con H4H/H4L conocidos
-- Métrica: fuerza del BOS = velas desde último H4H/H4L hasta break
+- `ict_backtest/market_structure.py`: detección canónica BOS/CHOCH con estado secuencial y onset-only
+- Tests TDD: `tests/test_market_structure.py` (exclusión mutua, onset-only, invariantes sintéticas)
+- Métrica: fuerza del BOS = velas desde último swing HTF hasta break
 
 ### 3.3 Capa CHOCH
 Responsable: detectar cambio de carácter.  
 Entregables:
-- `ict_backtest/layers/layer_choch.py`: CHOCH alcista/bajista con confirmación
-- Tests TDD: CHOCH sobre dataset sintético con secuencia LL→HL→invalidación
+- `ict_backtest/market_structure.py`: CHOCH contra swing opuesto estructural, no contra nivel ya roto
+- Tests TDD: ratio BOS >= CHOCH en datos reales, invalidación por cruce de close
 - Métrica: tiempo de confirmación = velas M5 desde el quiebre hasta cierre confirmado
 
 ### 3.4 Capa FVG
