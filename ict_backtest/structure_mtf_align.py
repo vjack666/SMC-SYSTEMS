@@ -15,6 +15,12 @@ import pandas as pd
 
 
 @dataclass(frozen=True)
+class LeadLag:
+    lead: pd.Timedelta
+    lag: pd.Timedelta
+
+
+@dataclass(frozen=True)
 class AlignConfig:
     tolerances: Dict[str, pd.Timedelta] = field(
         default_factory=lambda: {
@@ -24,6 +30,15 @@ class AlignConfig:
             "M5": pd.Timedelta("5min"),
         }
     )
+    lead_lag: Dict[str, LeadLag] = field(
+        default_factory=lambda: {
+            "D1": LeadLag(lead=pd.Timedelta("2D"), lag=pd.Timedelta("1D")),
+            "H4": LeadLag(lead=pd.Timedelta("8h"), lag=pd.Timedelta("4h")),
+            "H1": LeadLag(lead=pd.Timedelta("2h"), lag=pd.Timedelta("1h")),
+            "M5": LeadLag(lead=pd.Timedelta("5min"), lag=pd.Timedelta("5min")),
+        }
+    )
+    soft_match_events: Tuple[str, ...] = ("choch", "bos")
     ltf: str = "M5"
 
 
@@ -70,9 +85,28 @@ def _match_tf(
     tol: pd.Timedelta,
 ) -> Optional[str]:
     for htf in htf_onsets:
-        if htf.event != onset.event or htf.direction != onset.direction:
+        if htf.direction != onset.direction:
+            continue
+        if htf.event != onset.event:
             continue
         if abs(htf.time - onset.time) <= tol:
+            return htf.tf or "UNKNOWN"
+    return None
+
+
+def _soft_match_tf(
+    onset: Onset,
+    htf_onsets: Sequence[Onset],
+    lead_lag: LeadLag,
+    allowed_events: Tuple[str, ...],
+) -> Optional[str]:
+    for htf in htf_onsets:
+        if htf.direction != onset.direction:
+            continue
+        if htf.event not in allowed_events:
+            continue
+        delta = onset.time - htf.time
+        if -lead_lag.lead <= delta <= lead_lag.lag:
             return htf.tf or "UNKNOWN"
     return None
 
@@ -84,52 +118,58 @@ def align_structure_mtf(
     if config is None:
         config = AlignConfig()
 
-    # Orden natural: D1 → H4 → H1 → LTF
     ordered = [tf for tf in ["D1", "H4", "H1", "M5"] if tf in ms_by_tf]
     if config.ltf not in ms_by_tf:
         raise KeyError(f"LTF '{config.ltf}' ausente en ms_by_tf")
+
+    onsets_by_tf = {tf: _extract_onsets(ms_by_tf[tf], tf) for tf in ordered}
+    onsets_counts = {
+        tf: {
+            "bos": int(sum(1 for o in onsets_by_tf[tf] if o.event == "bos")),
+            "choch": int(sum(1 for o in onsets_by_tf[tf] if o.event == "choch")),
+        }
+        for tf in ordered
+    }
+
     if len(ordered) < 2:
-        # Degenerate case: only one TF available -> all onsets are LTF by definition
-        ltf_onsets = _extract_onsets(ms_by_tf[config.ltf], config.ltf)
+        ltf_onsets = onsets_by_tf[config.ltf]
         by_tf = {"bos": {"HTF": 0, "ITF": 0, "LTF": 0}, "choch": {"HTF": 0, "ITF": 0, "LTF": 0}}
         for onset in ltf_onsets:
-            if onset.event == "bos":
-                by_tf["bos"]["LTF"] += 1
-            else:
-                by_tf["choch"]["LTF"] += 1
+            by_tf[onset.event]["LTF"] += 1
         summary = {
             "bos": {"total": by_tf["bos"]["LTF"], "by_tf": by_tf["bos"]},
             "choch": {"total": by_tf["choch"]["LTF"], "by_tf": by_tf["choch"]},
             "partition_ok": True,
             "counts_used": ordered,
+            "onsets_counts": onsets_counts,
         }
         return {"summary": summary, "onsets": ltf_onsets}
 
-    ltf_onsets = _extract_onsets(ms_by_tf[config.ltf], config.ltf)
+    ltf_onsets = onsets_by_tf[config.ltf]
+    htf_index: Dict[str, List[Onset]] = {tf: sorted(onsets_by_tf[tf], key=lambda o: o.time) for tf in ordered if tf != config.ltf}
 
-    # Índice temporal por TF superior (D1/H4/H1)
-    htf_index: Dict[str, List[Onset]] = {}
-    for tf in ordered:
-        if tf == config.ltf:
-            continue
-        htf_index[tf] = sorted(
-            _extract_onsets(ms_by_tf[tf], tf),
-            key=lambda o: o.time,
-        )
-
-    def _best_match(onset: Onset) -> str:
+    by_tf: Dict[str, Dict[str, int]] = {"bos": {"HTF": 0, "ITF": 0, "LTF": 0}, "choch": {"HTF": 0, "ITF": 0, "LTF": 0}}
+    for onset in ltf_onsets:
+        tf_level = "LTF"
         for tf in ["D1", "H4", "H1"]:
             if tf not in htf_index or tf == config.ltf:
                 continue
             tol = config.tolerances.get(tf, pd.Timedelta("1h"))
             matched = _match_tf(onset, htf_index[tf], tol)
             if matched is not None:
-                return matched
-        return "LTF"
+                tf_level = matched
+                break
 
-    by_tf: Dict[str, Dict[str, int]] = {"bos": {"HTF": 0, "ITF": 0, "LTF": 0}, "choch": {"HTF": 0, "ITF": 0, "LTF": 0}}
-    for onset in ltf_onsets:
-        tf_level = _best_match(onset)
+        if tf_level == "LTF" and onset.event == "choch":
+            for tf in ["D1", "H4", "H1"]:
+                if tf not in htf_index or tf == config.ltf:
+                    continue
+                ll = config.lead_lag.get(tf, LeadLag(lead=pd.Timedelta("2h"), lag=pd.Timedelta("1h")))
+                matched = _soft_match_tf(onset, htf_index[tf], ll, config.soft_match_events)
+                if matched is not None:
+                    tf_level = matched
+                    break
+
         if tf_level == "LTF":
             bucket = "LTF"
         elif tf_level in ("D1", "H4"):
@@ -139,32 +179,17 @@ def align_structure_mtf(
         else:
             bucket = "LTF"
 
-        if onset.event == "bos":
-            by_tf["bos"][bucket] += 1
-        else:
-            by_tf["choch"][bucket] += 1
+        by_tf[onset.event][bucket] += 1
 
     bos_total = sum(by_tf["bos"].values())
     choch_total = sum(by_tf["choch"].values())
-    partition_ok = (
-        bos_total == sum(by_tf["bos"].values())
-        and choch_total == sum(by_tf["choch"].values())
-        and bos_total + choch_total > 0
-    )
+    partition_ok = bos_total == sum(by_tf["bos"].values()) and choch_total == sum(by_tf["choch"].values()) and bos_total + choch_total > 0
 
     summary = {
-        "bos": {
-            "total": bos_total,
-            "by_tf": by_tf["bos"],
-        },
-        "choch": {
-            "total": choch_total,
-            "by_tf": by_tf["choch"],
-        },
+        "bos": {"total": bos_total, "by_tf": by_tf["bos"]},
+        "choch": {"total": choch_total, "by_tf": by_tf["choch"]},
         "partition_ok": partition_ok,
         "counts_used": ordered,
+        "onsets_counts": onsets_counts,
     }
-    return {
-        "summary": summary,
-        "onsets": ltf_onsets,
-    }
+    return {"summary": summary, "onsets": ltf_onsets}
