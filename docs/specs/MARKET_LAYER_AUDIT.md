@@ -226,7 +226,32 @@ Entregables:
 
 ---
 
-## 5. Definition of Done
+## 5. Before/After — Corrección BOS/CHOCH (2026-07-31)
+
+### Estado anterior
+- `run_layer_audit.py` importaba `backtest.layers.layer_bos` y `backtest.layers.layer_choch`.
+- CHOCH se medía contra el nivel ya roto por el último BOS (`last_bos_level`), generando falsos positivos por pullbacks.
+- No había estado secuencial; el mismo nivel podía generar CHOCH repetido en múltiples barras.
+- Ratio EURUSD 50k M5: **BOS 903, CHOCH 1955** → CHOCH 2.16× mayor que BOS, contradictorio con ICT.
+
+### Estado corregido
+- Ruta canónica única: `ict_backtest/market_structure.py:detect_market_structure`.
+- CHOCH rompe el swing opuesto estructural del movimiento, no el nivel ya roto.
+- Estado secuencial `bias` + onset-only + invalidación por cruce de close.
+- Ratio EURUSD 50k M5: **BOS 8569, CHOCH 366** → BOS >> CHOCH, coherente con ICT.
+- Código muerto eliminado: `backtest/layers/layer_bos.py`, `backtest/layers/layer_choch.py`, tests legacy asociados.
+- Documentación actualizada: `docs/specs/MARKET_LAYER_AUDIT.md` sección 3.2/3.3.
+- Commit: `c510665` en rama `feature/r3.5-ict-gaps`.
+
+### Impacto en capas superiores
+- `sequence.py`: sin cambios, lee `bos_dir`/`choch_dir` desde `MarketObject.meta`.
+- `run_layer_audit.py`: ahora consume directamente el detector canónico.
+- Traza forense: evento `choch_detected` con `new_state=ACTIVE/INVALIDATED`, no solo `PENDING`.
+- Plots BOS/CHOCH: ahora marcan puntos de posible giro estructural, no pullbacks rutinarios.
+
+---
+
+## 6. Definition of Done
 
 1. 7 capas implementadas con TDD, tests verdes, coverage ≥ 80% por módulo.
 2. `run_layer_audit.py` ejecuta sobre EURUSD_M5.parquet sin errores.
@@ -237,7 +262,7 @@ Entregables:
 
 ---
 
-## 6. Tareas paralelas posibles (no bloqueantes)
+## 7. Tareas paralelas posibles (no bloqueantes)
 
 - Capas HTF/BOS/CHOCH paralelas entre sí (Fronts A, B, C)
 - Capa FVG/OB paralelas (Fronts D, E)
