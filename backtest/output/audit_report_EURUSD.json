@@ -4,39 +4,35 @@
   "end": "2026-07-24T20:55:00+00:00",
   "total_bars_m5": 50000,
   "layers_used": [
-    "htf",
-    "bos",
-    "choch"
+    "D1",
+    "H1",
+    "H4",
+    "M5"
   ],
-  "tf_levels": {
-    "htf_levels_count": 12412,
-    "itf_levels_count": 39634
-  },
-  "htf_bars_built": {
-    "H1": 50000,
-    "H4": 50000,
-    "D1": 50000
-  },
-  "bos": {
-    "total": 8569,
-    "by_tf": {
-      "HTF": 6060,
-      "ITF": 2488,
-      "LTF": 21
+  "summary": {
+    "bos": {
+      "total": 8569,
+      "by_tf": {
+        "HTF": 1621,
+        "ITF": 866,
+        "LTF": 6082
+      }
     },
-    "bullish": 4236,
-    "bearish": 4333
-  },
-  "choch": {
-    "total": 366,
-    "by_tf": {
-      "HTF": 263,
-      "ITF": 103,
-      "LTF": 0
+    "choch": {
+      "total": 366,
+      "by_tf": {
+        "HTF": 1,
+        "ITF": 0,
+        "LTF": 365
+      }
     },
-    "confirmed": 305,
-    "expired": 61,
-    "pending": 0
+    "partition_ok": true,
+    "counts_used": [
+      "D1",
+      "H4",
+      "H1",
+      "M5"
+    ]
   },
   "trace_path": "backtest\\evidence\\forensic_trace_EURUSD.jsonl"
 }
