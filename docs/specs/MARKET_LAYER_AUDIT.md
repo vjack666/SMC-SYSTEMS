@@ -249,6 +249,11 @@ Entregables:
 - Traza forense: evento `choch_detected` con `new_state=ACTIVE/INVALIDATED`, no solo `PENDING`.
 - Plots BOS/CHOCH: ahora marcan puntos de posible giro estructural, no pullbacks rutinarios.
 
+### Calibración pendiente: CHOCH LTF = 0
+- Dato anómalo: EURUSD 50k M5 con clasificación HTF/ITF/LTF dio CHOCH LTF = 0.
+- Diagnóstico: el clasificador usa niveles agregados H4/H1 convertidos a M5; al agregar, casi todos los niveles significativos pasan a HTF/ITF y no queda una base LTF pura.
+- Acción siguiente: calibración de la clasificación sin borrar aún código ni tests; documentado como faltante para la fase 3 final.
+
 ---
 
 ## 6. Definition of Done
