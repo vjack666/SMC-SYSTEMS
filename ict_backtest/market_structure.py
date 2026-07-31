@@ -1,18 +1,21 @@
 """ict_backtest/market_structure.py — Reglas canonicas BOS / CHOCH (ICT/SMC).
 
-Diseno corregido (estado secuencial + onset-only):
+Diseno corregido (estado secuencial + onset-only + clasificacion TF):
 - bias state: 0 = sin estructura, +1 = alcista, -1 = bajista
 - BOS: ruptura confirmada del swing previo, en la direccion del bias actual
   o desde bias=0.
 - CHOCH: ruptura confirmada del swing opuesto que define el caracter
   de la tendencia anterior (no el nivel ya roto por el BOS anterior).
 - Solo emite en el onset (primera confirmacion del nivel), evitando repeticiones.
-- Estructura invalida por evento: close cruza de nuevo el nivel roto.
+- Estructura invalida por evento: close vuelve a cruzar el nivel roto.
+- Clasificacion: HTF si el swing roto pertenece a la lista HTF pasada;
+  ITF si pertenece a un TF intermedio; LTF si es del propio frame analizado.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Iterable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -22,8 +25,11 @@ import pandas as pd
 class StructureConfig:
     swing_lookback: int = 5
     confirm_bars: int = 2
-    # Confirmacion: cuantos cierres CONSECUTIVOS deben romper el nivel.
-    # 2 filtra fakeouts tipo Turtle Soup.
+    # Clasificacion de niveles por capa temporal.
+    # Si se pasa, `detect_market_structure` marca HTF/ITF/LTF en `event_tf_level`.
+    # Formato: {"HTF": {nivel1, nivel2,...}, "ITF": {...}}
+    # Si es None, `event_tf_level` queda en blanco para ese evento.
+    tf_levels: dict[str, set[float]] | None = None
 
 
 def _swing_points(frame: pd.DataFrame, lookback: int) -> tuple[pd.Series, pd.Series]:
@@ -71,24 +77,30 @@ def _consecutive_break(break_mask: pd.Series, confirm_bars: int) -> pd.Series:
     return pd.Series(out, index=break_mask.index)
 
 
-def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None = None) -> pd.DataFrame:
-    """Aplica las reglas canonicas BOS/CHOCH con estado secuencial.
+def _classify_level(level: float, tf_levels: dict[str, set[float]]) -> str:
+    if not tf_levels:
+        return ""
+    if level in tf_levels.get("HTF", set()):
+        return "HTF"
+    if level in tf_levels.get("ITF", set()):
+        return "ITF"
+    return "LTF"
 
-    Estados:
-      bias: 0 = sin estructura, +1 = alcista, -1 = bajista
-      active_*: estructura activa (pendiente de invalidacion)
 
-    Niveles de referencia:
-      BOS: ultimo swing del mismo signo roto (high para +1, low para -1).
-      CHOCH: ultimo swing del signo opuesto que define el caracter
-             (ultimo swing low en tendencia alcista; ultimo swing high en
-             tendencia bajista).
+def detect_market_structure(
+    frame: pd.DataFrame,
+    config: StructureConfig | None = None,
+    tf_levels: dict[str, set[float]] | None = None,
+) -> pd.DataFrame:
+    """Aplica las reglas canonicas BOS/CHOCH con estado secuencial y clasifica HTF/ITF/LTF.
 
-    Invalidacion: close vuelve a cruzar el nivel roto.
-    Solo onset: solo la primera confirmacion de un nivel genera evento.
+    Si `config.tf_levels` o `tf_levels` están presentes, coloca en `event_tf_level`
+    HTF/ITF/LTF según la pertenencia del swing roto a esos conjuntos.
     """
     if config is None:
         config = StructureConfig()
+    levels = tf_levels if tf_levels is not None else (config.tf_levels or {})
+
     d = frame.copy().reset_index(drop=True)
     sh, sl = _swing_points(d, config.swing_lookback)
     d["swing_high"], d["swing_low"] = sh, sl
@@ -112,6 +124,7 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
     bos_age = pd.Series(0, index=d.index, dtype=int)
     choch_age = pd.Series(0, index=d.index, dtype=int)
     structure_label = pd.Series("", index=d.index, dtype=object)
+    event_tf_level = pd.Series("", index=d.index, dtype=object)
 
     bias = 0
     last_bos_idx = -1
@@ -129,6 +142,7 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
         event_dir = 0
         event_level = float("nan")
         event_type = ""
+        tf_level = ""
 
         # Detectar ruptura confirmada
         if bull_conf.iloc[i]:
@@ -148,6 +162,7 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
                 last_bos_idx = i
                 last_bos_level_val = event_level
                 bos_active = True
+                tf_level = _classify_level(event_level, levels)
                 # Un BOS nuevo invalida CHOCH previo
                 choch_active = False
             else:
@@ -165,6 +180,7 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
                         bias = event_dir
                         last_choch_idx = i
                         last_choch_level_val = opposite_level
+                        tf_level = _classify_level(opposite_level, levels)
                         choch_active = True
                         bos_active = False
                 else:
@@ -180,11 +196,13 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
                         bias = event_dir
                         last_choch_idx = i
                         last_choch_level_val = opposite_level
+                        tf_level = _classify_level(opposite_level, levels)
                         choch_active = True
                         bos_active = False
 
             if event_type:
                 structure_label[i] = event_type
+                event_tf_level[i] = tf_level
 
         # Invalidacion BOS
         if bos_active and last_bos_idx >= 0:
@@ -217,6 +235,7 @@ def detect_market_structure(frame: pd.DataFrame, config: StructureConfig | None 
     d["bos_age"] = bos_age
     d["choch_age"] = choch_age
     d["structure_label"] = structure_label
+    d["event_tf_level"] = event_tf_level
     d["trend"] = _derive_trend(d)
     return d
 

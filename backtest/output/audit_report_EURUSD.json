@@ -3,6 +3,15 @@
   "start": "2025-11-21T14:15:00+00:00",
   "end": "2026-07-24T20:55:00+00:00",
   "total_bars_m5": 50000,
+  "layers_used": [
+    "htf",
+    "bos",
+    "choch"
+  ],
+  "tf_levels": {
+    "htf_levels_count": 12412,
+    "itf_levels_count": 39634
+  },
   "htf_bars_built": {
     "H1": 50000,
     "H4": 50000,
@@ -10,11 +19,21 @@
   },
   "bos": {
     "total": 8569,
+    "by_tf": {
+      "HTF": 6060,
+      "ITF": 2488,
+      "LTF": 21
+    },
     "bullish": 4236,
     "bearish": 4333
   },
   "choch": {
     "total": 366,
+    "by_tf": {
+      "HTF": 263,
+      "ITF": 103,
+      "LTF": 0
+    },
     "confirmed": 305,
     "expired": 61,
     "pending": 0
