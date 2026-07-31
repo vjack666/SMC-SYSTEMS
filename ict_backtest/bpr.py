@@ -1,15 +1,9 @@
 """ict_backtest/bpr.py — Balanced Price Range (BPR): geometría + invalidación + decay.
 
-BPR = solape en precio de un FVG y un OB de la misma dirección (tesis 21_POI T1).
-
-Geometría / invalidación / decay: ver docstring histórica.
-
-Rendimiento (perf):
-  - OHLC y flags se leen una vez como numpy (sin data.iloc en el hot path)
-  - Gaps FVG y bounds OB se precomputan vectorizados
-  - Solo se barre lookback de OB en índices donde hay FVG (sparse)
-  - Score por age vía LUT (half-life) en vez de pow por barra
-  - Máquina de estados sigue siendo O(n) secuencial (inevitable para invalidación)
+Rendimiento:
+  - numpy arrays, FVG sparse, score LUT
+  - índice espacial 1D (PriceIntervalIndex) para candidatos OB por precio
+    en vez de escanear todo el lookback lineal cuando use_spatial_index=True
 
 NO modifica BOS/CHOCH. NO usa ATR/RSI.
 """
@@ -21,6 +15,8 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
+
+from ict_backtest.spatial_index import PriceIntervalIndex, build_ob_price_index
 
 BprStatus = Literal["none", "just_created", "active", "mitigated_touch", "invalidated"]
 
@@ -34,8 +30,6 @@ _STATUS_NAMES = ("none", "just_created", "active", "mitigated_touch", "invalidat
 
 @dataclass(frozen=True)
 class BprConfig:
-    """Parámetros de construcción, invalidación y decay de score."""
-
     lookback: int = 30
     min_depth: float = 0.0
     use_ob_body: bool = True
@@ -49,11 +43,15 @@ class BprConfig:
     freeze_decay_on_touch: bool = False
     depth_boost: float = 0.0
 
+    use_spatial_index: bool = True
+    """Si True, candidatos OB vía grid de precio; si False, scan lineal lookback."""
+
+    spatial_buckets: int = 256
+
 
 def overlap_interval(
     a_lo: float, a_hi: float, b_lo: float, b_hi: float
 ) -> tuple[float, float] | None:
-    """Intersección de dos intervalos. None si no hay solape estricto."""
     if not (a_lo < a_hi and b_lo < b_hi):
         return None
     lo = max(a_lo, b_lo)
@@ -72,7 +70,6 @@ def bpr_score_at_age(
     frozen: bool = False,
     frozen_score: float | None = None,
 ) -> float:
-    """Decay exponencial por half-life en barras."""
     if frozen:
         return float(frozen_score if frozen_score is not None else base)
     if half_life_bars <= 0:
@@ -83,7 +80,6 @@ def bpr_score_at_age(
 
 
 def _score_lut(n: int, base: float, half_life: int, floor: float) -> np.ndarray:
-    """LUT score[age] para age=0..n (inclusive)."""
     ages = np.arange(n + 1, dtype=np.float64)
     if half_life <= 0:
         return np.full(n + 1, max(floor, base), dtype=np.float64)
@@ -99,7 +95,6 @@ def _precompute_fvg_gaps(
     zone_lo: np.ndarray | None,
     zone_hi: np.ndarray | None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Arrays f_lo, f_hi, f_dir (0 si no FVG). Vectorizado."""
     n = len(high)
     f_lo = np.full(n, np.nan)
     f_hi = np.full(n, np.nan)
@@ -113,7 +108,6 @@ def _precompute_fvg_gaps(
         f_dir = np.where(bull, 1, f_dir)
         f_dir = np.where(bear, -1, f_dir)
     else:
-        # bull: [high[i-2], low[i]]
         if n >= 3:
             prev2_high = np.empty(n, dtype=np.float64)
             prev2_low = np.empty(n, dtype=np.float64)
@@ -148,9 +142,7 @@ def _precompute_ob_bounds(
     *,
     use_body: bool,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """o_lo, o_hi, o_dir; dir=0 si no hay OB usable."""
-    n = len(open_)
-    o_dir = np.zeros(n, dtype=np.int8)
+    o_dir = np.zeros(len(open_), dtype=np.int8)
     o_dir = np.where(ob_bull, 1, o_dir)
     o_dir = np.where(ob_bear, -1, o_dir)
 
@@ -172,7 +164,7 @@ def _precompute_ob_bounds(
     return o_lo, o_hi, o_dir
 
 
-def _best_overlap_for_fvg(
+def _best_overlap_linear(
     i: int,
     f_lo: float,
     f_hi: float,
@@ -183,12 +175,10 @@ def _best_overlap_for_fvg(
     lookback: int,
     min_depth: float,
 ) -> tuple[float, float, float] | None:
-    """Mejor solape OB en (i-lookback, i] same dir. Solo índices con o_dir!=0."""
     fvg_size = f_hi - f_lo
     if fvg_size <= 0:
         return None
     j0 = 0 if i < lookback else i - lookback
-    # slice
     dirs = o_dir[j0 : i + 1]
     mask = dirs == f_dir
     if not np.any(mask):
@@ -199,7 +189,6 @@ def _best_overlap_for_fvg(
     for j in idxs:
         lo = o_lo[j] if o_lo[j] > f_lo else f_lo
         hi = o_hi[j] if o_hi[j] < f_hi else f_hi
-        # max(f_lo,o_lo), min(f_hi,o_hi)
         if lo < hi:
             depth = (hi - lo) / fvg_size
             if depth >= min_depth and depth > best_depth:
@@ -208,8 +197,28 @@ def _best_overlap_for_fvg(
     return best
 
 
+def _best_overlap_spatial(
+    i: int,
+    f_lo: float,
+    f_hi: float,
+    f_dir: int,
+    ob_index: PriceIntervalIndex,
+    lookback: int,
+    min_depth: float,
+) -> tuple[float, float, float] | None:
+    j0 = 0 if i < lookback else i - lookback
+    return ob_index.query_best_overlap(
+        f_lo,
+        f_hi,
+        direction=f_dir,
+        bar_min=j0,
+        bar_max=i,
+        min_depth=min_depth,
+    )
+
+
 def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFrame:
-    """Anota BPR + bpr_score sobre frame con FVG/OB. Hot path en numpy."""
+    """Anota BPR + bpr_score. Usa índice espacial OB si use_spatial_index."""
     cfg = cfg or BprConfig()
     data = frame.copy().reset_index(drop=True)
     n = len(data)
@@ -239,7 +248,6 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
         if "fvg_bearish" in data.columns
         else np.zeros(n, dtype=bool)
     )
-
     zone_lo = (
         data["fvg_zone_low"].to_numpy(dtype=np.float64, copy=False)
         if "fvg_zone_low" in data.columns
@@ -250,7 +258,6 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
         if "fvg_zone_high" in data.columns
         else None
     )
-
     ob_bull = (
         data["ob_bullish"].to_numpy(dtype=bool, copy=False)
         if "ob_bullish" in data.columns
@@ -265,7 +272,6 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
         od = data["ob_direction"].astype(str).str.lower().to_numpy()
         ob_bull = od == "bullish"
         ob_bear = od == "bearish"
-
     ob_top = (
         data["ob_top"].to_numpy(dtype=np.float64, copy=False)
         if "ob_top" in data.columns
@@ -288,7 +294,12 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
         use_body=cfg.use_ob_body,
     )
 
-    # Precomputar mejores BPR solo en barras FVG (sparse)
+    ob_index: PriceIntervalIndex | None = None
+    if cfg.use_spatial_index and np.any(o_dir != 0):
+        ob_index = build_ob_price_index(
+            o_lo, o_hi, o_dir, n_buckets=cfg.spatial_buckets
+        )
+
     create_lo = np.full(n, np.nan)
     create_hi = np.full(n, np.nan)
     create_depth = np.full(n, np.nan)
@@ -296,17 +307,24 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
     fvg_idxs = np.nonzero(f_dir != 0)[0]
     lb = cfg.lookback
     md = cfg.min_depth
-    for i in fvg_idxs:
-        best = _best_overlap_for_fvg(
-            int(i), float(f_lo[i]), float(f_hi[i]), int(f_dir[i]),
-            o_lo, o_hi, o_dir, lb, md,
-        )
-        if best is not None:
-            create_lo[i], create_hi[i], create_depth[i] = best
-            create_dir[i] = f_dir[i]
 
-    # LUT de score para base=1; se escala por active_base al aplicar
-    lut = _score_lut(n, 1.0, cfg.half_life_bars, 0.0)  # floor aplicado después con base
+    for i in fvg_idxs:
+        ii = int(i)
+        if ob_index is not None:
+            best = _best_overlap_spatial(
+                ii, float(f_lo[ii]), float(f_hi[ii]), int(f_dir[ii]),
+                ob_index, lb, md,
+            )
+        else:
+            best = _best_overlap_linear(
+                ii, float(f_lo[ii]), float(f_hi[ii]), int(f_dir[ii]),
+                o_lo, o_hi, o_dir, lb, md,
+            )
+        if best is not None:
+            create_lo[ii], create_hi[ii], create_depth[ii] = best
+            create_dir[ii] = f_dir[ii]
+
+    lut = _score_lut(n, 1.0, cfg.half_life_bars, 0.0)
 
     bpr_bull = np.zeros(n, dtype=bool)
     bpr_bear = np.zeros(n, dtype=bool)
@@ -376,10 +394,10 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
                     if hl <= 0:
                         bpr_score[i] = max(floor, active_base)
                     else:
-                        # lut es para base=1; escalar
-                        bpr_score[i] = max(floor, active_base * lut[a] if a < len(lut) else floor)
+                        bpr_score[i] = max(
+                            floor, active_base * lut[a] if a < len(lut) else floor
+                        )
 
-        # nacimiento (puede reemplazar activo en la misma barra)
         if create_dir[i] != 0:
             lo = create_lo[i]
             hi = create_hi[i]
@@ -396,7 +414,7 @@ def detect_bpr(frame: pd.DataFrame, cfg: BprConfig | None = None) -> pd.DataFram
                 bpr_bear[i] = True
                 bpr_bull[i] = False
             active_base = cfg.score_base * (1.0 + cfg.depth_boost * float(depth))
-            bpr_score[i] = max(floor, active_base)  # age 0
+            bpr_score[i] = max(floor, active_base)
             active_dir = int(create_dir[i])
             active_lo = float(lo)
             active_hi = float(hi)
@@ -434,7 +452,6 @@ def validate_bpr_invalidation(
     *,
     cfg: BprConfig | None = None,
 ) -> dict:
-    """Invariantes I1–I5 (geometría/invalidación) + I6–I8 (score/decay)."""
     cfg = cfg or BprConfig()
     violations: list[str] = []
     n = len(data)
@@ -465,9 +482,7 @@ def validate_bpr_invalidation(
         else np.zeros(n, dtype=bool)
     )
     score_arr = (
-        data["bpr_score"].to_numpy(dtype=np.float64, copy=False)
-        if has_score
-        else None
+        data["bpr_score"].to_numpy(dtype=np.float64, copy=False) if has_score else None
     )
     depth_arr = (
         data["bpr_depth"].to_numpy(dtype=np.float64, copy=False)
