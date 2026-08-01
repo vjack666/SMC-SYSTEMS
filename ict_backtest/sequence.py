@@ -76,6 +76,7 @@ class SequenceConfig:
     require_displacement: bool = True
     counter_trend: bool = False
     tp_mode: str = "fixed2r"
+    use_fvg_supreme: bool = False  # OFF = baseline intacto; ON = rank S1>S2>S3
 
 
 @dataclass
@@ -95,7 +96,12 @@ class SequenceState:
     htf_aligned: bool = True       # A1 (Brecha A1): ¿la cascada D1->H4->H1 permite la dir?
     htf_reason: str = "ok"         # A1: motivo del filtro top-down (observabilidad)
     poi_present: Any = None        # Brecha A (Fase C): ¿hay POI HTF anclado en dir? (bonus, no gate)
+    zone_class: str | None = None  # Brecha C: dealing range EQ / premium/discount
     history: list = field(default_factory=list)
+    # P2: calidad extra, no gate
+    zone_dealing_side_ok: Any = None
+    zone_stack_ok: Any = None
+    zone_stack_count: Any = None
 
     def reset(self):
         self.phase = "IDLE"
@@ -112,6 +118,9 @@ class SequenceState:
         self.htf_aligned = True
         self.htf_reason = "ok"
         self.poi_present = None
+        self.zone_dealing_side_ok = None
+        self.zone_stack_ok = None
+        self.zone_stack_count = None
 
     def note(self, tag: str, i: int, extra: str = ""):
         self.history.append((tag, i, extra))
@@ -497,26 +506,41 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 _fvg = _latest_fvg_zone(_zone_src, target)
                 _ob = _latest_ob_zone(_zone_src, target)
                 _zone_obj = None
+                _fvg_rank = None
                 if _fvg is not None:
                     state.zone_high, state.zone_low = _fvg
                     state.zone_pd_type = str(_zone_src.meta.get("pd_type", "FVG"))
                     state.zone_pd_tier = str(_zone_src.meta.get("pd_tier", "T2"))
                     _zone_tf = itf_tf if (itf_tf and _zone_src is not obj) else ltf_tf
                     _zone_obj = HtfPdZone(tf=_zone_tf, pd_type=state.zone_pd_type,
-                                          pd_tier=state.zone_pd_tier,
-                                          direction=target,
-                                          zone_high=state.zone_high,
-                                          zone_low=state.zone_low)
+                                          pd_tier=state.zone_pd_tier, direction=target,
+                                          zone_high=state.zone_high, zone_low=state.zone_low)
+                    if cfg.use_fvg_supreme:
+                        try:
+                            from ict_backtest.fvg_authority import rank_fvg
+                            _fvg_rank = rank_fvg(
+                                _zone_src.meta.get("frame", pd.DataFrame()),
+                                _zone_src.meta.get("bar_index", -1),
+                                target,
+                                active_ob_zone=_ob,
+                            )
+                            if _fvg_rank is not None and getattr(_fvg_rank, "tier", "NONE") not in ("", "NONE"):
+                                state.zone_pd_tier = _fvg_rank.tier
+                                state.zone_authority = {
+                                    "tier": _fvg_rank.tier,
+                                    "supreme": _fvg_rank.supreme,
+                                    "reason": _fvg_rank.reason,
+                                }
+                        except Exception:
+                            _fvg_rank = None
                 elif _ob is not None:
                     state.zone_high, state.zone_low = _ob
                     state.zone_pd_type = str(_zone_src.meta.get("pd_type", "OB"))
                     state.zone_pd_tier = str(_zone_src.meta.get("pd_tier", "T2"))
                     _zone_tf = itf_tf if (itf_tf and _zone_src is not obj) else ltf_tf
                     _zone_obj = HtfPdZone(tf=_zone_tf, pd_type=state.zone_pd_type,
-                                          pd_tier=state.zone_pd_tier,
-                                          direction=target,
-                                          zone_high=state.zone_high,
-                                          zone_low=state.zone_low)
+                                          pd_tier=state.zone_pd_tier, direction=target,
+                                          zone_high=state.zone_high, zone_low=state.zone_low)
                 # Fase C (C2/C3): anota la AUTORIDAD de la zona (peso de
                 # confianza) SIN alterar la decision de R7. Lookup O(1) sobre
                 # ltf_map (precalculado una vez en canonical.py / build_ltf_map).
@@ -564,9 +588,10 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 # TRAZAR EL CUADRO: usar la zona cacheada (FVG/OB del tramo
                 # sweep->displacement, memoria arriba), NO la vela del BOS donde
                 # el imbalance ya no esta. El trader marca ese cuadro y ESPERA
-                # el retorno (mitigation). Fallback: nivel del BOS +- 0.5 * rango
-                # promedio (meta["atr"] ya es avg_candle_range, fuente unica de
-                # volatilidad; migrado de ATR a rango puro, Fase 1).
+                # el retorno (mitigation).
+                # Fallback: nivel del BOS +- 0.5 * rango promedio (meta["atr"]
+                # ya es avg_candle_range, fuente unica de volatilidad; migrado
+                # de ATR a rango puro, Fase 1).
                 if not (np.isfinite(state.zone_high) and np.isfinite(state.zone_low)):
                     _atr = obj.meta.get("atr", np.nan)
                     try:
@@ -576,6 +601,36 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     if np.isfinite(atr) and np.isfinite(state.bos_level):
                         state.zone_high = state.bos_level + 0.5 * atr
                         state.zone_low = state.bos_level - 0.5 * atr
+                # dealing range EQ como contexto (no gate): clasifica la zona
+                # respecto al dealing range HTF usando el mismo detector de
+                # dealing_range.py (sin inventar indicadores).
+                try:
+                    from ict_backtest.dealing_range import classify_zone, zone_ok_for_direction
+                    _zone_mid = (state.zone_high + state.zone_low) / 2.0
+                    # Buscar dealing range HTF cerrado en tiempo del BOS
+                    _htf_df_for_eq = None
+                    if est_htf_ctx_fn is not None:
+                        try:
+                            _ctx = est_htf_ctx_fn(i)
+                            _htf_layer = extract_htf_layer(_ctx, htf) if htf is not None else {}
+                            _htf_df_for_eq = _htf_layer.get("frame")
+                        except (TypeError, ValueError, KeyError, IndexError):
+                            _htf_df_for_eq = None
+                    if _htf_df_for_eq is None and est_htf_fn is not None:
+                        try:
+                            _htf_df_for_eq = est_htf_fn(i).get("frame")
+                        except (TypeError, ValueError, KeyError, IndexError):
+                            _htf_df_for_eq = None
+                    if _htf_df_for_eq is not None:
+                        try:
+                            _cls = classify_zone(float(_htf_df_for_eq["high"].max()),
+                                                 float(_htf_df_for_eq["low"].min()),
+                                                 _zone_mid)
+                            state.zone_class = _cls
+                        except (TypeError, ValueError, KeyError, IndexError):
+                            state.zone_class = None
+                except (ImportError, Exception):
+                    state.zone_class = None
                 state.note("BOS", i)
                 phase_seen["BOS"] += 1
         elif state.phase == "BOS_DONE":
@@ -602,6 +657,9 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     "htf_aligned": state.htf_aligned,
                     "htf_reason": state.htf_reason,
                     "zone_pd_type": state.zone_pd_type,
+                    "zone_dealing_side_ok": getattr(state, "zone_dealing_side_ok", None),
+                    "zone_stack_ok": getattr(state, "zone_stack_ok", None),
+                    "zone_stack_count": getattr(state, "zone_stack_count", None),
                 })
                 state.note("ENTRY", i)
                 phase_seen["ENTRY"] += 1
