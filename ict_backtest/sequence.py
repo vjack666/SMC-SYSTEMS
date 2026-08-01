@@ -97,13 +97,14 @@ class SequenceState:
     htf_reason: str = "ok"         # A1: motivo del filtro top-down (observabilidad)
     poi_present: Any = None        # Brecha A (Fase C): ¿hay POI HTF anclado en dir? (bonus, no gate)
     zone_class: str | None = None  # Brecha C: dealing range EQ / premium/discount
-    history: list = field(default_factory=list)
-    # P2: calidad extra, no gate
     zone_dealing_side_ok: Any = None
     zone_stack_ok: Any = None
     zone_stack_count: Any = None
+    itf_zone_present: bool = False  # Camino 1 modo permisivo: H1 tiene FVG/OB (bonus)
+    itf_zone_tf: str | None = None  # Camino 1: timeframe de la zona ITF presente
+    history: list = field(default_factory=list)
 
-    def reset(self):
+    def reset(self) -> None:
         self.phase = "IDLE"
         self.direction = 0
         self.sweep_idx = -1
@@ -118,11 +119,15 @@ class SequenceState:
         self.htf_aligned = True
         self.htf_reason = "ok"
         self.poi_present = None
+        self.zone_class = None
         self.zone_dealing_side_ok = None
         self.zone_stack_ok = None
         self.zone_stack_count = None
+        self.itf_zone_present = False
+        self.itf_zone_tf = None
+        self.history.clear()
 
-    def note(self, tag: str, i: int, extra: str = ""):
+    def note(self, tag: str, i: int, extra: str = "") -> None:
         self.history.append((tag, i, extra))
 
 
@@ -493,8 +498,11 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
             poi_ok = (htf_poi_fn is None) or bool(htf_poi_fn(i, target))
             if poi_ok:
                 # Capa ITF: si hay ITF y mapping, la zona viene del ITF.
-                # Modo permisivo: si ITF no tiene FVG/OB, fallback a LTF.
-                _zone_src = obj  # default: LTF
+                # Modo permisivo: la zona de entrada SIEMPRE se evalúa contra
+                # LTF; ITF es bonus de contexto, no reemplazo destructivo.
+                _zone_src = obj
+                _itf_zone_present = False
+                _itf_zone_tf = None
                 if itf_objs is not None and ltf_to_itf is not None:
                     _itf_idx = ltf_to_itf.get(i, 0)
                     if 0 <= _itf_idx < len(itf_objs):
@@ -502,7 +510,8 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                         _itf_fvg = _latest_fvg_zone(_itf_obj, target)
                         _itf_ob = _latest_ob_zone(_itf_obj, target)
                         if _itf_fvg is not None or _itf_ob is not None:
-                            _zone_src = _itf_obj  # ITF tiene zona -> usar ITF
+                            _itf_zone_present = True
+                            _itf_zone_tf = itf_tf if itf_tf else None
                 _fvg = _latest_fvg_zone(_zone_src, target)
                 _ob = _latest_ob_zone(_zone_src, target)
                 _zone_obj = None
@@ -685,6 +694,8 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     "zone_dealing_side_ok": getattr(state, "zone_dealing_side_ok", None),
                     "zone_stack_ok": getattr(state, "zone_stack_ok", None),
                     "zone_stack_count": getattr(state, "zone_stack_count", None),
+                    "itf_zone_present": getattr(state, "itf_zone_present", False),
+                    "itf_zone_tf": getattr(state, "itf_zone_tf", None),
                 })
                 state.note("ENTRY", i)
                 phase_seen["ENTRY"] += 1
