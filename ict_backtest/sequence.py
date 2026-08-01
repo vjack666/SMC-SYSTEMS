@@ -589,25 +589,50 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 # sweep->displacement, memoria arriba), NO la vela del BOS donde
                 # el imbalance ya no esta. El trader marca ese cuadro y ESPERA
                 # el retorno (mitigation).
-                # Fallback: nivel del BOS +- 0.5 * rango promedio (meta["atr"]
-                # ya es avg_candle_range, fuente unica de volatilidad; migrado
-                # de ATR a rango puro, Fase 1).
+                # Fallback 1: dealing range EQ ± 0.3 * rango HTF (tesis
+                # 15_INTRADIA_ENTRADA_SL_TP.md). Solo usa geometria HTF, sin
+                # indicadores. Fallback 2: nivel del BOS +- 0.5 * rango
+                # promedio si no hay dealing range disponible.
                 if not (np.isfinite(state.zone_high) and np.isfinite(state.zone_low)):
-                    _atr = obj.meta.get("atr", np.nan)
-                    try:
-                        atr = float(_atr) if _atr is not None else float("nan")
-                    except (TypeError, ValueError):
-                        atr = float("nan")
-                    if np.isfinite(atr) and np.isfinite(state.bos_level):
-                        state.zone_high = state.bos_level + 0.5 * atr
-                        state.zone_low = state.bos_level - 0.5 * atr
+                    _htf_df_for_eq = None
+                    if est_htf_ctx_fn is not None:
+                        try:
+                            _ctx = est_htf_ctx_fn(i)
+                            _htf_layer = extract_htf_layer(_ctx, htf) if htf is not None else {}
+                            _htf_df_for_eq = _htf_layer.get("frame")
+                        except (TypeError, ValueError, KeyError, IndexError):
+                            _htf_df_for_eq = None
+                    if _htf_df_for_eq is None and est_htf_fn is not None:
+                        try:
+                            _htf_df_for_eq = est_htf_fn(i).get("frame")
+                        except (TypeError, ValueError, KeyError, IndexError):
+                            _htf_df_for_eq = None
+                    if _htf_df_for_eq is not None:
+                        try:
+                            _htf_high = float(_htf_df_for_eq["high"].max())
+                            _htf_low = float(_htf_df_for_eq["low"].min())
+                            if _htf_high > _htf_low:
+                                _eq = (_htf_high + _htf_low) / 2.0
+                                _rng = _htf_high - _htf_low
+                                state.zone_high = _eq + 0.3 * _rng
+                                state.zone_low = _eq - 0.3 * _rng
+                        except (TypeError, ValueError, KeyError, IndexError):
+                            state.zone_high = state.zone_low = float("nan")
+                    if not (np.isfinite(state.zone_high) and np.isfinite(state.zone_low)):
+                        _atr = obj.meta.get("atr", np.nan)
+                        try:
+                            atr = float(_atr) if _atr is not None else float("nan")
+                        except (TypeError, ValueError):
+                            atr = float("nan")
+                        if np.isfinite(atr) and np.isfinite(state.bos_level):
+                            state.zone_high = state.bos_level + 0.5 * atr
+                            state.zone_low = state.bos_level - 0.5 * atr
                 # dealing range EQ como contexto (no gate): clasifica la zona
                 # respecto al dealing range HTF usando el mismo detector de
                 # dealing_range.py (sin inventar indicadores).
                 try:
-                    from ict_backtest.dealing_range import classify_zone, zone_ok_for_direction
+                    from ict_backtest.dealing_range import classify_zone
                     _zone_mid = (state.zone_high + state.zone_low) / 2.0
-                    # Buscar dealing range HTF cerrado en tiempo del BOS
                     _htf_df_for_eq = None
                     if est_htf_ctx_fn is not None:
                         try:
