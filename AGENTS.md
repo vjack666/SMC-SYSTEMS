@@ -1,5 +1,30 @@
 Eres un agente autónomo de SMC-SYSTEMS. Tu rol es ejecutar tareas de forma ordenada, documentada y autónoma.
 
+## ⚖️ LEY FUNDAMENTAL — MOTOR vs BACKTEST (leer antes de escribir CUALQUIER código)
+
+> **El MOTOR es el reflejo de la TESIS hecho código.** El backtest existe SOLO para probar el motor.
+> Nada del motor se escribe en el backtest. El backtest es la demostración de que el motor
+> funciona como lo dicta la tesis — que a su vez es el reflejo del trabajo de un humano.
+> Sin indicadores: matemática pura y geometría del mercado.
+
+Obligatorio, en este orden:
+
+1. **El motor (`engine/`) es la ÚNICA fuente de decisión.** Toda la lógica de la estrategia
+   (bias, estructura, POI, ejecución) vive en el motor y se ejecuta para responder en vivo
+   ("el bias de hoy", "qué opción de trading tengo hoy"). El motor es el reflejo de la tesis
+   hecho código.
+2. **El backtest NO tiene lógica propia.** Su único rol es el reloj vela a vela + llamar al
+   motor y medir resultados. PROHIBIDO crear en el backtest cualquier módulo que sea decisión
+   o detección (jamás un "detector de bias" en el backtest: eso va en el motor).
+3. **El backtest es desechable.** Cuando el motor tenga todos sus módulos, el backtest se borra
+   sin perder nada. Todo lo necesario para operar en vivo vive en el motor.
+4. **El backtest demuestra la tesis.** El resultado del backtest debe demostrar que el motor
+   funciona como dicta la tesis (el trabajo de un humano): SIN indicadores — matemática pura y
+   geometría del mercado (estructura, liquidez, POI, rangos). Cualquier indicador/EMA/RSI/ATR
+   en el motor es sospechoso y debe justificarse contra la tesis.
+5. **Regla técnica derivada:** `engine/` nunca importa `ict_backtest/`. El backtest puede
+   importar `engine/` (es su consumidor), nunca al revés.
+
 Reglas obligatorias:
 - Lee siempre README.md y COMPLETION_REPORT.md antes de tomar decisiones técnicas.
 - Actualiza este opencode.json si agregas o movés archivos de configuración.
@@ -41,7 +66,7 @@ python scripts\runner_monitor.py --window --title "build_bos_table" -- python sc
 - Repartir el presupuesto de workers entre jobs; no dar 75% de CPU a cada uno.
 - Esperar el exit de **todos** los monitores del batch sin spam en el chat; luego agregar métricas.
 
-Detalle: `docs/plan/RUNNER_MONITOR.md` · Backtest v2 ops: `docs/plan/BACKTEST_V2_SPEC.md` §15.
+Detalle: `docs/plan/RUNNER_MONITOR.md`
 
 ### Estado backtest R6 y CAVEAT CRÍTICO (2026-07-16)
 
@@ -76,16 +101,13 @@ GATE R6 NO PASA en ningún símbolo en producción. Números en `docs/METRICS_CA
 > anclado) y A1 (3 capas reales) — exactamente lo que el cronograma marca como R3.5 / Fase v30
 > pendiente, FUERA del alcance de R6.
 
-**Bloqueo real = DATOS (R5/A6), no motor:** `data/raw/XAUUSD_M15.parquet` NO EXISTE (solo D1/H4);
-los M15 actuales son solo 2.02 años (2024-07→2026-07). A12 (walk-forward OOS de `no_session`×XAUUSD,
-celda ganadora PF 1.642) está BLOQUEADO hasta que se baje XAUUSD M15 + ≥3-4 años. Esto requiere
-MT5 FundedNext logueado en vivo (`update_mt5_data.py`); el venv de este entorno solo tiene stub de MT5.
+**Bloqueo real = DATOS (R5/A6), no motor:** los datos históricos deben descargarse/verificarse con el flujo definido en el repo.
 
-**Regla commit/push (Ruben):** NO hacer commit ni push sin OK expreso y con `docs/plan/CRONOGRAMA_Y_ROADMAP.md`
-+ `docs/plan/ROADMAP_BIBLIOTECA_Y_APLICACION.md` al día en el mismo commit.
+**Regla commit/push (Ruben):** NO hacer commit ni push sin OK expreso. Los roadmaps
+(`docs/plan/`) fueron PURGADOS intencionalmente (2026-08-03); la fuente de verdad vigente
+es este AGENTS.md + `docs/tesis/` + `engine/`.
 
-**Fuentes de verdad a leer antes de conclusiones de backtest:** `docs/METRICS_CANON.md` (números),
-`docs/ict/18_EJECUCION_OPTIMA_TF_SL_ENTRY.md`, `docs/ict/21_POI.md`, `docs/ict/08_POWER_OF_THREE.md`,
-`docs/plan/PRINCIPIOS_ARQUITECTONICOS.md`, `docs/ict/13_BACKTEST_PROFESIONAL/`.
+**Fuentes de verdad a leer antes de conclusiones de backtest:** `docs/tesis/SPEC_TESIS_FORMAL.md`,
+`docs/tesis/TRUTH_SOURCES.md`, `engine/`, `feature/motor-ict`, `feature/backtest-ict`.
 
 Tu prioridad es avanzar el proyecto de forma eficiente mientras mantienes la memoria del proyecto siempre actualizada.
