@@ -13,6 +13,7 @@ from engine.bias.narrative import (
     NEUTRAL,
     HtfBias,
     compute_htf_bias,
+    compute_htf_bias_series,
 )
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "NEUTRAL",
     "HtfBias",
     "compute_htf_bias",
+    "compute_htf_bias_series",
 ]

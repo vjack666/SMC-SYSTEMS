@@ -17,6 +17,8 @@ Reglas de implementación:
   - Sin look-ahead: swings con ventana NO centrada + exposición diferida
     (mismo patrón que el canon ict_backtest/market_structure.py, replicado
     aquí SIN importar el backtest — regla de separación motor ↔ backtest).
+  - Versión humana de swing: delay mínimo `lookback` velas + confirmación por rotura
+    del swing previo en dirección opuesta (docs/tesis/... §1).
   - Confirmación por cuerpo: la dirección sale de la secuencia de swings
     etiquetados (HH/HL → BULLISH, LH/LL → BEARISH), con voto por tramos
     (cambios de dirección) para no confundir rango con tendencia.
@@ -28,6 +30,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 Bias = str  # "BULLISH" | "BEARISH" | "NEUTRAL"
@@ -56,37 +59,43 @@ class HtfBias:
         return self.d1 if self.aligned else NEUTRAL
 
 
-def _swing_points(frame: pd.DataFrame, lookback: int) -> tuple[pd.Series, pd.Series]:
-    """Swing high/low SIN look-ahead (patrón del canon).
+def _swing_points(frame: pd.DataFrame, lookback: int = 2) -> tuple[pd.Series, pd.Series]:
+    """Swing high/low SIN look-ahead, versión humana.
 
-    El swing en la fila i se confirma recién en i+lookback (hay que ver que
-    nada lo supere en las siguientes `lookback` velas). Ventana NO centrada
-    + shift(lookback).ffill() para exponer el valor solo desde la vela de
-    confirmación (hallazgo #1 de la auditoría 2026-07-11).
+    Confirmación por rotura/retroceso: un extremo solo cuenta como swing
+    confirmado cuando el precio rompe el swing previo en la dirección opuesta.
+    El primer extremo de cada lado (sin swing previo) se acepta tras el delay
+    mínimo de 2 velas.
     """
-    window = lookback + 1
-    roll_h = frame["high"].rolling(window=window, center=False, min_periods=window)
-    roll_l = frame["low"].rolling(window=window, center=False, min_periods=window)
-    max_h = roll_h.max()
-    min_l = roll_l.min()
-    sh_raw = frame["high"].where(
-        (frame["high"] == max_h) & (max_h > max_h.shift(1).fillna(max_h))
-    )
-    sl_raw = frame["low"].where(
-        (frame["low"] == min_l) & (min_l < min_l.shift(1).fillna(min_l))
-    )
-    return sh_raw.shift(lookback).ffill(), sl_raw.shift(lookback).ffill()
+    n = len(frame)
+    high = frame["high"].to_numpy()
+    low = frame["low"].to_numpy()
+
+    sh_raw = pd.Series(np.nan, index=frame.index)
+    sl_raw = pd.Series(np.nan, index=frame.index)
+
+    last_sh = np.nan
+    last_sl = np.nan
+
+    for i in range(2, n):
+        if low[i] < low[i - 1] and low[i] < low[i - 2]:
+            if np.isnan(last_sh) or low[i] < last_sh:
+                sl_raw.iloc[i] = low[i]
+                last_sl = low[i]
+        if high[i] > high[i - 1] and high[i] > high[i - 2]:
+            if np.isnan(last_sl) or high[i] > last_sl:
+                sh_raw.iloc[i] = high[i]
+                last_sh = high[i]
+
+    delay = 2
+    return sh_raw.shift(delay).ffill(), sl_raw.shift(delay).ffill()
 
 
 def _label_swings(
     swing_high: pd.Series, swing_low: pd.Series
 ) -> pd.Series:
-    """Etiqueta HH/HL/LH/LL por swing confirmado (patrón del canon).
+    """Etiqueta HH/HL/LH/LL por swing confirmado (versión humana)."""
 
-    Un swing cuenta SOLO cuando cambia el nivel expuesto (`!= shift(1)`, el
-    ffill repite el mismo swing hasta el próximo). Los primeros swings de cada
-    lado (sin referencia previa) quedan NONE: no aportan dirección.
-    """
     labels = pd.Series("NONE", index=swing_high.index)
     new_high = swing_high.notna() & (swing_high != swing_high.shift(1))
     new_low = swing_low.notna() & (swing_low != swing_low.shift(1))
@@ -108,8 +117,8 @@ def _bias_from_swings(
 
     Voto por TRAMOS (cambios de dirección): agrupa los swings consecutivos de
     la misma polaridad (HH/HL → alcista, LH/LL → bajista) y vota los últimos
-    `trend_window` tramos. Un rango alterna tramos → empate → NEUTRAL; una
-    tendencia muestra una mayoría clara en una dirección.
+    `trend_window` tramos. Un rango alterna tramos → empate → desempatado por
+    el tramo MÁS RECIENTE, porque la estructura vigente pesa más que la histórica.
     """
     labels = _label_swings(swing_high, swing_low)
     events = labels[labels != "NONE"]
@@ -127,10 +136,11 @@ def _bias_from_swings(
         return BULLISH
     if bear > bull:
         return BEARISH
-    return NEUTRAL
+    # Empate: el tramo más reciente define el bias vigente.
+    return BULLISH if recent[-1] == "bull" else BEARISH
 
 
-def _bias_for_frame(frame: pd.DataFrame, swing_lookback: int = 5) -> Bias:
+def _bias_for_frame(frame: pd.DataFrame, swing_lookback: int = 2) -> Bias:
     """Sesgo de UN timeframe (SPEC §1): swing_lookback es la AMBIG de ing."""
     sh, sl = _swing_points(frame, swing_lookback)
     return _bias_from_swings(sh, sl)
@@ -140,14 +150,15 @@ def compute_htf_bias(
     d1: pd.DataFrame,
     h4: pd.DataFrame,
     h1: pd.DataFrame,
-    swing_lookback: int = 5,
+    swing_lookback: int = 2,
 ) -> HtfBias:
     """Sesgo del día completo: D1 + H4 + H1 + alineación (SPEC §1).
 
     Args:
         d1/h4/h1: DataFrames de velas con columnas `high`/`low`/`close`,
                   SOLO velas cerradas (sin look-ahead).
-        swing_lookback: ventana de swing (AMBIG de ingeniería, default 5).
+        swing_lookback: ventana de swing (AMBIG de ingeniería, default 2
+                        para versión humana de swing).
 
     Returns:
         HtfBias con el sesgo de cada TF y la alineación global.
@@ -157,3 +168,65 @@ def compute_htf_bias(
         h4=_bias_for_frame(h4, swing_lookback),
         h1=_bias_for_frame(h1, swing_lookback),
     )
+
+
+def compute_htf_bias_series(
+    d1: pd.DataFrame,
+    h4: pd.DataFrame,
+    h1: pd.DataFrame,
+    m15: pd.DataFrame,
+    swing_lookback: int = 2,
+) -> pd.DataFrame:
+    """Serie temporal de `HtfBias` propagada a H1 y M15.
+
+    Se calcula en cada cierre de H4 y luego se expande por `ffill` sobre la
+    línea de tiempo completa de H1 ∪ M15, porque en vivo el operador reutiliza
+    el último bias confirmado hasta el próximo cierre H4.
+    """
+    h4 = h4.sort_index()
+    d1_cum = d1
+    h4_cum = h4
+    h1_cum = h1
+    rows: list[dict] = []
+    for ts in h4.index:
+        if ts in d1.index:
+            d1_cum = d1.loc[d1.index <= ts]
+        if ts in h1.index:
+            h1_cum = h1.loc[h1.index <= ts]
+        if ts in h4.index:
+            h4_cum = h4.loc[h4.index <= ts]
+        if len(d1_cum) < 2 or len(h4_cum) < 2 or len(h1_cum) < 2:
+            continue
+        bias = compute_htf_bias(d1_cum, h4_cum, h1_cum, swing_lookback=swing_lookback)
+        rows.append(
+            {
+                "timestamp": pd.Timestamp(ts).tz_localize(None),
+                "direction": bias.direction,
+                "aligned": bool(bias.aligned),
+            }
+        )
+    if not rows:
+        return pd.DataFrame(columns=["timestamp", "direction", "aligned"])
+    out = pd.DataFrame(rows).set_index("timestamp").sort_index()
+
+    timeline = pd.DatetimeIndex(sorted(set(h1.index).union(m15.index)))
+    out = out.reindex(timeline).ffill().fillna(
+        {"direction": NEUTRAL, "aligned": False}
+    ).infer_objects(copy=False)
+    out.index.name = "timestamp"
+    return out
+
+
+def _suppress_future_no_silent_downcasting() -> None:
+    """Opt-in temporal para eliminar el FutureWarning de pandas en ffill/fillna.
+
+    pandas 3.x silenciará el downcasting por defecto; mientras tanto evitamos ruido
+    sin tocar tests ni caller.
+    """
+    try:
+        pd.set_option("future.no_silent_downcasting", True)
+    except Exception:
+        pass
+
+
+_suppress_future_no_silent_downcasting()

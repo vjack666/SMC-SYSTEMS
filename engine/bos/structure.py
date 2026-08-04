@@ -48,6 +48,10 @@ RANGING = "RANGING"
 
 _STRUCTURE_STATUS = ("none", "active", "invalidated")
 
+# M6 — Causas de descarte emitidas por el motor.
+BOS_DISCARD_REASONS = ("NO_HIT_IN_K", "INVALIDATED", "UNRESOLVED")
+CHOCH_DISCARD_REASONS = ("NO_CONFIRMATION", "INVALIDATED", "UNRESOLVED")
+
 
 @dataclass(frozen=True)
 class StructureConfig:
@@ -58,6 +62,7 @@ class StructureConfig:
     # Cuantos cierres CONSECUTIVOS deben romper el nivel para confirmar.
     # 1 = vela unica; 2 = filtra fakeouts (LuxAlgo Market Structure, feb 2026).
     confirm_bars: int = 2
+    k: int = 5
 
 
 @dataclass(frozen=True)
@@ -66,8 +71,11 @@ class MarketStructure:
 
     `frame` contiene las columnas:
       swing_high, swing_low, swing_label
-      bos_dir (1/-1/0), bos_level, bos_status (active/invalidated/none)
-      choch_dir (1/-1/0), choch_status
+      bos_dir (1/-1/0), bos_level, bos_status (active/invalidated/none),
+      bos_discard_reason (INVALIDATED/UNRESOLVED)
+      choch_dir (1/-1/0), choch_status (active/invalidated/none),
+      choch_discard_reason (INVALIDATED/UNRESOLVED)
+      mss_dir (1/-1/0)   # secuencia canonica BOS -> CHOCH -> BOS
       trend (BULLISH/BEARISH/RANGING)
     """
 
@@ -127,16 +135,22 @@ def _track_structure(
     d: pd.DataFrame,
     config: StructureConfig,
     is_choch: bool = False,
-) -> tuple[pd.Series, pd.Series]:
+) -> tuple[pd.Series, pd.Series, pd.Series]:
     """Sigue validez de BOS o CHoCH vela a vela (estado event-driven).
 
     Invalidacion: el cierre CRUZA de vuelta el nivel roto (por cuerpo).
     No hay caducidad por tiempo ni volatilidad: la estructura vive por
     EVENTO (cruce del nivel = invalidated), nunca muere por contador de velas.
+
+    Returns:
+        status: Serie con estados por vela.
+        age: Edad del evento activo en velas.
+        discard_reason: Causa de descarte cuando aplica.
     """
     n = len(d)
     status = pd.Series(["none"] * n, index=d.index, dtype=object)
     age = pd.Series([0] * n, index=d.index, dtype=int)
+    discard_reason = pd.Series([pd.NA] * n, index=d.index, dtype=object)
     last_dir = 0
     last_level = float("nan")
     last_idx = -1
@@ -163,17 +177,18 @@ def _track_structure(
                 last_dir == -1 and close[i] > last_level
             )
             if crossed:
-                status.iloc[i], active = "invalidated", False
+                status.iloc[i] = "invalidated"
+                active = False
+                discard_reason.iloc[last_idx] = "INVALIDATED"
             else:
                 status.iloc[i] = "active"
         last_dir_col[i] = last_dir
         last_level_col[i] = last_level
 
     if not is_choch:
-        # Columnas temporales para que el CHoCH real use el ultimo BOS.
         d["_last_bos_dir"] = last_dir_col
         d["_last_bos_level"] = last_level_col
-    return status, age
+    return status, age, discard_reason
 
 
 def _derive_trend(d: pd.DataFrame) -> pd.Series:
@@ -182,6 +197,76 @@ def _derive_trend(d: pd.DataFrame) -> pd.Series:
     bull = (lab == "HH") | (lab == "HL")
     bear = (lab == "LH") | (lab == "LL")
     return np.select([bull, bear], [BULLISH, BEARISH], default=RANGING)
+
+
+def _label_bos_discard(
+    d: pd.DataFrame,
+    config: StructureConfig,
+    bos_discard: pd.Series,
+) -> pd.Series:
+    """Etiqueta causa de descarte para BOS sin hit en `k` velas.
+
+    Causas:
+      NO_HIT_IN_K: evento emitido pero el nivel no fue roto en `k` velas.
+      INVALIDATED: evento activo invalidado por cruce del nivel.
+      UNRESOLVED: evento al final del dataset sin datos suficientes.
+    """
+    n = len(d)
+    reasons = pd.Series([pd.NA] * n, index=d.index, dtype=object)
+    highs = d["high"].to_numpy()
+    lows = d["low"].to_numpy()
+    bos_levels = d["bos_level"].to_numpy()
+    bos_status = d["bos_status"].to_numpy()
+
+    # Marcar invalidaciones ya capturadas en tracking.
+    invalidated_mask = bos_status == "invalidated"
+    reasons[bos_discard == "INVALIDATED"] = "INVALIDATED"
+
+    # Eventos con estado activo pero sin validación posterior.
+    active_mask = bos_status == "active"
+    for i in np.where(active_mask)[0]:
+        if pd.notna(reasons.iloc[i]):
+            continue
+        end = min(i + config.k, n)
+        future_highs = highs[i + 1 : end] if i + 1 < n else np.array([], dtype=float)
+        future_lows = lows[i + 1 : end] if i + 1 < n else np.array([], dtype=float)
+        level = float(bos_levels[i])
+        direction = int(d["bos_dir"].iat[i])
+        hit = False
+        if direction == 1 and len(future_highs) > 0:
+            hit = bool(np.nanmax(future_highs) > level)
+        elif direction == -1 and len(future_lows) > 0:
+            hit = bool(np.nanmin(future_lows) < level)
+        if not hit:
+            reasons.iloc[i] = "NO_HIT_IN_K" if end < n else "UNRESOLVED"
+    return reasons
+
+
+def _label_choch_discard(
+    d: pd.DataFrame,
+    config: StructureConfig,
+    choch_discard: pd.Series,
+) -> pd.Series:
+    """Etiqueta causa de descarte para CHOCH.
+
+    Causas:
+      NO_CONFIRMATION: evento emitido pero no hubo BOS confirmado en `confirm_bars`.
+      INVALIDATED: evento activo invalidado por cruce del nivel.
+      UNRESOLVED: evento al final del dataset sin datos suficientes.
+    """
+    n = len(d)
+    reasons = pd.Series([pd.NA] * n, index=d.index, dtype=object)
+    choch_status = d["choch_status"].to_numpy()
+
+    reasons[choch_discard == "INVALIDATED"] = "INVALIDATED"
+    active_mask = choch_status == "active"
+    for i in np.where(active_mask)[0]:
+        end = min(i + config.confirm_bars + 1, n)
+        if end < n:
+            reasons.iloc[i] = "NO_CONFIRMATION"
+        else:
+            reasons.iloc[i] = "UNRESOLVED"
+    return reasons
 
 
 def detect_market_structure(
@@ -219,7 +304,7 @@ def detect_market_structure(
         np.where(d["bos_dir"] == -1, sl.shift(1), np.nan),
     )
 
-    d["bos_status"], _ = _track_structure(d, config, is_choch=False)
+    d["bos_status"], _, bos_discard = _track_structure(d, config, is_choch=False)
     # CHoCH real: rompe el swing que produjo el ULTIMO BOS, en direccion
     # OPUESTA a ese BOS. No es una copia de BOS.
     last_bos_dir = d["_last_bos_dir"].to_numpy()
@@ -232,6 +317,31 @@ def detect_market_structure(
         pd.Series(choch_raw != 0, index=d.index), config.confirm_bars
     ).astype(int) * choch_raw
     d = d.drop(columns=["_last_bos_dir", "_last_bos_level"])
-    d["choch_status"], _ = _track_structure(d, config, is_choch=True)
+    d["choch_status"], _, choch_discard = _track_structure(d, config, is_choch=True)
     d["trend"] = _derive_trend(d)
+
+    n = len(d)
+    # MSS = secuencia canonica BOS -> CHOCH -> BOS.
+    # Se marca solo cuando aparece un BOS en direccion opuesta al ultimo CHOCH,
+    # sin depender del estado activo/invalidado del CHOCH (el CHOCH es un
+    # evento puntual, no un estado persistente).
+    last_choch_idx = -1
+    last_choch_dir = 0
+    mss_dir = np.zeros(n, dtype=int)
+    for i in range(n):
+        if d["choch_dir"].iat[i] != 0:
+            last_choch_idx = i
+            last_choch_dir = d["choch_dir"].iat[i]
+        if (
+            d["bos_dir"].iat[i] != 0
+            and last_choch_idx != -1
+            and d["bos_dir"].iat[i] == -last_choch_dir
+        ):
+            mss_dir[i] = d["bos_dir"].iat[i]
+    d["mss_dir"] = mss_dir
+
+    # M6 — Etiquetado de descarte desde el motor.
+    d["bos_discard_reason"] = _label_bos_discard(d, config, bos_discard)
+    d["choch_discard_reason"] = _label_choch_discard(d, config, choch_discard)
+
     return MarketStructure(frame=d)

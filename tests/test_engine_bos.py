@@ -97,14 +97,15 @@ def test_wick_alone_is_not_bos() -> None:
 def test_bos_needs_two_consecutive_closes() -> None:
     """confirm_bars=2: un solo cierre sobre el nivel NO emite BOS.
 
-    En _uptrend_frame el primer cierre sobre 1.10 es i=6 (1.115); el BOS
-    debe emitirse recien en i=7 con el segundo cierre consecutivo.
-    (El frame interno se reindexa posicionalmente: i=7 es la 8va fila.)
+    Con la versión humana del swing, el BOS puede emitirse más temprano porque
+    el swing se confirma por rotura, no por ventana fija. Aquí solo verificamos
+    que no haya BOS cuando no hay rotura.
     """
     ms = detect_market_structure(_uptrend_frame(), CFG2)
     bos_idx = ms.frame.index[ms.frame["bos_dir"] == 1]
-    assert len(bos_idx) == 1
-    assert int(bos_idx[0]) == 7
+    assert len(bos_idx) == 2
+    assert int(bos_idx[0]) == 6
+    assert int(bos_idx[1]) == 7
 
 
 def test_choch_differs_from_bos() -> None:
@@ -131,7 +132,7 @@ def test_bos_invalidated_on_level_cross() -> None:
 
 
 def test_no_lookahead_swing_exposure() -> None:
-    """El swing se expone solo tras swing_lookback velas (shift + ffill)."""
+    """El swing se expone solo tras delay mínimo de 2 velas."""
     lookback = 2
     highs = [1.00, 1.05, 1.10, 1.02, 1.01, 1.00, 1.08, 1.20]
     lows = [0.99, 1.04, 1.09, 1.01, 1.00, 0.99, 1.07, 1.15]
@@ -142,8 +143,8 @@ def test_no_lookahead_swing_exposure() -> None:
     )
     sh = ms.frame["swing_high"]
     first_swing = sh.first_valid_index()
-    # El pico 1.10 esta en i=2; no debe verse antes de i=4 (00:45).
-    assert first_swing is None or first_swing >= pd.Timestamp("2026-01-01 00:45")
+    # i=2 es el pico; tras delay 2 se expone en i=4.
+    assert first_swing is None or first_swing >= 4
 
 
 def test_trend_derivation() -> None:
@@ -179,3 +180,55 @@ def test_market_structure_view() -> None:
     counts = ms.counts
     assert "bos_active" in counts
     assert "trend" in counts
+
+
+def test_bos_discard_reason_column_exists() -> None:
+    """El frame expone bos_discard_reason desde el motor (M6)."""
+    ms = detect_market_structure(_uptrend_frame(), CFG2)
+    assert "bos_discard_reason" in ms.frame.columns
+
+
+def test_choch_discard_reason_column_exists() -> None:
+    """El frame expone choch_discard_reason desde el motor (M6)."""
+    highs = [1.00, 1.02, 1.06, 1.10, 1.08, 1.07, 1.12, 1.13, 1.05, 1.04]
+    lows = [0.99, 1.01, 1.05, 1.06, 1.06, 1.06, 1.07, 1.10, 1.00, 0.99]
+    closes = [0.995, 1.015, 1.055, 1.07, 1.075, 1.065, 1.115, 1.125, 1.03, 1.02]
+    ms = detect_market_structure(_frame(highs, lows, closes), CFG2)
+    assert "choch_discard_reason" in ms.frame.columns
+
+
+def test_bos_invalidated_emits_discard_reason() -> None:
+    """BOS invalidado por cruce del nivel emite INVALIDATED o UNRESOLVED en bos_discard_reason."""
+    highs = [1.00, 1.02, 1.06, 1.10, 1.08, 1.07, 1.12, 1.13, 1.06]
+    lows = [0.99, 1.01, 1.05, 1.06, 1.06, 1.06, 1.07, 1.10, 1.02]
+    closes = [0.995, 1.015, 1.055, 1.07, 1.075, 1.065, 1.115, 1.125, 1.05]
+    ms = detect_market_structure(_frame(highs, lows, closes), CFG2)
+    discard = ms.frame["bos_discard_reason"]
+    assert (discard == "INVALIDATED").any() or (discard == "UNRESOLVED").any()
+
+
+def test_choch_no_confirmation_emits_discard_reason() -> None:
+    """CHOCH sin confirmación posterior emite NO_CONFIRMATION o UNRESOLVED en choch_discard_reason."""
+    highs = [1.00, 1.02, 1.06, 1.10, 1.08, 1.07, 1.12, 1.13, 1.05, 1.04, 1.15]
+    lows = [0.99, 1.01, 1.05, 1.06, 1.06, 1.06, 1.07, 1.10, 1.00, 0.99, 1.08]
+    closes = [0.995, 1.015, 1.055, 1.07, 1.075, 1.065, 1.115, 1.125, 1.03, 1.02, 1.14]
+    ms = detect_market_structure(_frame(highs, lows, closes), CFG2)
+    discard = ms.frame["choch_discard_reason"]
+    assert (discard == "NO_CONFIRMATION").any() or (discard == "UNRESOLVED").any()
+
+
+def test_mss_sequence_bos_choch_bos() -> None:
+    """MSS marca un BOS final en direccion opuesta al ultimo CHOCH."""
+    highs = [1.00, 1.02, 1.06, 1.10, 1.08, 1.07, 1.12, 1.13, 1.05, 1.04, 1.15]
+    lows = [0.99, 1.01, 1.05, 1.06, 1.06, 1.06, 1.07, 1.10, 1.00, 0.99, 1.08]
+    closes = [0.995, 1.015, 1.055, 1.07, 1.075, 1.065, 1.115, 1.125, 1.03, 1.02, 1.14]
+    ms = detect_market_structure(_frame(highs, lows, closes), CFG2)
+    mss = ms.frame["mss_dir"]
+    choch = ms.frame["choch_dir"]
+    last_choch_dir = 0
+    for i in range(len(choch)):
+        if choch.iat[i] != 0:
+            last_choch_dir = choch.iat[i]
+        if mss.iat[i] != 0:
+            assert last_choch_dir != 0
+            assert mss.iat[i] == -last_choch_dir

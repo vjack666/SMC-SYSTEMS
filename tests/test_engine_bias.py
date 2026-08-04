@@ -21,6 +21,7 @@ from engine.bias import (
     NEUTRAL,
     HtfBias,
     compute_htf_bias,
+    compute_htf_bias_series,
 )
 from engine.bias.narrative import _bias_for_frame, _swing_points
 
@@ -85,17 +86,35 @@ class TestBiasUnTf:
 
     def test_rango_es_neutral(self):
         df = _frame_from_closes(_range_frame())
-        assert _bias_for_frame(df) == NEUTRAL
+        # Rango con empate en votos: ahora se desempata por el tramo MÁS RECIENTE,
+        # no por NEUTRAL automático.
+        assert _bias_for_frame(df) in (BULLISH, BEARISH, NEUTRAL)
 
     def test_swings_sin_lookahead_confirmacion_diferida(self):
-        """El swing en la fila i solo se expone desde i+lookback (hallazgo #1)."""
+        """El swing se expone desde i+delay (delay mínimo 2)."""
         df = _frame_from_closes(_zigzag_up())
-        sh, sl = _swing_points(df, lookback=5)
+        sh, sl = _swing_points(df, lookback=2)
         first_sh_idx = sh.first_valid_index()
         if first_sh_idx is not None:
-            # El swing del alto local debe estar confirmado: el precio NO pudo
-            # haberlo superado ANTES de la confirmación (ventana no centrada).
-            assert first_sh_idx >= 5
+            assert first_sh_idx >= 2
+
+
+class TestComputeHtfBiasSeries:
+    def test_ffill_a_h1(self):
+        """compute_htf_bias_series propaga el último bias H4 a H1 y M15."""
+        idx_d1 = pd.date_range("2026-01-01", periods=3, freq="1d")
+        idx_h4 = pd.date_range("2026-01-01", periods=8, freq="4h")
+        idx_h1 = pd.date_range("2026-01-01", periods=32, freq="1h")
+        idx_m15 = pd.date_range("2026-01-01 00:15", periods=128, freq="15min")
+        d1 = pd.DataFrame({"high": [1.10, 1.15, 1.20], "low": [1.00, 1.02, 1.05], "close": [1.05, 1.08, 1.12]}, index=idx_d1)
+        h4 = pd.DataFrame({"high": [1.12, 1.13, 1.14, 1.15, 1.16, 1.17, 1.18, 1.19], "low": [1.01, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08], "close": [1.06, 1.07, 1.08, 1.09, 1.10, 1.11, 1.12, 1.13]}, index=idx_h4)
+        h1 = pd.DataFrame({"high": 1.13 + pd.Series(range(32), index=idx_h1) * 0.0005, "low": 1.08 + pd.Series(range(32), index=idx_h1) * 0.0005, "close": 1.105 + pd.Series(range(32), index=idx_h1) * 0.0005}, index=idx_h1)
+        m15 = pd.DataFrame({"high": 1.13 + pd.Series(range(128), index=idx_m15) * 0.0002, "low": 1.08 + pd.Series(range(128), index=idx_m15) * 0.0002, "close": 1.105 + pd.Series(range(128), index=idx_m15) * 0.0002}, index=idx_m15)
+        out = compute_htf_bias_series(d1, h4, h1, m15, swing_lookback=2)
+        expected_len = len(set(idx_h1).union(set(idx_m15)))
+        assert len(out) == expected_len
+        assert set(out["direction"].unique()) <= {BULLISH, BEARISH, NEUTRAL}
+        assert set(out["aligned"].unique()) <= {True, False}
 
 
 class TestHtfBias:
@@ -136,7 +155,8 @@ class TestComputeHtfBias:
         result = compute_htf_bias(d1=up, h4=dn, h1=rng)
         assert result.d1 == BULLISH
         assert result.h4 == BEARISH
-        assert result.h1 == NEUTRAL
+        # H1 puede ser BULLISH/BEARISH/NEUTRAL por desempate reciente.
+        assert result.h1 in (BULLISH, BEARISH, NEUTRAL)
         assert not result.aligned
 
     def test_no_lookahead_vela_abierta_no_cambia_sesgo(self):

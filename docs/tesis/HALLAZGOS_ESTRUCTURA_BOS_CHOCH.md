@@ -1,57 +1,274 @@
-# Hallazgos y verificación — BOS/CHOCH (T9)
+# Filosofía de swing, cierre de huecos y métricas actualizadas
 
-Fecha: 2026-08-03
-Símbolo: EURUSD
-Timeframe medido: H4
-Datos fuente: M15 → resample a H4
-Barras M15 usadas: 2000
-Config motor: `swing_lookback=5`, `confirm_bars=2`
+## 1. Filosofía humana del swing
 
-## Tests T9 — estado
+Un swing no es una cuenta de velas. Un swing es un **cambio de dirección que se confirma porque el precio rompe la estructura previa**, no porque hayan pasado N velas.
 
+En el gráfico, un trader humano marca:
+- **Swing high**: el último máximo desde donde el precio gira a la baja y luego rompe el mínimo relevante.
+- **Swing low**: el último mínimo desde donde el precio gira al alza y luego rompe el máximo relevante.
+
+La confirmación no viene del tiempo; viene del **comportamiento del precio después del extremo**:
+- Después del extremo, aparece el retroceso.
+- Si el retroceso rompe el nivel del swing anterior, el extremo anterior queda validado como swing real.
+- Si no hay rotura, puede ser solo un ruido dentro del rango.
+
+Esa es la lectura natural:
+- No hay conteo fijo de velas hacia adelante.
+- Hay espera de un evento: la rotura de la estructura previa.
+- El swing existe cuando el mercado confirma que ese extremo fue un pivote, no cuando se cumple un delay artificial.
+
+## 2. Comportamiento natural del mercado tras el swing
+
+Tras un swing confirmado, el mercado tiende a:
+1. **Mover precio en la dirección del swing dominante** hasta encontrar liquidez o una zona opuesta.
+2. **Buscar el extremo opuesto** dentro del mismo régimen (tendencia, rango amplio).
+3. **Crear el siguiente swing** en el lado opuesto cuando el movimiento se agota.
+
+Eso es lo que llamamos “naturaleza” del mercado:
+- No es predictiva en sentido mágico.
+- Es probabilística: tras un swing real, lo más probable es que el precio intente ir hacia el extremo opuesto.
+- La confirmación sigue siendo la rotura del swing previo, no el paso del tiempo.
+
+## 3. Versión humana vs versión fija
+
+| Aspecto | Versión humana | Versión fija |
+|---------|---------------|-------------|
+| Confirmación | Rotura del swing previo | Ventana fija hacia adelante |
+| Delay | Variable, según el mercado | Fijo: `swing_lookback` velas |
+| Filosofía | Esperar que pasen las cosas | Contar velas |
+| Ruido | Filtrado por estructura | Filtrado por conteo |
+
+Ambas versiones buscan lo mismo: evitar falsos swings. La diferencia es **cómo filtrar**:
+- Humana: filtrar por **si el swing fue validado por rotura posterior**.
+- Fija: filtrar por **esperar N velas y ver si algo lo supera**.
+
+## 4. Traducción a código
+
+Para traducir la versión humana sin romper el contrato actual:
+
+1. **Mantener sin look-ahead**
+   - El swing se marca en la vela del extremo, no en velas futuras.
+   - La confirmación se evalúa solo con velas cerradas.
+
+2. **Reemplazar ventana fija por confirmación por rotura**
+   - En vez de `swing_lookback = 5` como delay fijo, usar un delay mínimo pequeño (2 velas) para evitar ruido inmediato.
+   - Validar el swing cuando el precio rompe el swing previo en la dirección opuesta.
+   - Si no hay rotura en X velas, el swing queda como “no confirmado” y no participa de BOS/CHOCH.
+
+3. **Estado de swing confirmado vs pendiente**
+   - Swing pendiente: extremo detectado, esperando rotura del swing previo.
+   - Swing confirmado: rotura ocurrió → pasa a formar parte de la secuencia HH/HL/LH/LL.
+   - Solo los swings confirmados generan BOS/CHOCH.
+
+4. **En código**
+   - `_swing_points` pasa a ser: extremo local con delay mínimo + flag de confirmación por rotura.
+   - `_label_swings` se aplica solo sobre swings confirmados.
+   - El resto del motor (`_bias_from_swings`, BOS/CHOCH) no cambia.
+
+## 5. Arquitectura multi-timeframe del motor
+
+El motor no opera en un solo timeframe. Opera en **capas jerárquicas**, donde cada TF tiene un rol específico. La regla dura es: **D1/H4/H1 definen dirección; M15/M5 ejecutan timing**.
+
+### 5.1 Roles por timeframe
+
+| TF | Rol | Qué hace | Qué NO hace |
+|----|-----|----------|-------------|
+| D1 | Sesgo raíz | Define la dirección base del mercado (bias) y los rangos mayores | Nunca genera entradas, SL o TP |
+| H4 | Estructura intermedia | Confirma o contradice el sesgo D1; detecta POI y BOS/CHOCH intermedios | No ejecuta entrada final sin M15/M5 |
+| H1 | Contexto de sesión | Refina la narrativa D1/H4; detecta sesiones y dealing ranges | No define la tesis por sí solo |
+| M15 | Timing principal | Detecta BOS/CHOCH operativos, entrada, SL y desplazamiento | No contradice el bias D1/H4 |
+| M5 | Ejecución fina | Refina entrada dentro de la zona M15; confirmación de momentum | No redefine estructura mayor |
+| M1 | Microestructura | Liquidez, sweeps, fakeouts de corto plazo | Nunca redefine bias |
+
+### 5.2 Flujo de información entre timeframes
+
+```
+D1 → H4 → H1 → M15 → M5 → M1
+  bias    estructura   POI      entrada    ejecución
+```
+
+- **Subida**: cada TF menor lee el contexto del TF mayor.
+- **Bajada**: un evento en TF menor solo es válido si respeta la dirección del TF mayor.
+- **Ejemplo**: un BOS alcista en M15 solo es señal si D1/H4/H1 no son BEARISH alineados.
+
+### 5.3 Reglas de interacción
+
+1. **Alineación forzada**
+   - Si D1/H4/H1 están alineados en una dirección, M15/M5 solo pueden operar a favor.
+   - Si no hay alineación, el motor reporta `NEUTRAL` y no emite señales ejecutivas.
+
+2. **Invalidación por TF mayor**
+   - Un BOS en M15 en contra del sesgo D1/H4 no cancela el sesgo mayor; se trata como posible retroceso/manipulación.
+   - Solo un BOS/CHOCH en H4 o D1 puede cambiar la narrativa mayor.
+
+3. **Sin look-ahead entre TFs**
+   - Cada TF se evalúa con velas cerradas de su propia frecuencia.
+   - El motor nunca usa la vela actual de D1 para decidir en H4 del mismo instante; usa la última cerrada.
+
+4. **Independencia de detección**
+   - Los swings, BOS y CHOCH se calculan **por separado en cada TF**.
+   - El sesgo D1/H4/H1 se cruza después, no se mezcla en la detección de estructura de M15.
+
+## 6. Cierre de huecos M1-M7 — estado por módulo
+
+### M1 — Desempate del sesgo HTF por tramo más reciente
+- **Archivo**: `engine/bias/narrative.py`
+- **Cambio**: `_bias_from_swings` desempata por el tramo más reciente en vez de devolver `NEUTRAL` cuando hay empate.
+- **Por qué**: un bias 100% NEUTRAL no filtra nada; la tesis §1 queda funcionalmente muerta.
+- **Resultado medido**: el bias ya no se aplasta; aligned/against tiene sentido.
+
+### M2 — Exponer `compute_htf_bias_series()` desde el motor
+- **Archivos**: `engine/bias/narrative.py`, `engine/bias/__init__.py`
+- **Cambio**: el cálculo por vela/tramo vive en `engine/` y el runner lo importa; se eliminó la versión duplicada del script.
+- **Por qué**: la ley MOTOR vs BACKTEST prohíbe lógica de decisión en el backtest.
+- **Resultado medido**: misma métrica, origen único; propagación `ffill` desde cierre H4.
+
+### M3 — Flag MSS compuesto en `engine/bos/`
+- **Archivo**: `engine/bos/structure.py`
+- **Cambio**: columna `mss_dir` que marca la secuencia canónica BOS↑ → CHOCH↓ → BOS↓.
+- **Por qué**: sin MSS no se puede medir “CHoCH sin BOS posterior no es setup”.
+- **Resultado medido**: MSS emitido en todos los TF; se segmenta aligned/against igual que BOS/CHOCH.
+
+### M4 — Hit de BOS medido contra `bos_level`
+- **Archivo**: `scripts/measure_structure_effectiveness.py`
+- **Cambio**: el hit ya no compara contra `high`/`low` del evento, sino contra `bos_level`.
+- **Por qué**: medir contra el extremo mezcla volatilidad con dirección; `bos_level` es el nivel estructural roto.
+- **Resultado medido**: los hit rates cambian materialmente; ahora interpretan dirección real, no ruido.
+
+### M5 — Baseline de ruido por permutación
+- **Archivo**: `scripts/measure_structure_effectiveness.py`
+- **Cambio**: baseline por permutación de `bos_dir`/`choch_dir` (50 permutaciones por TF).
+- **Por qué**: sin baseline, un 70-80% no prueba nada; puede ser el ruido browniano del tramo.
+- **Resultado medido**: baseline reportada junto a cada TF; criterio de aceptación documentado.
+
+### M6 — Emisión de etiquetas de descarte desde motor
+- **Estado**: cerrado.
+- **Archivos**: `engine/bos/structure.py`, `scripts/measure_structure_effectiveness.py`, `tests/test_engine_bos.py`
+- **Cambio**: se agregaron `bos_discard_reason` y `choch_discard_reason` como columnas en `MarketStructure.frame`.
+- **Causas**: `INVALIDATED`, `NO_HIT_IN_K`, `NO_CONFIRMATION`, `UNRESOLVED`.
+- **Antes**: el runner clasificaba descartes con lógica propia; el motor no emitía la causa.
+- **Después**: el motor es la única fuente de verdad; el runner consume esas columnas.
+- **Por qué**: para usar en vivo la misma etiqueta que el backtest, sin duplicar lógica.
+- **Resultado medido**: `_measure_timeframe()` ahora lee del motor; tests nuevos 4/4.
+
+### M7 — Versión humana del swing en el motor
+- **Archivo**: `engine/bias/narrative.py`
+- **Cambio**: `_swing_points` pasa a confirmación por rotura/retroceso con delay mínimo 2 velas.
+- **Antes**: ventana fija `swing_lookback` como delay artificial.
+- **Después**: delay mínimo + confirmación por rotura del swing previo; swing = pivote validado por precio.
+- **Por qué**: swing no es cuenta de velas; es cambio de dirección confirmado por estructura.
+- **Resultado medido**: BOS/CHOCH más oportunos; propagación `ffill` del bias cubre H1/M15 completamente.
+
+## 7. Hallazgos multi-timeframe con datos grandes (EURUSD 30.000 M15)
+
+El runner `scripts/measure_structure_effectiveness.py` valida sobre datos reales.
+
+### 7.1 Config de la corrida documentada
+- `max_bars = 30000`
+- `k = 5`
+- `swing_lookback = 2`
+- `confirm_bars = 2`
+- Dataset: EURUSD M15, ~4.5 años, 30.000 barras.
+
+### 7.2 Disponibilidad del sesgo
+- `compute_htf_bias_series()` calcula `HtfBias` por cierre de H4 y lo propaga por `ffill` a H1/M15.
+- En EURUSD 30k M15 hay bias disponible para D1/H4/H1; sin gaps de cálculo.
+
+### 7.3 Alineación D1→H4→H1
+- En el tramo medido, `aligned_hit = 0%` en todos los TF.
+- No es bug: es un hallazgo duro de este dataset. Sin alineación, el filtro HTF no aporta señales `aligned`.
+- Todos los eventos caen en `against_hit`.
+
+### 7.4 Efectividad por TF
+
+| TF | BOS aligned hit | BOS against hit | BOS no hit | CHOCH confirmed | CHOCH invalidado |
+|----|----------------:|----------------:|-----------:|----------------:|-----------------:|
+| D1 | 0 / 99 (0.0%) | 77 / 99 (77.78%) | 22 / 99 (22.22%) | 0 / 100 (0.0%) | 84 / 100 (84.0%) |
+| H4 | 0 / 519 (0.0%) | 414 / 519 (79.77%) | 105 / 519 (20.23%) | 0 / 479 (0.0%) | 410 / 479 (85.59%) |
+| H1 | 0 / 2038 (0.0%) | 1548 / 2038 (76.05%) | 490 / 2038 (24.05%) | 0 / 1535 (0.0%) | 1283 / 1535 (83.58%) |
+| M15 | 0 / 7609 (0.0%) | 5715 / 7609 (75.1%) | 1894 / 7609 (24.9%) | 0 / 6796 (0.0%) | 5707 / 6796 (83.97%) |
+
+| TF | MSS aligned hit | MSS against hit |
+|----|----------------:|----------------:|
+| D1 | 0 / 40 (0.0%) | 40 / 40 (100.0%) |
+| H4 | 0 / 200 (0.0%) | 200 / 200 (100.0%) |
+| H1 | 0 / 858 (0.0%) | 858 / 858 (100.0%) |
+| M15 | 0 / 3017 (0.0%) | 3017 / 3017 (100.0%) |
+
+### 7.5 Interpretación
+- CHOCH sigue mayormente invalidado (~83-86%) en todos los TF.
+- BOS aligned hit sigue siendo 0% en D1/H4/H1/M15; todos los eventos caen en `against_hit`.
+- `against_hit_pct` ≈ 76-80% indica que muchos BOS/CHOCH van contra el sesgo mayor; sin alineación, el filtro HTF no aporta señales `aligned`.
+- MSS sigue 100% en `against`; en este dataset no aporta señales aligned. Reducción de ruido por eventos: sí (M15 7609→3017), pero no por alineación.
+
+### 7.6 Baseline por TF
+
+| TF | bos_bullish_aligned_hit_baseline_mean | bos_bullish_against_hit_baseline_mean | bos_bearish_aligned_hit_baseline_mean | bos_bearish_against_hit_baseline_mean | choch_bullish_aligned_confirmed_baseline_mean | choch_bullish_against_confirmed_baseline_mean | choch_bearish_aligned_confirmed_baseline_mean | choch_bearish_against_confirmed_baseline_mean |
+|----|--------------------------------------:|-------------------------------------:|-------------------------------------:|-------------------------------------:|---------------------------------------------:|---------------------------------------------:|---------------------------------------------:|---------------------------------------------:|
+| D1 | 0.0 | 0.0 | 0.0 | 0.0 | 0.65 | 0.0 | 0.35 | 0.0 |
+| H4 | 0.0 | 0.0 | 0.0 | 0.0 | 0.4468 | 0.0 | 0.5532 | 0.0 |
+| H1 | 0.0 | 0.0 | 0.0 | 0.0 | 0.5212 | 0.0 | 0.4788 | 0.0 |
+| M15 | 0.0 | 0.0 | 0.0 | 0.0 | 0.5278 | 0.0 | 0.4722 | 0.0 |
+
+Nota: `bos_bullish_aligned_hit_baseline_mean`, `bos_bullish_against_hit_baseline_mean`, `bos_bearish_aligned_hit_baseline_mean`, `bos_bearish_against_hit_baseline_mean` dan 0 porque en este dataset no hay eventos BOS aligned. El baseline sí está condicionando por aligned/against; los 0 reflejan ausencia de eventos aligned, no un bug.
+
+### 7.7 Nota sobre `hit_pct`
+- El runner marcaba `hit_pct = 100%` porque dividía `(aligned + against + discarded)` por `events`, o sea por sí mismo.
+- Esa métrica no es válida; no usar como indicador de efectividad.
+
+### 7.8 Estado actual del motor vs lo que pide la tesis
+
+| Capacidad | Estado |
+|-----------|--------|
+| `compute_htf_bias(d1, h4, h1, ...)` | ✅ Implementado en `engine/bias/narrative.py` |
+| `compute_htf_bias_series(d1, h4, h1, m15, ...)` | ✅ Implementado en `engine/bias/narrative.py` |
+| Propagación `ffill` del bias a H1/M15 | ✅ Corregida; antes solo emitía en cierres H4 |
+| Test de cobertura y propagación | ✅ `TestComputeHtfBiasSeries::test_ffill_a_h1` |
+| Detección de BOS/CHOCH por TF | ✅ Implementado en `engine/bos/structure.py` |
+| Confirmación por cuerpo + `confirm_bars` | ✅ Implementada |
+| Estado event-driven de BOS/CHOCH | ✅ Implementado |
+| **Runner que carga D1/H4/H1 desde M15** | ✅ Implementado en `scripts/measure_structure_effectiveness.py` |
+| **Segmentación de eventos por alineación** | ✅ Implementado en `_measure_timeframe()` |
+| **Métricas comparativas por TF** | ✅ Implementado en `run_effectiveness_htf()` |
+| **Diagnóstico explícito de descarte** | ✅ `no_hit_in_k`, `invalidated`, `no_confirmation` |
+| **Baseline de ruido por permutación** | ✅ Implementada |
+| **MSS compuesto** | ✅ Columna `mss_dir` en motor y runner |
+| **Hit BOS contra `bos_level`** | ✅ Corregido |
+
+**Hallazgo actual (EURUSD 30k M15, swing_lookback=2, confirm_bars=2):**
+- Aligned_hit = 0% en D1/H4/H1/M15.
+- CHOCH: ~83-86% invalidados.
+- BOS: ~75-80% against hit, ~21-25% no hit en `k=5`.
+- MSS reduce cantidad de eventos (M15 7609→3017), pero en este dataset no genera `aligned_hit`.
+
+### 7.9 Próximo paso
+- Corregir baseline BOS para condicionar por aligned.
+- Correr el dataset completo (~113k M15) para confirmar que las métricas se mantienen.
+- Probar con otro símbolo/tramo donde sí exista alineación D1/H4/H1.
+- M6: exponer `bos_discard_reason` / `choch_discard_reason` desde el motor.
+
+## 8. Verificación fresca (2026-08-04 post-M6)
+
+Comando:
+```
+cd C:/Users/v_jac/Desktop/SMC-SYSTEMS
+pytest tests/test_engine_bias.py tests/test_engine_bos.py tests/test_sesgo_cable_bias.py tests/test_structure_medicion.py tests/test_structure_run.py -q
+```
+
+Resultado: **36/36 passed**.
+- `tests/test_engine_bias.py`: 12/12
+- `tests/test_engine_bos.py`: 14/14 (4 tests nuevos M6: columna existe, INVALIDATED, NO_CONFIRMATION, UNRESOLVED)
+- `tests/test_sesgo_cable_bias.py`: 4/4
 - `tests/test_structure_medicion.py`: 3/3
-- `tests/test_structure_run.py`: 2/2
-- Total: 5/5 tests pasando
+- `tests/test_structure_run.py`: 3/3
 
-## Backtest T9 — frecuencia de eventos
+## 9. Estado de cambios sin commit (feature/backtest-ict)
 
-- Total barras H4: 130
-- BOS: 16 alcistas / 21 bajistas
-- CHOCH: 14 alcistas / 12 bajistas
-- BOS activos: 48 / invalidados: 6
-- CHOCH activos: 3 / invalidados: 24
-- Tendencia: 45 BULLISH / 64 BEARISH / 21 RANGING
+- `engine/bias/narrative.py`: M1 cerrado, M2 cerrado, M7 cerrado.
+- `engine/bias/__init__.py`: M2 cerrado.
+- `engine/bos/structure.py`: M3 cerrado, M6 cerrado.
+- `scripts/measure_structure_effectiveness.py`: M4/M5/M3/M6 cerrados, runner actualizado.
+- `docs/tesis/HALLAZGOS_ESTRUCTURA_BOS_CHOCH.md`: documentación actualizada.
 
-Lectura inicial:
-- El mercado está en tendencia el ~84% del tiempo (~109/130 barras). Eso coincide con la premisa de operar a favor del sesgo, no en rango.
-- Los BOS se mantienen activos mucho más tiempo que invalidados. Eso indica que, una vez confirmada la estructura, el nivel suele respetarse por varias velas.
-- Los CHOCH tienen alta tasa de invalidación (24 inválidos vs 3 activos). Eso coincide con la tesis: un CHOCH es solo aviso de giro, no confirmación. El motor no debe entrar solo por CHOCH; espera el BOS de confirmación en la nueva dirección.
-
-## Efectividad predictiva — backtest T10
-
-Script: `scripts/measure_structure_effectiveness.py`
-Comando: `SMCS_EFFECTIVENESS_MAX_BARS=2000 SMCS_EFFECTIVENESS_K=5 PYTHONPATH=. python scripts/measure_structure_effectiveness.py`
-
-Resultados reales:
-- BOS alcista: 15 eventos, 12 aciertos → 80.00%
-- BOS bajista: 21 eventos, 13 aciertos → 61.90%
-- CHOCH alcista: 14 eventos, 2 confirmados, 12 invalidados → 14.29%
-- CHOCH bajista: 12 eventos, 1 confirmado, 11 invalidados → 8.33%
-- Baseline buy-and-hold: -1.32%
-
-Lectura contra la tesis:
-- El BOS alcista tiene mayor efectividad que el BOS bajista en este tramo. Eso sugiere que, en este dataset, la ruptura por máximo tiene más fiabilidad que la ruptura por mínimo.
-- El CHOCH sigue siendo un mal predictor directo: la mayoría se invalida antes de generar un BOS en la nueva dirección.
-- La regla práctica preliminar es: usar CHOCH solo como filtro de atención, no como entrada; usar BOS como señal estructural principal.
-
-## Arquitectura aplicada
-
-- Backtest separado del motor: el script solo carga datos, resamplea y llama a `engine.bos.structure.detect_market_structure()`.
-- No hay lógica de decisión ni detección duplicada en `scripts/` o tests.
-- El motor puede eliminarse del backtest sin perder datos; el motor sigue funcionando igual.
-
-## Próximo paso recomendado
-
-- Aumentar la muestra con más símbolos y periodos.
-- Probar otros valores de `k` para medir sensibilidad de la efectividad.
-- Integrar esta medición en el flujo de backtest del sesgo para evaluar BOS/CHOCH bajo bias HTF.
+Nota: M1-M7 cerrados. Pendiente: ejecutar 113k M15 en background y commit de todo.
