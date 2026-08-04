@@ -1,42 +1,46 @@
-"""Efectividad predictiva de BOS/CHOCH multi-timeframe.
-
-Mide, para cada evento emitido por el motor en D1/H4/H1/M15:
-- Efectividad aligned vs contra el sesgo HTF
-- Cantidad de eventos descartados por temporalidad
-- Causa explícita de descarte: no_hit_in_k / no_confirmation / invalidated
-
-Baseline ingenuo: buy-and-hold sobre el mismo tramo.
-Baseline de ruido: permutación de direcciones para estimar edge real.
-"""
-
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from engine.bias.narrative import compute_htf_bias_series
+from engine.bias.narrative import BULLISH, BEARISH, NEUTRAL, HtfBias, compute_htf_bias_series
 from engine.bos.structure import StructureConfig, detect_market_structure
+from engine.htf_narrative import build_htf_narrative, narrative_ready_for_trade
 from ict_backtest.sesgo.reloj.datos import validate_m15_parquet
 
+BULLISH = "BULLISH"
+BEARISH = "BEARISH"
 NEUTRAL = "NEUTRAL"
+
+
+def _resample(df: pd.DataFrame, rule: str) -> pd.DataFrame:
+    o = df["open"].resample(rule, label="left", closed="left").first()
+    h = df["high"].resample(rule, label="left", closed="left").max()
+    l = df["low"].resample(rule, label="left", closed="left").min()
+    c = df["close"].resample(rule, label="left", closed="left").last()
+    return pd.DataFrame({"open": o, "high": h, "low": l, "close": c}).dropna()
 
 
 @dataclass
 class TimeframeMetrics:
-    timeframe: str
-    total_bars: int
+    timeframe: str = ""
+    total_bars: int = 0
+    buy_hold_return: float = 0.0
     bos_bullish_events: int = 0
     bos_bullish_aligned_hit: int = 0
     bos_bullish_against_hit: int = 0
+    bos_bullish_discarded_fakeout: int = 0
     bos_bullish_discarded_no_hit: int = 0
     bos_bearish_events: int = 0
     bos_bearish_aligned_hit: int = 0
     bos_bearish_against_hit: int = 0
+    bos_bearish_discarded_fakeout: int = 0
     bos_bearish_discarded_no_hit: int = 0
     choch_bullish_events: int = 0
     choch_bullish_confirmed_aligned: int = 0
@@ -54,60 +58,23 @@ class TimeframeMetrics:
     mss_bearish_events: int = 0
     mss_bearish_confirmed_aligned: int = 0
     mss_bearish_confirmed_against: int = 0
-    buy_hold_return: float = 0.0
+    baseline_buy_hold_pct: float = 0.0
+    baseline: dict | None = None
+    htf_ready_bars: int = 0
+    htf_ready_pct: float = 0.0
+    htf_checked_bars: int = 0
 
 
-def _resample(df: pd.DataFrame, rule: str) -> pd.DataFrame:
-    o = df["open"].resample(rule, label="left", closed="left").first()
-    h = df["high"].resample(rule, label="left", closed="left").max()
-    l = df["low"].resample(rule, label="left", closed="left").min()
-    c = df["close"].resample(rule, label="left", closed="left").last()
-    return pd.DataFrame({"open": o, "high": h, "low": l, "close": c}).dropna()
-
-
-def _precompute_choch_outcomes(
-    d: pd.DataFrame,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Precalcula outcomes de CHOCH para acceso O(1)."""
-    n = len(d)
-    confirmed = np.full(n, False, dtype=bool)
-    invalidated = np.full(n, False, dtype=bool)
-
-    next_bos_bullish = np.full(n, n, dtype=int)
-    next_bos_bearish = np.full(n, n, dtype=int)
-    next_invalidated = np.full(n, n, dtype=int)
-
-    last_bos_bullish = n
-    last_bos_bearish = n
-    last_invalidated = n
-    for j in range(n - 1, -1, -1):
-        if d["bos_dir"].iat[j] == 1:
-            last_bos_bullish = j
-        if d["bos_dir"].iat[j] == -1:
-            last_bos_bearish = j
-        if d["choch_status"].iat[j] == "invalidated":
-            last_invalidated = j
-        next_bos_bullish[j] = last_bos_bullish
-        next_bos_bearish[j] = last_bos_bearish
-        next_invalidated[j] = last_invalidated
-
-    for i in range(n):
-        if d["choch_dir"].iat[i] == 1:
-            inv_idx = next_invalidated[i]
-            bos_idx = next_bos_bullish[i]
-            if inv_idx != n and (bos_idx == n or inv_idx < bos_idx):
-                invalidated[i] = True
-            elif bos_idx != n:
-                confirmed[i] = True
-        elif d["choch_dir"].iat[i] == -1:
-            inv_idx = next_invalidated[i]
-            bos_idx = next_bos_bearish[i]
-            if inv_idx != n and bos_idx == n or inv_idx < bos_idx:
-                invalidated[i] = True
-            elif bos_idx != n:
-                confirmed[i] = True
-
-    return confirmed, invalidated
+def _serialize(obj: Any) -> Any:
+    if isinstance(obj, TimeframeMetrics):
+        data = dataclasses.asdict(obj)
+        baseline = data.pop("baseline", {})
+        data["baseline_buy_hold_pct"] = data.get("buy_hold_return", 0.0) * 100
+        data["baseline"] = {k: (None if isinstance(v, float) and np.isnan(v) else v) for k, v in baseline.items()}
+        return data
+    if isinstance(obj, float) and np.isnan(obj):
+        return None
+    raise TypeError(f"Not serializable: {type(obj)}")
 
 
 def _measure_timeframe(
@@ -148,33 +115,72 @@ def _measure_timeframe(
     bos_discard = d["bos_discard_reason"].to_numpy()
     choch_discard = d["choch_discard_reason"].to_numpy()
     choch_status = d["choch_status"].to_numpy()
+    bos_real = d["bos_real"].to_numpy() if "bos_real" in d.columns else np.ones(n, dtype=bool)
+
+    # --- Cobertura honesta del HTF
+    # se construye SOBRE velas ya cerradas (hasta i-1). build_htf_narrative recibe
+    # ese sub-frame y resuelve bias/zona/liquidez/POI con geometría pura.
+    narr_window = 200
+    narr_step = 50
+    htf_ready = 0
+    htf_checked = 0
+    for i in range(narr_window, n, narr_step):
+        sub = frame.iloc[:i]
+        if len(sub) < narr_window:
+            continue
+        sub = sub.iloc[-narr_window:]
+        bdir = str(bias_direction[i - 1]) if (i - 1) < n else NEUTRAL
+        baligned = bool(bias_aligned[i - 1]) if (i - 1) < n else False
+        hbias = HtfBias(
+            d1=bdir if bdir in (BULLISH, BEARISH) else NEUTRAL,
+            h4=bdir if bdir in (BULLISH, BEARISH) else NEUTRAL,
+            h1=bdir if bdir in (BULLISH, BEARISH) else NEUTRAL,
+        )
+        try:
+            narr = build_htf_narrative(sub, lookback=10, htf_bias=hbias)
+            htf_checked += 1
+            if narrative_ready_for_trade(narr):
+                htf_ready += 1
+        except Exception:
+            pass
 
     m = TimeframeMetrics(timeframe=timeframe, total_bars=n)
     if n > 0:
         m.buy_hold_return = float(
             (d["close"].iloc[-1] - d["open"].iloc[0]) / d["open"].iloc[0]
         )
+    if htf_checked > 0:
+        m.htf_ready_bars = htf_ready
+        m.htf_checked_bars = htf_checked
+        m.htf_ready_pct = htf_ready / htf_checked
 
     for i in range(n):
         is_aligned = bool(bias_aligned[i])
         direction = str(bias_direction[i])
+        real = bool(bos_real[i])
 
         if d["bos_dir"].iat[i] == 1:
             m.bos_bullish_events += 1
             if pd.isna(bos_discard[i]):
-                if is_aligned and direction == "BULLISH":
-                    m.bos_bullish_aligned_hit += 1
+                if real:
+                    if is_aligned and direction == "BULLISH":
+                        m.bos_bullish_aligned_hit += 1
+                    else:
+                        m.bos_bullish_against_hit += 1
                 else:
-                    m.bos_bullish_against_hit += 1
+                    m.bos_bullish_discarded_fakeout += 1
             else:
                 m.bos_bullish_discarded_no_hit += 1
         elif d["bos_dir"].iat[i] == -1:
             m.bos_bearish_events += 1
             if pd.isna(bos_discard[i]):
-                if is_aligned and direction == "BEARISH":
-                    m.bos_bearish_aligned_hit += 1
+                if real:
+                    if is_aligned and direction == "BEARISH":
+                        m.bos_bearish_aligned_hit += 1
+                    else:
+                        m.bos_bearish_against_hit += 1
                 else:
-                    m.bos_bearish_against_hit += 1
+                    m.bos_bearish_discarded_fakeout += 1
             else:
                 m.bos_bearish_discarded_no_hit += 1
 
@@ -223,29 +229,23 @@ def _baseline_permutation(
     k: int = 5,
     confirm_bars: int = 2,
     n_perm: int = 50,
-) -> dict:
-    """Baseline de ruido por permutación de direcciones."""
+) -> dict[str, Any]:
     ms = detect_market_structure(
         frame,
-        StructureConfig(swing_lookback=5, confirm_bars=confirm_bars),
+        StructureConfig(swing_lookback=5, confirm_bars=confirm_bars, k=k),
     )
     d = ms.frame
     real_bos_dir = d["bos_dir"].values.copy()
     real_choch_dir = d["choch_dir"].values.copy()
 
-    bos_bullish_hits = []
-    bos_bearish_hits = []
-    choch_bullish_confirmed = []
-    choch_bearish_confirmed = []
-
-    bos_bullish_aligned_hits = []
-    bos_bullish_against_hits = []
-    bos_bearish_aligned_hits = []
-    bos_bearish_against_hits = []
-    choch_bullish_aligned_confirmed = []
-    choch_bullish_against_confirmed = []
-    choch_bearish_aligned_confirmed = []
-    choch_bearish_against_confirmed = []
+    bos_bullish_aligned_hits: list[float] = []
+    bos_bullish_against_hits: list[float] = []
+    bos_bearish_aligned_hits: list[float] = []
+    bos_bearish_against_hits: list[float] = []
+    choch_bullish_aligned_confirmed: list[float] = []
+    choch_bullish_against_confirmed: list[float] = []
+    choch_bearish_aligned_confirmed: list[float] = []
+    choch_bearish_against_confirmed: list[float] = []
 
     highs = d["high"].values
     lows = d["low"].values
@@ -267,13 +267,11 @@ def _baseline_permutation(
         choch = real_choch_dir.copy()
         bos_events = np.where(bos != 0)[0]
         if len(bos_events):
-            perm = np.random.permutation(bos_events)
-            bos[bos_events] = bos[perm]
+            bos[bos_events] = bos[np.random.permutation(bos_events)]
 
         choch_events = np.where(choch != 0)[0]
         if len(choch_events):
-            perm = np.random.permutation(choch_events)
-            choch[choch_events] = choch[perm]
+            choch[choch_events] = choch[np.random.permutation(choch_events)]
 
         bb_a_hit = bb_a_cnt = bb_c_hit = bb_c_cnt = 0
         ba_a_hit = ba_a_cnt = ba_c_hit = ba_c_cnt = 0
@@ -300,209 +298,113 @@ def _baseline_permutation(
                     ba_c_cnt += 1
                     if i + k - 1 < n and np.isfinite(fl[i]) and fl[i] < lows[i]:
                         ba_c_hit += 1
+
             if choch[i] == 1:
                 if aligned and direction == "BULLISH":
                     ch_bull_a_cnt += 1
-                    if i + confirm_bars < n:
-                        ch_bull_a += 1
+                    ch_bull_a += 1
                 else:
                     ch_bull_c_cnt += 1
-                    if i + confirm_bars < n:
-                        ch_bull_c += 1
+                    ch_bull_c += 1
             elif choch[i] == -1:
                 if aligned and direction == "BEARISH":
                     ch_bear_a_cnt += 1
-                    if i + confirm_bars < n:
-                        ch_bear_a += 1
+                    ch_bear_a += 1
                 else:
                     ch_bear_c_cnt += 1
-                    if i + confirm_bars < n:
-                        ch_bear_c += 1
-        bos_bullish_aligned_hits.append(bb_a_hit / bb_a_cnt if bb_a_cnt else 0.0)
-        bos_bullish_against_hits.append(bb_c_hit / bb_c_cnt if bb_c_cnt else 0.0)
-        bos_bearish_aligned_hits.append(ba_a_hit / ba_a_cnt if ba_a_cnt else 0.0)
-        bos_bearish_against_hits.append(ba_c_hit / ba_c_cnt if ba_c_cnt else 0.0)
-        choch_bullish_aligned_confirmed.append(ch_bull_a / ch_bull_a_cnt if ch_bull_a_cnt else 0.0)
-        choch_bullish_against_confirmed.append(ch_bull_c / ch_bull_c_cnt if ch_bull_c_cnt else 0.0)
-        choch_bearish_aligned_confirmed.append(ch_bear_a / ch_bear_a_cnt if ch_bear_a_cnt else 0.0)
-        choch_bearish_against_confirmed.append(ch_bear_c / ch_bear_c_cnt if ch_bear_c_cnt else 0.0)
+                    ch_bear_c += 1
+
+        if bb_a_cnt:
+            bos_bullish_aligned_hits.append(bb_a_hit / bb_a_cnt)
+        if bb_c_cnt:
+            bos_bullish_against_hits.append(bb_c_hit / bb_c_cnt)
+        if ba_a_cnt:
+            bos_bearish_aligned_hits.append(ba_a_hit / ba_a_cnt)
+        if ba_c_cnt:
+            bos_bearish_against_hits.append(ba_c_hit / ba_c_cnt)
+        if ch_bull_a_cnt:
+            choch_bullish_aligned_confirmed.append(ch_bull_a / ch_bull_a_cnt)
+        if ch_bull_c_cnt:
+            choch_bullish_against_confirmed.append(ch_bull_c / ch_bull_c_cnt)
+        if ch_bear_a_cnt:
+            choch_bearish_aligned_confirmed.append(ch_bear_a / ch_bear_a_cnt)
+        if ch_bear_c_cnt:
+            choch_bearish_against_confirmed.append(ch_bear_c / ch_bear_c_cnt)
+
+    def _mean_std(vals: list[float]) -> tuple[float, float]:
+        if not vals:
+            return float("nan"), float("nan")
+        return float(np.mean(vals)), float(np.std(vals, ddof=0))
 
     return {
-        "bos_bullish_hit_baseline_mean": float(np.mean(bos_bullish_hits)),
-        "bos_bullish_hit_baseline_std": float(np.std(bos_bullish_hits)),
-        "bos_bearish_hit_baseline_mean": float(np.mean(bos_bearish_hits)),
-        "bos_bearish_hit_baseline_std": float(np.std(bos_bearish_hits)),
-        "choch_bullish_confirmed_baseline_mean": float(np.mean(choch_bullish_confirmed)),
-        "choch_bearish_confirmed_baseline_mean": float(np.mean(choch_bearish_confirmed)),
-        "bos_bullish_aligned_hit_baseline_mean": float(np.mean(bos_bullish_aligned_hits)),
-        "bos_bullish_against_hit_baseline_mean": float(np.mean(bos_bullish_against_hits)),
-        "bos_bearish_aligned_hit_baseline_mean": float(np.mean(bos_bearish_aligned_hits)),
-        "bos_bearish_against_hit_baseline_mean": float(np.mean(bos_bearish_against_hits)),
-        "choch_bullish_aligned_confirmed_baseline_mean": float(np.mean(choch_bullish_aligned_confirmed)),
-        "choch_bullish_against_confirmed_baseline_mean": float(np.mean(choch_bullish_against_confirmed)),
-        "choch_bearish_aligned_confirmed_baseline_mean": float(np.mean(choch_bearish_aligned_confirmed)),
-        "choch_bearish_against_confirmed_baseline_mean": float(np.mean(choch_bearish_against_confirmed)),
+        "bos_bullish_aligned_hit_baseline_mean": _mean_std(bos_bullish_aligned_hits)[0],
+        "bos_bullish_aligned_hit_baseline_std": _mean_std(bos_bullish_aligned_hits)[1],
+        "bos_bullish_against_hit_baseline_mean": _mean_std(bos_bullish_against_hits)[0],
+        "bos_bullish_against_hit_baseline_std": _mean_std(bos_bullish_against_hits)[1],
+        "bos_bearish_aligned_hit_baseline_mean": _mean_std(bos_bearish_aligned_hits)[0],
+        "bos_bearish_aligned_hit_baseline_std": _mean_std(bos_bearish_aligned_hits)[1],
+        "bos_bearish_against_hit_baseline_mean": _mean_std(bos_bearish_against_hits)[0],
+        "bos_bearish_against_hit_baseline_std": _mean_std(bos_bearish_against_hits)[1],
+        "choch_bullish_aligned_confirmed_baseline_mean": _mean_std(choch_bullish_aligned_confirmed)[0],
+        "choch_bullish_aligned_confirmed_baseline_std": _mean_std(choch_bullish_aligned_confirmed)[1],
+        "choch_bullish_against_confirmed_baseline_mean": _mean_std(choch_bullish_against_confirmed)[0],
+        "choch_bullish_against_confirmed_baseline_std": _mean_std(choch_bullish_against_confirmed)[1],
+        "choch_bearish_aligned_confirmed_baseline_mean": _mean_std(choch_bearish_aligned_confirmed)[0],
+        "choch_bearish_aligned_confirmed_baseline_std": _mean_std(choch_bearish_aligned_confirmed)[1],
+        "choch_bearish_against_confirmed_baseline_mean": _mean_std(choch_bearish_against_confirmed)[0],
+        "choch_bearish_against_confirmed_baseline_std": _mean_std(choch_bearish_against_confirmed)[1],
     }
-
-
-def _to_dict(m: TimeframeMetrics, baseline: dict | None = None) -> dict:
-    def pct(hit, total):
-        return round((hit / total) * 100, 2) if total > 0 else 0.0
-
-    bos_bullish_total = m.bos_bullish_aligned_hit + m.bos_bullish_against_hit + m.bos_bullish_discarded_no_hit
-    bos_bearish_total = m.bos_bearish_aligned_hit + m.bos_bearish_against_hit + m.bos_bearish_discarded_no_hit
-    choch_bullish_total = (
-        m.choch_bullish_confirmed_aligned
-        + m.choch_bullish_confirmed_against
-        + m.choch_bullish_invalidated
-        + m.choch_bullish_discarded_no_confirmation
-    )
-    choch_bearish_total = (
-        m.choch_bearish_confirmed_aligned
-        + m.choch_bearish_confirmed_against
-        + m.choch_bearish_invalidated
-        + m.choch_bearish_discarded_no_confirmation
-    )
-
-    out = {
-        "timeframe": m.timeframe,
-        "total_bars": m.total_bars,
-        "bos_bullish": {
-            "events": m.bos_bullish_events,
-            "aligned_hit": m.bos_bullish_aligned_hit,
-            "against_hit": m.bos_bullish_against_hit,
-            "aligned_hit_pct": pct(m.bos_bullish_aligned_hit, m.bos_bullish_events),
-            "against_hit_pct": pct(m.bos_bullish_against_hit, m.bos_bullish_events),
-            "discarded_no_hit": m.bos_bullish_discarded_no_hit,
-            "discarded_no_hit_pct": pct(m.bos_bullish_discarded_no_hit, m.bos_bullish_events),
-            "hit_pct": pct(bos_bullish_total, m.bos_bullish_events),
-        },
-        "bos_bearish": {
-            "events": m.bos_bearish_events,
-            "aligned_hit": m.bos_bearish_aligned_hit,
-            "against_hit": m.bos_bearish_against_hit,
-            "aligned_hit_pct": pct(m.bos_bearish_aligned_hit, m.bos_bearish_events),
-            "against_hit_pct": pct(m.bos_bearish_against_hit, m.bos_bearish_events),
-            "discarded_no_hit": m.bos_bearish_discarded_no_hit,
-            "discarded_no_hit_pct": pct(m.bos_bearish_discarded_no_hit, m.bos_bearish_events),
-            "hit_pct": pct(bos_bearish_total, m.bos_bearish_events),
-        },
-        "choch_bullish": {
-            "events": m.choch_bullish_events,
-            "confirmed_aligned": m.choch_bullish_confirmed_aligned,
-            "confirmed_against": m.choch_bullish_confirmed_against,
-            "invalidated": m.choch_bullish_invalidated,
-            "discarded_no_confirmation": m.choch_bullish_discarded_no_confirmation,
-            "confirmed_aligned_pct": pct(m.choch_bullish_confirmed_aligned, m.choch_bullish_events),
-            "confirmed_against_pct": pct(m.choch_bullish_confirmed_against, m.choch_bullish_events),
-            "invalidated_pct": pct(m.choch_bullish_invalidated, m.choch_bullish_events),
-            "discarded_no_confirmation_pct": pct(m.choch_bullish_discarded_no_confirmation, m.choch_bullish_events),
-            "confirmed_pct": pct(
-                m.choch_bullish_confirmed_aligned + m.choch_bullish_confirmed_against,
-                m.choch_bullish_events,
-            ),
-        },
-        "choch_bearish": {
-            "events": m.choch_bearish_events,
-            "confirmed_aligned": m.choch_bearish_confirmed_aligned,
-            "confirmed_against": m.choch_bearish_confirmed_against,
-            "invalidated": m.choch_bearish_invalidated,
-            "discarded_no_confirmation": m.choch_bearish_discarded_no_confirmation,
-            "confirmed_aligned_pct": pct(m.choch_bearish_confirmed_aligned, m.choch_bearish_events),
-            "confirmed_against_pct": pct(m.choch_bearish_confirmed_against, m.choch_bearish_events),
-            "invalidated_pct": pct(m.choch_bearish_invalidated, m.choch_bearish_events),
-            "discarded_no_confirmation_pct": pct(m.choch_bearish_discarded_no_confirmation, m.choch_bearish_events),
-            "confirmed_pct": pct(
-                m.choch_bearish_confirmed_aligned + m.choch_bearish_confirmed_against,
-                m.choch_bearish_events,
-            ),
-        },
-        "mss_bullish": {
-            "events": m.mss_bullish_events,
-            "confirmed_aligned": m.mss_bullish_confirmed_aligned,
-            "confirmed_against": m.mss_bullish_confirmed_against,
-            "confirmed_aligned_pct": pct(m.mss_bullish_confirmed_aligned, m.mss_bullish_events),
-            "confirmed_against_pct": pct(m.mss_bullish_confirmed_against, m.mss_bullish_events),
-        },
-        "mss_bearish": {
-            "events": m.mss_bearish_events,
-            "confirmed_aligned": m.mss_bearish_confirmed_aligned,
-            "confirmed_against": m.mss_bearish_confirmed_against,
-            "confirmed_aligned_pct": pct(m.mss_bearish_confirmed_aligned, m.mss_bearish_events),
-            "confirmed_against_pct": pct(m.mss_bearish_confirmed_against, m.mss_bearish_events),
-        },
-        "baseline_buy_hold_pct": round(m.buy_hold_return * 100, 2),
-    }
-    if baseline:
-        out["baseline"] = baseline
-    return out
 
 
 def run_effectiveness_htf(
     symbol: str = "EURUSD",
-    max_bars: int = 2000,
+    max_bars: int = 30000,
     k: int = 5,
     swing_lookback: int = 5,
     confirm_bars: int = 2,
-) -> dict:
+) -> dict[str, Any]:
     validated = validate_m15_parquet(symbol)
     m15_df = validated.df.sort_index().iloc[:max_bars]
-
     h4_df = _resample(m15_df, "4h")
     h1_df = _resample(m15_df, "1h")
     d1_df = _resample(m15_df, "1d")
 
-    bias_index = compute_htf_bias_series(
-        d1_df, h4_df, h1_df, m15_df, swing_lookback=swing_lookback
-    )
+    bias_index = compute_htf_bias_series(d1_df, h4_df, h1_df, m15_df, swing_lookback=swing_lookback)
 
-    tf_frames = {
+    timeframes = {
         "D1": d1_df,
         "H4": h4_df,
         "H1": h1_df,
         "M15": m15_df,
     }
 
-    results = []
-    for tf, frame in tf_frames.items():
-        metrics = _measure_timeframe(
-            frame=frame,
-            bias_index=bias_index,
-            timeframe=tf,
-            k=k,
-            confirm_bars=confirm_bars,
-        )
-        baseline = _baseline_permutation(frame, bias_index, k=k, confirm_bars=confirm_bars)
-        results.append(_to_dict(metrics, baseline=baseline))
+    bias_coverage = {}
+    timeframes_metrics = []
+    for tf, frame in timeframes.items():
+        series = bias_index.reindex(frame.index)
+        bias_coverage[tf] = float(series["aligned"].mean())
+        m = _measure_timeframe(frame, bias_index, tf, k=k, confirm_bars=confirm_bars)
+        m.baseline = _baseline_permutation(frame, bias_index, k=k, confirm_bars=confirm_bars)
+        timeframes_metrics.append(dataclasses.asdict(m))
 
     return {
-        "symbol": symbol.upper(),
+        "symbol": symbol,
         "max_bars": max_bars,
         "k": k,
         "swing_lookback": swing_lookback,
         "confirm_bars": confirm_bars,
-        "bias_coverage": {
-            str(tf): float((bias_index["direction"].ne("NEUTRAL") | bias_index["aligned"]).mean())
-            for tf, _ in tf_frames.items()
-        },
-        "timeframes": results,
+        "bias_coverage": bias_coverage,
+        "timeframes": timeframes_metrics,
     }
 
 
 def main() -> int:
     symbol = os.environ.get("SMCS_EFFECTIVENESS_SYMBOL", "EURUSD")
-    max_bars = int(os.environ.get("SMCS_EFFECTIVENESS_MAX_BARS", 2000))
+    max_bars = int(os.environ.get("SMCS_EFFECTIVENESS_MAX_BARS", 30000))
     k = int(os.environ.get("SMCS_EFFECTIVENESS_K", 5))
     swing_lookback = int(os.environ.get("SMCS_EFFECTIVENESS_SWING_LOOKBACK", 5))
     confirm_bars = int(os.environ.get("SMCS_EFFECTIVENESS_CONFIRM_BARS", 2))
-    report = run_effectiveness_htf(
-        symbol=symbol,
-        max_bars=max_bars,
-        k=k,
-        swing_lookback=swing_lookback,
-        confirm_bars=confirm_bars,
-    )
-    print(json.dumps(report, indent=2))
+    print(json.dumps(run_effectiveness_htf(symbol, max_bars, k, swing_lookback, confirm_bars), ensure_ascii=False, indent=2, default=_serialize))
     return 0
 
 
