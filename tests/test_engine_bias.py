@@ -134,20 +134,35 @@ class TestHtfBias:
         assert bias.aligned
         assert bias.direction == BULLISH
 
-    def test_conflicto_no_alinea(self):
+    def test_conflicto_d1_h4_difieren_h1_desempata(self):
         bias = HtfBias(d1=BULLISH, h4=BEARISH, h1=BEARISH)
         assert not bias.aligned
-        assert bias.direction == NEUTRAL
+        assert bias.direction == BEARISH
 
-    def test_mixed_con_neutral_no_alinea(self):
+    def test_mixed_h4_neutral_h1_decide(self):
         bias = HtfBias(d1=BULLISH, h4=NEUTRAL, h1=BEARISH)
         assert not bias.aligned
-        assert bias.direction == NEUTRAL
+        assert bias.direction == BEARISH
 
-    def test_un_solo_no_neutral_no_alinea(self):
-        bias = HtfBias(d1=NEUTRAL, h4=NEUTRAL, h1=BULLISH)
+    def test_d1_h4_acuerdo_h1_no_veto(self):
+        bias = HtfBias(d1=BEARISH, h4=BEARISH, h1=BULLISH)
+        assert not bias.aligned
+        assert bias.direction == BEARISH
+
+    def test_d1_h4_ranging_h1_decide(self):
+        bias = HtfBias(d1=NEUTRAL, h4=BEARISH, h1=BULLISH)
+        assert not bias.aligned
+        assert bias.direction == BULLISH
+
+    def test_d1_h4_conflicto_h1_ranging(self):
+        bias = HtfBias(d1=BEARISH, h4=BULLISH, h1=NEUTRAL)
         assert not bias.aligned
         assert bias.direction == NEUTRAL
+
+    def test_un_solo_no_neutral_permite_h1(self):
+        bias = HtfBias(d1=NEUTRAL, h4=NEUTRAL, h1=BULLISH)
+        assert not bias.aligned
+        assert bias.direction == BULLISH
 
 
 class TestComputeHtfBias:

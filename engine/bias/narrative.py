@@ -40,6 +40,33 @@ BEARISH = "BEARISH"
 NEUTRAL = "NEUTRAL"
 
 
+def _compose_htf_bias(d1: Bias, h4: Bias, h1: Bias) -> Bias:
+    """Composición HTF con D1/H4 como autoridad estructural.
+    
+    1) D1 y H4 coinciden y son direccionales → ese sentido, H1 no veto.
+    2) D1 o H4 ranging → H1 decide (si es direccional).
+    3) D1 != H4 y ambos direccionales → H1 desempata por mayoría 2/3.
+    """
+    d1 = d1 or NEUTRAL
+    h4 = h4 or NEUTRAL
+    h1 = h1 or NEUTRAL
+    
+    if d1 in (BULLISH, BEARISH) and d1 == h4:
+        return d1
+    
+    if d1 == NEUTRAL or h4 == NEUTRAL:
+        return h1 if h1 in (BULLISH, BEARISH) else NEUTRAL
+    
+    votes = [d1, h4, h1]
+    bull = votes.count(BULLISH)
+    bear = votes.count(BEARISH)
+    if bull >= 2:
+        return BULLISH
+    if bear >= 2:
+        return BEARISH
+    return NEUTRAL
+
+
 @dataclass(frozen=True)
 class HtfBias:
     """Sesgo por TF y alineación global D1→H4→H1 (SPEC §1 SAL)."""
@@ -60,13 +87,7 @@ class HtfBias:
     @property
     def direction(self) -> Bias:
         """Dirección global; NEUTRAL si contradicción o menos de 2 no NEUTRAL."""
-        vals = [self.d1, self.h4, self.h1]
-        non_neutral = [v for v in vals if v != NEUTRAL]
-        if len(non_neutral) < 2:
-            return NEUTRAL
-        if len(set(non_neutral)) == 1:
-            return non_neutral[0]
-        return NEUTRAL
+        return _compose_htf_bias(self.d1, self.h4, self.h1)
 
 
 def _swing_points(frame: pd.DataFrame, lookback: int = 2) -> tuple[pd.Series, pd.Series]:
@@ -210,7 +231,7 @@ def compute_htf_bias_series(
         bias = compute_htf_bias(d1_cum, h4_cum, h1_cum, swing_lookback=swing_lookback)
         rows.append(
             {
-                "timestamp": pd.Timestamp(ts).tz_localize(None),
+                "timestamp": ts,
                 "direction": bias.direction,
                 "aligned": bool(bias.aligned),
             }
