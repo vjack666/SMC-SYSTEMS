@@ -129,13 +129,23 @@ class TestHtfBias:
         assert bias.aligned
         assert bias.direction == BEARISH
 
-    def test_desalineado_con_neutral_no_alinea(self):
+    def test_desalineado_con_neutral_2_iguales_si_alinea(self):
         bias = HtfBias(d1=BULLISH, h4=BULLISH, h1=NEUTRAL)
-        assert not bias.aligned
-        assert bias.direction == NEUTRAL
+        assert bias.aligned
+        assert bias.direction == BULLISH
 
     def test_conflicto_no_alinea(self):
         bias = HtfBias(d1=BULLISH, h4=BEARISH, h1=BEARISH)
+        assert not bias.aligned
+        assert bias.direction == NEUTRAL
+
+    def test_mixed_con_neutral_no_alinea(self):
+        bias = HtfBias(d1=BULLISH, h4=NEUTRAL, h1=BEARISH)
+        assert not bias.aligned
+        assert bias.direction == NEUTRAL
+
+    def test_un_solo_no_neutral_no_alinea(self):
+        bias = HtfBias(d1=NEUTRAL, h4=NEUTRAL, h1=BULLISH)
         assert not bias.aligned
         assert bias.direction == NEUTRAL
 

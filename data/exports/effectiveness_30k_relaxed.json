@@ -1,0 +1,331 @@
+{
+  "symbol": "EURUSD",
+  "max_bars": 30000,
+  "k": 5,
+  "swing_lookback": 5,
+  "confirm_bars": 2,
+  "bias_coverage": {
+    "D1": 0.0,
+    "H4": 0.0,
+    "H1": 0.0,
+    "M15": 0.0
+  },
+  "timeframes": [
+    {
+      "timeframe": "D1",
+      "total_bars": 384,
+      "bos_bullish": {
+        "events": 39,
+        "aligned_hit": 0,
+        "against_hit": 25,
+        "aligned_hit_pct": 0.0,
+        "against_hit_pct": 64.1,
+        "discarded_no_hit": 14,
+        "discarded_no_hit_pct": 35.9,
+        "hit_pct": 100.0
+      },
+      "bos_bearish": {
+        "events": 60,
+        "aligned_hit": 0,
+        "against_hit": 46,
+        "aligned_hit_pct": 0.0,
+        "against_hit_pct": 76.67,
+        "discarded_no_hit": 14,
+        "discarded_no_hit_pct": 23.33,
+        "hit_pct": 100.0
+      },
+      "choch_bullish": {
+        "events": 65,
+        "confirmed_aligned": 0,
+        "confirmed_against": 65,
+        "invalidated": 0,
+        "discarded_no_confirmation": 0,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0,
+        "invalidated_pct": 0.0,
+        "discarded_no_confirmation_pct": 0.0,
+        "confirmed_pct": 100.0
+      },
+      "choch_bearish": {
+        "events": 35,
+        "confirmed_aligned": 0,
+        "confirmed_against": 35,
+        "invalidated": 0,
+        "discarded_no_confirmation": 0,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0,
+        "invalidated_pct": 0.0,
+        "discarded_no_confirmation_pct": 0.0,
+        "confirmed_pct": 100.0
+      },
+      "mss_bullish": {
+        "events": 10,
+        "confirmed_aligned": 0,
+        "confirmed_against": 10,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0
+      },
+      "mss_bearish": {
+        "events": 30,
+        "confirmed_aligned": 0,
+        "confirmed_against": 30,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0
+      },
+      "baseline_buy_hold_pct": -5.35,
+      "baseline": {
+        "bos_bullish_hit_baseline_mean": NaN,
+        "bos_bullish_hit_baseline_std": NaN,
+        "bos_bearish_hit_baseline_mean": NaN,
+        "bos_bearish_hit_baseline_std": NaN,
+        "choch_bullish_confirmed_baseline_mean": NaN,
+        "choch_bearish_confirmed_baseline_mean": NaN,
+        "bos_bullish_aligned_hit_baseline_mean": 0.0,
+        "bos_bullish_against_hit_baseline_mean": 0.7153846153846153,
+        "bos_bearish_aligned_hit_baseline_mean": 0.0,
+        "bos_bearish_against_hit_baseline_mean": 0.7576666666666667,
+        "choch_bullish_aligned_confirmed_baseline_mean": 0.0,
+        "choch_bullish_against_confirmed_baseline_mean": 1.0,
+        "choch_bearish_aligned_confirmed_baseline_mean": 0.0,
+        "choch_bearish_against_confirmed_baseline_mean": 1.0
+      }
+    },
+    {
+      "timeframe": "H4",
+      "total_bars": 1975,
+      "bos_bullish": {
+        "events": 248,
+        "aligned_hit": 0,
+        "against_hit": 185,
+        "aligned_hit_pct": 0.0,
+        "against_hit_pct": 74.6,
+        "discarded_no_hit": 63,
+        "discarded_no_hit_pct": 25.4,
+        "hit_pct": 100.0
+      },
+      "bos_bearish": {
+        "events": 271,
+        "aligned_hit": 0,
+        "against_hit": 204,
+        "aligned_hit_pct": 0.0,
+        "against_hit_pct": 75.28,
+        "discarded_no_hit": 67,
+        "discarded_no_hit_pct": 24.72,
+        "hit_pct": 100.0
+      },
+      "choch_bullish": {
+        "events": 214,
+        "confirmed_aligned": 0,
+        "confirmed_against": 214,
+        "invalidated": 0,
+        "discarded_no_confirmation": 0,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0,
+        "invalidated_pct": 0.0,
+        "discarded_no_confirmation_pct": 0.0,
+        "confirmed_pct": 100.0
+      },
+      "choch_bearish": {
+        "events": 265,
+        "confirmed_aligned": 0,
+        "confirmed_against": 265,
+        "invalidated": 0,
+        "discarded_no_confirmation": 0,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0,
+        "invalidated_pct": 0.0,
+        "discarded_no_confirmation_pct": 0.0,
+        "confirmed_pct": 100.0
+      },
+      "mss_bullish": {
+        "events": 81,
+        "confirmed_aligned": 0,
+        "confirmed_against": 81,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0
+      },
+      "mss_bearish": {
+        "events": 119,
+        "confirmed_aligned": 0,
+        "confirmed_against": 119,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0
+      },
+      "baseline_buy_hold_pct": -5.35,
+      "baseline": {
+        "bos_bullish_hit_baseline_mean": NaN,
+        "bos_bullish_hit_baseline_std": NaN,
+        "bos_bearish_hit_baseline_mean": NaN,
+        "bos_bearish_hit_baseline_std": NaN,
+        "choch_bullish_confirmed_baseline_mean": NaN,
+        "choch_bearish_confirmed_baseline_mean": NaN,
+        "bos_bullish_aligned_hit_baseline_mean": 0.0,
+        "bos_bullish_against_hit_baseline_mean": 0.735,
+        "bos_bearish_aligned_hit_baseline_mean": 0.0,
+        "bos_bearish_against_hit_baseline_mean": 0.7742435424354243,
+        "choch_bullish_aligned_confirmed_baseline_mean": 0.0,
+        "choch_bullish_against_confirmed_baseline_mean": 1.0,
+        "choch_bearish_aligned_confirmed_baseline_mean": 0.0,
+        "choch_bearish_against_confirmed_baseline_mean": 1.0
+      }
+    },
+    {
+      "timeframe": "H1",
+      "total_bars": 7500,
+      "bos_bullish": {
+        "events": 956,
+        "aligned_hit": 0,
+        "against_hit": 686,
+        "aligned_hit_pct": 0.0,
+        "against_hit_pct": 71.76,
+        "discarded_no_hit": 270,
+        "discarded_no_hit_pct": 28.24,
+        "hit_pct": 100.0
+      },
+      "bos_bearish": {
+        "events": 1082,
+        "aligned_hit": 0,
+        "against_hit": 820,
+        "aligned_hit_pct": 0.0,
+        "against_hit_pct": 75.79,
+        "discarded_no_hit": 262,
+        "discarded_no_hit_pct": 24.21,
+        "hit_pct": 100.0
+      },
+      "choch_bullish": {
+        "events": 800,
+        "confirmed_aligned": 0,
+        "confirmed_against": 800,
+        "invalidated": 0,
+        "discarded_no_confirmation": 0,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0,
+        "invalidated_pct": 0.0,
+        "discarded_no_confirmation_pct": 0.0,
+        "confirmed_pct": 100.0
+      },
+      "choch_bearish": {
+        "events": 735,
+        "confirmed_aligned": 0,
+        "confirmed_against": 735,
+        "invalidated": 0,
+        "discarded_no_confirmation": 0,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0,
+        "invalidated_pct": 0.0,
+        "discarded_no_confirmation_pct": 0.0,
+        "confirmed_pct": 100.0
+      },
+      "mss_bullish": {
+        "events": 423,
+        "confirmed_aligned": 0,
+        "confirmed_against": 423,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0
+      },
+      "mss_bearish": {
+        "events": 435,
+        "confirmed_aligned": 0,
+        "confirmed_against": 435,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0
+      },
+      "baseline_buy_hold_pct": -5.35,
+      "baseline": {
+        "bos_bullish_hit_baseline_mean": NaN,
+        "bos_bullish_hit_baseline_std": NaN,
+        "bos_bearish_hit_baseline_mean": NaN,
+        "bos_bearish_hit_baseline_std": NaN,
+        "choch_bullish_confirmed_baseline_mean": NaN,
+        "choch_bearish_confirmed_baseline_mean": NaN,
+        "bos_bullish_aligned_hit_baseline_mean": 0.0,
+        "bos_bullish_against_hit_baseline_mean": 0.6943096234309624,
+        "bos_bearish_aligned_hit_baseline_mean": 0.0,
+        "bos_bearish_against_hit_baseline_mean": 0.7373752310536044,
+        "choch_bullish_aligned_confirmed_baseline_mean": 0.0,
+        "choch_bullish_against_confirmed_baseline_mean": 1.0,
+        "choch_bearish_aligned_confirmed_baseline_mean": 0.0,
+        "choch_bearish_against_confirmed_baseline_mean": 1.0
+      }
+    },
+    {
+      "timeframe": "M15",
+      "total_bars": 30000,
+      "bos_bullish": {
+        "events": 3708,
+        "aligned_hit": 0,
+        "against_hit": 2644,
+        "aligned_hit_pct": 0.0,
+        "against_hit_pct": 71.31,
+        "discarded_no_hit": 1064,
+        "discarded_no_hit_pct": 28.69,
+        "hit_pct": 100.0
+      },
+      "bos_bearish": {
+        "events": 3901,
+        "aligned_hit": 0,
+        "against_hit": 2841,
+        "aligned_hit_pct": 0.0,
+        "against_hit_pct": 72.83,
+        "discarded_no_hit": 1060,
+        "discarded_no_hit_pct": 27.17,
+        "hit_pct": 100.0
+      },
+      "choch_bullish": {
+        "events": 3587,
+        "confirmed_aligned": 0,
+        "confirmed_against": 3587,
+        "invalidated": 0,
+        "discarded_no_confirmation": 0,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0,
+        "invalidated_pct": 0.0,
+        "discarded_no_confirmation_pct": 0.0,
+        "confirmed_pct": 100.0
+      },
+      "choch_bearish": {
+        "events": 3209,
+        "confirmed_aligned": 0,
+        "confirmed_against": 3209,
+        "invalidated": 0,
+        "discarded_no_confirmation": 0,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0,
+        "invalidated_pct": 0.0,
+        "discarded_no_confirmation_pct": 0.0,
+        "confirmed_pct": 100.0
+      },
+      "mss_bullish": {
+        "events": 1403,
+        "confirmed_aligned": 0,
+        "confirmed_against": 1403,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0
+      },
+      "mss_bearish": {
+        "events": 1614,
+        "confirmed_aligned": 0,
+        "confirmed_against": 1614,
+        "confirmed_aligned_pct": 0.0,
+        "confirmed_against_pct": 100.0
+      },
+      "baseline_buy_hold_pct": -5.35,
+      "baseline": {
+        "bos_bullish_hit_baseline_mean": NaN,
+        "bos_bullish_hit_baseline_std": NaN,
+        "bos_bearish_hit_baseline_mean": NaN,
+        "bos_bearish_hit_baseline_std": NaN,
+        "choch_bullish_confirmed_baseline_mean": NaN,
+        "choch_bearish_confirmed_baseline_mean": NaN,
+        "bos_bullish_aligned_hit_baseline_mean": 0.0,
+        "bos_bullish_against_hit_baseline_mean": 0.7167475728155339,
+        "bos_bearish_aligned_hit_baseline_mean": 0.0,
+        "bos_bearish_against_hit_baseline_mean": 0.7250602409638555,
+        "choch_bullish_aligned_confirmed_baseline_mean": 0.0,
+        "choch_bullish_against_confirmed_baseline_mean": 1.0,
+        "choch_bearish_aligned_confirmed_baseline_mean": 0.0,
+        "choch_bearish_against_confirmed_baseline_mean": 1.0
+      }
+    }
+  ]
+}

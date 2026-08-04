@@ -50,13 +50,23 @@ class HtfBias:
 
     @property
     def aligned(self) -> bool:
-        """True si los tres TF apuntan a la misma dirección (sin NEUTRAL)."""
-        return self.d1 == self.h4 == self.h1 and self.d1 != NEUTRAL
+        """True si al menos 2/3 TFs tienen dirección y no hay contradicción."""
+        vals = [self.d1, self.h4, self.h1]
+        non_neutral = [v for v in vals if v != NEUTRAL]
+        if len(non_neutral) < 2:
+            return False
+        return len(set(non_neutral)) == 1
 
     @property
     def direction(self) -> Bias:
-        """Dirección global; NEUTRAL si no hay alineación de los tres TF."""
-        return self.d1 if self.aligned else NEUTRAL
+        """Dirección global; NEUTRAL si contradicción o menos de 2 no NEUTRAL."""
+        vals = [self.d1, self.h4, self.h1]
+        non_neutral = [v for v in vals if v != NEUTRAL]
+        if len(non_neutral) < 2:
+            return NEUTRAL
+        if len(set(non_neutral)) == 1:
+            return non_neutral[0]
+        return NEUTRAL
 
 
 def _swing_points(frame: pd.DataFrame, lookback: int = 2) -> tuple[pd.Series, pd.Series]:

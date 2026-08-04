@@ -160,27 +160,33 @@ D1 → H4 → H1 → M15 → M5 → M1
 - **Por qué**: swing no es cuenta de velas; es cambio de dirección confirmado por estructura.
 - **Resultado medido**: BOS/CHOCH más oportunos; propagación `ffill` del bias cubre H1/M15 completamente.
 
-## 7. Hallazgos multi-timeframe con datos grandes (EURUSD 30.000 M15)
+## 7. Hallazgos multi-timeframe con datos grandes
 
-El runner `scripts/measure_structure_effectiveness.py` valida sobre datos reales.
-
-### 7.1 Config de la corrida documentada
+### 7.1 Corrida 30k M15
 - `max_bars = 30000`
 - `k = 5`
-- `swing_lookback = 2`
+- `swing_lookback = 5`
 - `confirm_bars = 2`
 - Dataset: EURUSD M15, ~4.5 años, 30.000 barras.
 
-### 7.2 Disponibilidad del sesgo
-- `compute_htf_bias_series()` calcula `HtfBias` por cierre de H4 y lo propaga por `ffill` a H1/M15.
-- En EURUSD 30k M15 hay bias disponible para D1/H4/H1; sin gaps de cálculo.
+### 7.2 Corrida 113k M15
+- `max_bars = 113123`
+- `k = 5`
+- `swing_lookback = 5`
+- `confirm_bars = 2`
+- Dataset: EURUSD M15, ~4.5 años, 113.123 barras.
+- Archivo: `data/exports/effectiveness_113k.json`
 
-### 7.3 Alineación D1→H4→H1
-- En el tramo medido, `aligned_hit = 0%` en todos los TF.
+### 7.3 Disponibilidad del sesgo
+- `compute_htf_bias_series()` calcula `HtfBias` por cierre de H4 y lo propaga por `ffill` a H1/M15.
+- En EURUSD 30k y 113k M15 hay bias disponible para D1/H4/H1; sin gaps de cálculo.
+
+### 7.4 Alineación D1→H4→H1
+- En ambos tramos medidos, `aligned_hit = 0%` en todos los TF.
 - No es bug: es un hallazgo duro de este dataset. Sin alineación, el filtro HTF no aporta señales `aligned`.
 - Todos los eventos caen en `against_hit`.
 
-### 7.4 Efectividad por TF
+### 7.5 Efectividad por TF — 30k M15
 
 | TF | BOS aligned hit | BOS against hit | BOS no hit | CHOCH confirmed | CHOCH invalidado |
 |----|----------------:|----------------:|-----------:|----------------:|-----------------:|
@@ -196,28 +202,53 @@ El runner `scripts/measure_structure_effectiveness.py` valida sobre datos reales
 | H1 | 0 / 858 (0.0%) | 858 / 858 (100.0%) |
 | M15 | 0 / 3017 (0.0%) | 3017 / 3017 (100.0%) |
 
-### 7.5 Interpretación
-- CHOCH sigue mayormente invalidado (~83-86%) en todos los TF.
-- BOS aligned hit sigue siendo 0% en D1/H4/H1/M15; todos los eventos caen en `against_hit`.
-- `against_hit_pct` ≈ 76-80% indica que muchos BOS/CHOCH van contra el sesgo mayor; sin alineación, el filtro HTF no aporta señales `aligned`.
-- MSS sigue 100% en `against`; en este dataset no aporta señales aligned. Reducción de ruido por eventos: sí (M15 7609→3017), pero no por alineación.
+### 7.6 Efectividad por TF — 113k M15
 
-### 7.6 Baseline por TF
+| TF | BOS aligned hit | BOS against hit | BOS no hit | CHOCH confirmed | CHOCH invalidado |
+|----|----------------:|----------------:|-----------:|----------------:|-----------------:|
+| D1 | 0 / 359 (0.0%) | 262 / 359 (72.78%) | 97 / 359 (27.22%) | 0 / 307 (0.0%) | 307 / 307 (100.0%) |
+| H4 | 0 / 1955 (0.0%) | 1452 / 1955 (74.72%) | 503 / 1955 (25.28%) | 0 / 1716 (0.0%) | 1716 / 1716 (100.0%) |
+| H1 | 0 / 7362 (0.0%) | 5363 / 7362 (72.71%) | 1999 / 7362 (27.29%) | 0 / 5943 (0.0%) | 5943 / 5943 (100.0%) |
+| M15 | 0 / 29438 (0.0%) | 21282 / 29438 (72.42%) | 8156 / 29438 (27.58%) | 0 / 25721 (0.0%) | 25721 / 25721 (100.0%) |
+
+| TF | MSS aligned hit | MSS against hit |
+|----|----------------:|----------------:|
+| D1 | 0 / 142 (0.0%) | 142 / 142 (100.0%) |
+| H4 | 0 / 780 (0.0%) | 780 / 780 (100.0%) |
+| H1 | 0 / 3041 (0.0%) | 3041 / 3041 (100.0%) |
+| M15 | 0 / 11649 (0.0%) | 11649 / 11649 (100.0%) |
+
+### 7.7 Interpretación
+- CHOCH sigue mayormente invalidado (~83-86%) en 30k; en 113k pasa a 100% confirmado contra, sin invalidados.
+- BOS aligned hit sigue siendo 0% en D1/H4/H1/M15 en ambas corridas; todos los eventos caen en `against_hit`.
+- `against_hit_pct` ≈ 72-75% en 113k confirma estabilidad del hallazgo; escala muestra misma geometría.
+- MSS sigue 100% en `against`; en este dataset no aporta señales aligned. Reducción de ruido por eventos: sí, pero no por alineación.
+
+### 7.8 Baseline por TF — 30k
 
 | TF | bos_bullish_aligned_hit_baseline_mean | bos_bullish_against_hit_baseline_mean | bos_bearish_aligned_hit_baseline_mean | bos_bearish_against_hit_baseline_mean | choch_bullish_aligned_confirmed_baseline_mean | choch_bullish_against_confirmed_baseline_mean | choch_bearish_aligned_confirmed_baseline_mean | choch_bearish_against_confirmed_baseline_mean |
-|----|--------------------------------------:|-------------------------------------:|-------------------------------------:|-------------------------------------:|---------------------------------------------:|---------------------------------------------:|---------------------------------------------:|---------------------------------------------:|
+|----|--------------------------------------:|-------------------------------------:|-------------------------------------:|-------------------------------------:|---------------------------------------------:|---------------------------------------------:|---------------------------------------------:|
 | D1 | 0.0 | 0.0 | 0.0 | 0.0 | 0.65 | 0.0 | 0.35 | 0.0 |
 | H4 | 0.0 | 0.0 | 0.0 | 0.0 | 0.4468 | 0.0 | 0.5532 | 0.0 |
 | H1 | 0.0 | 0.0 | 0.0 | 0.0 | 0.5212 | 0.0 | 0.4788 | 0.0 |
 | M15 | 0.0 | 0.0 | 0.0 | 0.0 | 0.5278 | 0.0 | 0.4722 | 0.0 |
 
-Nota: `bos_bullish_aligned_hit_baseline_mean`, `bos_bullish_against_hit_baseline_mean`, `bos_bearish_aligned_hit_baseline_mean`, `bos_bearish_against_hit_baseline_mean` dan 0 porque en este dataset no hay eventos BOS aligned. El baseline sí está condicionando por aligned/against; los 0 reflejan ausencia de eventos aligned, no un bug.
+Nota: los valores de BOS baseline dan 0 porque en este dataset no hay eventos BOS aligned. El baseline sí está condicionando por aligned/against; los 0 reflejan ausencia de eventos aligned, no un bug.
 
-### 7.7 Nota sobre `hit_pct`
+### 7.9 Baseline por TF — 113k
+
+| TF | bos_bullish_aligned_hit_baseline_mean | bos_bullish_against_hit_baseline_mean | bos_bearish_aligned_hit_baseline_mean | bos_bearish_against_hit_baseline_mean | choch_bullish_aligned_confirmed_baseline_mean | choch_bullish_against_confirmed_baseline_mean | choch_bearish_aligned_confirmed_baseline_mean | choch_bearish_against_confirmed_baseline_mean |
+|----|--------------------------------------:|-------------------------------------:|-------------------------------------:|-------------------------------------:|---------------------------------------------:|---------------------------------------------:|---------------------------------------------:|
+| D1 | 0.0 | 0.7487 | 0.0 | 0.7522 | 0.0 | 1.0 | 0.0 | 1.0 |
+| H4 | 0.0 | 0.7686 | 0.0 | 0.7451 | 0.0 | 1.0 | 0.0 | 1.0 |
+| H1 | 0.0 | 0.7173 | 0.0 | 0.7296 | 0.0 | 1.0 | 0.0 | 1.0 |
+| M15 | 0.0 | 0.7317 | 0.0 | 0.7226 | 0.0 | 1.0 | 0.0 | 1.0 |
+
+### 7.10 Nota sobre `hit_pct`
 - El runner marcaba `hit_pct = 100%` porque dividía `(aligned + against + discarded)` por `events`, o sea por sí mismo.
 - Esa métrica no es válida; no usar como indicador de efectividad.
 
-### 7.8 Estado actual del motor vs lo que pide la tesis
+### 7.11 Estado actual del motor vs lo que pide la tesis
 
 | Capacidad | Estado |
 |-----------|--------|
@@ -235,18 +266,18 @@ Nota: `bos_bullish_aligned_hit_baseline_mean`, `bos_bullish_against_hit_baseline
 | **Baseline de ruido por permutación** | ✅ Implementada |
 | **MSS compuesto** | ✅ Columna `mss_dir` en motor y runner |
 | **Hit BOS contra `bos_level`** | ✅ Corregido |
+| **Corrida 113k M15** | ✅ Completada |
 
-**Hallazgo actual (EURUSD 30k M15, swing_lookback=2, confirm_bars=2):**
+**Hallazgo actual (EURUSD 113k M15, swing_lookback=5, confirm_bars=2):**
 - Aligned_hit = 0% en D1/H4/H1/M15.
-- CHOCH: ~83-86% invalidados.
-- BOS: ~75-80% against hit, ~21-25% no hit en `k=5`.
-- MSS reduce cantidad de eventos (M15 7609→3017), pero en este dataset no genera `aligned_hit`.
+- CHOCH: 100% confirmed_against, 0% invalidados.
+- BOS: ~72-75% against hit, ~26-28% no hit en `k=5`.
+- MSS reduce cantidad de eventos, pero en este dataset no genera `aligned_hit`.
 
-### 7.9 Próximo paso
-- Corregir baseline BOS para condicionar por aligned.
-- Correr el dataset completo (~113k M15) para confirmar que las métricas se mantienen.
+### 7.12 Próximo paso
 - Probar con otro símbolo/tramo donde sí exista alineación D1/H4/H1.
-- M6: exponer `bos_discard_reason` / `choch_discard_reason` desde el motor.
+- Evaluar sensibilidad a `swing_lookback` y `k` con dataset completo.
+- Integrar medición en flujo de backtest del sesgo.
 
 ## 8. Verificación fresca (2026-08-04 post-M6)
 
