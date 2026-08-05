@@ -99,11 +99,13 @@ def _swing_points(frame: pd.DataFrame, lookback: int = 2) -> tuple[pd.Series, pd
     mínimo de 2 velas.
     """
     n = len(frame)
-    high = frame["high"].to_numpy()
-    low = frame["low"].to_numpy()
+    high = np.asarray(frame["high"], dtype=float)
+    low = np.asarray(frame["low"], dtype=float)
 
-    sh_raw = pd.Series(np.nan, index=frame.index)
-    sl_raw = pd.Series(np.nan, index=frame.index)
+    sh_raw = np.empty(n, dtype=float)
+    sl_raw = np.empty(n, dtype=float)
+    sh_raw[:] = np.nan
+    sl_raw[:] = np.nan
 
     last_sh = np.nan
     last_sl = np.nan
@@ -111,15 +113,20 @@ def _swing_points(frame: pd.DataFrame, lookback: int = 2) -> tuple[pd.Series, pd
     for i in range(2, n):
         if low[i] < low[i - 1] and low[i] < low[i - 2]:
             if np.isnan(last_sh) or low[i] < last_sh:
-                sl_raw.iloc[i] = low[i]
+                sl_raw[i] = low[i]
                 last_sl = low[i]
         if high[i] > high[i - 1] and high[i] > high[i - 2]:
             if np.isnan(last_sl) or high[i] > last_sl:
-                sh_raw.iloc[i] = high[i]
+                sh_raw[i] = high[i]
                 last_sh = high[i]
 
     delay = 2
-    return sh_raw.shift(delay).ffill(), sl_raw.shift(delay).ffill()
+    sh_raw_series = pd.Series(sh_raw, index=frame.index)
+    sl_raw_series = pd.Series(sl_raw, index=frame.index)
+    return (
+        sh_raw_series.shift(delay).ffill(),
+        sl_raw_series.shift(delay).ffill(),
+    )
 
 
 def _label_swings(
@@ -167,8 +174,12 @@ def _bias_from_swings(
         return BULLISH
     if bear > bull:
         return BEARISH
-    # Empate: el tramo más reciente define el bias vigente.
-    return BULLISH if recent[-1] == "bull" else BEARISH
+    # Empate de tramos => mercado en rango => sesgo NEUTRAL explícito y estable.
+    # No se resuelve por el tramo mas reciente: eso hacia oscilar el sesgo
+    # vela a vela en rango (a veces direccional, a veces mudo). La tesis
+    # (SPEC §1 CASOS LIMITE) acepta NEUTRAL en rango como contexto, no anula
+    # el setup. Un trader humano en rango no opera hasta que rompa.
+    return NEUTRAL
 
 
 def _bias_for_frame(frame: pd.DataFrame, swing_lookback: int = 2) -> Bias:

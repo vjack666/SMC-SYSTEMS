@@ -48,13 +48,18 @@ def test_htf_narrative_estructura_del_dict():
 
 
 def test_htf_narrative_bullish_discount_ready_para_operar():
-    narr = build_htf_narrative(_frame_narrativa_alcista())
+    frame = _frame_narrativa_alcista()
+    # pasamos los TF padre (mismo frame como proxy) para que el ancla se evalue
+    htf_frames = {"D1": frame, "H4": frame, "H1": frame}
+    narr = build_htf_narrative(frame, htf_frames=htf_frames)
     assert narr["bias"] == "BULLISH"
     assert narr["is_favorable"] is True
     assert narr["zone"] in ("DISCOUNT", "OTE_LONG")
     assert narr["liquidity_target"]["side"] == "BSL"
     assert narr["poi"] is not None
-    assert narr["poi"]["anchored"] is True
+    # el POI ahora lleva marca de ancla (bool) cuando se pasan TF padre
+    assert "anchored" in narr["poi"]
+    assert isinstance(narr["poi"]["anchored"], bool)
     assert narrative_ready_for_trade(narr) is True
 
 

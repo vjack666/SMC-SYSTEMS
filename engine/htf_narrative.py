@@ -21,6 +21,7 @@ from engine.bos import detect_market_structure
 from engine.dealing_range import dealing_range_htf
 from engine.liquidity_levels import nearest_liquidity_target
 from engine.order_block import order_block_for_bos
+from engine.poi_anchor import make_htf_poi_fn  # ancla narrativa (Brecha B)
 
 # FVG como POI alternativo es OPCIONAL: si el módulo no existe, se ignora.
 try:  # pragma: no cover - depende de si engine.fvg_poi está presente
@@ -96,8 +97,18 @@ def build_htf_narrative(
     frame: pd.DataFrame,
     lookback: int = 10,
     htf_bias=None,
+    htf_frames: dict[str, pd.DataFrame] | None = None,
 ) -> dict:
-    """Mapa ICT completo de la vela actual (la "idea del día").
+    """Mapa ICT completo de la vela actual (la idea del dia).
+
+    Args:
+        frame: TF de trabajo (proxy de D1/H4/H1 si no se pasa htf_frames).
+        lookback: ventana de dealing range.
+        htf_bias: sesgo HTF precomputado (opcional).
+        htf_frames: dict {tf: DataFrame} de los TF padre (D1/H4/H1). Si se
+            pasa, el POI se marca 'anchored' segun si hay BOS/CHOCH padre en
+            la misma direccion ya cerrado (Brecha B, tesis 18). Si es None,
+            el ancla queda como False (no se puede evaluar).
 
     Returns:
         {'bias', 'is_favorable', 'zone', 'liquidity_target', 'poi', 'summary'}
@@ -105,14 +116,23 @@ def build_htf_narrative(
     bias_obj = _resolve_bias(frame, htf_bias)
     direction = getattr(bias_obj, "direction", NEUTRAL) or NEUTRAL
 
-    # 1) ¿Dónde está el precio? premium/discount anclado al sesgo.
+    # 1) Donde esta el precio? premium/discount anclado al sesgo.
     dealing = dealing_range_htf(frame, bias_obj, lookback=lookback)
-    # 2) ¿Hacia dónde va? objetivo de liquidez del día.
+    # 2) Hacia donde va? objetivo de liquidez del dia.
     liquidity = nearest_liquidity_target(frame, bias_obj)
-    # 3) ¿Qué rompió? último BOS. 4) ¿Desde dónde? POI que lo originó.
+    # 3) Que rompio? ultimo BOS. 4) Desde donde? POI que lo origino.
     last_bos = _last_bos_event(frame)
 
-    poi: dict | None = None
+    # Ancla narrativa: si tenemos los TF padre, construimos htf_poi_fn para
+    # marcar el POI como anclado (bonus, no gate duro).
+    htf_poi_fn = None
+    if htf_frames:
+        try:
+            htf_poi_fn = make_htf_poi_fn(frame, htf_frames)
+        except Exception:
+            htf_poi_fn = None
+
+    poi = None
     if last_bos is not None:
         poi = order_block_for_bos(frame, last_bos, bias_obj)
         if poi is not None:
@@ -124,6 +144,16 @@ def build_htf_narrative(
                 alt = None
             if alt:
                 poi = {**alt, "kind": "FVG"}
+        # marcar ancla: el POI esta respaldado por BOS/CHOCH padre en la
+        # direccion del setup (libro 21 sec4).
+        if poi is not None and htf_poi_fn is not None:
+            tnum = 1 if direction == BULLISH else (-1 if direction == BEARISH else 0)
+            try:
+                poi["anchored"] = bool(htf_poi_fn(len(frame) - 1, tnum))
+            except Exception:
+                poi["anchored"] = False
+        elif poi is not None:
+            poi["anchored"] = False
 
     zone = str(dealing.get("zone", "OTE_NONE"))
     is_favorable = bool(dealing.get("is_favorable", False))

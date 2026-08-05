@@ -12,6 +12,8 @@ import pandas as pd
 from ict_backtest.engine import ICTSignal
 from ict_backtest.run_backtest import generate_sequence_signals
 from ict_backtest.v2.context_mtf import build_context_stack, top_down_allows_trade
+# POI anclado: UNICA fuente = engine (Ley).
+from engine.poi_anchor import build_htf_structure_index
 from ict_backtest.v2.contracts import (
     CoverageMode,
     Order,
@@ -44,6 +46,15 @@ def generate_mtf_signals(
     """Sequence on M15 with H4 bias, then filter each signal top-down D1/H4/H1/PD."""
     log = event_log if event_log is not None else EventLog()
     frames = {tf: df for tf, df in ms.items()}
+    # POI anclado: UNICA fuente = engine (Ley). Eventos BOS/CHOCH de los TF
+    # padre ya cerrados, agrupados por TF para build_context_stack.
+    _htf_frames = {tf: df for tf, df in frames.items() if tf in ("D1", "H4", "H1")}
+    _anchored_events = (
+        build_htf_structure_index(_htf_frames) if _htf_frames else []
+    )
+    _anchored_by_tf: dict[str, list] = {}
+    for e in _anchored_events:
+        _anchored_by_tf.setdefault(e.tf, []).append(e)
     # Ensure required keys for generate_sequence_signals
     if "H4" not in frames and "D1" in frames:
         # fallback: use D1 as htf if no H4
@@ -72,7 +83,8 @@ def generate_mtf_signals(
     for s in raw:
         t = s.time
         stack = build_context_stack(
-            ms, t, tfs=("D1", "H4", "H1", ltf) if "H1" in ms else ("D1", "H4", ltf)
+            ms, t, tfs=("D1", "H4", "H1", ltf) if "H1" in ms else ("D1", "H4", ltf),
+            anchored_pd_zones=_anchored_by_tf,
         )
         ok, reason = top_down_allows_trade(
             stack,

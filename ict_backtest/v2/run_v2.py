@@ -141,6 +141,11 @@ def main() -> int:
         )
     if payload.get("live_structure_csv"):
         print(f"  live table   : {payload['live_structure_csv']}", flush=True)
+    if payload.get("funnel"):
+        f = payload["funnel"]
+        print(f"  funnel (B2)  : SWEEP={f.get('SWEEP', 0)}  "
+              f"DISPLACE={f.get('DISPLACE', 0)}  "
+              f"BOS={f.get('BOS', 0)}  ENTRY={f.get('ENTRY', 0)}", flush=True)
     print(f"\n----- Coverage Report -----", flush=True)
     print(f"  coverage_pct : {c['coverage_pct']}%", flush=True)
     print(f"  implemented  : {c['implemented']} / required {c['required']}", flush=True)

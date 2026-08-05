@@ -174,7 +174,7 @@ def run_sequence_parity(
             unit="stages",
         )
         print(f"[v2/sequence] generate_sequence_signals ...", flush=True)
-        signals = generate_sequence_signals(
+        signals, funnel = generate_sequence_signals(
             symbol,
             htf,
             ltf,
@@ -185,6 +185,7 @@ def run_sequence_parity(
             frames=frames,
             fill_mode=fill_mode,
             enable_pd_index=enable_pd_index,
+            return_phase_seen=True,
         )
         print(f"[v2/sequence] signals: {len(signals)}", flush=True)
 
@@ -252,6 +253,7 @@ def run_sequence_parity(
         "verdict": coverage.verdict,
         "n_events": len(event_log),
         "n_explanations": len(explanations),
+        "funnel": funnel,
     }
     if out is not None:
         _write_artifacts(out, payload, coverage, event_log, explanations)
@@ -423,6 +425,7 @@ def run_mtf_intraday(
         "verdict": coverage.verdict,
         "n_events": len(event_log),
         "n_explanations": len(explanations),
+        "funnel": None,  # mtf_intraday usa generate_mtf_signals (sin embudo de fases propio)
     }
     if out is not None:
         _write_artifacts(out, payload, coverage, event_log, explanations)

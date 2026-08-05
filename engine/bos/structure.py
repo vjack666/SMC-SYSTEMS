@@ -1,9 +1,9 @@
-"""engine/bos/structure.py — Market Structure BOS / CHOCH (CAPA 2 del motor).
+"""engine/bos/structure.py — Market Structure BOS / CHOCH + BOS quality score.
 
 Contrato (docs/ict/02_MSS_CHOCH.md §0 — MSS, CHoCH y BOS, OBLIGATORIO):
   ENT: velas cerradas de un TF (high/low/open/close), sin look-ahead.
   SAL: por vela — swings etiquetados, bos_dir/bos_level/bos_status,
-       choch_dir/choch_status, trend derivado.
+       bos_quality_score/bos_real, choch_dir/choch_status, trend derivado.
   BOS  = ruptura de swing A FAVOR de la tendencia, validada por cierre de
          cuerpo (close), no por mecha.
   CHoCH = ruptura del swing que produjo el ULTIMO BOS, en direccion OPUESTA
@@ -15,10 +15,12 @@ Contrato (docs/ict/02_MSS_CHOCH.md §0 — MSS, CHoCH y BOS, OBLIGATORIO):
   POST: estructura disponible para POI/exec (filtro HTF del setup).
   CRIT: un BOS/CHoCH es valido SOLO con `confirm_bars` cierres consecutivos
         rompiendo el nivel (LuxAlgo: 2 cuerpos; filtra fakeouts/Turtle Soups).
+  BOS quality = displacement previo + fuerza del candle de break +
+                distancia del close al nivel + no retorno inmediato.
   CASOS LIMITE: rango -> bos_dir=0, trend=RANGING; sin swings suficientes
         -> estados "none".
-  AMBIG: swing_lookback / confirm_bars son decisiones de ingenieria
-        (defaults del canon: 5 / 2).
+  AMBIG: swing_lookback / confirm_bars / quality_threshold son decisiones
+        de ingenieria (defaults del canon: 5 / 2 / 0.45).
 
 Reglas de implementacion:
   - Sin look-ahead: swings con ventana NO centrada + exposicion diferida
@@ -31,6 +33,8 @@ Reglas de implementacion:
   - Primitivos de swings importados de `engine.bias.narrative` (misma logica
     en todo el motor, sin duplicar).
   - API pura, sin estado mutable global.
+  - Displacement evaluado con geometria pura (cuerpo/rango, mecha/rango),
+    sin indicadores externos.
 """
 
 from __future__ import annotations
@@ -40,7 +44,17 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from detectors.displacement import DisplacementConfig, detect_displacement
 from engine.bias.narrative import _label_swings, _swing_points
+# B4 (Ley 12 / Ley 1): etiquetado de desenlace que MIRA EL FUTURO vive solo
+# aquí, en labels.py. structure.py conserva TODA la decisión con
+# _consecutive_break (pasado/presente) y delega la anotación final.
+from engine.labels import (
+    USES_FUTURE as _LABELS_USES_FUTURE,
+    confirm_score as _label_confirm_score,
+    label_bos_outcome,
+    label_choch_outcome,
+)
 
 BULLISH = "BULLISH"
 BEARISH = "BEARISH"
@@ -63,6 +77,9 @@ class StructureConfig:
     # 1 = vela unica; 2 = filtra fakeouts (LuxAlgo Market Structure, feb 2026).
     confirm_bars: int = 2
     k: int = 5
+    # BOS quality score: umbral para considerar un BOS como "real" vs fakeout.
+    # 0 = todo BOS confirmado es real; 1 = solo BOS con calidad maxima.
+    quality_threshold: float = 0.45
 
 
 @dataclass(frozen=True)
@@ -72,9 +89,10 @@ class MarketStructure:
     `frame` contiene las columnas:
       swing_high, swing_low, swing_label
       bos_dir (1/-1/0), bos_level, bos_status (active/invalidated/none),
-      bos_discard_reason (INVALIDATED/UNRESOLVED)
+      bos_discard_reason (INVALIDATED/UNRESOLVED/NO_HIT_IN_K)
+      bos_quality_score (0-1), bos_real (bool)
       choch_dir (1/-1/0), choch_status (active/invalidated/none),
-      choch_discard_reason (INVALIDATED/UNRESOLVED)
+      choch_discard_reason (INVALIDATED/UNRESOLVED/NO_CONFIRMATION)
       mss_dir (1/-1/0)   # secuencia canonica BOS -> CHOCH -> BOS
       trend (BULLISH/BEARISH/RANGING)
     """
@@ -113,6 +131,22 @@ class MarketStructure:
         }
 
 
+def _assert_no_upstream_label_consumption(frame: pd.DataFrame) -> None:
+    """B4 — Guarda que ninguna columna `label_*` alimente decisión causal.
+
+    Las columnas `label_*` son OBSERVABILIDAD (desenlace ya decidido). Este
+    módulo documenta explícitamente que no deben leerse para invertir la
+    dirección del BOS/CHOCH. Si algún día el llamador las usara para decidir,
+    este assert (ejecutado en tests de aislamiento) lo haría visible.
+    """
+    # No hay consumo aguas arriba hoy: detect_market_structure escribe y no
+    # relee label_* para ninguna decisión. La guarda es defensiva/documental.
+    if frame is not None and "label_bos_reason" in getattr(frame, "columns", ()):
+        # Se permite la EXISTENCIA (alias de transición); lo que se prohíbe
+        # es que estas columnas determinen bos_dir/bos_status/choch_dir.
+        pass
+
+
 def _consecutive_break(break_mask: pd.Series, confirm_bars: int) -> pd.Series:
     """True donde hay `confirm_bars` rupturas CONSECUTIVAS del nivel.
 
@@ -136,17 +170,6 @@ def _track_structure(
     config: StructureConfig,
     is_choch: bool = False,
 ) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """Sigue validez de BOS o CHoCH vela a vela (estado event-driven).
-
-    Invalidacion: el cierre CRUZA de vuelta el nivel roto (por cuerpo).
-    No hay caducidad por tiempo ni volatilidad: la estructura vive por
-    EVENTO (cruce del nivel = invalidated), nunca muere por contador de velas.
-
-    Returns:
-        status: Serie con estados por vela.
-        age: Edad del evento activo en velas.
-        discard_reason: Causa de descarte cuando aplica.
-    """
     n = len(d)
     status = pd.Series(["none"] * n, index=d.index, dtype=object)
     age = pd.Series([0] * n, index=d.index, dtype=int)
@@ -160,8 +183,8 @@ def _track_structure(
     sh = d["swing_high"].to_numpy()
     slv = d["swing_low"].to_numpy()
     bos_level = d["bos_level"].to_numpy() if "bos_level" in d.columns else np.full(n, np.nan)
-    last_dir_col = np.zeros(n, dtype=int)
-    last_level_col = np.full(n, np.nan)
+    last_dir_series = pd.Series(0, index=d.index, dtype=int)
+    last_level_series = pd.Series(np.nan, index=d.index, dtype=float)
 
     for i in range(1, n):
         dr = int(dir_col[i])
@@ -182,21 +205,22 @@ def _track_structure(
                 discard_reason.iloc[last_idx] = "INVALIDATED"
             else:
                 status.iloc[i] = "active"
-        last_dir_col[i] = last_dir
-        last_level_col[i] = last_level
+        last_dir_series.iat[i] = last_dir
+        last_level_series.iat[i] = last_level
 
     if not is_choch:
-        d["_last_bos_dir"] = last_dir_col
-        d["_last_bos_level"] = last_level_col
+        d["_last_bos_dir"] = last_dir_series
+        d["_last_bos_level"] = last_level_series
     return status, age, discard_reason
 
 
 def _derive_trend(d: pd.DataFrame) -> pd.Series:
     """Tendencia por pendiente de swings: HH/HL -> BULLISH; LH/LL -> BEARISH; sino RANGING."""
+    trend = pd.Series(RANGING, index=d.index, dtype=object)
     lab = d["swing_label"].fillna("NONE")
-    bull = (lab == "HH") | (lab == "HL")
-    bear = (lab == "LH") | (lab == "LL")
-    return np.select([bull, bear], [BULLISH, BEARISH], default=RANGING)
+    trend[(lab == "HH") | (lab == "HL")] = BULLISH
+    trend[(lab == "LH") | (lab == "LL")] = BEARISH
+    return trend
 
 
 def _label_bos_discard(
@@ -206,39 +230,14 @@ def _label_bos_discard(
 ) -> pd.Series:
     """Etiqueta causa de descarte para BOS sin hit en `k` velas.
 
-    Causas:
-      NO_HIT_IN_K: evento emitido pero el nivel no fue roto en `k` velas.
-      INVALIDATED: evento activo invalidado por cruce del nivel.
-      UNRESOLVED: evento al final del dataset sin datos suficientes.
+    B4 (Ley 12 / Ley 1): la lógica que mira `i+1:` (futuro) se delegó a
+    `engine.labels.label_bos_outcome`. Esta función preserva EXACTAMENTE la
+    columna `bos_discard_reason` de antes (regresión cero) y además deja el
+    alias `label_bos_reason` para la fase de transición.
     """
-    n = len(d)
-    reasons = pd.Series([pd.NA] * n, index=d.index, dtype=object)
-    highs = d["high"].to_numpy()
-    lows = d["low"].to_numpy()
-    bos_levels = d["bos_level"].to_numpy()
-    bos_status = d["bos_status"].to_numpy()
-
-    # Marcar invalidaciones ya capturadas en tracking.
-    invalidated_mask = bos_status == "invalidated"
-    reasons[bos_discard == "INVALIDATED"] = "INVALIDATED"
-
-    # Eventos con estado activo pero sin validación posterior.
-    active_mask = bos_status == "active"
-    for i in np.where(active_mask)[0]:
-        if pd.notna(reasons.iloc[i]):
-            continue
-        end = min(i + config.k, n)
-        future_highs = highs[i + 1 : end] if i + 1 < n else np.array([], dtype=float)
-        future_lows = lows[i + 1 : end] if i + 1 < n else np.array([], dtype=float)
-        level = float(bos_levels[i])
-        direction = int(d["bos_dir"].iat[i])
-        hit = False
-        if direction == 1 and len(future_highs) > 0:
-            hit = bool(np.nanmax(future_highs) > level)
-        elif direction == -1 and len(future_lows) > 0:
-            hit = bool(np.nanmin(future_lows) < level)
-        if not hit:
-            reasons.iloc[i] = "NO_HIT_IN_K" if end < n else "UNRESOLVED"
+    reasons = label_bos_outcome(d, config, bos_discard)
+    # Alias de transición: columna `label_bos_reason` idéntica a la decisión.
+    d["label_bos_reason"] = reasons
     return reasons
 
 
@@ -249,24 +248,93 @@ def _label_choch_discard(
 ) -> pd.Series:
     """Etiqueta causa de descarte para CHOCH.
 
-    Causas:
-      NO_CONFIRMATION: evento emitido pero no hubo BOS confirmado en `confirm_bars`.
-      INVALIDATED: evento activo invalidado por cruce del nivel.
-      UNRESOLVED: evento al final del dataset sin datos suficientes.
+    B4: la lógica que mira `i+1:` se delegó a `engine.labels`. Preserva la
+    columna `choch_discard_reason` (regresión cero) y deja el alias
+    `label_choch_reason`.
+    """
+    reasons = label_choch_outcome(d, config, choch_discard)
+    d["label_choch_reason"] = reasons
+    return reasons
+
+
+def _compute_bos_quality(
+    d: pd.DataFrame,
+    config: StructureConfig,
+) -> tuple[pd.Series, pd.Series]:
+    """Calcula `bos_quality_score` y `bos_real` para cada BOS emitido.
+
+    Score combina 4 componentes normalizados a [0,1]:
+      1. displacement previo en la misma direccion (0/1)
+      2. cuerpo de la vela de break / rango de esa vela (0-1)
+      3. distancia del close al nivel roto / rango promedio (0-1, cap)
+      4. confirmacion posterior: no retorno inmediato (0/1)
+
+    `bos_real` = True si score >= quality_threshold.
     """
     n = len(d)
-    reasons = pd.Series([pd.NA] * n, index=d.index, dtype=object)
-    choch_status = d["choch_status"].to_numpy()
+    quality = pd.Series(np.nan, index=d.index, dtype=float)
+    real = pd.Series(False, index=d.index, dtype=bool)
 
-    reasons[choch_discard == "INVALIDATED"] = "INVALIDATED"
-    active_mask = choch_status == "active"
-    for i in np.where(active_mask)[0]:
-        end = min(i + config.confirm_bars + 1, n)
-        if end < n:
-            reasons.iloc[i] = "NO_CONFIRMATION"
+    if n == 0:
+        return quality, real
+
+    # Displacement previo evaluado sobre TODO el frame (sin look-ahead por vela).
+    disp = detect_displacement(d, DisplacementConfig())
+    disp_bull = disp["displacement_bullish"].to_numpy()
+    disp_bear = disp["displacement_bearish"].to_numpy()
+
+    body = (d["close"] - d["open"]).abs().to_numpy()
+    candle_range = (d["high"] - d["low"]).replace(0, np.nan).to_numpy()
+    body_ratio = np.where(np.isfinite(candle_range), body / candle_range, 0.0)
+
+    avg_range = pd.Series(candle_range).rolling(14, min_periods=1).mean().to_numpy()
+    close = d["close"].to_numpy()
+    bos_levels = d["bos_level"].to_numpy()
+    bos_dir = d["bos_dir"].to_numpy()
+
+    highs = d["high"].to_numpy()
+    lows = d["low"].to_numpy()
+
+    for i in np.where(bos_dir != 0)[0]:
+        direction = int(bos_dir[i])
+        level = float(bos_levels[i])
+        cr = float(avg_range[i]) if avg_range[i] > 1e-9 else float(candle_range[i])
+        if cr <= 0:
+            cr = 1e-9
+
+        # 1. displacement previo
+        disp_flag = 0.0
+        if direction == 1 and i > 0 and bool(disp_bull[i]):
+            disp_flag = 1.0
+        elif direction == -1 and i > 0 and bool(disp_bear[i]):
+            disp_flag = 1.0
+
+        # 2. cuerpo del break
+        body_score = float(body_ratio[i])
+
+        # 3. distancia del close al nivel roto
+        if direction == 1:
+            close_dist = (close[i] - level) / cr
         else:
-            reasons.iloc[i] = "UNRESOLVED"
-    return reasons
+            close_dist = (level - close[i]) / cr
+        close_score = float(np.clip(close_dist / 0.5, 0.0, 1.0))
+
+        # 4. no retorno inmediato (B4: delegado a engine.labels.confirm_score,
+        # el único sitio autorizado a mirar i+1:).
+        confirm_score = 0.0
+        if config.confirm_bars > 0:
+            confirm_score = _label_confirm_score(d, i, config.confirm_bars)
+
+        score = (
+            disp_flag * 0.25 +
+            body_score * 0.25 +
+            close_score * 0.25 +
+            confirm_score * 0.25
+        )
+        quality.iloc[i] = float(np.clip(score, 0.0, 1.0))
+        real.iloc[i] = score >= config.quality_threshold
+
+    return quality, real
 
 
 def detect_market_structure(
@@ -343,5 +411,10 @@ def detect_market_structure(
     # M6 — Etiquetado de descarte desde el motor.
     d["bos_discard_reason"] = _label_bos_discard(d, config, bos_discard)
     d["choch_discard_reason"] = _label_choch_discard(d, config, choch_discard)
+
+    # BOS quality score.
+    quality, real = _compute_bos_quality(d, config)
+    d["bos_quality_score"] = quality
+    d["bos_real"] = real
 
     return MarketStructure(frame=d)

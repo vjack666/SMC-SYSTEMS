@@ -29,7 +29,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ict_backtest.engine import ICTSignal, simulate_trade_with_context  # noqa: E402
-from ict_backtest.htf_pd_index import HtfPdIndex  # noqa: E402
+# POI anclado: UNICA fuente = engine (Ley). El backtest no construye indice propio.
+from engine.poi_anchor import build_htf_structure_index  # noqa: E402
 from ict_backtest._util import (  # noqa: E402
     closed_row_at_time, tf_duration,
 )
@@ -107,7 +108,10 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
                                bos_table: dict | None = None,
                                frames: dict | None = None,
                                fill_mode: str = "next_open",
-                               enable_pd_index: bool = False) -> list:
+                               enable_pd_index: bool = False,
+                               exec_tf: str | None = None,
+                               return_phase_seen: bool = False,
+                               invalidate_on_opposite_swing: bool = False) -> list:
     """R7 thin wrapper — all decision logic lives in ``ict_backtest.canonical``.
 
     ``enable_pd_index`` enciende la Fase C (autoridad de zonas HTF). Por defecto
@@ -115,7 +119,7 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
     bloqueados hasta Fase G). La capa de AUTORIDAD se mide en backtest solo de
     forma explicita, nunca como filtro.
     """
-    return evaluate_signals(
+    result = evaluate_signals(
         symbol,
         htf,
         ltf,
@@ -128,7 +132,14 @@ def generate_sequence_signals(symbol: str, htf: str, ltf: str,
         frames=frames,
         fill_mode=fill_mode,
         enable_pd_index=enable_pd_index,
+        exec_tf=exec_tf,
+        return_phase_seen=return_phase_seen,
+        invalidate_on_opposite_swing=invalidate_on_opposite_swing,
     )
+    if return_phase_seen:
+        res, phase_seen = result  # type: ignore[misc]
+        return res, phase_seen  # type: ignore[misc]
+    return result
 
 
 def _build_objs_by_tf(frames: dict, symbol: str, tf_chain=("D1", "H4", "H1", "M15", "M5", "M1")) -> dict:
@@ -190,7 +201,9 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                            backtest_id: str | None = None,
                            window_months: int | None = None,
                            attach_plan: bool = False,
-                           plan_gate: bool = False) -> dict:
+                           plan_gate: bool = False,
+                           exec_tf: str | None = None,
+                           invalidate_on_opposite_swing: bool = False) -> dict:
     """Capa 2: backtest con motor EVENT-SEQUENCE (espera los sucesos en orden).
 
     Fase D (Paso2): acumula RawDiagnosticData por trade en `contexts` (en
@@ -238,17 +251,17 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     est_htf_fn = None
     if enable_pd_index:
         htf_frames = {tf: df for tf, df in ms.items() if tf != ltf}
-        htf_pd_index = HtfPdIndex(htf_frames) if htf_frames else None
-        ltf_map = htf_pd_index.build_ltf_map(ltf_df) if htf_pd_index is not None else None
+        _anchored_events = build_htf_structure_index(htf_frames) if htf_frames else []
         htf_df = ms.get(htf, ltf_df)
 
         def est_htf_fn(i: int) -> dict:  # type: ignore[no-redef]
             t = ltf_df.iloc[i]["time"]
             r = closed_row_at_time(htf_df, t, tf_duration(htf))
-            pd_zones = []
-            if htf_pd_index is not None and ltf_map is not None:
-                for tf_ in htf_pd_index.timeframes:
-                    pd_zones.extend(htf_pd_index.zones_at(i, tf_, ltf_map))
+            ltf_t = pd.to_datetime(t, utc=True, errors="coerce")
+            pd_zones = [
+                e for e in _anchored_events
+                if e.time is not None and e.time <= ltf_t
+            ]
             return {
                 "trend": str(r.get("trend", "RANGING")),
                 "sweep_up": bool(r.get("liquidity_sweep_up", False)),
@@ -261,7 +274,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         total=3,
         unit="stages",
     )
-    signals = generate_sequence_signals(symbol, htf, ltf,
+    signals, phase_seen = generate_sequence_signals(symbol, htf, ltf,
                                         counter_trend=counter_trend,
                                         tp_mode=tp_mode,
                                         require_displacement=require_displacement,
@@ -269,7 +282,10 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                                         bos_gap=bos_gap, frames=frames,
                                         bos_table=bos_table,
                                         fill_mode=fill_mode,
-                                        enable_pd_index=enable_pd_index)
+                                        enable_pd_index=enable_pd_index,
+                                        exec_tf=exec_tf,
+                                        return_phase_seen=True,
+                                        invalidate_on_opposite_swing=invalidate_on_opposite_swing)
     print(f"      features en {time.time()-t0:.1f}s", flush=True)
     print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
     print(f"      {len(signals)} senales", flush=True)
@@ -369,6 +385,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     m = _metrics(pnls)
     m["contexts"] = contexts  # Fase D Paso 2: datos emitidos (Paso 3 los congela)
     m["backtest_id"] = backtest_id
+    m["funnel"] = phase_seen  # B2 (Ley 11): embudo de fases sweep→displace→BOS→entry
     if plan_gate:
         # A1 Opción B: reporte de vetos del gate (auditoría del plan FSM).
         # Cada entrada: {"signal_index", "state"} con el estado que vetó.
@@ -402,7 +419,8 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
 
 def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
         counter_trend: bool = False, tp_mode: str = "fixed2r",
-        require_displacement: bool = False, cost: dict | None = None) -> dict:
+        require_displacement: bool = False, cost: dict | None = None,
+        exec_tf: str | None = None) -> dict:
     """Backtest POR DEFECTO (sin --engine) sobre el motor canonico sequence.
 
     R7 T3.1 (DoD #2 / H12): el camino por defecto delega en `run_sequence`
@@ -415,7 +433,8 @@ def run(symbol: str, htf: str, ltf: str, model: str, max_hold: int,
                                  counter_trend=counter_trend,
                                  tp_mode=tp_mode,
                                  require_displacement=require_displacement,
-                                 cost=cost)
+                                 cost=cost,
+                                 exec_tf=exec_tf)
 
 
 def main() -> None:
@@ -451,6 +470,13 @@ def main() -> None:
     ap.add_argument("--window-months", type=int, default=None,
                     help="Fase D validacion: recorta la ventana LTF a los ultimos N meses "
                          "ANTES de cargar (ahorra I/O + features).")
+    ap.add_argument("--exec-tf", default=None, choices=[None, "M5", "M1"],
+                    help="Fase B2 (libro 18): TF de EJECUCION fino (M5/M1) para anclar "
+                         "entry/SL/TP. None = LTF (M15, regresion cero).")
+    ap.add_argument("--invalidate-on-opposite-swing", action="store_true",
+                    help="B3 aditivo: activa OPPOSITE_SWING_BREAK (invalida setups cuando "
+                         "el precio rompe el swing opuesto). OFF = regresion cero "
+                         "(identico al historico).")
     args = ap.parse_args()
 
     cost = resolve_cost(args.symbol, override=args.cost, no_cost=args.no_cost)
@@ -466,7 +492,7 @@ def main() -> None:
         print("### SWEEP (R7 sequence only) ###")
         for name, kw in variants:
             print(f"\n----- {name} -----")
-            m = run(args.symbol, args.htf, args.ltf, args.model, args.max_hold, cost=cost, **kw)
+            m = run(args.symbol, args.htf, args.ltf, args.model, args.max_hold, cost=cost, exec_tf=args.exec_tf, **kw)
             print(f">>> {name}: PF={m['pf']:.3f} WR={m['winrate']*100:.1f}% trades={m['trades']} R={m['total_r']:.1f}")
         return
 
@@ -480,6 +506,8 @@ def main() -> None:
         backtest_id=f"BT-CLI-{uuid.uuid4().hex[:8]}",  # Fase D Paso 2: id estable de corrida
         attach_plan=args.attach_plan,  # Fase 5: calificador de alineacion (modo OBSERVE)
         window_months=args.window_months,  # Fase D validacion: recorte de ventana pre-carga
+        exec_tf=args.exec_tf,  # Fase B2 (libro 18): entry/SL/TP en TF fino M5/M1
+        invalidate_on_opposite_swing=args.invalidate_on_opposite_swing,  # B3 aditivo (regresion cero OFF)
     )
 
 

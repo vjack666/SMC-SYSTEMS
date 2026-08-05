@@ -71,7 +71,10 @@ def test_build_multitf_context_has_all_six_tfs():
     t = ms["M15"]["time"].iloc[3]
     ctx = build_multitf_context(ms, t, tfs=("D1", "H4", "H1", "M15", "M5", "M1"))
     assert isinstance(ctx, MultiTFContext)
-    assert set(ctx.keys()) == {"D1", "H4", "H1", "M15", "M5", "M1"}
+    # B6 (Ley 3): los 6 TF deben llegar; se aceptan claves adicionales
+    # (p.ej. "dealing" inyectada por build_context_stack del motor).
+    assert set(ctx.keys()) >= {"D1", "H4", "H1", "M15", "M5", "M1"}
+    assert "dealing" in ctx  # publicada por build_context_stack (engine/plan.py)
     for tf in ("D1", "H4", "H1", "M15", "M5", "M1"):
         assert ctx[tf]["available"] is True
 

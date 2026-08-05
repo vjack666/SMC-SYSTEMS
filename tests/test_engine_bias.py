@@ -23,7 +23,7 @@ from engine.bias import (
     compute_htf_bias,
     compute_htf_bias_series,
 )
-from engine.bias.narrative import _bias_for_frame, _swing_points
+from engine.bias.narrative import _bias_for_frame, _bias_from_swings, _swing_points
 
 
 # --------------------------------------------------------------------------- #
@@ -86,9 +86,18 @@ class TestBiasUnTf:
 
     def test_rango_es_neutral(self):
         df = _frame_from_closes(_range_frame())
-        # Rango con empate en votos: ahora se desempata por el tramo MÁS RECIENTE,
-        # no por NEUTRAL automático.
-        assert _bias_for_frame(df) in (BULLISH, BEARISH, NEUTRAL)
+        # T8: rango con empate en votos de tramos => sesgo NEUTRAL explícito y
+        # estable (no oscila vela a vela por el tramo más reciente).
+        assert _bias_for_frame(df) == NEUTRAL
+
+    def test_rango_estable_multiples_ventanas(self):
+        """El sesgo en rango no debe oscilar entre BULLISH/BEARISH vela a vela.
+        Con dos ventanas de tramos distintas debe dar el MISMO veredicto
+        (T8: empate => NEUTRAL estable, no depende del tramo mas reciente)."""
+        df = _frame_from_closes(_range_frame(n_cycles=4))
+        b1 = _bias_from_swings(*_swing_points(df, 2), trend_window=4)
+        b2 = _bias_from_swings(*_swing_points(df, 2), trend_window=6)
+        assert b1 == b2
 
     def test_swings_sin_lookahead_confirmacion_diferida(self):
         """El swing se expone desde i+delay (delay mínimo 2)."""

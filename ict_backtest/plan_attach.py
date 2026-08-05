@@ -64,9 +64,14 @@ def attach_alignment(
     h1_objs = _objs_before(objs_by_tf, "H1", t)
     m15_objs = _objs_before(objs_by_tf, "M15", t)
 
-    # ancla narrativa (Brecha B) sobre los FVG/OB M15
-    anchored_m15 = anchor_m15(m15_objs, parent_objs)
-    m15_anchored = any(o.meta.get("anchored") for o in anchored_m15)
+    # ancla narrativa (Brecha B) sobre los FVG/OB M15.
+    # El backtest NO tiene logica propia de POI: el ancla real la da el
+    # motor (engine.poi_anchor) via anchored_pd_zones en el context stack.
+    # Aqui solo marcamos si hay objetos LTF candidatos (sin ancla propia).
+    anchored_m15 = m15_objs
+    m15_anchored = any(
+        o.type in (ObjectType.FVG, ObjectType.ORDER_BLOCK) for o in m15_objs
+    )
 
     # zona premium/discount (Brecha C) del primer POI M15 anclado/valido
     zone_ok = _zone_ok_for_m15(anchored_m15, swing)
