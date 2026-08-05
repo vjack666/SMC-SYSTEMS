@@ -14,7 +14,7 @@ from ict_backtest.v2.contracts import (
 )
 from ict_backtest.v2.coverage import CoverageReport, build_coverage_report, default_registry
 from ict_backtest.v2.event_log import EventLog
-from ict_backtest.v2.orchestrator import run_legacy_subset, run_mtf_intraday
+from ict_backtest.v2.orchestrator import run_legacy_subset
 from ict_backtest.v2.simulator import simulate_order
 
 __all__ = [
@@ -29,6 +29,5 @@ __all__ = [
     "build_coverage_report",
     "default_registry",
     "run_legacy_subset",
-    "run_mtf_intraday",
     "simulate_order",
 ]

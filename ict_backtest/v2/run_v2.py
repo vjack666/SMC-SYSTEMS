@@ -3,7 +3,6 @@
 Modes:
   sequence — SAME as production run_backtest (H4→M15 + R6 defaults) + live structure table
   legacy   — alias of sequence (compat)
-  mtf      — D1→H4→H1→M15 top-down filters (fewer trades)
 
 Usage:
   python -m ict_backtest.v2.run_v2 --mode sequence --symbol XAUUSD --htf H4 --ltf M15
@@ -25,7 +24,6 @@ if str(ROOT) not in sys.path:
 
 from ict_backtest.v2.orchestrator import (  # noqa: E402
     run_legacy_subset,
-    run_mtf_intraday,
     run_sequence_parity,
 )
 
@@ -34,9 +32,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Backtest v2")
     ap.add_argument(
         "--mode",
-        choices=("sequence", "legacy", "mtf"),
+        choices=("sequence", "legacy"),
         default="sequence",
-        help="sequence=parity with current prod motor (default); mtf=top-down filters",
+        help="sequence=parity with current prod motor (default)",
     )
     ap.add_argument("--symbol", default="XAUUSD")
     ap.add_argument("--htf", default="H4", help="sequence/legacy HTF (default H4)")
@@ -68,7 +66,7 @@ def main() -> int:
     if mode == "legacy":
         mode = "sequence"  # same motor
 
-    mode_dir = "sequence" if mode == "sequence" else "mtf_intraday"
+    mode_dir = "sequence"
     out = Path(args.out) if args.out else ROOT / "results" / "bt_v2" / args.symbol / mode_dir
 
     live = not args.no_live_table
@@ -87,34 +85,19 @@ def main() -> int:
             flush=True,
         )
 
-    if mode == "sequence":
-        max_hold = args.max_hold if args.max_hold is not None else 48
-        payload = run_sequence_parity(
-            args.symbol,
-            htf=args.htf,
-            ltf=args.ltf,
-            max_hold=max_hold,
-            counter_trend=args.counter_trend,
-            require_displacement=not args.no_displacement,
-            no_cost=args.no_cost,
-            out_dir=out,
-            live_table=live,
-            live_console=live_console,
-        )
-    else:
-        max_hold = args.max_hold if args.max_hold is not None else 40
-        payload = run_mtf_intraday(
-            args.symbol,
-            ltf=args.ltf,
-            max_hold=max_hold,
-            counter_trend=args.counter_trend,
-            require_displacement=not args.no_displacement,
-            no_cost=args.no_cost,
-            out_dir=out,
-            oos_frac=args.oos,
-            live_table=live,
-            live_console=live_console,
-        )
+    max_hold = args.max_hold if args.max_hold is not None else 48
+    payload = run_sequence_parity(
+        args.symbol,
+        htf=args.htf,
+        ltf=args.ltf,
+        max_hold=max_hold,
+        counter_trend=args.counter_trend,
+        require_displacement=not args.no_displacement,
+        no_cost=args.no_cost,
+        out_dir=out,
+        live_table=live,
+        live_console=live_console,
+    )
 
     m = payload["metrics"]
     c = payload["coverage"]

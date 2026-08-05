@@ -3,7 +3,6 @@
 Modes:
   sequence     — SAME as production run_backtest sequence (H4→M15, R6 defaults)
   legacy_subset — alias of sequence (F0 packaging)
-  mtf_intraday  — D1→H4→H1→M15 top-down + nearest TP (filters; fewer trades)
 
 Live structure table: during sequence/legacy runs, BOS/CHOCH/FVG/SWEEP/OB
 stream to CSV + console as onsets are found, then SIGNAL/TRADE rows.
@@ -31,11 +30,6 @@ from ict_backtest.v2.live_structure_table import (
 )
 from ict_backtest.v2.simulator import simulate_order
 from ict_backtest.v2.strategy_legacy import explanation_for_trade, signals_to_plan
-from ict_backtest.v2.strategy_mtf import (
-    explanation_mtf,
-    generate_mtf_signals,
-    mtf_signals_to_plan,
-)
 
 
 def _simulate_plan(
@@ -282,151 +276,4 @@ def run_legacy_subset(*args: Any, **kwargs: Any) -> dict[str, Any]:
     return run_sequence_parity(*args, **kwargs)
 
 
-def run_mtf_intraday(
-    symbol: str,
-    *,
-    ltf: str = "M15",
-    max_hold: int = 40,
-    counter_trend: bool = False,
-    require_displacement: bool = True,
-    fill_mode: str = "next_open",
-    cost: dict[str, float] | None = None,
-    no_cost: bool = False,
-    out_dir: Path | str | None = None,
-    frames: dict[str, pd.DataFrame] | None = None,
-    oos_frac: float = 0.0,
-    live_table: bool = True,
-    live_console: bool = False,
-    enable_pd_index: bool = True,
-) -> dict[str, Any]:
-    """Top-down D1→H4→H1→M15. Clock = LTF only; HTF closed-only lookups.
 
-    Still uses sequence under the hood, then filters. Live table streams structure
-    before top-down gates (and SIGNAL rows only for kept orders).
-    """
-    if cost is None and not no_cost:
-        cost = resolve_cost(symbol)
-    if no_cost:
-        cost = None
-
-    out = Path(out_dir) if out_dir is not None else None
-    if out is not None:
-        out.mkdir(parents=True, exist_ok=True)
-
-    tfs = ("D1", "H4", "H1", ltf)
-    print(f"[v2/mtf] load {symbol} cascade D1→H4→H1→{ltf} ...", flush=True)
-    if frames is None:
-        frames = load_frames(symbol, tfs)
-    ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
-    if "H1" not in ms:
-        try:
-            from ict_backtest.data_feed import load_tf
-
-            ms["H1"] = detect_market_structure(load_tf(symbol, "H1"))
-        except Exception:
-            pass
-
-    ltf_df = ms[ltf]
-    event_log = EventLog()
-    live_path = (out / "live_structure.csv") if out is not None else Path(
-        "results"
-    ) / "bt_v2" / symbol / "mtf_intraday" / "live_structure.csv"
-
-    with LiveStructureTable(
-        live_path,
-        console=bool(live_console and live_table),
-        console_every=1 if live_console else 0,
-        milestone_every=250 if live_table else 0,
-        event_log_append=event_log.append if live_table else None,
-    ) as live:
-        if live_table:
-            stream_structure_from_ms(
-                ms,
-                live,
-                tfs=[t for t in (ltf, "H1", "H4", "D1") if t in ms],
-            )
-
-        signals, filter_stats = generate_mtf_signals(
-            symbol,
-            ms,
-            ltf=ltf,
-            counter_trend=counter_trend,
-            require_displacement=require_displacement,
-            fill_mode=fill_mode,
-            require_h1="H1" in ms,
-            event_log=event_log,
-            enable_pd_index=enable_pd_index,
-        )
-        for s in signals:
-            if live_table:
-                emit_signal_row(
-                    live,
-                    time=str(s.time),
-                    tf=ltf,
-                    direction=int(s.direction),
-                    entry=float(s.entry),
-                    sl=float(s.stop_loss),
-                    tp=float(s.take_profit),
-                    note="mtf_kept",
-                )
-
-        plan = mtf_signals_to_plan(
-            signals,
-            symbol=symbol,
-            max_hold_bars=max_hold,
-            ltf=ltf,
-            event_log=event_log,
-            filter_stats=filter_stats,
-        )
-        pnls, exits, explanations = _simulate_plan(
-            plan,
-            ltf_df,
-            cost,
-            event_log,
-            explanation_mtf,
-            live=live if live_table else None,
-            ltf=ltf,
-        )
-
-    metrics = _metrics(pnls)
-
-    oos_block = None
-    if oos_frac > 0 and plan.orders:
-        cut = int(len(plan.orders) * (1.0 - oos_frac))
-        is_pnls, oos_pnls = [], []
-        for i, order in enumerate(plan.orders):
-            result, _ = simulate_order(order, ltf_df, cost=cost, event_log=None)
-            if result is None:
-                continue
-            (is_pnls if i < cut else oos_pnls).append(result.pnl_r)
-        oos_block = {
-            "is": _metrics(is_pnls),
-            "oos": _metrics(oos_pnls),
-            "oos_frac": oos_frac,
-        }
-
-    coverage = build_coverage_report(
-        model_id=plan.model_id,
-        coverage_mode="v2_partial",
-    )
-    payload: dict[str, Any] = {
-        "symbol": symbol,
-        "cascade": "D1→H4→H1→M15",
-        "ltf": ltf,
-        "coverage_mode": "v2_partial",
-        "model_id": plan.model_id,
-        "n_orders": len(plan.orders),
-        "filter_stats": filter_stats,
-        "live_structure_csv": str(live_path),
-        "metrics": metrics,
-        "exits": exits,
-        "oos": oos_block,
-        "coverage": coverage.to_dict(),
-        "verdict": coverage.verdict,
-        "n_events": len(event_log),
-        "n_explanations": len(explanations),
-        "funnel": None,  # mtf_intraday usa generate_mtf_signals (sin embudo de fases propio)
-    }
-    if out is not None:
-        _write_artifacts(out, payload, coverage, event_log, explanations)
-    return payload
