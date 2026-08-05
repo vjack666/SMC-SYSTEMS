@@ -1,0 +1,12 @@
+{
+  "initialized": "2026-05-31T09:32:43.729257",
+  "status": "READY",
+  "trades_logged": 0,
+  "signals_generated": 1,
+  "signals_executed": 0,
+  "total_pnl_r": 0.0,
+  "total_pnl_usd": 0.0,
+  "current_equity": 25000.0,
+  "alerts": [],
+  "last_update": "2026-05-31T14:47:28.270171"
+}

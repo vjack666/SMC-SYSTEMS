@@ -1,0 +1,1 @@
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0; Start-Service sshd; Set-Service -Name sshd -StartupType Automatic; New-NetFirewallRule -DisplayName 'OpenSSH SSH Server' -Direction Inbound -Protocol TCP -LocalPort 22 -Action Allow; Get-Service sshd | Select-Object Name, Status, StartType; echo LISTO"

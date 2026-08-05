@@ -86,20 +86,21 @@ GATE R6 NO PASA en ningún símbolo en producción. Números en `docs/METRICS_CA
 > ⚠️ **CAVEAT OBLIGATORIO para cualquier agente:** el PF negativo NO es evidencia de
 > "la estrategia ICT no tiene edge". Es evidencia de que el motor backtesteado es una
 > **VERSIÓN SIMPLIFICADA** de la estrategia objetivo (libros 18/21/08, Principios R10/R11).
-> Auditoría 1:1 (2026-07-16) confirmó:
-> - El motor usa SOLO 2 TF reales (H4→M15). **D1 se carga pero NO se usa**; H1/M5/M1 ausentes.
->   La tesis 18 exige 3 capas (HTF bias → ITF zona → exec entry). → AUSENTE.
-> - **POI anclado a narrativa HTF DESACTIVADO** (`htf_poi_fn=None` en `run_backtest.py:119`).
->   El filtro más definitorio de ICT está muerto: cualquier FVG/OB cuenta como entrada sin
->   respaldo BOS/CHOCH del TF padre (libro 21: 100% sin ancla). → AUSENTE.
-> - No hay dealing_range/premium-discount, ni stacking multi-TF, ni `po3_state` cableado al runner,
->   ni filtro de régimen, ni gestión post-entrada (solo hold_limit).
+> Auditoría 1:1 (2026-07-16) confirmó brechas B (POI anclado) y A1 (3 capas reales).
+> **ESTADO 2026-08-05 (cerradas en el motor, fuente permanente `engine/`):**
+> - **3 capas reales CERRADAS**: `engine/plan.py` (`build_context_stack` + `top_down_allows_trade`)
+>   implementa lectura top-down D1→H4→H1→M15 con premium/discount y anti look-ahead por timestamp.
+> - **POI anclado CERRADO**: `engine/poi_anchor.py` ancla POI a BOS/CHOCH del TF padre ya cerrado;
+>   `engine/htf_narrative.py` marca `poi["anchored"]`. El backtest ya lo consume (`run_backtest.py:479`
+>   `enable_pd_index=True` → `ict_backtest.poi_filter`). El CAVEAT original (`htf_poi_fn=None`) está
+>   DESACTUALIZADO.
+> - `dealing_range.py` (EQ 50% / premium-discount) y `liquidity_levels.py` (BSL/SSL) COMPLETOS.
 > - COMPLETO en el motor: secuencia event-driven (sweep→displace→BOS→retorno con memoria y reset),
 >   SL estructural en mecha de sweep, fill next-open, costs ON, killzone, RR 1:3, HTF closed-only.
 >
-> Conclusión: antes de declarar "stack ICT intradía sin edge", falta cerrar la brecha B (POI
-> anclado) y A1 (3 capas reales) — exactamente lo que el cronograma marca como R3.5 / Fase v30
-> pendiente, FUERA del alcance de R6.
+> Conclusión: la brecha B y A1 están cerradas en el MOTOR (permanente). El backtest (desechable)
+> las consume para demostrar la tesis. Falta aún en el motor: exec fino M5/M1 y fix del sesgo
+> NEUTRAL perpetuo en rangos (`engine/bias/narrative.py` `_bias_from_swings`).
 
 **Bloqueo real = DATOS (R5/A6), no motor:** los datos históricos deben descargarse/verificarse con el flujo definido en el repo.
 
