@@ -48,5 +48,16 @@ data/blackbox/
 scripts/_lab_*.py
 scripts/_verify_imports.py
 
+# Orden 2026-08-06: huérfanos de sesiones previas (no fuente viva)
+scripts/_legacy/
+src/_legacy_data/
+results/_archive/
+tests/_broken/
+data/histdata_tmp/
+data/exports/
+scripts/_b2_edit_*.py
+scripts/_probe_warn*.py
+scripts/_inspect_*.py
+
 # Graphify map (generado localmente, vive fuera del repo)
 graphify-out/

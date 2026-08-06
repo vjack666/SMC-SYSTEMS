@@ -1,9 +1,0 @@
-{
-  "symbol": "EURUSD",
-  "timeframe": "M15",
-  "max_bars": 5000,
-  "with_orchestrator": false,
-  "raw_signals": 146,
-  "pass_ml": 4,
-  "pct": 2.73972602739726
-}
