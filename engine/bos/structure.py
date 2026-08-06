@@ -190,6 +190,14 @@ def _track_structure(
     for i in range(1, n):
         dr = int(dir_col[i])
         if dr != 0:
+            # T9.6 (tesis: el humano no acumula BOS, mira el vigente):
+            # si ya habia un evento ACTIVO en la MISMA direccion, el anterior
+            # queda SUPERSEDED (reemplazado por este nuevo). Asi no se
+            # acumulan miles de BOS active (ej: 21k en M15). Un BOS nuevo en
+            # la misma direccion mato al viejo; solo queda 1 vigente/direccion.
+            if active and last_idx >= 0 and dr == last_dir:
+                status.iloc[last_idx] = "superseded"
+                discard_reason.iloc[last_idx] = "SUPERSEDED"
             last_dir, last_idx, active = dr, i, True
             if is_choch:
                 # T9.4 (tesis): el CHOCH se invalida cuando el precio cruza el

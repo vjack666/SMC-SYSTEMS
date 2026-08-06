@@ -120,14 +120,22 @@ def test_choch_differs_from_bos() -> None:
 
 
 def test_bos_invalidated_on_level_cross() -> None:
-    """BOS activo se invalida cuando el close cruza de vuelta el nivel roto."""
+    """BOS vigente se invalida cuando el close cruza de vuelta el nivel roto.
+
+    T9.6: un BOS en la misma direccion reemplaza al anterior (superseded).
+    En estos datos hay dos BOS alcistas (i=6, i=7); el de i=6 queda
+    superseded por el de i=7, y el de i=7 se invalida por cruce en i=8
+    (close 1.05 < nivel 1.10). Verificamos ambas reglas.
+    """
     highs = [1.00, 1.02, 1.06, 1.10, 1.08, 1.07, 1.12, 1.13, 1.06]
     lows = [0.99, 1.01, 1.05, 1.06, 1.06, 1.06, 1.07, 1.10, 1.02]
     closes = [0.995, 1.015, 1.055, 1.07, 1.075, 1.065, 1.115, 1.125, 1.05]
     ms = detect_market_structure(_frame(highs, lows, closes), CFG2)
     status = ms.frame["bos_status"]
-    assert (status == "active").any()
-    # El close 1.05 en i=8 < nivel 1.10 -> invalidated.
+    # El BOS reemplazado (i=6) queda superseded (T9.6).
+    assert status.iloc[6] == "superseded"
+    # El BOS vigente (i=7) se invalida por cruce del nivel 1.10 en i=8.
+    assert status.iloc[7] == "invalidated"
     assert status.iloc[-1] == "invalidated"
 
 
