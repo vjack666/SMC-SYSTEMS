@@ -39,7 +39,6 @@ def _capas_del_stack(stack) -> set[str]:
     return out
 
 
-@pytest.mark.slow  # carga ~1 mes de EURUSD
 def test_backtest_feeds_full_motor_stack():
     seen: list[set[str]] = []
 
