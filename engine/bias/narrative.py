@@ -24,6 +24,13 @@ Reglas de implementación:
     (cambios de dirección) para no confundir rango con tendencia.
   - Sin indicadores: ni ATR ni medias móviles (volatilidad = rango high-low).
   - API pura, sin estado mutable global.
+
+  NOTA (fix T8, 2026-08-06): el criterio de sesgo se calcula por HH+HL / LH+LL
+  sobre los ultimos `trend_window` pares de swings confirmados (default 6),
+  NO por "tramos" de misma polaridad. El criterio anterior (agrupar swings en
+  tramos y votar) dejaba el motor 100% NEUTRAL en H1 real (EURUSD H1 media
+  2026-08-06: 100% NEUTRAL antes del fix -> 22.4% despues). En rango (SH/SL
+  mixtos) el sesgo sigue NEUTRAL (contexto, no anula el setup).
 """
 
 from __future__ import annotations
@@ -146,39 +153,58 @@ def _label_swings(
     return labels.where(new_high | new_low, pd.NA).ffill().fillna("NONE")
 
 
+def _unique_swing_values(swing: pd.Series) -> list[float]:
+    """Valores de swing confirmados en orden temporal (sin repetir el mismo nivel)."""
+    out: list[float] = []
+    prev: float | None = None
+    for v in swing.dropna().tolist():
+        if prev is None or v != prev:
+            out.append(v)
+            prev = v
+    return out
+
+
 def _bias_from_swings(
     swing_high: pd.Series,
     swing_low: pd.Series,
-    trend_window: int = 4,
+    trend_window: int = 6,
 ) -> Bias:
     """Dirección del último swing estructural mayor confirmado (SPEC §1 CRIT).
 
-    Voto por TRAMOS (cambios de dirección): agrupa los swings consecutivos de
-    la misma polaridad (HH/HL → alcista, LH/LL → bajista) y vota los últimos
-    `trend_window` tramos. Un rango alterna tramos → empate → desempatado por
-    el tramo MÁS RECIENTE, porque la estructura vigente pesa más que la histórica.
+    Criterio de TRADER HUMANO (HH+HL / LH+LL), no de micro-oscilación:
+      - último swing high (SH) > SH previo  Y  último swing low (SL) > SL previo
+        => BULLISH (Higher High + Higher Low).
+      - SH < SH previo  Y  SL < SL previo  => BEARISH (Lower High + Lower Low).
+      - mixto => NEUTRAL (rango: el humano no opera hasta que rompa).
+
+    Se vota por los últimos `trend_window` pares de swings confirmados para ser
+    robusto a oscilaciones menores; la estructura vigente pesa más (pares más
+    recientes). Resuelve el bug T8: el criterio anterior agrupaba por "tramos"
+    de misma polaridad y, en H1 real (que alterna LL/HH perpetuamente), siempre
+    empataba 2/2 → NEUTRAL perpetuo (motor mudo). Con HH+HL/LH+LL el motor
+    distingue tendencia de rango: en tendencia vota mayoritariamente bull/bear;
+    en rango reconoce mixto y devuelve NEUTRAL (contexto, no anula el setup).
     """
-    labels = _label_swings(swing_high, swing_low)
-    events = labels[labels != "NONE"]
-    if len(events) < 2:
+    sh_vals = _unique_swing_values(swing_high)
+    sl_vals = _unique_swing_values(swing_low)
+    if len(sh_vals) < 2 or len(sl_vals) < 2:
         return NEUTRAL
-    trends: list[str] = []
-    for lab in events.tolist():
-        pol = "bull" if lab in ("HH", "HL") else "bear"
-        if not trends or trends[-1] != pol:
-            trends.append(pol)
-    recent = trends[-trend_window:]
-    bull = recent.count("bull")
-    bear = recent.count("bear")
+
+    n_pairs = min(trend_window, min(len(sh_vals), len(sl_vals)) - 1)
+    bull = bear = 0
+    for k in range(1, n_pairs + 1):
+        sh_up = sh_vals[-k] > sh_vals[-k - 1]
+        sl_up = sl_vals[-k] > sl_vals[-k - 1]
+        if sh_up and sl_up:
+            bull += 1
+        elif (not sh_up) and (not sl_up):
+            bear += 1
+        # mixto => voto range, no cuenta para ninguno
+
     if bull > bear:
         return BULLISH
     if bear > bull:
         return BEARISH
-    # Empate de tramos => mercado en rango => sesgo NEUTRAL explícito y estable.
-    # No se resuelve por el tramo mas reciente: eso hacia oscilar el sesgo
-    # vela a vela en rango (a veces direccional, a veces mudo). La tesis
-    # (SPEC §1 CASOS LIMITE) acepta NEUTRAL en rango como contexto, no anula
-    # el setup. Un trader humano en rango no opera hasta que rompa.
     return NEUTRAL
 
 

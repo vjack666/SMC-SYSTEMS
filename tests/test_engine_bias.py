@@ -34,7 +34,8 @@ def _frame_from_closes(closes: list[float], body: float = 0.3) -> pd.DataFrame:
 
     Cada vela: open = close anterior, close = valor dado, high = max(open,
     close) + body/2, low = min(open, close) - body/2. Los swings quedan
-    deterministas.
+    deterministas. Para que se formen swings de AMBOS lados (HH+HL / LH+LL,
+    criterio T8), el generador zigzag debe alternar subidas y bajadas.
     """
     closes = np.asarray(closes, dtype=float)
     opens = np.concatenate(([closes[0] - body], closes[:-1]))
@@ -44,32 +45,40 @@ def _frame_from_closes(closes: list[float], body: float = 0.3) -> pd.DataFrame:
 
 
 def _zigzag_up(n_legs: int = 6, step: float = 1.0, leg: float = 2.0) -> list[float]:
-    """Zigzag alcista: highs más altos (HH) y lows más altos (HL)."""
-    closes: list[float] = []
-    price = 100.0
-    for _ in range(n_legs):
-        closes.extend([price + step, price + leg, price + leg + step, price + leg])
-        price += leg + 1.0
-    return closes
+    """Uptrend determinista con HH+HL (criterio T8).
+
+    Random-walk con semilla fija (reproducible) y drift positivo: el precio
+    sube con fluctuaciones => swing highs y lows crecientes (HH+HL) => BULLISH.
+    """
+    rng = np.random.default_rng(11)
+    n = 160
+    base = np.cumsum(rng.normal(0, 0.5, n)) + np.arange(n) * 0.25
+    return base.tolist()
 
 
 def _zigzag_down(n_legs: int = 6, step: float = 1.0, leg: float = 2.0) -> list[float]:
-    """Zigzag bajista: espejo exacto del alcista (lows más bajos LH/LL)."""
-    return [300.0 - c for c in _zigzag_up(n_legs, step, leg)]
+    """Downtrend determinista con LH+LL (criterio T8): espejo del alcista."""
+    rng = np.random.default_rng(11)
+    n = 160
+    base = np.cumsum(rng.normal(0, 0.5, n)) - np.arange(n) * 0.25
+    return base.tolist()
 
 
 def _range_frame(
     n_cycles: int = 4, seg: int = 6, center: float = 100.0, amp: float = 2.0
 ) -> list[float]:
-    """Rango lateral SIN drift: oscila entre centro±amp en tramos simétricos.
+    """Rango lateral SIN drift ni expansión de extremos => sesgo NEUTRAL.
 
-    Los tramos alcistas y bajistas se alternan en igual proporción → los
-    swings HH/HL y LH/LL se balancean → el sesgo debe ser NEUTRAL.
+    Oscila entre dos niveles fijos (centro±amp) sin crear nuevos extremos:
+    los swing highs quedan todos en el mismo nivel (ni HH ni LH) y los swing
+    lows igual => estructura mixta => NEUTRAL (rango: el humano no opera hasta
+    que rompa). Determinista.
     """
-    ext = [center - amp, center + amp] * n_cycles + [center - amp]
-    xs = np.arange(len(ext))
-    xi = np.linspace(0, len(ext) - 1, (len(ext) - 1) * seg + 1)
-    return np.interp(xi, xs, np.asarray(ext, dtype=float)).tolist()
+    levels = [center - amp, center + amp] * n_cycles + [center - amp]
+    out: list[float] = []
+    for lv in levels:
+        out.extend([lv] * seg)
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -86,14 +95,14 @@ class TestBiasUnTf:
 
     def test_rango_es_neutral(self):
         df = _frame_from_closes(_range_frame())
-        # T8: rango con empate en votos de tramos => sesgo NEUTRAL explícito y
-        # estable (no oscila vela a vela por el tramo más reciente).
+        # T8: rango con SH/SL mixtos (HH+HL vs LH+LL no se cumple) => sesgo
+        # NEUTRAL explícito y estable (el humano no opera hasta que rompa).
         assert _bias_for_frame(df) == NEUTRAL
 
     def test_rango_estable_multiples_ventanas(self):
         """El sesgo en rango no debe oscilar entre BULLISH/BEARISH vela a vela.
-        Con dos ventanas de tramos distintas debe dar el MISMO veredicto
-        (T8: empate => NEUTRAL estable, no depende del tramo mas reciente)."""
+        Con dos ventanas de swings distintas debe dar el MISMO veredicto
+        (T8: rango => NEUTRAL estable, por estructura mixta HH+HL/LH+LL)."""
         df = _frame_from_closes(_range_frame(n_cycles=4))
         b1 = _bias_from_swings(*_swing_points(df, 2), trend_window=4)
         b2 = _bias_from_swings(*_swing_points(df, 2), trend_window=6)

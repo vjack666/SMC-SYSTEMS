@@ -295,9 +295,10 @@ def evaluate_signals(
         if use_exec:
             entry_ts = ltf_df.iloc[entry_at]["time"]
             _rr_exec = _rr_for_raw_signal(s, ltf_df, direction, ltf)
+            sweep_ts = ltf_df.iloc[s["sweep_at"]]["time"]
             fine = fine_execution(
                 ms, entry_ts, direction,
-                exec_tf=exec_tf, rr=_rr_exec,
+                exec_tf=exec_tf, rr=_rr_exec, sweep_ts=sweep_ts,
             )
             if not fine.get("ok"):
                 # Sin estructura fina suficiente en el exec TF: NO vetar la

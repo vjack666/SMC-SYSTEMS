@@ -27,8 +27,10 @@ from ict_backtest import canonical as canonical_mod
 def capture_exec_tf(monkeypatch):
     captured = {}
 
-    def fake_evaluate(symbol, htf, ltf, *args, exec_tf=None, **kwargs):
+    def fake_evaluate(symbol, htf, ltf, *args, exec_tf=None, return_phase_seen=False, **kwargs):
         captured["exec_tf"] = exec_tf
+        if return_phase_seen:
+            return [], {"SWEEP": 0, "DISPLACE": 0, "BOS": 0, "ENTRY": 0}
         return []  # sin senales => backtest termina limpio
 
     monkeypatch.setattr(run_backtest, "evaluate_signals", fake_evaluate)
