@@ -260,11 +260,80 @@ puede verse afectada levemente.
 **Verificación:** `pytest tests/test_engine_*.py + test_b2_*` → 120 passed, 0 failed.
 Todos los TF EURUSD llegan a 2026-08-06.
 
+#### 2026-08-06 (4) — T9: sesgo HTF por ESTRUCTURA VIGENTE (humano, sin conteo fijo)
+
+**Contexto (auditoria de 2 agentes):** el sesgo de un TF se derivaba de un
+voto por pares sobre `trend_window=6` swings con `lookback=2` (T8). Eso es
+anti-humano: el trader no cuenta velas. Ademas habia DISPARIDAD INTERNA:
+`compute_htf_bias` (narrative) decia D1 NEUTRAL, pero `detect_market_structure`
+(bos) decia D1 BULLISH. El sesgo diario estaba MUERTO (94% NEUTRAL audit previo)
+y `_compose_htf_bias` cedia autoridad a H1. Hoy eso derivo direccion BEARISH
+falsa desde H1 contra D1/H4 alcistas.
+
+**Criterio nuevo (TRADER HUMANO):** el sesgo de un TF es la direccion del ULTIMO
+BOS/CHOCH cuyo estado es `active` (no invalidado) en ese TF. Sin evento activo
+=> NEUTRAL (rango autentico, no fallback de ventana). D1 = autoridad raiz via
+`_compose_htf_bias` (ya la respetaba; antes D1 salia NEUTRAL por el bug).
+
+**Cambios:**
+- `engine/bias/narrative.py`: `_bias_for_frame` ahora reusa
+  `engine.bos.structure.detect_market_structure` (unica fuente de estructura,
+  lazy import para no ciclar). Eliminados `_bias_from_swings` y
+  `_unique_swing_values` (criterio de conteo fijo). Sin `trend_window`,
+  sin `lookback=2`. Recorta cola (`tail=400`) por costo de detect_market_structure.
+- `tests/test_engine_bias.py`: helpers `_zigzag_*` (ruidosos) -> `_up_clean`/
+  `_down_clean` (monotonos, sesgo univoco); `test_rango_estable` prueba
+  estabilidad sin importar `swing_lookback`; `test_pocos_datos` usa laterales;
+  `test_ffill_a_h1` incluye columna `open` (detect_market_structure la requiere).
+
+**Efecto real (EURUSD 2026-08-06):**
+- ANTES (T8): D1 NEUTRAL -> direccion BEARISH (cedia a H1).
+- AHORA (T9): D1 BULLISH -> direccion BULLISH (D1 manda). Consistente con
+  `detect_market_structure` (que ya decia D1 BULLISH). Disparidad interna CERRADA.
+- H1 sigue BEARISH (pullback en tendencia mayor); gate bloquea por
+  `h1_opposes_long` (correcto: H1 no alinea con D1/H4 alcistas).
+
+**Verificacion:** `pytest tests/test_engine_*.py + test_b2_*` -> 120 passed, 0 failed.
+request_daily_bias y _demo_htf_today coherentes (D1 BULLISH en ambos).
+
+#### 2026-08-06 (5) — T9.1/T9.2/T9.3: CHOCH persistente + marcas del trader + coherencia del gate
+
+**T9.1 (CHOCH no se pierde en HTF):** el sesgo de un TF es la direccion del
+ULTIMO CHOCH activo (memoria de giro que vive hasta que el precio cruza su
+nivel); si no hay CHOCH activo, la del ULTIMO BOS activo; sino NEUTRAL.
+`engine/bias/narrative.py::_bias_for_frame` recorre el frame y toma el evento
+de mayor indice temporal. El CHOCH activo SIEMPRE manda sobre el BOS (si el
+BOS lo hubiera invalidado, choch_status seria "invalidated" y no contaria).
+
+**T9.2 (marcas del trader):** `engine/bos/structure.py` expone 4 niveles por
+evento (geometria pura, sin indicadores): `bos_proj_level` (pico opuesto que
+el precio debe romper para hacer BOS), `bos_inval_level` (cruzar atras = BOS
+muerto), `choch_proj_level` (nivel del BOS contrario que confirma el giro),
+`choch_inval_level` (nivel que mata al CHOCH). Es lo que el trader marca en
+pantalla: "aqui espero el BOS" y "aqui se invalida".
+
+**T9.3 (coherencia del gate):** `engine/plan.py::snapshot_tf` / `ltf_structure_at`
+AHORA leen el sesgo por ESTRUCTURA (`_bias_from_frame`: ultimo BOS/CHOCH activo
+del frame cerrado hasta t), no la etiqueta de swing `trend` que dejaba RANGING
+en tendencia con correcciones. Antes el gate bloqueaba por `d1_ranging` aunque
+el sesgo humano (CHOCH activo) dijera BULLISH -> contradiccion. Ahora sesgo =
+trend del stack = lo que lee el gate (una sola fuente de verdad). Feeds sin
+anotar caen a `_trend_of` (regresion cero).
+
+**Efecto real (EURUSD 2026-08-06, demo):** D1/H4/H1/M15 = BULLISH alineado.
+Gate ya NO bloquea por `d1_ranging`; bloquea por `long_in_premium` (D1/H4 en
+PREMIUM) -> CORRECTO y humano (no comprar caro). Marcas del trader visibles:
+D1 BOS alc pico 1.14710, CHOCH alc rompe 1.14177 muere 1.14609; etc.
+
+**Verificacion:** `pytest tests/test_engine_*.py + test_engine_plan.py + test_b2_*`
+-> 123 passed, 0 failed. Nuevo tests/test_engine_plan.py fija T9.3.
+
 #### Pendiente / bloqueos
 - Sin commit/push (regla Ruben).
-- MT5 = cuenta Demo (no FundedNext). Si se requiere datos reales de FundedNext,
-  loguear esa cuenta; mientras tanto Demo es lo que hay.
-- B2 efecto real: 0 señales en 1 mes (ver arriba); medible al calibrar detección.
+- MT5 = cuenta Demo (no FundedNext).
+- B2 efecto real: 0 señales en 1 mes; medible al calibrar deteccion.
+- POI en request_daily_bias sigue "SIN ANCLAR" (ese script no activa el anclaje;
+  el stack completo si lo hace). Unificar la lectura del script simple opcional.
 
 ## Registro de sesiones anteriores (resumido)
 - 2026-08-03: purga intencional de roadmaps (docs/plan/). Fuente de verdad =

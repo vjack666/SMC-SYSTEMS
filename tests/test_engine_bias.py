@@ -23,7 +23,7 @@ from engine.bias import (
     compute_htf_bias,
     compute_htf_bias_series,
 )
-from engine.bias.narrative import _bias_for_frame, _bias_from_swings, _swing_points
+from engine.bias.narrative import _bias_for_frame, _swing_points
 
 
 # --------------------------------------------------------------------------- #
@@ -44,24 +44,16 @@ def _frame_from_closes(closes: list[float], body: float = 0.3) -> pd.DataFrame:
     return pd.DataFrame({"open": opens, "high": high, "low": low, "close": closes})
 
 
-def _zigzag_up(n_legs: int = 6, step: float = 1.0, leg: float = 2.0) -> list[float]:
-    """Uptrend determinista con HH+HL (criterio T8).
-
-    Random-walk con semilla fija (reproducible) y drift positivo: el precio
-    sube con fluctuaciones => swing highs y lows crecientes (HH+HL) => BULLISH.
-    """
-    rng = np.random.default_rng(11)
-    n = 160
-    base = np.cumsum(rng.normal(0, 0.5, n)) + np.arange(n) * 0.25
-    return base.tolist()
+def _up_clean(n: int = 30, start: float = 100.0, step: float = 1.0) -> list[float]:
+    """Uptrend LIMPIO (sin ruido): cierres monótonos crecientes => HH+HL => BULLISH.
+    El sesgo direccional es unívoco (el humano lee BOS alcista vigente)."""
+    return [start + i * step for i in range(n)]
 
 
-def _zigzag_down(n_legs: int = 6, step: float = 1.0, leg: float = 2.0) -> list[float]:
-    """Downtrend determinista con LH+LL (criterio T8): espejo del alcista."""
-    rng = np.random.default_rng(11)
-    n = 160
-    base = np.cumsum(rng.normal(0, 0.5, n)) - np.arange(n) * 0.25
-    return base.tolist()
+def _down_clean(n: int = 30, start: float = 110.0, step: float = 1.0) -> list[float]:
+    """Downtrend LIMPIO (sin ruido): cierres monótonos decrecientes => LH+LL => BEARISH.
+    El sesgo direccional es unívoco (el humano lee BOS bajista vigente)."""
+    return [start - i * step for i in range(n)]
 
 
 def _range_frame(
@@ -86,11 +78,11 @@ def _range_frame(
 # --------------------------------------------------------------------------- #
 class TestBiasUnTf:
     def test_uptrend_es_bullish(self):
-        df = _frame_from_closes(_zigzag_up())
+        df = _frame_from_closes(_up_clean())
         assert _bias_for_frame(df) == BULLISH
 
     def test_downtrend_es_bearish(self):
-        df = _frame_from_closes(_zigzag_down())
+        df = _frame_from_closes(_down_clean())
         assert _bias_for_frame(df) == BEARISH
 
     def test_rango_es_neutral(self):
@@ -100,17 +92,19 @@ class TestBiasUnTf:
         assert _bias_for_frame(df) == NEUTRAL
 
     def test_rango_estable_multiples_ventanas(self):
-        """El sesgo en rango no debe oscilar entre BULLISH/BEARISH vela a vela.
-        Con dos ventanas de swings distintas debe dar el MISMO veredicto
-        (T8: rango => NEUTRAL estable, por estructura mixta HH+HL/LH+LL)."""
+        """El sesgo en rango no debe oscilar entre BULLISH/BEARISH segun la
+        ventana de swing. Con dos ventanas distintas debe dar el MISMO
+        veredicto (T9: rango sin BOS/CHOCH activo => NEUTRAL estable, por
+        estructura mixta, no por conteo fijo de velas)."""
         df = _frame_from_closes(_range_frame(n_cycles=4))
-        b1 = _bias_from_swings(*_swing_points(df, 2), trend_window=4)
-        b2 = _bias_from_swings(*_swing_points(df, 2), trend_window=6)
+        b1 = _bias_for_frame(df, swing_lookback=5)
+        b2 = _bias_for_frame(df, swing_lookback=8)
         assert b1 == b2
+        assert b1 == NEUTRAL
 
     def test_swings_sin_lookahead_confirmacion_diferida(self):
         """El swing se expone desde i+delay (delay mínimo 2)."""
-        df = _frame_from_closes(_zigzag_up())
+        df = _frame_from_closes(_up_clean())
         sh, sl = _swing_points(df, lookback=2)
         first_sh_idx = sh.first_valid_index()
         if first_sh_idx is not None:
@@ -124,10 +118,10 @@ class TestComputeHtfBiasSeries:
         idx_h4 = pd.date_range("2026-01-01", periods=8, freq="4h")
         idx_h1 = pd.date_range("2026-01-01", periods=32, freq="1h")
         idx_m15 = pd.date_range("2026-01-01 00:15", periods=128, freq="15min")
-        d1 = pd.DataFrame({"high": [1.10, 1.15, 1.20], "low": [1.00, 1.02, 1.05], "close": [1.05, 1.08, 1.12]}, index=idx_d1)
-        h4 = pd.DataFrame({"high": [1.12, 1.13, 1.14, 1.15, 1.16, 1.17, 1.18, 1.19], "low": [1.01, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08], "close": [1.06, 1.07, 1.08, 1.09, 1.10, 1.11, 1.12, 1.13]}, index=idx_h4)
-        h1 = pd.DataFrame({"high": 1.13 + pd.Series(range(32), index=idx_h1) * 0.0005, "low": 1.08 + pd.Series(range(32), index=idx_h1) * 0.0005, "close": 1.105 + pd.Series(range(32), index=idx_h1) * 0.0005}, index=idx_h1)
-        m15 = pd.DataFrame({"high": 1.13 + pd.Series(range(128), index=idx_m15) * 0.0002, "low": 1.08 + pd.Series(range(128), index=idx_m15) * 0.0002, "close": 1.105 + pd.Series(range(128), index=idx_m15) * 0.0002}, index=idx_m15)
+        d1 = pd.DataFrame({"open": [1.02, 1.04, 1.06], "high": [1.10, 1.15, 1.20], "low": [1.00, 1.02, 1.05], "close": [1.05, 1.08, 1.12]}, index=idx_d1)
+        h4 = pd.DataFrame({"open": [1.05, 1.06, 1.07, 1.08, 1.09, 1.10, 1.11, 1.12], "high": [1.12, 1.13, 1.14, 1.15, 1.16, 1.17, 1.18, 1.19], "low": [1.01, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08], "close": [1.06, 1.07, 1.08, 1.09, 1.10, 1.11, 1.12, 1.13]}, index=idx_h4)
+        h1 = pd.DataFrame({"open": 1.10 + pd.Series(range(32), index=idx_h1) * 0.0005, "high": 1.13 + pd.Series(range(32), index=idx_h1) * 0.0005, "low": 1.08 + pd.Series(range(32), index=idx_h1) * 0.0005, "close": 1.105 + pd.Series(range(32), index=idx_h1) * 0.0005}, index=idx_h1)
+        m15 = pd.DataFrame({"open": 1.10 + pd.Series(range(128), index=idx_m15) * 0.0002, "high": 1.13 + pd.Series(range(128), index=idx_m15) * 0.0002, "low": 1.08 + pd.Series(range(128), index=idx_m15) * 0.0002, "close": 1.105 + pd.Series(range(128), index=idx_m15) * 0.0002}, index=idx_m15)
         out = compute_htf_bias_series(d1, h4, h1, m15, swing_lookback=2)
         expected_len = len(set(idx_h1).union(set(idx_m15)))
         assert len(out) == expected_len
@@ -137,7 +131,7 @@ class TestComputeHtfBiasSeries:
 
 class TestHtfBias:
     def test_alineacion_bullish(self):
-        up = _frame_from_closes(_zigzag_up())
+        up = _frame_from_closes(_up_clean())
         bias = HtfBias(d1=BULLISH, h4=BULLISH, h1=BULLISH)
         assert bias.aligned
         assert bias.direction == BULLISH
@@ -185,15 +179,15 @@ class TestHtfBias:
 
 class TestComputeHtfBias:
     def test_bias_completo_alineado(self):
-        up = _frame_from_closes(_zigzag_up())
+        up = _frame_from_closes(_up_clean())
         result = compute_htf_bias(d1=up, h4=up, h1=up)
         assert isinstance(result, HtfBias)
         assert result.aligned
         assert result.direction == BULLISH
 
     def test_bias_mixto_por_tf(self):
-        up = _frame_from_closes(_zigzag_up())
-        dn = _frame_from_closes(_zigzag_down())
+        up = _frame_from_closes(_up_clean())
+        dn = _frame_from_closes(_down_clean())
         rng = _frame_from_closes(_range_frame())
         result = compute_htf_bias(d1=up, h4=dn, h1=rng)
         assert result.d1 == BULLISH
@@ -208,7 +202,7 @@ class TestComputeHtfBias:
         El sesgo se computa SOLO con velas cerradas: agregar una vela abierta
         (pendiente) con precios extremos no debe alterar el resultado.
         """
-        closes = _zigzag_up()
+        closes = _up_clean()
         frame_cerrado = _frame_from_closes(closes)
         # Vela abierta: close provisional irrelevante (todavía en formación).
         frame_con_abierta = pd.concat(
@@ -233,7 +227,8 @@ class TestComputeHtfBias:
         # de swings confirmados, porque aun no tiene confirmacion).
         assert bias_cerrado == _bias_for_frame(frame_con_abierta)
 
-    def test_pocos_datos_devuelve_neutral(self):
-        """Menos de 2 swings confirmados por lado → NEUTRAL (contexto escaso)."""
-        df = _frame_from_closes([100.0, 101.0, 102.0, 103.0, 104.0, 105.0])
+    def test_pocos_datos_sin_estructura_devuelve_neutral(self):
+        """Sin evento BOS/CHOCH (datos insuficientes o laterales) -> NEUTRAL."""
+        # 4 velas laterales en el mismo nivel: ni rompen swing -> sin estructura.
+        df = _frame_from_closes([100.0, 100.0, 100.0, 100.0])
         assert _bias_for_frame(df) == NEUTRAL

@@ -211,6 +211,9 @@ def _track_structure(
     if not is_choch:
         d["_last_bos_dir"] = last_dir_series
         d["_last_bos_level"] = last_level_series
+    else:
+        d["_last_choch_dir"] = last_dir_series
+        d["_last_choch_level"] = last_level_series
     return status, age, discard_reason
 
 
@@ -384,8 +387,28 @@ def detect_market_structure(
     d["choch_dir"] = _consecutive_break(
         pd.Series(choch_raw != 0, index=d.index), config.confirm_bars
     ).astype(int) * choch_raw
-    d = d.drop(columns=["_last_bos_dir", "_last_bos_level"])
     d["choch_status"], _, choch_discard = _track_structure(d, config, is_choch=True)
+    # T9.2 — Niveles de PROYECCION e INVALIDACION (geometria pura, sin
+    # indicadores), lo que el trader marca en pantalla:
+    #   bos_proj_level   = pico opuesto que el precio debe romper para hacer BOS
+    #                      (es el nivel del BOS: romperlo confirma, cruzar atras
+    #                      lo invalida => bos_inval_level es el mismo nivel).
+    #   choch_proj_level = nivel del ULTIMO BOS en direccion opuesta que el
+    #                      precio debe romper para confirmar el giro (CHOCH).
+    #   choch_inval_level= nivel del swing que genero el CHOCH; si el precio lo
+    #                      cruza, el CHOCH muere (giro invalidado).
+    d["bos_proj_level"] = d["bos_level"]
+    d["bos_inval_level"] = d["bos_level"]
+    d["choch_proj_level"] = d["_last_bos_level"]
+    d["choch_inval_level"] = d["_last_choch_level"]
+    d = d.drop(
+        columns=[
+            "_last_bos_dir",
+            "_last_bos_level",
+            "_last_choch_dir",
+            "_last_choch_level",
+        ]
+    )
     d["trend"] = _derive_trend(d)
 
     n = len(d)

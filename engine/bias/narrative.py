@@ -25,12 +25,14 @@ Reglas de implementación:
   - Sin indicadores: ni ATR ni medias móviles (volatilidad = rango high-low).
   - API pura, sin estado mutable global.
 
-  NOTA (fix T8, 2026-08-06): el criterio de sesgo se calcula por HH+HL / LH+LL
-  sobre los ultimos `trend_window` pares de swings confirmados (default 6),
-  NO por "tramos" de misma polaridad. El criterio anterior (agrupar swings en
-  tramos y votar) dejaba el motor 100% NEUTRAL en H1 real (EURUSD H1 media
-  2026-08-06: 100% NEUTRAL antes del fix -> 22.4% despues). En rango (SH/SL
-  mixtos) el sesgo sigue NEUTRAL (contexto, no anula el setup).
+  NOTA (T9, 2026-08-06): el sesgo de un TF se deriva de la ESTRUCTURA
+  VIGENTE (sin conteo fijo de velas, lo mas humano posible): es la direccion
+  del ultimo BOS/CHOCH cuyo estado es "active" (no invalidado) en ese TF.
+  Si el ultimo BOS alcista sigue activo -> BULLISH; si lo invalido un CHOCH
+  bajista activo -> BEARISH; si no hay evento activo -> NEUTRAL (rango
+  autentico, no fallback de ventana). D1 es autoridad raiz via
+  _compose_htf_bias. Se reusa engine.bos.structure.detect_market_structure
+  (misma ontologia BOS/CHOCH del resto del motor; unica fuente de estructura).
 """
 
 from __future__ import annotations
@@ -153,65 +155,56 @@ def _label_swings(
     return labels.where(new_high | new_low, pd.NA).ffill().fillna("NONE")
 
 
-def _unique_swing_values(swing: pd.Series) -> list[float]:
-    """Valores de swing confirmados en orden temporal (sin repetir el mismo nivel)."""
-    out: list[float] = []
-    prev: float | None = None
-    for v in swing.dropna().tolist():
-        if prev is None or v != prev:
-            out.append(v)
-            prev = v
-    return out
-
-
-def _bias_from_swings(
-    swing_high: pd.Series,
-    swing_low: pd.Series,
-    trend_window: int = 6,
+def _bias_for_frame(
+    frame: pd.DataFrame,
+    swing_lookback: int = 5,
+    tail: int = 400,
 ) -> Bias:
-    """Dirección del último swing estructural mayor confirmado (SPEC §1 CRIT).
+    """Sesgo de UN timeframe (SPEC §1) por ESTRUCTURA VIGENTE, no por conteo.
 
-    Criterio de TRADER HUMANO (HH+HL / LH+LL), no de micro-oscilación:
-      - último swing high (SH) > SH previo  Y  último swing low (SL) > SL previo
-        => BULLISH (Higher High + Higher Low).
-      - SH < SH previo  Y  SL < SL previo  => BEARISH (Lower High + Lower Low).
-      - mixto => NEUTRAL (rango: el humano no opera hasta que rompa).
+    Criterio de TRADER HUMANO (sin ventana fija de velas): el sesgo es la
+    dirección del ÚLTIMO evento de estructura (BOS o CHOCH) cuyo estado es
+    "active" (no invalidado) en ese TF. Un BOS alcista que sigue vigente =>
+    BULLISH; un CHOCH bajista que invalidó el BOS alcista => BEARISH. Sin
+    ningún evento activo => NEUTRAL (rango auténtico, no fallback de ventana).
 
-    Se vota por los últimos `trend_window` pares de swings confirmados para ser
-    robusto a oscilaciones menores; la estructura vigente pesa más (pares más
-    recientes). Resuelve el bug T8: el criterio anterior agrupaba por "tramos"
-    de misma polaridad y, en H1 real (que alterna LL/HH perpetuamente), siempre
-    empataba 2/2 → NEUTRAL perpetuo (motor mudo). Con HH+HL/LH+LL el motor
-    distingue tendencia de rango: en tendencia vota mayoritariamente bull/bear;
-    en rango reconoce mixto y devuelve NEUTRAL (contexto, no anula el setup).
+    Reusa engine.bos.structure.detect_market_structure (única fuente de
+    estructura del motor) para no duplicar detección ni divergir de plan.py.
+    Import lazy para evitar ciclo engine.bias.narrative <-> engine.bos.structure.
+    Se recorta la cola (`tail`) porque el sesgo del día mira la estructura
+    reciente, no todo el histórico (y detect_market_structure es O(n)).
     """
-    sh_vals = _unique_swing_values(swing_high)
-    sl_vals = _unique_swing_values(swing_low)
-    if len(sh_vals) < 2 or len(sl_vals) < 2:
-        return NEUTRAL
+    from engine.bos.structure import StructureConfig, detect_market_structure
 
-    n_pairs = min(trend_window, min(len(sh_vals), len(sl_vals)) - 1)
-    bull = bear = 0
-    for k in range(1, n_pairs + 1):
-        sh_up = sh_vals[-k] > sh_vals[-k - 1]
-        sl_up = sl_vals[-k] > sl_vals[-k - 1]
-        if sh_up and sl_up:
-            bull += 1
-        elif (not sh_up) and (not sl_up):
-            bear += 1
-        # mixto => voto range, no cuenta para ninguno
+    df = frame.sort_index()
+    if len(df) > tail:
+        df = df.tail(tail)
+    df = df.reset_index(drop=True)
+    ms = detect_market_structure(df, StructureConfig(swing_lookback=swing_lookback))
+    fr = ms.frame
 
-    if bull > bear:
-        return BULLISH
-    if bear > bull:
-        return BEARISH
+    # Criterio de TRADER HUMANO (sin conteo fijo de velas):
+    #   - El CHOCH es MEMORIA DE GIRO: una vez activo, pesa como contexto de
+    #     fondo HASTA que el precio cruza su nivel (status="invalidated").
+    #   - Por eso el CHOCH activo SIEMPRE manda sobre el BOS: si un BOS
+    #     posterior hubiera invalidado al CHOCH, choch_status seria
+    #     "invalidated" y no contaria. Un BOS que no lo cruza NO lo borra.
+    #   - Sesgo = direccion del ULTIMO CHOCH activo (mayor indice temporal);
+    #     si no hay CHOCH activo, la del ULTIMO BOS activo; sino NEUTRAL.
+    last_bos_idx = last_bos_dir = 0
+    last_choch_idx = last_choch_dir = 0
+    for i in range(len(fr)):
+        if fr["bos_dir"].iloc[i] != 0 and fr["bos_status"].iloc[i] == "active":
+            last_bos_idx, last_bos_dir = i, int(fr["bos_dir"].iloc[i])
+        if fr["choch_dir"].iloc[i] != 0 and fr["choch_status"].iloc[i] == "active":
+            last_choch_idx, last_choch_dir = i, int(fr["choch_dir"].iloc[i])
+
+    if last_choch_dir != 0:
+        # CHOCH activo vigente: contexto de giro persiste (no tapado por BOS).
+        return BULLISH if last_choch_dir > 0 else BEARISH
+    if last_bos_dir != 0:
+        return BULLISH if last_bos_dir > 0 else BEARISH
     return NEUTRAL
-
-
-def _bias_for_frame(frame: pd.DataFrame, swing_lookback: int = 2) -> Bias:
-    """Sesgo de UN timeframe (SPEC §1): swing_lookback es la AMBIG de ing."""
-    sh, sl = _swing_points(frame, swing_lookback)
-    return _bias_from_swings(sh, sl)
 
 
 def compute_htf_bias(
