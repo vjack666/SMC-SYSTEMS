@@ -455,6 +455,49 @@ ahoga en eventos. Esto es la PRUEBA de que la capa HTF del motor es sólida
 como FILTRO y como RECONOCEDOR de patrón; el backtest de ENTRADAS (P&L) es la
 siguiente capa, aún no construida.
 
+#### 2026-08-06 (8) — SDD LTF + Fase 1 (exec fino M5/M1) EJECUTADA
+
+**Contexto:** el HTF esta al 100% (sesion previa). El usuario pidio SDD de la
+capa LTF y arrancar el trabajo. Se escribio docs/tesis/SDD_LTF_ENTRY_LAYER.md
+(con Fases 1-5: exec fino M5/M1, Trade Management, Silver Bullet+PO3, OTE,
+unificar KZ) y se ejecuto la Fase 1.
+
+**Fase 1 — bug aislado y fix (exec fino M5/M1, B2):**
+- fine_execution (engine/execution.py) con exec_tf=M5 daba 6 ok / 4 fallos
+  sobre 10 senales reales EURUSD (con POI anclado). Los 4 fallos eran TODOS
+  sl_invalid_long: el SL por mecha de sweep quedaba >= entry por COMPRESION
+  de M5 (la mecha del sweep queda muy cerca del entry en el TF fino).
+- El backtest real que daba 0 senales era por FALTA de enable_pd_index=True
+  en la llamada (motor sin POI -> 0 setups), NO por el M5.
+- Fix (commit 03c8539): si el SL por mecha de sweep queda invalido en el
+  exec TF fino, fine_execution hace FALLBACK al ultimo swing opuesto del exec
+  TF (estructura real, libro 18: SL SIEMPRE en estructura, nunca arbitrary).
+  Ley respetada (engine/ no importa ict_backtest/).
+- Test nuevo test_b2_fallback_sweep_sl_invalid_uses_swing: bateria B2 =
+  15 passed. Sin romper tests existentes.
+
+**Auditoria de secuencia (re-confirmacion):** la seccion (7) de arriba SON los
+numeros vigentes (misma corrida, datos 2026-08-06). Hoy se re-intento correr
+audit_sequence_funnel.py y NO termino en 400s (timeout): el detector con POI
+es LENTO en esta laptop (cuello de evaluate_signals+POI sobre M15, mismo que
+colgaba el backtest). Los numeros de la seccion (7) siguen siendo validos y
+actuales; el script es correcto, solo pesado.
+
+**Backtest end-to-end de 1 mes con exec_tf=M5:** INVIABLE en esta laptop
+(timeout 1500s). El cuello es fine_execution reprocesando M5 masivo (333k
+velas) por cada senal. Es un problema de ARQUITECTURA del backtest (no del
+fix): el backtest original tambien moria por SIGTERM a los ~550s. Para ver
+senales en vivo sin esperar 25 min: el HUB con runner_monitor en ventana
+chica, u optimizar la carga de M5 (Fase 1.5 pendiente).
+
+**Estado de la capa LTF:**
+- EXEC FINO M5/M1 (Fase 1): CERRADO en motor + testeado (15 passed, commit 03c8539).
+- PENDIENTE: Fase 2 (Trade Management BE+parciales), Fase 3 (Silver Bullet+PO3),
+  Fase 4 (OTE), Fase 5 (unificar KZ), y optimizar backtest para ventana chica.
+
+**Verificacion:** pytest tests/test_engine_execution_b2.py + test_b2_exec_tf.py
++ test_b2_exec_tf_wiring.py -> 15 passed. Commit 03c8539 (sin push, regla Ruben).
+
 ## Registro de sesiones anteriores (resumido)
 - 2026-08-03: purga intencional de roadmaps (docs/plan/). Fuente de verdad =
   AGENTS.md + docs/tesis/ + engine/.
