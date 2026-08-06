@@ -169,6 +169,7 @@ def _track_structure(
     d: pd.DataFrame,
     config: StructureConfig,
     is_choch: bool = False,
+    inval_level: pd.Series | None = None,
 ) -> tuple[pd.Series, pd.Series, pd.Series]:
     n = len(d)
     status = pd.Series(["none"] * n, index=d.index, dtype=object)
@@ -191,7 +192,16 @@ def _track_structure(
         if dr != 0:
             last_dir, last_idx, active = dr, i, True
             if is_choch:
-                last_level = float(sh[i]) if dr == 1 else float(slv[i])
+                # T9.4 (tesis): el CHOCH se invalida cuando el precio cruza el
+                # nivel del BOS contrario que ROMPIO (choch_proj_level), no el
+                # swing de la vela del CHOCH. Eso evita CHOCH vivos de por
+                # vida: un giro alcista muere si el precio cae y rompe el BOS
+                # bajista previo. Si no se pasa inval_level, cae al swing.
+                last_level = (
+                    float(inval_level.iloc[i])
+                    if inval_level is not None and pd.notna(inval_level.iloc[i])
+                    else (float(sh[i]) if dr == 1 else float(slv[i]))
+                )
             else:
                 last_level = float(bos_level[i]) if pd.notna(bos_level[i]) else last_level
         if active:
@@ -201,6 +211,11 @@ def _track_structure(
             )
             if crossed:
                 status.iloc[i] = "invalidated"
+                # T9.4: el evento original (vela last_idx) tambien queda
+                # invalidado, no solo la vela del cruce. Asi _bias_from_frame
+                # (que lee choch_status en la vela del evento) no lo cuenta
+                # como CHOCH vivo de por vida.
+                status.iloc[last_idx] = "invalidated"
                 active = False
                 discard_reason.iloc[last_idx] = "INVALIDATED"
             else:
@@ -378,16 +393,32 @@ def detect_market_structure(
     d["bos_status"], _, bos_discard = _track_structure(d, config, is_choch=False)
     # CHoCH real: rompe el swing que produjo el ULTIMO BOS, en direccion
     # OPUESTA a ese BOS. No es una copia de BOS.
+    # CORRECCION (verificacion 2026-08-06): el CHOCH es un evento de GIRO
+    # unico (flanco de ruptura del nivel del BOS contrario), NO un estado
+    # sostenido. Marcar close>level en toda vela de continuacion genera CHOCH
+    # espurios repetidos (30 en 400 velas H1). Se marca solo donde el cierre
+    # ROMPE el nivel AHORA y la vela previa NO lo rompia.
     last_bos_dir = d["_last_bos_dir"].to_numpy()
     last_bos_level = d["_last_bos_level"].to_numpy()
-    up_choch = (d["close"].to_numpy() > last_bos_level) & (last_bos_dir == -1)
-    dn_choch = (d["close"].to_numpy() < last_bos_level) & (last_bos_dir == 1)
+    close_now = d["close"].to_numpy()
+    close_prev = np.concatenate([[np.nan], close_now[:-1]])
+    level_prev = np.concatenate([[np.nan], last_bos_level[:-1]])
+    up_flank = (close_now > last_bos_level) & (close_prev <= level_prev)
+    dn_flank = (close_now < last_bos_level) & (close_prev >= level_prev)
+    up_choch = up_flank & (last_bos_dir == -1)
+    dn_choch = dn_flank & (last_bos_dir == 1)
     choch_raw = np.select([up_choch, dn_choch], [1, -1], default=0)
-    # CHoCH tambien requiere confirmacion por cuerpo consecutivo.
-    d["choch_dir"] = _consecutive_break(
-        pd.Series(choch_raw != 0, index=d.index), config.confirm_bars
-    ).astype(int) * choch_raw
-    d["choch_status"], _, choch_discard = _track_structure(d, config, is_choch=True)
+    # CHoCH es evento de giro unico (1 vela de rupture); su confirmacion es el
+    # BOS subsiguiente en la nueva direccion. Sin _consecutive_break (eso
+    # mataria el flanco de 1 vela).
+    d["choch_dir"] = choch_raw
+    # T9.4: el nivel de invalidacion del CHOCH es el nivel del BOS contrario
+    # que ROMPIO (choch_proj_level). Se pasa a _track_structure para que el
+    # CHOCH muera cuando el precio cruza ese nivel (no vive de por vida).
+    d["choch_proj_level"] = d["_last_bos_level"]
+    d["choch_status"], _, choch_discard = _track_structure(
+        d, config, is_choch=True, inval_level=d["choch_proj_level"]
+    )
     # T9.2 — Niveles de PROYECCION e INVALIDACION (geometria pura, sin
     # indicadores), lo que el trader marca en pantalla:
     #   bos_proj_level   = pico opuesto que el precio debe romper para hacer BOS
@@ -395,12 +426,12 @@ def detect_market_structure(
     #                      lo invalida => bos_inval_level es el mismo nivel).
     #   choch_proj_level = nivel del ULTIMO BOS en direccion opuesta que el
     #                      precio debe romper para confirmar el giro (CHOCH).
-    #   choch_inval_level= nivel del swing que genero el CHOCH; si el precio lo
-    #                      cruza, el CHOCH muere (giro invalidado).
+    #   choch_inval_level= T9.4: el nivel que REALMENTE mata al CHOCH es el
+    #                      choch_proj_level (el BOS contrario roto). Si el
+    #                      precio lo cruza, el giro muere (no vive de por vida).
     d["bos_proj_level"] = d["bos_level"]
     d["bos_inval_level"] = d["bos_level"]
-    d["choch_proj_level"] = d["_last_bos_level"]
-    d["choch_inval_level"] = d["_last_choch_level"]
+    d["choch_inval_level"] = d["choch_proj_level"]
     d = d.drop(
         columns=[
             "_last_bos_dir",

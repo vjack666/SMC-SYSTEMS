@@ -34,7 +34,7 @@ def load_h1(symbol: str, days: int = 7) -> pd.DataFrame:
 
 def main():
     symbol = "EURUSD"
-    days = 7
+    days = 30
     df = load_h1(symbol, days)
     print(f"{symbol} H1: {len(df)} velas, {df['time'].min()} -> {df['time'].max()}")
 

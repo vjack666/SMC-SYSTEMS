@@ -76,11 +76,21 @@ def _bias_from_frame(df: pd.DataFrame, t: Any) -> str:
     # para no romper frames sinteticos/feeds externos (regresion cero).
     if "bos_dir" not in sub.columns or "bos_status" not in sub.columns:
         return _trend_of(sub.iloc[-1])
+    # T9.5 (tesis §3/§7.0): el sesgo HTF solo cuenta BOS REALES (bos_real),
+    # o sea BOS con displacement (empujon decidido) sobre swing confirmado.
+    # Un BOS sin displacement es ruido de rotura tibia que el humano no cuenta.
+    # Si el frame no trae bos_real (feed externo), se acepta cualquier BOS
+    # (regresion cero).
+    has_real = "bos_real" in sub.columns
     last_bos_idx = last_bos_dir = 0
     last_choch_idx = last_choch_dir = 0
     for i in range(len(sub)):
         bd = sub["bos_dir"].iloc[i]
-        if bd not in (0, "0", None) and str(sub["bos_status"].iloc[i]) == "active":
+        if (
+            bd not in (0, "0", None)
+            and str(sub["bos_status"].iloc[i]) == "active"
+            and (not has_real or bool(sub["bos_real"].iloc[i]))
+        ):
             last_bos_idx, last_bos_dir = i, int(bd)
         cd = sub["choch_dir"].iloc[i]
         if cd not in (0, "0", None) and str(sub["choch_status"].iloc[i]) == "active":
