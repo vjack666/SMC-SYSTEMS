@@ -115,6 +115,14 @@ def fine_execution(
                 entry = float(closed.iloc[-1]["close"])
             else:
                 entry = float(sh_v.iloc[-1])
+            # Fallback ICT (libro 18): SL SIEMPRE en estructura. Si la mecha del
+            # sweep queda invalida en el TF fino (compresion M5: sl>=entry),
+            # reanclar al ultimo swing low del exec TF (estructura real, no arbitrary).
+            if sl_price >= entry:
+                if sl_v.empty:
+                    return {"ok": False, "exec_tf": exec_tf, "reason": "sl_invalid_long"}
+                sl_price = float(sl_v.iloc[-1])
+                entry = float(sh_v.iloc[-1]) if not sh_v.empty else sl_price
         else:
             if sl_v.empty:
                 return {"ok": False, "exec_tf": exec_tf, "reason": "no_swings"}
@@ -138,6 +146,13 @@ def fine_execution(
                 entry = float(closed.iloc[-1]["close"])
             else:
                 entry = float(sl_v.iloc[-1])
+            # Fallback ICT (libro 18): si la mecha del sweep queda invalida en el
+            # TF fino, reanclar al ultimo swing high del exec TF (estructura real).
+            if sl_price <= entry:
+                if sh_v.empty:
+                    return {"ok": False, "exec_tf": exec_tf, "reason": "sl_invalid_short"}
+                sl_price = float(sh_v.iloc[-1])
+                entry = float(sl_v.iloc[-1]) if not sl_v.empty else sl_price
         else:
             if sh_v.empty:
                 return {"ok": False, "exec_tf": exec_tf, "reason": "no_swings"}
@@ -147,7 +162,6 @@ def fine_execution(
             return {"ok": False, "exec_tf": exec_tf, "reason": "sl_invalid_short"}
         tp_price = entry - rr * (sl_price - entry)
         tp_ext = float(closed["low"].min())  # liquidez externa = minimo low
-
     return {
         "ok": True,
         "exec_tf": exec_tf,
