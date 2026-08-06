@@ -25,6 +25,19 @@ Obligatorio, en este orden:
 5. **Regla técnica derivada:** `engine/` nunca importa `ict_backtest/`. El backtest puede
    importar `engine/` (es su consumidor), nunca al revés.
 
+> **Backtest actual (2026-08-05) — NO existe "backtest v2" como ruta de decisión.**
+> El ÚNICO backtest es el **canónico**: `ict_backtest/run_backtest.run_sequence_backtest`
+> y `ict_backtest/v2/orchestrator.run_sequence_parity`. Es un **consumidor PURO del motor**:
+> corre el reloj vela a vela y llama a `engine/sequence.run_sequence`. El motor ya ejerce la
+> secuencia top-down completa D1→H4→H1→M15→M5→M1 vía `est_htf_ctx_fn`
+> (`engine/plan.build_context_stack` + `top_down_allows_trade`).
+> El backtest es **adaptativo**: crece con `engine/` — si el motor añade una capa o regla,
+> el backtest la consume automáticamente (no se toca el backtest para añadir lógica).
+> **El ingeniero (Hermes) NO debe** crear módulos de decisión/detección en `ict_backtest/`,
+> ni buscar "backtest v2", ni usar `run_mtf_intraday` / `generate_mtf_signals` (fueron
+> eliminados por redundantes/ley-arquitectónica; ver `docs/DECISION_BACKTEST_UNICO.md`).
+> Toda nueva lógica de estrategia va al MOTOR (`engine/`).
+
 Reglas obligatorias:
 - Lee siempre README.md y COMPLETION_REPORT.md antes de tomar decisiones técnicas.
 - Actualiza este opencode.json si agregas o movés archivos de configuración.
