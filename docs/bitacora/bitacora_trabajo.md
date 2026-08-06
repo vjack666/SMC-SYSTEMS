@@ -335,6 +335,87 @@ D1 BOS alc pico 1.14710, CHOCH alc rompe 1.14177 muere 1.14609; etc.
 - POI en request_daily_bias sigue "SIN ANCLAR" (ese script no activa el anclaje;
   el stack completo si lo hace). Unificar la lectura del script simple opcional.
 
+#### 2026-08-06 (6) — T9.4/T9.5/T9.6/T9.7: cierre de revisión HTF (fidelidad a tesis)
+
+**Objetivo:** leer la tesis (docs/tesis/HALLAZGOS_*.md) y contrastar contra el
+motor; cerrar cada regla de oro ICT que faltara. Resultado: motor HTF fiel a
+la tesis en TODOS los frentes que los 2 docs piden.
+
+**T9.4 (CHOCH muere por cruce de BOS roto, tesis §estructura):**
+`engine/bos/structure.py::_track_structure` ahora recibe `inval_level`
+(= `choch_proj_level`, el nivel del BOS contrario que ROMPIÓ). El CHOCH se
+invalida cuando el precio cruza ESE nivel (no la mecha de la vela del CHOCH).
+Antes el CHOCH vivía de por vida. Verificado H1: CHOCH invalidados 0% -> 52%.
+Además el evento original queda `invalidated` (no solo la vela del cruce) para
+que `_bias_from_frame` no lo cuente como vivo.
+
+**T9.5 (sesgo HTF solo cuenta BOS real, tesis §3/§7.0):**
+`_bias_from_frame` (engine/plan.py) ignora BOS sin `bos_real` (displacement).
+La tesis §7.0 dice que un BOS cuenta solo con empujón decidido; el motor YA
+calculaba `bos_real` pero el sesgo lo ignoraba. Evidencia H1: 24/73 BOS activos
+eran ruido. Impacto stack real: H4 reveló BEARISH (antes BULLISH por BOS de
+ruido) -> gate bloquea ambas direcciones por desalineación D1/H4.
+
+**T9.6 (BOS vigente único, superseded):**
+`_track_structure`: un BOS nuevo en la MISMA dirección marca al anterior como
+`superseded` (el humano mira el vigente, no acumula). Antes el motor solo
+descartaba por cruce -> 21.480 BOS `active` en M15 (98% basura histórica). Tras
+T9.6: M15 21.480 -> 394, H1 7.901 -> 210, H4 1.959 -> 49, D1 338 -> 4. El
+backtest ahora itera ~400 en vez de 21k (probable causa de que el backtest real
+se colgara / diera 0 señales: ahogado en eventos).
+
+**T9.7 (CHOCH requiere BOS real detrás, tesis §7.0, extensión T9.5):**
+`_bias_from_frame` ignora CHOCH cuyo BOS contrario roto NO es `bos_real`.
+Medición: 152 CHOCH espurios en H1, 141 en M15 (~9-10%). Regresión cero si el
+frame no trae `bos_real`. Impacto hoy: stack igual (el CHOCH vigente ya era
+real), pero el motor queda protegido contra CHOCH espurios que mandarían sesgo.
+
+**HALLAZGO CLAVE (§3 ya estaba hecho):** la tesis §3 pide "swings confirmados
+por rotura, no ventana fija". `+_swing_points` (engine/bias/narrative.py:102)
+YA lo implementa: el swing es extremo local (`low[i]<low[i-1] and low[i]<low[i-2]`)
+y el docstring confirma filosofía de rotura. El `swing_lookback=5` de
+StructureConfig es INERTE para swings (el loop usa i-1/i-2 fijos). O sea la
+"madre de todas" (raíz del ruido de BOS/CHOCH espurios) YA estaba cerrada; lo
+que faltaba era el filtro de CALIDAD (T9.5/6/7), que es lo que se cerró hoy.
+
+**Estado del motor HTF (al cierre de T9):** fiel a la tesis en todos los frentes
+de los 2 docs: sesgo por estructura vigente (T9.1/3), CHOCH persistente-pero-no-
+eterno (T9.4), CHOCH manda (T9.1), solo BOS/CHOCH REALES (T9.5/7), BOS vigente
+único (T9.6), marcas del trader (T9.2), PD premium/discount, OTE, sweep,
+liquidez BSL/SSL, POI anclado (en motor, desactivado por defecto). 123 passed.
+
+**Verificación:** `pytest tests/test_engine_*.py + test_engine_plan.py + test_b2_*`
+-> 123 passed, 0 failed. tests/test_engine_bos.py::test_bos_invalidated_on_level_cross
+actualizado al contrato superseded (T9.6): el BOS reemplazado queda superseded,
+el vigente se invalida por cruce (tesis).
+
+#### 2026-08-06 — HOJA DE RUTA (post T9, vista motor)
+
+1. **Relanzar backtest EURUSD con motor ya limpio (T9.4/5/6/7).** Sospecha: el
+   backtest real daba 0 señales / se colgaba porque iteraba 21k BOS `active`
+   (T9.6 los bajó a ~400). Re-medir funnel (¿sigue muriendo en detección?).
+   Usar window_months=1 (backtests >1 mes mueren por SIGTERM).
+2. **Activar POI anclado en el gate (brecha B ya en motor).** `engine/poi_anchor.py`
+   está escrito y testeado pero DESACTIVADO por defecto (AUDITORÍA_POI_REPORT).
+   Cablear `htf_poi_fn` al `top_down_allows_trade` para que el OB deba estar
+   anclado al BOS del padre (tesis: POI no al azar).
+3. **Evaluar LTF / scalping / intradía (PO3, pipeline M15).** El motor ya tiene
+   `signals/po3.py`, `signals/pipeline.py`, exec fina B2 (M5/M1). Falta decidir
+   si el stack operativo usa eso para entradas de intradía (no solo HTF).
+4. **Calibrar detección en datos reales** (continuación de backtest 0-señales):
+   umbrales de BOS quality, ventana de confirmación, tolerancia de CHOCH.
+5. **Datos:** re-correr `update_histdata_append.py` cuando HistData publique
+   2026-08 (fuente primaria M1/M5; hoy vienen de MT5 Demo).
+
+**Roadmap NUNCA toca el backtest como fuente de decisión** (Ley): el backtest
+solo demuestra el motor. Toda nueva lógica de estrategia va al MOTOR.
+
+#### Pendiente / bloqueos
+- Sin commit/push (regla Ruben) — pendiente aplicar T9.4–T9.7 + bitácora.
+- MT5 = cuenta Demo (no FundedNext).
+- B2 efecto real: 0 señales en 1 mes; medible al calibrar detección (ver hoja de ruta 1-4).
+- POI en request_daily_bias sigue "SIN ANCLAR" (ese script no activa el anclaje).
+
 ## Registro de sesiones anteriores (resumido)
 - 2026-08-03: purga intencional de roadmaps (docs/plan/). Fuente de verdad =
   AGENTS.md + docs/tesis/ + engine/.

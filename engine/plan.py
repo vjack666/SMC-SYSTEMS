@@ -54,6 +54,19 @@ def _trend_of(row: pd.Series | None) -> str:
     return "RANGING"
 
 
+def _bos_real_behind(sub, i, choch_dir, choch_proj_level, tol: float = 0.0005) -> bool:
+    """T9.7 (tesis S7.0, extension de T9.5): un CHOCH solo cuenta si el BOS
+    contrario que rompio era REAL (bos_real). Busca en velas anteriores un BOS
+    de direccion opuesta, bos_real=True, con bos_level ~ choch_proj_level.
+    Sin bos_real en el frame -> True (regresion cero)."""
+    if "bos_real" not in sub.columns:
+        return True
+    opp = -int(choch_dir)
+    cand = sub[(sub.index < i) & (sub["bos_dir"] == opp) & (sub["bos_real"] == True)]
+    hit = cand[np.abs(cand["bos_level"] - choch_proj_level) <= tol]
+    return len(hit) > 0
+
+
 def _bias_from_frame(df: pd.DataFrame, t: Any) -> str:
     """Sesgo por estructura del TF completo cerrado hasta t (T9.1/T9.3).
 
@@ -94,6 +107,13 @@ def _bias_from_frame(df: pd.DataFrame, t: Any) -> str:
             last_bos_idx, last_bos_dir = i, int(bd)
         cd = sub["choch_dir"].iloc[i]
         if cd not in (0, "0", None) and str(sub["choch_status"].iloc[i]) == "active":
+            # T9.7 (tesis S7.0, extension T9.5): el CHOCH solo cuenta si el BOS
+            # contrario que rompio era REAL (bos_real). Un CHOCH sobre BOS de
+            # ruido es un giro falso que el humano ignora -> no manda sesgo.
+            if has_real and not _bos_real_behind(
+                sub, i, int(cd), float(sub["choch_proj_level"].iloc[i])
+            ):
+                continue
             last_choch_idx, last_choch_dir = i, int(cd)
     if last_choch_dir != 0:
         return "BULLISH" if last_choch_dir > 0 else "BEARISH"
