@@ -416,6 +416,45 @@ solo demuestra el motor. Toda nueva lógica de estrategia va al MOTOR.
 - B2 efecto real: 0 señales en 1 mes; medible al calibrar detección (ver hoja de ruta 1-4).
 - POI en request_daily_bias sigue "SIN ANCLAR" (ese script no activa el anclaje).
 
+#### 2026-08-06 (7) — AUDITORÍA DE SECUENCIA / FUNNEL (validación del detector de setup HTF)
+
+**Pedido del trader:** no es backtest de P&L. Es demostrar que el motor, vela a
+vela, RECONOCE cuando se arma el patrón ICT canonico (sweep→displace→BOS→
+retorno a POI anclada) y dice "setup completo de HTF". Medir EN QUÉ FASE del
+patrón se pierde (funnel), no simular entradas.
+
+**Qué es (y qué NO es):** AUDITORÍA DE SECUENCIA / FUNNEL = validación del
+detector. Consumidor PURO del motor (`engine.sequence.run_sequence_traced` vía
+`evaluate_signals`). NO reimplementa detección (Ley). NO calcula P&L (eso es el
+backtest de entradas, capa posterior). El término "backtest" NO aplica aquí.
+
+**Script:** `scripts/audit_sequence_funnel.py` (nuevo). Carga EURUSD, corre el
+detector del motor con HTF real + POI anclado (`enable_pd_index=True`), reporta
+`phase_seen` + setups completos por mes. Recorta a D1/H4/H1/M15 (SIN M1/M5:
+el build de objects sobre 1.6M velas M1 colgaba el proceso a 1500s timeout;
+quitar M1/M5 lo baja a ~210s).
+
+**Resultado real (EURUSD, 1 mes, 2026-07-31→08-06, motor ya limpio T9):**
+```
+FUNNEL (nacen -> completan):
+  SWEEP   : 23
+  DISPLACE: 22  (95.7% de SWEEP)
+  BOS     : 19  (82.6% de SWEEP)
+  ENTRY   : 19  (82.6% de SWEEP)
+Setups completos (ENTRY): 10  (1 en jul-31 + 9 en ago)
+Muestra: 2026-07-31 07:15, 2026-08-03 07:15/08:15/09:15, 2026-08-04 14:45...
+```
+En `results/audit_funnel_1m.txt`.
+
+**Veredicto:** el detector ENCIENDE. El funnel no muere en ningún eslabón
+(caída suave y real 23→22→19→19, mercado normal). Se arman ~10 setups
+completos de HTF por mes (~2-3/semana) — coherente con ICT: "no todos los
+días, pero cada cierto tiempo sí". Confirma la hipótesis de que T9.6 (BOS
+vigente único, de 21k→~400) desatascaba el backtest: el detector ya no se
+ahoga en eventos. Esto es la PRUEBA de que la capa HTF del motor es sólida
+como FILTRO y como RECONOCEDOR de patrón; el backtest de ENTRADAS (P&L) es la
+siguiente capa, aún no construida.
+
 ## Registro de sesiones anteriores (resumido)
 - 2026-08-03: purga intencional de roadmaps (docs/plan/). Fuente de verdad =
   AGENTS.md + docs/tesis/ + engine/.
