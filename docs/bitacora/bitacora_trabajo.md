@@ -501,6 +501,46 @@ chica, u optimizar la carga de M5 (Fase 1.5 pendiente).
 ## Registro de sesiones anteriores (resumido)
 - 2026-08-03: purga intencional de roadmaps (docs/plan/). Fuente de verdad =
   AGENTS.md + docs/tesis/ + engine/.
+
+## 2026-08-06 (9) — ORDEN del VIGILANTE de riesgo (2% perdida + $60 ganancia flotante)
+
+**Pedido del trader:** confirmar si existe un vigilante que gestione 2% de
+perdida flotante y $60 de ganancia flotante, y ORDENARLO.
+
+**Hallazgo:** el vigilante SI existe pero estaba DESORDENADO:
+- scripts/_legacy/vigilante_riesgo.py (carpeta legacy/inactiva, no en
+  scripts/ donde el observador lo busca).
+- app_observador/core/process_control.py define VIGILANTE_SCRIPT =
+  vigilante_riesgo.py y lo arranca desde ROOT/scripts/ => apuntaba a la
+  nada (toggle del observador roto).
+- El script importa _single_instance que NO existia => crasheaba al arrancar.
+- Solo gestionaba 2%/4% de PERDIDA; le faltaba el trigger de +$60 GANANCIA
+  que el trader describio.
+
+**Orden aplicado (verificado con ejecucion real):**
+1. Movido scripts/_legacy/vigilante_riesgo.py -> scripts/vigilante_riesgo.py
+   (donde process_control.py lo espera).
+2. Creado scripts/_single_instance.py (helper de instancia unica que el
+   script requeria y faltaba).
+3. Anadido GOAL_PROFIT = 60.0 y rama de GANANCIA FLOTANTE en el loop: si
+   equity - balance0 >= $60 -> cierra todo (banquear). Ahora gestiona
+   AMBOS: 2% perdida (SOFT) / 4% (HARD/DLL) y +$60 ganancia flotante.
+4. Corregido docstring con rutas Windows sin escape invalido (SyntaxWarning).
+5. Verificacion: ast.parse OK, import vigilante_riesgo OK (sin MT5),
+   import _single_instance OK.
+
+**Nota:** el $60 de ganancia flotante en el VIGILANTE (cierra todo al +$60)
+es distinto al $60 de META DE APAGADO del bot en app_observador/ui/
+autopilot_widget.py (el bot se apaga solo al +$60). Ambos coexisten:
+vigilante = proteccion de CUENTA; autopilot = apagado del bot. El motor ya
+tiene Trade Management E1 (BE+parciales) en ict_backtest/trade_mgmt.py
+(escrito por sesion previa, no cableado al backtest).
+
+**Verificacion:** syntax OK, imports OK. Sin MT5 (no se conecta en seco).
+
+## Registro de sesiones anteriores (resumido)
+- 2026-08-03: purga intencional de roadmaps (docs/plan/). Fuente de verdad =
+  AGENTS.md + docs/tesis/ + engine/.
 - 2026-07-16..17: R6 cerrado en código; auditorías de fidelidad a tesis y
   cobertura de backtest. Ver docs/auditorias/ (vigentes) y docs/_descartado/
   (los que cruzaban roadmaps ya purgados).
