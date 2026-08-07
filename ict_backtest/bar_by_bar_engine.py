@@ -12,6 +12,8 @@ from typing import Any
 
 import pandas as pd
 
+from ict_backtest.trade_mgmt import apply_trade_management
+
 
 # ---------------------------------------------------------------------------
 # Tipos internos (privados)
@@ -285,43 +287,33 @@ def compute_backtest_metrics(
         if risk <= pip:
             continue
 
-        exit_price = entry_fill
-        exit_reason = "hold_limit"
-        hold_bars = 0
-
-        for step in range(1, max_hold_bars + 1):
-            j = fill_idx + step
-            if j >= len(m5_df):
-                break
-            r = m5_df.iloc[j]
-            high, low = float(r["high"]), float(r["low"])
-            if dirn == 1:
-                if low <= sl:
-                    exit_price = sl - comm
-                    exit_reason = "SL"
-                    hold_bars = step
+        # --- E1 Trade Management (BE + parciales + trailing) sobre M5 post-entry ---
+        # Reemplaza el hold SL/TP puro: aplica gestion de la tesis (libro 18/08).
+        tm_df = m5_df.iloc[fill_idx + 1 : fill_idx + 1 + max_hold_bars]
+        if len(tm_df) == 0:
+            continue
+        tm_res = apply_trade_management(
+            entry_fill, sl, tp, dirn, tm_df,
+            partial_pct=0.5, tp1_r=1.0, trail_step_r=1.0, be_buf=0.0,
+        )
+        exit_price = float(tm_res["exit_price"])
+        exit_reason = tm_res["exit_reason"]
+        # E1 ya devuelve pnl_r ponderado (parcial + remanente). Costs ON (R6):
+        # el cierre paga comm expresado en R (comm/risk) en la direccion del trade.
+        pnl_r = float(tm_res["pnl_r"]) - (comm * dirn) / risk if risk > 0 else 0.0
+        # hold_bars: primer cruce del nivel de salida en el slice post-entry.
+        hold_bars = max_hold_bars
+        closes = tm_df["close"].to_numpy()
+        if exit_reason == "tp":
+            for k, c in enumerate(closes):
+                if (dirn == 1 and c >= exit_price) or (dirn == -1 and c <= exit_price):
+                    hold_bars = k + 1
                     break
-                if high >= tp:
-                    exit_price = tp - comm
-                    exit_reason = "TP"
-                    hold_bars = step
+        else:  # sl / be / trailing: el precio cae (long) o sube (short)
+            for k, c in enumerate(closes):
+                if (dirn == 1 and c <= exit_price) or (dirn == -1 and c >= exit_price):
+                    hold_bars = k + 1
                     break
-            else:
-                if high >= sl:
-                    exit_price = sl + comm
-                    exit_reason = "SL"
-                    hold_bars = step
-                    break
-                if low <= tp:
-                    exit_price = tp + comm
-                    exit_reason = "TP"
-                    hold_bars = step
-                    break
-            exit_price = float(r["close"])
-            hold_bars = step
-
-        pnl_price = (exit_price - entry_fill) if dirn == 1 else (entry_fill - exit_price)
-        pnl_r = pnl_price / risk if risk > 0 else 0.0
         et = m5_df.iloc[fill_idx]["time"] if fill_idx < len(m5_df) else sig.entry_time
         xt = m5_df.iloc[fill_idx + hold_bars]["time"] if fill_idx + hold_bars < len(m5_df) else sig.entry_time
 

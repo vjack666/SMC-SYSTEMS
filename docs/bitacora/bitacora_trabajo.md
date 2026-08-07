@@ -538,6 +538,43 @@ tiene Trade Management E1 (BE+parciales) en ict_backtest/trade_mgmt.py
 
 **Verificacion:** syntax OK, imports OK. Sin MT5 (no se conecta en seco).
 
+## 2026-08-06 (10) — CABLEADO de E1 (Trade Management BE+parciales) al backtest
+
+**Pedido:** "si cablealo" -> cablear el Trade Management E1 al backtest.
+
+**Hallazgo previo:** el motor YA tenia E1 en `ict_backtest/trade_mgmt.py`
+(BE + parciales + trailing) escrito por sesion previa, pero el backtest
+(`bar_by_bar_engine.compute_backtest_metrics`) hacia HOLD SL/TP PURO (sin
+gestion). El backtest ignoraba E1.
+
+**Cambios (verificados con ejecucion real):**
+1. `ict_backtest/bar_by_bar_engine.py`: reemplazado el loop hold SL/TP puro
+   por llamada a `apply_trade_management(entry, sl, tp, dirn, tm_df,
+   partial_pct=0.5, tp1_r=1.0, trail_step_r=1.0, be_buf=0.0)` sobre el slice
+   M5 post-entry. El backtest ahora consume E1 (Ley respetada: backtest
+   importa backtest, nunca motor).
+2. `ict_backtest/trade_mgmt.py` (E1): BUG de precision corregido. E1 solo
+   miraba `close` para detectar touches -> ciego a intra-bar y fallaba por
+   deriva de flotantes en touches exactos (1.1010 >= 1.1010000000000002 =
+   False). Ahora detecta el touch por `high`/`low` (ejecuta al nivel
+   tocado) y usa epsilon 1e-10. Esto hace que el parcial/BE/TP se disparen
+   como en trading real (el precio TOCA el nivel, no solo cierra ahi).
+3. El backtest usa `pnl_r` ya ponderado por E1 (parcial + remanente), no lo
+   recalcula. Costs ON (R6): comm restado en R (comm/risk).
+4. `hold_bars` corregido: busca el cruce del nivel de salida segun direccion
+   (TP sube, SL/BE cae).
+
+**Verificacion (smoke temporal, borrado):**
+- Serie M5 sintetica: long entry 1.1000 sl 1.0990 tp 1.1030, sube a 1.1010
+  (tp1), cae a 1.0990. Con hold puro -> SL -1R. Con E1 -> parcial +1R a la
+  mitad + remanente en BE => pnl_r = 0.5 (razon be). DEMUESTRA cableado.
+- Bateria: 152 passed (test_engine_* + test_b2_* + test_e1_*). E1 no roto.
+
+**Nota:** E1 es del backtest (desechable). La Fase 2 real de la tesis pide
+Trade Management en el MOTOR (engine/), no solo en el backtest. Esto queda
+pendiente: el motor aun hace hold SL/TP; el backtest ahora gestiona. Cuando
+el motor tenga su trade_mgmt, el backtest lo consumira y E1 se borrara.
+
 ## Registro de sesiones anteriores (resumido)
 - 2026-08-03: purga intencional de roadmaps (docs/plan/). Fuente de verdad =
   AGENTS.md + docs/tesis/ + engine/.

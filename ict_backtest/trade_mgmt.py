@@ -138,14 +138,19 @@ def apply_trade_management(
     if closes is None:
         # fallback a la ultima columna numerica
         closes = df.select_dtypes("number").iloc[:, -1]
+    hi_series = df["high"] if "high" in df.columns else None
+    lo_series = df["low"] if "low" in df.columns else None
+    _EPS = 1e-10  # tolerancia a deriva de flotantes en touches exactos
 
-    for px in closes:
+    for i, px in enumerate(closes):
         px = float(px)
-        # 1) Disparo de parcial + BE al tocar tp1 (una sola vez).
-        if not partial_done and partial_exit(entry, tp1, direction, px, pct=partial_pct):
+        hi = float(hi_series.iloc[i]) if hi_series is not None else px
+        lo = float(lo_series.iloc[i]) if lo_series is not None else px
+
+        # 1) Disparo de parcial + BE al TOCAR tp1 (high/low, no solo close).
+        if not partial_done and partial_exit(entry, tp1, direction, hi, pct=partial_pct):
             partial_done = True
-            partial_price = px
-            # Mover SL del remanente a BE (+/- buf).
+            partial_price = tp1  # ejecuta al nivel tocado
             new_be = to_breakeven(entry, sl, direction, px, be_trigger_r=0.0)
             if new_be is not None:
                 if direction == 1:
@@ -162,19 +167,19 @@ def apply_trade_management(
             else:
                 cur_sl = min(cur_sl, trail)
 
-        # 3) Chequeo de salida del remanente.
+        # 3) Chequeo de salida del remanente (touch por high/low).
         if direction == 1:
-            if px >= cur_tp:
-                return _exit_dict("tp", px, entry, sl, risk, partial_done, partial_price, partial_pct)
-            if px <= cur_sl:
+            if hi >= cur_tp - _EPS:
+                return _exit_dict("tp", cur_tp, entry, sl, risk, partial_done, partial_price, partial_pct)
+            if lo <= cur_sl + _EPS:
                 reason = "be" if partial_done and abs(cur_sl - entry) < 1e-12 else "sl"
-                return _exit_dict(reason, px, entry, sl, risk, partial_done, partial_price, partial_pct)
+                return _exit_dict(reason, cur_sl, entry, sl, risk, partial_done, partial_price, partial_pct)
         else:
-            if px <= cur_tp:
-                return _exit_dict("tp", px, entry, sl, risk, partial_done, partial_price, partial_pct)
-            if px >= cur_sl:
+            if lo <= cur_tp + _EPS:
+                return _exit_dict("tp", cur_tp, entry, sl, risk, partial_done, partial_price, partial_pct)
+            if hi >= cur_sl - _EPS:
                 reason = "be" if partial_done and abs(cur_sl - entry) < 1e-12 else "sl"
-                return _exit_dict(reason, px, entry, sl, risk, partial_done, partial_price, partial_pct)
+                return _exit_dict(reason, cur_sl, entry, sl, risk, partial_done, partial_price, partial_pct)
 
     # Agoto el df sin tocar TP ni SL -> queda "open" en el ultimo close.
     last = float(closes.iloc[-1])
