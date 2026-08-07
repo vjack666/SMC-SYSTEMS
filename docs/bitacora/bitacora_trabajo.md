@@ -575,6 +575,41 @@ Trade Management en el MOTOR (engine/), no solo en el backtest. Esto queda
 pendiente: el motor aun hace hold SL/TP; el backtest ahora gestiona. Cuando
 el motor tenga su trade_mgmt, el backtest lo consumira y E1 se borrara.
 
+## 2026-08-06 (11) — PLAN DE MANANA: render tipo TradingView del motor (D1)
+
+**Contexto:** el trader mostro una imagen de EURUSD D1 en TradingView (SMC:
+BOS/CHOCH/MSS/FVG/OB/liquidez) y pregunto si el motor da algo parecido.
+Verificado hoy (corrida ad-hoc, sin commit): el motor en D1 marca BOS
+alcista activo 2026-08-03 nivel 1.14710, CHOCH=0 (sin giro). El observador
+es hub de texto, NO grafico. El motor TIENE los datos (bos/structure,
+fvg_poi, order_block) pero nadie los dibuja en velas.
+
+**Objetivo:** construir un render visual (tipo TradingView) que consuma el
+motor y muestre lo que el motor "dice" hoy sobre EURUSD D1, para que el
+trader lo juzgue por OJO contra su imagen.
+
+**Pasos (DUMI, sin codear hasta OK del trader):**
+1. Formato: decidir PNG estatico (matplotlib, abres el archivo) vs cablear
+   al hub web (localhost:8765, app_observador). Recomendado: PNG estatico
+   primero (mas rapido de validar por OJO), luego opcional al hub.
+2. Pipeline del render:
+   - Cargar EURUSD_D1.parquet (data/raw, velas cerradas).
+   - `engine/bos/structure.detect_market_structure` -> lineas BOS/CHOCH
+     (niveles activos + ultimos eventos).
+   - `engine/fvg_poi` + `engine/order_block` -> zonas FVG y OB (POI anclado).
+   - matplotlib: velas + lineas horizontales localizadas (vida del evento,
+     estilo trader humano: NO ancho completo del canvas — Ruben lo rechaza
+     como "infinitas").
+3. Validacion por OJO (Ruben): las lineas caen donde el motor dice? Coincide
+   con su imagen de TradingView en la zona 1.138-1.160?
+4. Si coincide y el trader quiere: cablear al hub web para ver en vivo.
+
+**Restricciones:** Ley respetada (el render es consumidor del motor, nunca
+al reves). Sin indicadores. Sin look-ahead. Niveles solo sobre velas cerradas.
+
+**Fuera de alcance mañana:** no escribir logica de deteccion nueva (ya esta
+en el motor). Solo VISUALIZAR lo que el motor ya calcula.
+
 ## Registro de sesiones anteriores (resumido)
 - 2026-08-03: purga intencional de roadmaps (docs/plan/). Fuente de verdad =
   AGENTS.md + docs/tesis/ + engine/.
