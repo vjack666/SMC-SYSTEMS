@@ -1,45 +1,37 @@
-# MDS — Liquidez internal vs external (jerarquía TP) (SPEC §14, libros 05/15/16)
+# MDS_B3_LIQUIDEZ_INT_EXT.md — Liquidez internal / external (B3)
 
-**Clasificación:** OBLIGATORIO · **Fase:** B3 · **Estado:** ❌ pendiente
-**SPEC fuente:** `docs/ict/SPEC_TESIS_FORMAL.md` §14 · **Roadmap maestro:** §9 (internal/external)
-**R1:** requiere SPEC firmada ✅ + este MDS antes de código.
+- **Clasificación**: OBLIGATORIO · Fase B3 · **Estado: 🔲 NO INICIADO (solo diseño)**
+- **SDD-first**: diseño a implementar en `engine/liquidity_zones.py` (respetando
+  que `engine/liquidity_levels.py` ya tiene BSL/SSL básicos).
 
----
+## Propósito
+Distinguir liquidez INTERNA (máximos/mínimos de swings menores dentro de un rango)
+de liquidez EXTERNA (máximos/mínimos que el precio busca barrer más allá del rango).
+La tesis ICT: el precio primero barre la liquidez interna (stop hunts menores) y
+luego la externa (objetivo real).
 
-## 0. Responsabilidad
+## Por qué importa (geometría)
+Sin esta distinción el motor no sabe si un sweep es "ruido interno" o "objetivo
+externo". Es geometría pura: posición del swing relativo al rango + barrido de
+mecas. Cero indicadores. VOLUMEN: el barrido de liquidez externa con volumen alto
+confirma convicción (dato, no indicador).
 
-Jerarquía de targets de TP: primero liquidez INTERNAL (swing reciente de la sesión), luego
-EXTERNAL (PDH/PDL/EQ highs-lows). Hoy `_tp_liquidity` usa clusters lejanos (libro 20 §8).
+## Entradas (geometría + volumen)
+- OHLC por TF, swings (pivotes), BSL/SSL ya detectados.
+- VOLUMEN: tick volume por vela para confirmar el barrido.
 
-## 1. Dependencias
+## Lógica (geometría pura, diseño)
+1. Marcar swings como internal si están DENTRO del dealing range; external si son
+   extremos del rango o breakouts previos.
+2. Un sweep de external liquidity = objetivo de la estructura (TP del motor).
+3. Un sweep de internal = retroceso esperado antes de continuar.
 
-- Liquidez (§6) · TP (§13) · 3 capas (§9).
+## Salidas
+`{"internal_liq": [...], "external_liq": [...], "target": external_level}`.
 
-## 2. Módulo (a crear/extender)
+## Integración
+Nuevo módulo `engine/liquidity_zones.py` (permanente). Consumido por backtest.
+Ley: engine/ no importa ict_backtest.
 
-- `ict_backtest/engine.py` `_tp_liquidity`: distinguir `internal` (swing sesión/estructura
-  reciente) de `external` (PDH/PDL/EQ high-low) y devolver ambos; el TP primario = internal
-  más cercano; objetivo macro = external.
-
-## 3. Firma propuesta
-
-```python
-def tp_hierarchy(row_exec, structure) -> dict:
-    return {"internal": bsl_ssl_mas_cercano, "external": pdh_pdl_eq}
-```
-
-## 4. Reglas duras
-
-- internal = swing de la sesión/estructura reciente; external = máximos/mínimos de
-  día/semana (PDH/PDL, EQ high-low) (SPEC §14 CRIT).
-- Sin external claro → solo internal.
-
-## 5. Criterios de aceptación (fidelidad)
-
-- Subconjunto etiquetado: el TP primario cae en liquidez internal cuando existe.
-- `diag_etapas.py` datos chicos. PF bloqueado hasta Fase G (R4).
-
-## 6. Trazabilidad
-
-SPEC §3 (sweep) · §8 (BOS) · §13 (TP cercano) · §14 (internal/external) · libro 05/15/16 ·
-ROADMAP §9 (Liquidez internal vs external).
+## Verificación (pendiente)
+pytest con swings sintéticos internal/external.

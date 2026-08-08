@@ -1,37 +1,42 @@
-# ÍNDICE MDS — Diseño de módulo por componente (R2 del roadmap maestro)
+# INDICE_MDS.md — Índice Maestro de Componentes (R2)
 
-**Estado:** 2026-07-20 · SPEC_TESIS_FORMAL FIRMADA ✅ (R1 cumplida)
-Cada regla de la SPEC tiene su MDS aquí (sincronía SPEC↔MDS exigida por R2).
+> Fuente de verdad de QUÉ existe y qué falta en SMC-SYSTEMS.
+> Nota de vigencia 2026-08-08: este índice fue auditado contra el MOTOR REAL
+> (`engine/`) y el backtest (`ict_backtest/`). Varios componentes que el índice
+> previo (2026-07-20) marcaba ❌ YA ESTÁN HECHOS en el motor; otros existen en
+> `ict_backtest/` y deben RESCATARSE a `engine/` por la LEY FUNDAMENTAL
+> (motor permanente = única fuente; backtest desechable = consumidor).
 
-| Componente | SPEC | Clasificación | Fase | Estado | MDS |
-|------------|------|---------------|------|--------|-----|
-| Narrativa HTF | §1 | OBLIGATORIO | Base ✅ | ✅ | (en SPEC; no requiere MDS nuevo) |
-| Dealing Range P-D | §2 | OBLIGATORIO | Base ✅ | ✅ módulo existe | (postproceso canonical) |
-| PD Arrays FVG/OB | §3 | OBLIGATORIO | Base ✅ | ✅ | — |
-| PD Arrays completos | §4 | OBLIGATORIO | B1 ✅ | ✅ metadatos | — |
-| Stacking multi-TF | §5 | OBLIGATORIO | B1 ✅ | ✅ metadatos | — |
-| Liquidez (Sweep) | §6 | OBLIGATORIO | Base ✅ | ✅ | — |
-| Displacement | §7 | OBLIGATORIO | Base ✅ | ✅ | — |
-| Market Structure | §8 | OBLIGATORIO | Base ✅ | ✅ (PASO 1) | — |
-| 3 capas HTF/ITF/exec | §9 | OBLIGATORIO | B2 | ❌ | MDS_B2_EXEC_M5_M1.md |
-| Exec fino M5 + M1 | §10 | OBLIGATORIO | B2 | ❌ | MDS_B2_EXEC_M5_M1.md |
-| Entry retorno zona | §11 | OBLIGATORIO | Base ✅ | ✅ | — |
-| SL estructural | §12 | OBLIGATORIO | Base ✅ | ✅ medido v29 | — |
-| TP liquidez cercana | §13 | OBLIGATORIO | Base ✅ | ✅ | — |
-| Liquidez internal/external | §14 | OBLIGATORIO | B3 | ❌ | MDS_B3_LIQUIDEZ_INT_EXT.md |
-| Killzone L/NY PM | §15 | OBLIGATORIO | B2 | ❌ | MDS_KILLZONES_L_NYPM.md |
-| POI anclado (bonus) | §16 | OBLIGATORIO (bonus) | C1 ✅ | ✅ percepción | (Fase C DONE) |
-| Silver Bullet | §17 | OBLIGATORIO | C2 | ❌ | MDS_C2_SILVER_BULLET.md |
-| Turtle Soup | §18 | OBLIGATORIO | C3 | ❌ | MDS_C3_TURTLE_SOUP.md |
-| PO3 / AMD | §19 | OBLIGATORIO (base) | Base ✅ | ✅ (sequence) | — |
-| RR por setup | §20 | OBLIGATORIO | C2 | ❌ | MDS_RR_POR_SETUP.md |
-| OTE 62-79% | §21 | OBLIGATORIO | D1 | ❌ | MDS_D1_OTE.md |
-| Trade Management | §22 | OBLIGATORIO | E1 | ❌ | MDS_E1_TRADE_MANAGEMENT.md |
+## Clasificación
+- Todos OBLIGATORIO (algunos bonus).
+- Fase: Base ✅ / B1 / B2 / B3 / C1 / C2 / C3 / D1 / E1.
 
-**Conteo:** 8 componentes ❌ con MDS nuevo (B2 exec, internal/external liq, killzones
-L/NY PM, SB, Turtle, RR por setup, OTE, Trade Mgmt). El resto ✅ o ya cubierto por Fase
-C/B1. Backtest de PF bloqueado hasta Fase G (R4).
+## Estado REAL (auditado 2026-08-08)
 
-Orden de implementación sugerido (por dependencia, ROADMAP §4):
-B2 (exec M5/M1) + Killzones L/NY PM → B3 (internal/external liq) → C2 (SB + RR por setup)
-→ C3 (Turtle) → D1 (OTE) → E1 (Trade Mgmt).
+| # | Componente | Fase | Estado | Dónde vive | SDD |
+|---|-----------|------|--------|-----------|-----|
+| 1 | Bias HTF (D1/H4/H1) | Base | ✅ | engine/bias/ | MDS_BIAS_HTF.md |
+| 2 | Estructura BOS/CHOCH | Base | ✅ | engine/bos/ | MDS_BOS_CHOCH.md |
+| 3 | Dealing Range / EQ / Prem-Disc | Base | ✅ | engine/dealing_range.py | MDS_DEALING_RANGE.md |
+| 4 | Liquidez BSL/SSL | Base | ✅ | engine/liquidity_levels.py | MDS_LIQUIDEZ_BSL_SSL.md |
+| 5 | POI anclado (PD arrays) | B1 | ✅ | engine/poi_anchor.py + zone_authority.py | MDS_B1_POI_ANCLADO.md |
+| 6 | 3 capas HTF/ITF/exec (top-down) | B2 | ✅ | engine/plan.py (build_context_stack D1→M1) | MDS_B2_3CAPAS.md |
+| 7 | **Exec fino M5/M1 (B2)** | B2 | ✅ HECHO | engine/execution.py + engine/micro.py | MDS_B2_EXEC_M5_M1.md |
+| 8 | **OTE 62-79% (D1)** | D1 | ✅ HECHO | engine/dealing_range.py (OTE_MIN/MAX) | MDS_D1_OTE.md |
+| 9 | **Killzone L/NY PM (B2)** | B2 | ⚠️ en ict_backtest | ict_backtest/rules.py → rescatar a engine/killzone.py | MDS_KILLZONES_L_NYPM.md |
+| 10 | **Silver Bullet (C2)** | C2 | ⚠️ en ict_backtest | ict_backtest/setups/silver_bullet.py → engine/silver_bullet.py | MDS_C2_SILVER_BULLET.md |
+| 11 | **Turtle Soup (C3)** | C3 | ⚠️ en ict_backtest | ict_backtest/setups/turtle_soup.py → engine/turtle_soup.py | MDS_C3_TURTLE_SOUP.md |
+| 12 | **Trade Management BE/parciales (E1)** | E1 | ⚠️ en ict_backtest | ict_backtest/trade_mgmt.py → engine/trade_mgmt.py | MDS_E1_TRADE_MANAGEMENT.md |
+| 13 | **RR por setup (C2)** | C2 | ⚠️ en ict_backtest | ict_backtest/canonical.py rr_for → engine/rr_by_setup.py | MDS_RR_POR_SETUP.md |
+| 14 | Liquidez internal/external (B3) | B3 | 🔲 no iniciado | — | MDS_B3_LIQUIDEZ_INT_EXT.md |
+
+## Regla dura de implementación (Ruben 2026-08-08)
+- **CERO indicadores técnicos** (EMA/RSI/ATR/MACD/Bollinger...).
+- Solo **geometría de mercado pura**: OHLC, swings, estructura (BOS/CHOCH),
+  liquidez (BSL/SSL/sweep), POI (PD arrays, FVG, OB).
+- **ÚNICA excepción permitida**: VOLUMEN (tick volume) — es dato de mercado,
+  NO indicador. Se usa para confirmar agotamiento/convicción en niveles,
+  nunca como señal suavizada.
+- Todo módulo de decisión vive en `engine/` (permanente). `ict_backtest/` es
+  consumidor puro; al rescatar los ⚠️ arriba, NO se importa ict_backtest desde
+  engine/.

@@ -1,50 +1,38 @@
-# MDS — OTE: Optimal Trade Entry 62-79% retrace (SPEC §21, libro 15)
+# MDS_D1_OTE.md — OTE 62-79% (D1)
 
-**Clasificación:** OBLIGATORIO · **Fase:** D1 · **Estado:** ❌ pendiente
-**SPEC fuente:** `docs/ict/SPEC_TESIS_FORMAL.md` §21 · **Roadmap maestro:** §9 (OTE)
-**R1:** requiere SPEC firmada ✅ + este MDS antes de código.
+- **Clasificación**: OBLIGATORIO · Fase D1 · **Estado: ✅ HECHO (en motor)**
+- **SDD-first**: refleja `engine/dealing_range.py` (OTE_MIN_RETRACE / OTE_MAX_RETRACE).
 
----
+## Propósito
+Definir la zona de entrada óptima (Optimal Trade Entry) como el retroceso del
+62% al 79% del rango de la estructura (deal­ing range). La tesis (libro 18) usa
+el 62-79% como el "discount" donde el precio regresa antes de continuar.
 
-## 0. Responsabilidad
+## Por qué importa (geometría)
+El OTE es pura proporción de rango (Fibonacci 0.618-0.79 aplicado a la extensión
+del swing). No usa ningún indicador: solo high/low del rango y el precio actual.
+El humano entra en el retorno al 62-79% del rango, no en cualquier parte.
 
-Refinar la entry al nivel OTE = retrace 62-79% del swing, medido sobre el dealing range
-(P-D). Estrecha la zona de entry (SPEC §11 retorno a zona → §21 OTE dentro de la zona).
+## Entradas (geometría + volumen)
+- Rango de la estructura (high/low del swing).
+- Precio actual (retorno).
+- VOLUMEN: el agotamiento del retorno en la zona OTE se confirma con volumen
+  (dato de mercado, no indicador).
 
-## 1. Dependencias
+## Lógica (engine/dealing_range)
+`OTE_MIN_RETRACE = 0.62`, `OTE_MAX_RETRACE = 0.79`. El precio entra en zona OTE
+si `0.62 <= (range_high - price) / (range_high - range_low) <= 0.79` (long) o
+espejo para short. Usado por `is_ote_entry` en el backtest y por el motor para
+anotar calidad del entry.
 
-- Dealing Range / P-D (§2) — módulo `dealing_range_motor` existe HOY pero como POSTPROCESO
-  en `canonical.py` (anota `ICTSignal.zone_class`). Para OTE debe usarse EN el cálculo de
-  entry, no solo anotar.
-- Entry retorno a zona (§11) · BOS/CHOCH (§8) · PD Arrays (§3).
+## Salidas
+Bool `is_ote` + nivel OTE (precio del 62-79%).
 
-## 2. Módulo (a crear/extender)
+## Integración
+Vive en `engine/dealing_range.py` (permanente). Consumido por
+`ict_backtest/canonical.is_ote_entry` y por el motor en la capa de ejecución.
+Ley: engine/ no importa ict_backtest.
 
-- Nueva función en `ict_backtest/engine.py` / `canonical.py`: `compute_ote_level(swing,
-  dealing_range)` → devuelve `ote_low, ote_high` (62-79% del retrace del swing).
-- `build_signals_from_frames` / `run_sequence` usan OTE para afinar `entry_price` dentro
-  de la zona POI (no el close del BOS).
-
-## 3. Firma propuesta
-
-```python
-def compute_ote_level(swing_high, swing_low, eq) -> tuple[float, float]:
-    # retrace 62-79% del swing medido desde el extremo, sobre el rango P-D
-    ...
-```
-
-## 4. Reglas duras
-
-- `entry_price ∈ [0.62, 0.79]` del retrace del swing (SPEC §21 CRIT).
-- Caso límite: retrace <62% → entry en zona amplia; >79% → fuera de OTE.
-- Medir el retrace desde el swing completo o desde el PD Array = decisión de ing (R3).
-
-## 5. Criterios de aceptación (fidelidad)
-
-- Subconjunto etiquetado: entry cae en banda OTE cuando el precio retorna.
-- `diag_etapas.py` datos chicos. PF bloqueado hasta Fase G (R4).
-
-## 6. Trazabilidad
-
-SPEC §6 (entry retorno) · §21 (OTE) · libro 15 §2 · ROADMAP §9 (OTE) ·
-closure_brecha_a1_opcionb (patrón: postproceso → usar en decisión).
+## Verificación
+Tests de dealing_range en `tests/test_engine_dealing_range.py` (rangos sintéticos
+62-79% → True; fuera → False).
