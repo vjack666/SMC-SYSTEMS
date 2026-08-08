@@ -1,6 +1,6 @@
 # MDS — Trade Management E1: Break-Even / parcial / trailing (geometría pura)
 
-**Clasificación:** OBLIGATORIO · **Fase:** E1 · **Estado:** ✅ especificado (impl. real en `ict_backtest/trade_mgmt.py`, commit 565b501; pendiente rescate a `engine/`)
+**Clasificación:** OBLIGATORIO · **Fase:** E1 · **Estado:** ✅ HECHO (rescatado a `engine/trade_mgmt.py`, commit dd8f7ef; backtest consume vía shim)
 
 ---
 
@@ -73,7 +73,7 @@ Funciones PURAS (no mutan estado global, no mutan `df`):
 
 ## 7. Integración (Arquitectura — Ley Fundamental)
 
-- **Rescate a `engine/`:** el módulo hoy vive en `ict_backtest/trade_mgmt.py` y DEBE RESCATARSE a **`engine/trade_mgmt.py`** (permanente). Es geometría pura de gestión, no consumidor.
+- **Rescatado a `engine/`:** el módulo vive en **`engine/trade_mgmt.py`** (permanente, commit dd8f7ef). `ict_backtest/trade_mgmt.py` quedó como SHIM que re-exporta. El backtest (`ict_backtest/`) es DESECHABLE y consume `engine.trade_mgmt`.
 - `engine/` **NUNCA** importa `ict_backtest/`. El backtest (`ict_backtest/`) es DESECHABLE y consume `engine.trade_mgmt`.
 - Call-site real: `apply_trade_management` es invocado por el backtest para gestionar cada señal de `evaluate_signals` (no es un backtest de PF completo: simula UN trade dada su gestión). Ya cableado en commit 565b501 leyendo `high`/`low` para toques exactos.
 

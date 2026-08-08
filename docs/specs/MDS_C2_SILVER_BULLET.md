@@ -1,6 +1,6 @@
 # MDS — Silver Bullet (SB) (SPEC §17, libro 07)
 
-**Clasificación:** OBLIGATORIO · **Fase:** C2 (post B2) · **Estado:** 🔄 REESCRITO a geometría+volumen cero indicadores y rescate a `engine/`
+**Clasificación:** OBLIGATORIO · **Fase:** C2 (post B2) · **Estado:** ✅ HECHO (rescatado a `engine/silver_bullet.py`, commit dd8f7ef)
 **SPEC fuente:** `docs/ict/SPEC_TESIS_FORMAL.md` §17 · **Roadmap maestro:** §9 (SB)
 **R1:** requiere SPEC firmada ✅ + este MDS antes de código.
 **Arquitectura:** módulo PERMANENTE en `engine/silver_bullet.py`; `ict_backtest/` solo lo CONSUME.

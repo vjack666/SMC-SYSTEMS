@@ -1,6 +1,6 @@
 # MDS — Killzones: London Open + New York AM/PM (SPEC §15, libros 01/18)
 
-**Clasificación:** OBLIGATORIO · **Fase:** B2 (paralelo) · **Estado:** 🔄 REESCRITO a geometría+volumen cero indicadores y rescate a `engine/`
+**Clasificación:** OBLIGATORIO · **Fase:** B2 (paralelo) · **Estado:** ✅ HECHO (rescatado a `engine/killzone.py`, commit dd8f7ef)
 **SPEC fuente:** `docs/ict/SPEC_TESIS_FORMAL.md` §15 · **Roadmap maestro:** §9 (Killzone)
 **R1:** requiere SPEC firmada ✅ + este MDS antes de código.
 **Arquitectura:** módulo PERMANENTE en `engine/killzone.py`; `ict_backtest/` solo lo CONSUME (nunca al revés).

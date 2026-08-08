@@ -23,11 +23,11 @@
 | 6 | 3 capas HTF/ITF/exec (top-down) | B2 | ✅ | engine/plan.py (build_context_stack D1→M1) | MDS_B2_3CAPAS.md |
 | 7 | **Exec fino M5/M1 (B2)** | B2 | ✅ HECHO | engine/execution.py + engine/micro.py | MDS_B2_EXEC_M5_M1.md |
 | 8 | **OTE 62-79% (D1)** | D1 | ✅ HECHO | engine/dealing_range.py (OTE_MIN/MAX) | MDS_D1_OTE.md |
-| 9 | **Killzone L/NY PM (B2)** | B2 | ⚠️ en ict_backtest | ict_backtest/rules.py → rescatar a engine/killzone.py | MDS_KILLZONES_L_NYPM.md |
-| 10 | **Silver Bullet (C2)** | C2 | ⚠️ en ict_backtest | ict_backtest/setups/silver_bullet.py → engine/silver_bullet.py | MDS_C2_SILVER_BULLET.md |
-| 11 | **Turtle Soup (C3)** | C3 | ⚠️ en ict_backtest | ict_backtest/setups/turtle_soup.py → engine/turtle_soup.py | MDS_C3_TURTLE_SOUP.md |
-| 12 | **Trade Management BE/parciales (E1)** | E1 | ⚠️ en ict_backtest | ict_backtest/trade_mgmt.py → engine/trade_mgmt.py | MDS_E1_TRADE_MANAGEMENT.md |
-| 13 | **RR por setup (C2)** | C2 | ⚠️ en ict_backtest | ict_backtest/canonical.py rr_for → engine/rr_by_setup.py | MDS_RR_POR_SETUP.md |
+| 9 | **Killzone L/NY PM (B2)** | B2 | ✅ HECHO | engine/killzone.py (rescatado dd8f7ef) | MDS_KILLZONES_L_NYPM.md |
+| 10 | **Silver Bullet (C2)** | C2 | ✅ HECHO | engine/silver_bullet.py (rescatado dd8f7ef) | MDS_C2_SILVER_BULLET.md |
+| 11 | **Turtle Soup (C3)** | C3 | ✅ HECHO | engine/turtle_soup.py (rescatado dd8f7ef) | MDS_C3_TURTLE_SOUP.md |
+| 12 | **Trade Management BE/parciales (E1)** | E1 | ✅ HECHO | engine/trade_mgmt.py (rescatado dd8f7ef) | MDS_E1_TRADE_MANAGEMENT.md |
+| 13 | **RR por setup (C2)** | C2 | ✅ HECHO | engine/rr_by_setup.py (rescatado dd8f7ef) | MDS_RR_POR_SETUP.md |
 | 14 | Liquidez internal/external (B3) | B3 | 🔲 no iniciado | — | MDS_B3_LIQUIDEZ_INT_EXT.md |
 
 ## Regla dura de implementación (Ruben 2026-08-08)

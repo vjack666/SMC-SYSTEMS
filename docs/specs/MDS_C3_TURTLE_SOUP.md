@@ -1,6 +1,6 @@
 # MDS — Turtle Soup (contratendencia / reversión) (SPEC §18, libro 06)
 
-**Clasificación:** OBLIGATORIO (1 de 3 setups del ciclo PO3) · **Fase:** C3 · **Estado:** 🔄 REESCRITO a geometría+volumen cero indicadores y rescate a `engine/`
+**Clasificación:** OBLIGATORIO (1 de 3 setups del ciclo PO3) · **Fase:** C3 · **Estado:** ✅ HECHO (rescatado a `engine/turtle_soup.py`, commit dd8f7ef)
 **SPEC fuente:** `docs/ict/SPEC_TESIS_FORMAL.md` §18 · **Roadmap maestro:** §9 (Turtle Soup)
 **R1:** requiere SPEC firmada ✅ + este MDS antes de código.
 **Arquitectura:** módulo PERMANENTE en `engine/turtle_soup.py`; `ict_backtest/` solo lo CONSUME.

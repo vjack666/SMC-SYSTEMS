@@ -1,6 +1,6 @@
 # MDS — RR mínimo POR SETUP (geometría + volumen, cero indicadores)
 
-**Clasificación:** OBLIGATORIO (por setup) · **Fase:** C2 · **Estado:** ✅ especificado (impl. real en `ict_backtest/setups/rr_map.py`; pendiente rescate a `engine/`)
+**Clasificación:** OBLIGATORIO (por setup) · **Fase:** C2 · **Estado:** ✅ HECHO (rescatado a `engine/rr_by_setup.py`, commit dd8f7ef; backtest consume vía shim)
 
 ---
 
@@ -64,7 +64,7 @@ Fuente real: `ict_backtest/setups/rr_map.py`.
 
 ## 7. Integración (Arquitectura — Ley Fundamental)
 
-- **Rescate a `engine/`:** el módulo hoy vive en `ict_backtest/setups/rr_map.py` y DEBE RESCATARSE a **`engine/rr_by_setup.py`** (permanente), exponiendo `rr_for` / `RR_BY_SETUP` / `flag_rr`.
+- **Rescatado a `engine/`:** el módulo vive en **`engine/rr_by_setup.py`** (permanente, commit dd8f7ef), exponiendo `rr_for` / `RR_BY_SETUP` / `flag_rr`. `ict_backtest/setups/rr_map.py` quedó como SHIM que re-exporta. El backtest (`ict_backtest/`) es DESECHABLE y consume `engine.rr_by_setup`.
 - `engine/` **NUNCA** importa `ict_backtest/`. El backtest (`ict_backtest/`) es DESECHABLE y consume `engine.rr_by_setup`.
 - Call-site real: `canonical.evaluate_signals` → `_rr_for_raw_signal` ya llama `rr_for("silver_bullet"|"turtle_soup"|"ote")` y aplica el RR al TP. `flag_rr` anota `rr_target` en el `ICTSignal` para el consumidor (scoring / E1 / UI).
 - Responsabilidad limitada (por diseño): este módulo SOLO resuelve/anota el RR; la aplicación al TP queda en el orquestador que consume `engine`.
