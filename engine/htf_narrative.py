@@ -47,12 +47,15 @@ def _resolve_bias(frame: pd.DataFrame, htf_bias=None, exp012: bool = True) -> Ht
     return compute_htf_bias(frame, frame, frame, exp012=exp012)
 
 
-def _last_bos_event(frame: pd.DataFrame) -> dict | None:
-    """Último BOS del frame: {'index': i, 'direction': BULLISH|BEARISH}."""
+def _last_bos_event(frame: pd.DataFrame, exp012: bool = False) -> dict | None:
+    """Último BOS del frame: {'index': i, 'direction': BULLISH|BEARISH}.
+
+    Con exp012=True aplica el gate EXP-012 (solo CHOCH reales cuentan).
+    """
     if frame is None or len(frame) < 3:
         return None
     try:
-        structure = detect_market_structure(frame)
+        structure = detect_market_structure(frame, StructureConfig(exp012_choch=exp012))
     except Exception:
         return None
     # detect_market_structure devuelve el frame con índice 0..n-1.
@@ -127,7 +130,7 @@ def build_htf_narrative(
     # 2) Hacia donde va? objetivo de liquidez del dia.
     liquidity = nearest_liquidity_target(frame, bias_obj)
     # 3) Que rompio? ultimo BOS. 4) Desde donde? POI que lo origino.
-    last_bos = _last_bos_event(frame)
+    last_bos = _last_bos_event(frame, exp012=exp012)
 
     # Ancla narrativa: si tenemos los TF padre, construimos htf_poi_fn para
     # marcar el POI como anclado (bonus, no gate duro).

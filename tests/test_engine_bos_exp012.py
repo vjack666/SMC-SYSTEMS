@@ -4,8 +4,9 @@ EXP-012 (skill smc-ict-hub-exp012): CHOCH REAL exige empuje >=2 HH/LL post-
 tendencia, BOS de mercado real detras, nivel = ULTIMO HL/LH roto (no el BOS
 roto), y reclaim invalida. El motor SMC-SYSTEMS (engine/bos/structure.py) ya
 tiene T9.4 (reclaim) y T9.7 (after_bos real); le faltaba el momentum. Este
-test verifica el filtro additivo `exp012_choch` (bonus de autoridad, NO veta
-el sesgo canonico).
+test verifica el filtro `exp012_choch` como GATE DURO: con el flag ON, el
+CHOCH sin empuje deja de existir en el frame (choch_dir=0), asi sesgo,
+secuencia y observador lo ignoran. Con flag OFF el frame es identico al canonico.
 
 Principio: regresion cero. Con flag OFF el frame NO gana columnas nuevas.
 """
@@ -64,10 +65,10 @@ def test_exp012_helper_reclaim_invalidates() -> None:
 def test_exp012_off_leaves_frame_unchanged() -> None:
     df = pd.DataFrame(
         {
-            "high": [1.1, 1.12, 1.13, 1.11, 1.10, 1.14, 1.09],
-            "low": [1.09, 1.11, 1.12, 1.10, 1.08, 1.13, 1.07],
-            "open": [1.095, 1.115, 1.125, 1.105, 1.085, 1.135, 1.075],
-            "close": [1.10, 1.12, 1.13, 1.105, 1.09, 1.135, 1.08],
+            "high": [1.1, 1.12, 1.13, 1.11, 1.10, 1.14, 1.09, 1.15, 1.08, 1.16],
+            "low": [1.09, 1.11, 1.12, 1.10, 1.08, 1.13, 1.07, 1.14, 1.06, 1.15],
+            "open": [1.095, 1.115, 1.125, 1.105, 1.085, 1.135, 1.075, 1.145, 1.065, 1.155],
+            "close": [1.10, 1.12, 1.13, 1.105, 1.09, 1.135, 1.08, 1.145, 1.07, 1.155],
         }
     )
     ms_off = detect_market_structure(df)
@@ -81,12 +82,32 @@ def test_exp012_off_leaves_frame_unchanged() -> None:
         assert ms_on.frame[col].equals(ms_off.frame[col])
 
 
-def test_exp012_real_m15_drop() -> None:
-    """Integracion: EURUSD M15 real, el filtro debe reducir el conteo de CHOCH.
+def test_exp012_gate_hard_zeroes_noise() -> None:
+    """GATE DURO: con flag ON, un CHOCH sin empuje desaparece del frame."""
+    df = pd.DataFrame(
+        {
+            "high": [1.1, 1.12, 1.13, 1.11, 1.10, 1.14, 1.09, 1.15, 1.08, 1.16],
+            "low": [1.09, 1.11, 1.12, 1.10, 1.08, 1.13, 1.07, 1.14, 1.06, 1.15],
+            "open": [1.095, 1.115, 1.125, 1.105, 1.085, 1.135, 1.075, 1.145, 1.065, 1.155],
+            "close": [1.10, 1.12, 1.13, 1.105, 1.09, 1.135, 1.08, 1.145, 1.07, 1.155],
+        }
+    )
+    ms_off = detect_market_structure(df)
+    ms_on = detect_market_structure(df, StructureConfig(exp012_choch=True))
+    n_off = int((ms_off.frame["choch_dir"] != 0).sum())
+    n_on = int((ms_on.frame["choch_dir"] != 0).sum())
+    # GATE DURO: nunca mas CHOCH con gate que sin el; si habia ruido, baja.
+    assert n_on <= n_off
+    # Todo CHOCH que queda con gate tiene respaldo exp012
+    assert (ms_on.frame.loc[ms_on.frame["choch_dir"] != 0, "choch_exp012"] == 1).all()
 
-    No exige un numero exacto (depende de la ventana de datos en disco), solo
-    que exp012 <= choch total y que exp012 sea un subconjunto coherente
-    (todo exp012 tiene choch_dir != 0).
+
+def test_exp012_real_m15_drop() -> None:
+    """Integracion: EURUSD M15 real, GATE DURO EXP-012.
+
+    Con gate duro, todo CHOCH sin empuje >=2 HH/LL debe desaparecer del frame:
+    choch_dir!=0 debe coincidir EXACTAMENTE con choch_exp012==1. NUNCA un
+    choch_dir!=0 sin exp012 (eso seria ruido que se colo).
     """
     from engine.data_feed import load_frames
 
@@ -101,10 +122,11 @@ def test_exp012_real_m15_drop() -> None:
     fr = ms_on.frame
     n_choch = int((fr["choch_dir"] != 0).sum())
     n_exp = int((fr["choch_exp012"] == 1).sum())
-    # El filtro es un subconjunto estricto o igual; NUNCA mas que el canonico
-    assert n_exp <= n_choch
-    # Todo exp012 marca un choch_dir valido
-    if n_exp > 0:
-        assert (fr.loc[fr["choch_exp012"] == 1, "choch_dir"] != 0).all()
-    # Sanity: en M15 el filtro debe descartar ruido (drop significativo esperado)
-    print(f"\n[EXP-012 M15] CHOCH canonico={n_choch}  EXP-012={n_exp}  drop={n_choch - n_exp}")
+    # GATE DURO: choch_dir!=0 ES el subconjunto exp012 (ruido borrado del frame)
+    assert n_choch == n_exp
+    # NUNCA un choch_dir valido sin respaldo exp012
+    assert (fr.loc[fr["choch_dir"] != 0, "choch_exp012"] == 1).all()
+    # GATE DURO limpio: ningun CHOCH censurado queda con status 'active'
+    assert (fr.loc[fr["choch_exp012"] == 0, "choch_status"] != "active").all()
+    # Sanity: el gate debe descartar ruido (drop significativo esperado)
+    print(f"\n[EXP-012 M15 GATE] CHOCH restantes={n_choch} (ruido eliminado)")

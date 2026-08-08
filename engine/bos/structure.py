@@ -530,13 +530,22 @@ def detect_market_structure(
     d["bos_inval_level"] = d["bos_level"]
     d["choch_inval_level"] = d["choch_proj_level"]
 
-    # EXP-012: marca CHOCH reales como bonus de autoridad (no muta choch_dir).
+    # EXP-012 (GATE DURO): cuando esta ON, el CHOCH sin empuje >=2 HH/LL (y BOS
+    # real detras, nivel HL/LH, sin reclaim) DEJA DE EXISTIR para el motor: se
+    # borra choch_dir y se marca choch_status="none". Asi sesgo, secuencia y
+    # observador ven solo CHOCH reales, sin tocar sus consumidores. Las columnas
+    # choch_exp012 / choch_pivot_level quedan como AUDITORIA de lo censurado.
     # Se corre ANTES de borrar las columnas internas (_last_bos_dir, etc.).
     if config.exp012_choch:
         exp012, pivot_level, after_bos = _exp012_choch_marks(d)
         d["choch_exp012"] = exp012
         d["choch_pivot_level"] = pivot_level
         d["choch_exp012_after_bos"] = after_bos
+        mask_noise = exp012 == 0
+        d.loc[mask_noise & (d["choch_dir"] != 0), "choch_dir"] = 0
+        # status a "none" sobre la mascara de ruido (no sobre choch_dir, que ya
+        # quedó 0 arriba): el CHOCH censurado queda totalmente invalidado.
+        d.loc[mask_noise & (d["choch_status"] != "none"), "choch_status"] = "none"
 
     d = d.drop(
         columns=[

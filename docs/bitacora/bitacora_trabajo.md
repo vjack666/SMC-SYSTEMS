@@ -719,6 +719,25 @@ Regresión cero confirmada (flag OFF deja el frame idéntico).
 **Caducidad del flag:** `exp012_choch` se documenta como experimental 2026-08-08.
 Promover a comportamiento estable (encender en backtests) o borrar en revisión futura.
 
+**CORRECCIÓN MISMA SESIÓN (Ruben: "equivocado, quiero GATE DURO"):** el diseño
+original era BONUS (solo marcaba, no vetaba). Ruben corrigió: debe ser GATE DURO.
+Cambio aplicado y verificado:
+- `engine/bos/structure.py`: con `exp012_choch=True`, tras el helper se SOBREESCRIBE
+  `choch_dir=0` y `choch_status="none"` donde `choch_exp012==0`. El CHOCH sin empuje
+  >=2 HH/LL DEJA DE EXISTIR en el frame → sesgo, secuencia y observador lo ignoran
+  (consumidores intactos, censura en la fuente). `choch_exp012`/`choch_pivot_level`
+  quedan como auditoría.
+- `engine/htf_narrative.py`: `_last_bos_event(frame, exp012)` aplica el gate también al
+  BOS/CHOCH que alimenta el POI del observador.
+- Tests: `test_exp012_gate_hard_zeroes_noise` + `test_exp012_real_m15_drop` ahora
+  exigen `choch_dir!=0 == choch_exp012==1` (gate duro, no subconjunto).
+- Verificación ad-hoc (EURUSD M15 3,000 velas): 319 CHOCH canonico -> 14 con gate
+  (95.6% ruido eliminado). Sesgo estable en ventana con tendencia; en RANGO el sesgo
+  caeria a NEUTRAL (riesgo conocido, documentado: el sesgo NEUTRAL perpetuo en rangos
+  empeora con gate duro — ver AGENTS.md brecha narrative.py).
+- `pytest tests/test_engine_*.py` -> 133 passed (6 nuevos). Regresión cero (flag OFF
+  no muta el frame).
+
 **Fuera de alcance (no hecho hoy):** pintar `choch_exp012` en la UI del observador
 (el dato ya viaja en el dict; mostrarlo en pantalla es paso de UI aparte). (A)/(C)/(D) siguen
 pendientes de días previos.
