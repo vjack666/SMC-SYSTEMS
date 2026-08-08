@@ -159,6 +159,7 @@ def _bias_for_frame(
     frame: pd.DataFrame,
     swing_lookback: int = 5,
     tail: int = 400,
+    exp012: bool = False,
 ) -> Bias:
     """Sesgo de UN timeframe (SPEC §1) por ESTRUCTURA VIGENTE, no por conteo.
 
@@ -180,7 +181,7 @@ def _bias_for_frame(
     if len(df) > tail:
         df = df.tail(tail)
     df = df.reset_index(drop=True)
-    ms = detect_market_structure(df, StructureConfig(swing_lookback=swing_lookback))
+    ms = detect_market_structure(df, StructureConfig(swing_lookback=swing_lookback, exp012_choch=exp012))
     fr = ms.frame
 
     # Criterio de TRADER HUMANO (sin conteo fijo de velas):
@@ -212,6 +213,7 @@ def compute_htf_bias(
     h4: pd.DataFrame,
     h1: pd.DataFrame,
     swing_lookback: int = 2,
+    exp012: bool = False,
 ) -> HtfBias:
     """Sesgo del día completo: D1 + H4 + H1 + alineación (SPEC §1).
 
@@ -220,14 +222,16 @@ def compute_htf_bias(
                   SOLO velas cerradas (sin look-ahead).
         swing_lookback: ventana de swing (AMBIG de ingeniería, default 2
                         para versión humana de swing).
+        exp012: si True, expone el conteo de CHOCH EXP-012 (bonus de
+                autoridad) en cada TF sin vetar el sesgo canónico.
 
     Returns:
         HtfBias con el sesgo de cada TF y la alineación global.
     """
     return HtfBias(
-        d1=_bias_for_frame(d1, swing_lookback),
-        h4=_bias_for_frame(h4, swing_lookback),
-        h1=_bias_for_frame(h1, swing_lookback),
+        d1=_bias_for_frame(d1, swing_lookback, exp012=exp012),
+        h4=_bias_for_frame(h4, swing_lookback, exp012=exp012),
+        h1=_bias_for_frame(h1, swing_lookback, exp012=exp012),
     )
 
 
@@ -237,6 +241,7 @@ def compute_htf_bias_series(
     h1: pd.DataFrame,
     m15: pd.DataFrame,
     swing_lookback: int = 2,
+    exp012: bool = False,
 ) -> pd.DataFrame:
     """Serie temporal de `HtfBias` propagada a H1 y M15.
 
@@ -258,7 +263,7 @@ def compute_htf_bias_series(
             h4_cum = h4.loc[h4.index <= ts]
         if len(d1_cum) < 2 or len(h4_cum) < 2 or len(h1_cum) < 2:
             continue
-        bias = compute_htf_bias(d1_cum, h4_cum, h1_cum, swing_lookback=swing_lookback)
+        bias = compute_htf_bias(d1_cum, h4_cum, h1_cum, swing_lookback=swing_lookback, exp012=exp012)
         rows.append(
             {
                 "timestamp": ts,

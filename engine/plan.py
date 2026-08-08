@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from engine.bos import detect_market_structure
+from engine.bos import detect_market_structure, StructureConfig
 
 
 # --------------------------------------------------------------------------- #
@@ -204,6 +204,7 @@ def ltf_structure_at(
     t: Any,
     *,
     lookback: int = 120,
+    exp012: bool = False,
 ) -> dict[str, Any]:
     """Estructura fina closed-only de un TF de ejecucion (M5/M1) al tiempo t.
 
@@ -240,11 +241,21 @@ def ltf_structure_at(
     bos_dir = 0
     if {"high", "low", "open", "close"}.issubset(win.columns) and len(win) >= 5:
         try:
-            ms_res = detect_market_structure(win)
+            ms_res = detect_market_structure(
+                win, StructureConfig(exp012_choch=exp012)
+            )
             fr = ms_res.frame
             last = fr.iloc[-1]
             trend = _bias_from_frame(win, win["time"].iloc[-1])
             bos_dir = int(last.get("bos_dir", 0) or 0)
+            # EXP-012 (bonus de autoridad, NO veta el sesgo canonico): cuantos
+            # CHOCH en la ventana cumplen la regla del humano (empuje >=2 HH/LL).
+            if exp012 and "choch_exp012" in fr.columns:
+                out["choch_exp012_count"] = int(fr["choch_exp012"].sum())
+                out["choch_exp012_last_level"] = (
+                    float(fr.loc[fr["choch_exp012"] == 1, "choch_pivot_level"].iloc[-1])
+                    if (fr["choch_exp012"] == 1).any() else None
+                )
         except Exception:
             trend = _trend_of(win.iloc[-1])
     else:

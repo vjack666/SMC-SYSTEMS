@@ -616,3 +616,111 @@ en el motor). Solo VISUALIZAR lo que el motor ya calcula.
 - 2026-07-16..17: R6 cerrado en código; auditorías de fidelidad a tesis y
   cobertura de backtest. Ver docs/auditorias/ (vigentes) y docs/_descartado/
   (los que cruzaban roadmaps ya purgados).
+
+## 2026-08-07 — Sesión: auditoría de secuencia/funnel + filtro de autoridad POI HTF
+
+### Contexto de arranque (pendiente de anoche, recuperado de bitácora)
+- Sesión anterior (2026-08-06) cerró con POI rescatado al motor: `engine/htf_pd_index.py`
+  + `engine/zone_authority.py` (rescate de Brecha B/POI anclado, módulos que habían sido
+  borrados por acoplamiento a `ict_backtest.market_object`; reescritos SIN importar backtest).
+- Tarea de anoche: "auditoría de viabilidad del rescate" + arrancar auditoría de secuencia/funnel.
+- Se corrió `audit_sequence_funnel.py 3` (3 meses EURUSD): FUNNEL SWEEP 82 → DISPLACE 81 →
+  BOS 68 → ENTRY 68 = 25 setups completos (2026-07=16, 2026-08=9). Conversión por eslabón
+  estable (~83% SWEEP→ENTRY). El cuello NO es el detector: casi todo sweep que desplaza y
+  rompe completa el retorno; el 17% muere en SWEEP→DISPLACE/BOS.
+
+### Trabajo de hoy (verificado con ejecución real)
+1. **Pregunta del trader**: "¿el motor reconoce reversión/retroceso en LTF como un humano?"
+   Respuesta (con evidencia en engine/): SÍ, con geometría pura (sin indicadores):
+   - RETROCESO OTE: `engine/dealing_range.py` marca OTE 0.62–0.79 del rango y exige
+     discount (alcista)/premium (bajista). Cableado en `htf_narrative.py:122` y `plan.py:349`.
+   - REVERSIÓN ESTRUCTURAL = CHOCH: `engine/bos/structure.py` + `sequence.py:189`. En
+     contratendencia se exige como paso 2 de BOS→CHOCH→BOS. `plan.py:57` (`_bos_real_behind`,
+     T9.7) filtra CHOCH por BOS real detrás (anti-ruido).
+   - SWINGS HH/HL/LH/LL confirmados: `engine/bias/narrative.py:141` (`_label_swings`),
+     versión humana (extremo cuenta solo si rompe swing previo en dirección opuesta).
+   - BRECHA vs ojo humano: el CHOCH del motor NO aplica el filtro EXP-012 de Ruben
+     (empuje >=2 HH/LL post-tendencia, nivel=pivote roto, reclaim invalida). El OTE se mide
+     sobre el rango HTF, no sobre el mini-swing LTF interno.
+2. **Filtro de autoridad POI sobre el funnel** (nuevo, consume el motor):
+   - `scripts/audit_funnel_authority_filter.py`: corre `evaluate_signals` (WM vía argv[1])
+     y por cada ENTRY lee `poi["authority"]` de `build_htf_narrative` (MISMA fuente del
+     observador — NO se reimplementa la autoridad, Ley OK).
+   - Resultado 1 mes (EURUSD, válido): 10 setups → Alta 2 (0.85, T2, 3 capas) / Media 6
+     (0.65–0.75) / Baja 2 (0.0, sin ancla) / sin_autoridad 0. **Alta+Media = 80%**.
+   - Conclusión: el rescate POI aporta información accionable — 80% de los setups tienen
+     respaldo HTF real; 20% (2/10) son ruido sin ancla (lo que tesis 21 §4 quiere filtrar).
+     Un filtro SUAVE (no gate duro, Fase E) `confidence_weight >= 0.65` pasaría 8/10.
+   - NOTA: primeras 3 corridas del filtro usaron `HtfPdIndex.zones_at`+`detect_fvg/ob` a mano
+     (bug: 19/25 "sin-zona-ltf", 0% Alta). Corregido a `build_htf_narrative`; el resultado
+     válido es el de 1 mes arriba. Los `.out` viejos bugueados NO se usan.
+3. **Experimentos en el repo (pregunta del trader)**: SÍ existe laboratorio —
+   `geometry_lab/run_experiment.py` + `docs/lab/LABORATORIO_ICT_SMC.md` (falsificación
+   empírica del motor vela a vela, importa engine/, engine/ NO lo importa). También
+   experimentos E1–E5 en `docs/METRICS_CANON.md` y experimentos A/A''/F referenciados en
+   openspec/ y scripts/.
+
+### Archivos / resultados generados hoy
+- `scripts/audit_funnel_authority_filter.py` (renombrado desde _tmp_, limpio).
+- `results/funnel_authority_filter.json` (válido, 1 mes: Alta 2/Media 6/Baja 2, 80% Alta+Media).
+- `results/audit_funnel_3m.out` (funnel 3 meses: 25 setups).
+- Bitácora actualizada.
+
+### Pendiente / próximos pasos (sin OK explícito, no ejecutado)
+- (A) Correr filtro WM=3 corregido (~37 min) para confirmar 80% a escala 3 meses.
+- (C) OTE sobre mini-swing LTF interno (granularidad fina) vs rango HTF actual.
+- (D) Abrir `geometry_lab/run_experiment.py` para medir el motor vela a vela.
+
+## 2026-08-08 — Cierre de BRECHA EXP-012 en el motor (CHOCH real con empuje)
+
+**Contexto:** tarea (B) del 08-07. EXP-012 (skill smc-ict-hub-exp012) define CHOCH REAL =
+cambio de carácter tras tendencia con momentum: exige empuje >=2 HH/LL post-tendencia,
+BOS de mercado real detrás, nivel = ÚLTIMO HL/LH roto (no el nivel del BOS roto), reclaim
+invalida. El motor SMC-SYSTEMS ya tenía T9.4 (reclaim) y T9.7 (after_bos real) pero
+NO el filtro de momentum → su CHOCH era más permisivo (ruido).
+
+**Método (rol CEO + asamblea de agentes):** se convocó asamblea de 3 agentes (Arquitecto,
+Trader-Humano, Riesgo/OPS) que votó 1 APROBAR / 2 MODIFICAR. Ruben aclaró filosofía:
+los agentes Trader-Humano NO mandan, son pragmáticos (reflejo de su ojo); el CEO decide.
+Se aplicaron las enmiendas TÉCNICAS válidas y se descartaron las imposiciones de rol:
+- Aplicado: nivel HL/LH correcto (no reusar BOS), dtypes compactos, test ON/OFF con
+  no-regresión byte-idéntica, flag con caducidad documentada.
+- Decidido por CEO (pragmático, no por voto de rol): BONUS de autoridad (no GATE duro) +
+  `exp012=True` por defecto en el observador para ejercitar la ruta a diario.
+
+**Trabajo ejecutado (verificado con ejecución real):**
+1. `engine/bos/structure.py`: `StructureConfig.exp012_choch: bool = False` (OFF por
+   defecto, regresión cero). Nuevo helper `_exp012_choch_marks(d)` recorre el frame ya
+   anotado y por cada `choch_dir != 0` evalúa (a) momentum HH/LL>=2, (b) after_bos real
+   vía `_last_bos_dir`, (c) nivel = ÚLTIMO HL/LH roto (`choch_pivot_level`, NO
+   `choch_proj_level`), (d) reclaim = `choch_status == invalidated`. Expone columnas
+   `choch_exp012` (int8), `choch_pivot_level` (float64), `choch_exp012_after_bos` (int8).
+   NO muta `choch_dir`/`choch_status` (bonus, no gate).
+2. `engine/plan.py`: `ltf_structure_at(..., exp012=False)` pasa el flag a
+   `detect_market_structure` y expone `choch_exp012_count`/`choch_exp012_last_level`.
+3. `engine/bias/narrative.py`: `compute_htf_bias` / `compute_htf_bias_series` ganan
+   `exp012=False` y lo propagan a `_bias_for_frame` (sin vetar el sesgo canónico).
+4. `engine/htf_narrative.py`: `build_htf_narrative(..., exp012=True)` → default ON;
+   expone `choch_exp012={'count','last_level'}` en la salida. El observador
+   (`app_observador/core/engine.py::_canonical_plan`) ya lo recibe sin cambios.
+5. `tests/test_engine_bos_exp012.py`: 5 tests (helper con/sin momentum, reclaim,
+   no-regresión OFF no añade columnas, integración M15 real con drop).
+
+**Resultados medidos (verify ad-hoc, EURUSD M15 114,237 velas):**
+- Tiempo OFF=18.3s vs ON=18.7s → delta +381ms (marginal, O(n) vectorizable).
+- CHOCH canónico = 12,404 → EXP-012 = 763 → **drop 11,641 (93.8% de ruido eliminado)**.
+- `choch_pivot_level` difiere de `choch_proj_level` (confirma nivel HL/LH correcto).
+- 0 filas exp012 inconsistentes. Integración observador: `choch_exp012={'count':10,
+  'last_level':1.15105}` con default ON; `None` con OFF.
+
+**Tests:** `pytest tests/test_engine_*.py` → **132 passed** (subió de 127 a 132; 5 nuevos).
+Regresión cero confirmada (flag OFF deja el frame idéntico).
+
+**Caducidad del flag:** `exp012_choch` se documenta como experimental 2026-08-08.
+Promover a comportamiento estable (encender en backtests) o borrar en revisión futura.
+
+**Fuera de alcance (no hecho hoy):** pintar `choch_exp012` en la UI del observador
+(el dato ya viaja en el dict; mostrarlo en pantalla es paso de UI aparte). (A)/(C)/(D) siguen
+pendientes de días previos.
+
+**Sin commit/push (regla Ruben: requiere OK expreso).**

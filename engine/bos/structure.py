@@ -80,6 +80,11 @@ class StructureConfig:
     # BOS quality score: umbral para considerar un BOS como "real" vs fakeout.
     # 0 = todo BOS confirmado es real; 1 = solo BOS con calidad maxima.
     quality_threshold: float = 0.45
+    # EXP-012 (flag experimental, caducidad documentada en bitacora 2026-08-08):
+    # cuando True, marca choch_exp012 (CHOCH con empuje >=2 HH/LL post-tendencia,
+    # BOS de mercado real detras y nivel = ULTIMO HL/LH roto, no el BOS roto) y
+    # choch_pivot_level. Bonus de autoridad; NO muta choch_dir/choch_status.
+    exp012_choch: bool = False
 
 
 @dataclass(frozen=True)
@@ -363,6 +368,90 @@ def _compute_bos_quality(
     return quality, real
 
 
+def _exp012_choch_marks(d: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """EXP-012: marca CHOCH reales (bonus de autoridad, NO muta choch_dir).
+
+    Recorre el frame YA anotado por detect_market_structure y, por cada vela
+    con choch_dir != 0, decide si el CHOCH cumple la regla del trader humano:
+      (a) MOMENTUM: racha >=2 HH (uptrend) para CHOCH bajista, o >=2 LL
+          (downtrend) para CHOCH alcista. Sin empuje no hay "caracter" que
+          cambiar -> es ruido (824/ano en M15).
+      (b) AFTER_BOS REAL: hubo un BOS de mercado confirmado en la direccion de
+          la tendencia opuesta al CHOCH (reusa _last_bos_dir del frame).
+      (c) NIVEL = ULTIMO HL (para CHOCH bajista) / LH (alcista) ROTO, NO el
+          nivel del BOS roto (choch_proj_level). Son pivotes distintos; usar el
+          BOS dispara CHOCH prematuro y deja ruido.
+      (d) RECLAIM: choch_status == "invalidated" invalida (T9.4 vigente).
+
+    Devuelve (exp012 bool int8, pivot_level float, after_bos_dir int8).
+    Sin copiar el frame; dtypes compactos.
+    """
+    n = len(d)
+    choch_dir = d["choch_dir"].to_numpy() if "choch_dir" in d.columns else np.zeros(n, dtype=int)
+    labels = d["swing_label"].to_numpy() if "swing_label" in d.columns else np.array(["NONE"] * n, dtype=object)
+    last_bos_dir = d["_last_bos_dir"].to_numpy() if "_last_bos_dir" in d.columns else np.zeros(n, dtype=int)
+    choch_status = d["choch_status"].to_numpy(dtype=object) if "choch_status" in d.columns else np.array(["none"] * n, dtype=object)
+
+    exp012 = np.zeros(n, dtype=np.int8)
+    pivot_level = np.full(n, np.nan, dtype=np.float64)
+    after_bos = np.zeros(n, dtype=np.int8)
+
+    hh_streak = 0
+    ll_streak = 0
+    # Ultimo HL / LH confirmado (precio del pivote), por indice temporal.
+    last_hl_price = np.nan
+    last_lh_price = np.nan
+
+    for i in range(n):
+        lab = labels[i]
+        if lab == "HH":
+            hh_streak += 1
+            ll_streak = 0
+            if "swing_high" in d.columns:
+                last_hl_price = np.nan  # un HH nuevo desplaza el contexto de HL
+        elif lab == "LL":
+            ll_streak += 1
+            hh_streak = 0
+            if "swing_low" in d.columns:
+                last_lh_price = np.nan
+        elif lab == "HL":
+            # Higher Low: confirma uptrend, NO resetea hh_streak (EXP-012: la
+            # cadena HH/HL sostiene el impulso). Solo rompe ll_streak.
+            if "swing_low" in d.columns:
+                last_hl_price = float(d["swing_low"].to_numpy()[i])
+            ll_streak = 0
+        elif lab == "LH":
+            # Lower High: rompe el uptrend, resetea hh_streak.
+            if "swing_high" in d.columns:
+                last_lh_price = float(d["swing_high"].to_numpy()[i])
+            hh_streak = 0
+
+        cd = int(choch_dir[i])
+        if cd == 0:
+            continue
+        # (a) momentum
+        if cd == -1:  # CHOCH bajista: exige uptrend con >=2 HH
+            momentum_ok = hh_streak >= 2
+            lvl = last_hl_price
+        else:  # CHOCH alcista: exige downtrend con >=2 LL
+            momentum_ok = ll_streak >= 2
+            lvl = last_lh_price
+        # (b) after_bos real: BOS de mercado en direccion opuesta al CHOCH
+        bos_real = int(last_bos_dir[i]) == -cd
+        # (d) reclaim invalida
+        reclaimed = str(choch_status[i]) == "invalidated"
+        if momentum_ok and bos_real and not reclaimed and pd.notna(lvl):
+            exp012[i] = 1
+            pivot_level[i] = lvl
+            after_bos[i] = int(last_bos_dir[i])
+
+    return (
+        pd.Series(exp012, index=d.index, dtype="int8", name="choch_exp012"),
+        pd.Series(pivot_level, index=d.index, dtype="float64", name="choch_pivot_level"),
+        pd.Series(after_bos, index=d.index, dtype="int8", name="choch_exp012_after_bos"),
+    )
+
+
 def detect_market_structure(
     frame: pd.DataFrame,
     config: StructureConfig | None = None,
@@ -440,6 +529,15 @@ def detect_market_structure(
     d["bos_proj_level"] = d["bos_level"]
     d["bos_inval_level"] = d["bos_level"]
     d["choch_inval_level"] = d["choch_proj_level"]
+
+    # EXP-012: marca CHOCH reales como bonus de autoridad (no muta choch_dir).
+    # Se corre ANTES de borrar las columnas internas (_last_bos_dir, etc.).
+    if config.exp012_choch:
+        exp012, pivot_level, after_bos = _exp012_choch_marks(d)
+        d["choch_exp012"] = exp012
+        d["choch_pivot_level"] = pivot_level
+        d["choch_exp012_after_bos"] = after_bos
+
     d = d.drop(
         columns=[
             "_last_bos_dir",
