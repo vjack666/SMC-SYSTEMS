@@ -81,9 +81,10 @@ class StructureConfig:
     # 0 = todo BOS confirmado es real; 1 = solo BOS con calidad maxima.
     quality_threshold: float = 0.45
     # EXP-012 (flag experimental, caducidad documentada en bitacora 2026-08-08):
-    # cuando True, marca choch_exp012 (CHOCH con empuje >=2 HH/LL post-tendencia,
-    # BOS de mercado real detras y nivel = ULTIMO HL/LH roto, no el BOS roto) y
-    # choch_pivot_level. Bonus de autoridad; NO muta choch_dir/choch_status.
+    # cuando True, GATE DURO: marca choch_exp012 y choch_pivot_level, y ADEMAS
+    # sobrescribe choch_dir=0 / choch_status="none" donde el CHOCH no cumple
+    # (empuje >=2 HH/LL post-tendencia, BOS real detras, nivel = ULTIMO HL/LH
+    # roto). El CHOCH de ruido DEJA DE EXISTIR en el frame. Ver commit 375efc6.
     exp012_choch: bool = False
 
 

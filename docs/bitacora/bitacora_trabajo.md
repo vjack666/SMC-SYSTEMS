@@ -742,4 +742,27 @@ Cambio aplicado y verificado:
 (el dato ya viaja en el dict; mostrarlo en pantalla es paso de UI aparte). (A)/(C)/(D) siguen
 pendientes de días previos.
 
+**CAMINO B — CONSEJO DE AGENTES (2026-08-08, misma sesión):** tras medir la BASE
+(`scripts/measure_motor_veltick.py` → `results/motor_veltick_EURUSD_M15.json`, EURUSD M15
+3 meses), el consejo votó el destino del gate. Resultados de la base: CHOCH drop 94.2%,
+NEUTRAL 0%/0%, ALIGNED 1.5%/42.2%, flips 45%. Votos: Arquitecto→B, Trader-Humano→B,
+Riesgo/OPS→C. MAYORÍA = B.
+
+CAMINO B implementado: **GATE DURO solo en ESTRUCTURA LTF/ENTRADA; SESGO HTF CANÓNICO.**
+El gate vive SOLO en `engine.bos.structure.detect_market_structure` (flag `exp012_choch`);
+el sesgo (`engine/bias/narrative.py` `_bias_for_frame`/`compute_htf_bias`/`compute_htf_bias_series`
+y `htf_narrative._resolve_bias`) YA NO acepta `exp012` → usa CHOCH canónico SIEMPRE.
+Esto resuelve la objeción de Riesgo/OPS (gate en un solo lugar, sin flag bifurcado) y
+recupera la alineación sesgo↔estructura (ver base nueva).
+- `engine/bias/narrative.py`: quitado `exp012` de las 3 funciones de sesgo; detect sin gate.
+- `engine/htf_narrative.py`: `_resolve_bias` sin `exp012`; `build_htf_narrative` mantiene el
+  flag SOLO para pintar `choch_exp012` (auditoría visual del observador), no para el sesgo.
+- Bug doc corregido: `StructureConfig.exp012_choch` decía "NO muta" y mutaba (Riesgo/OPS lo halló).
+- Tests: nuevo `test_caminoB_sesgo_inmune_a_gate`; pytest enfocado -> 7 passed.
+- BASE NUEVA (1 mes, camino B): NEUTRAL=0%, ALIGNED=40.0% (recuperó el 42% que el gate
+  duro destruía), CHOCH/ventana 30.56→2.09 (drop 93.2% en EJECUCIÓN LTF), flips=0.
+  Conclusión: sesgo coherente (40% alineado) + ejecución LTF limpia (94% menos ruido).
+- Pendiente: medir ALIGNED para umbral ≥1 HH/LL (camino C) si se quiere comparar; por ahora
+  B es el camino vigente por mayoría del consejo.
+
 **Sin commit/push (regla Ruben: requiere OK expreso).**

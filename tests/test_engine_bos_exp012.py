@@ -130,3 +130,31 @@ def test_exp012_real_m15_drop() -> None:
     assert (fr.loc[fr["choch_exp012"] == 0, "choch_status"] != "active").all()
     # Sanity: el gate debe descartar ruido (drop significativo esperado)
     print(f"\n[EXP-012 M15 GATE] CHOCH restantes={n_choch} (ruido eliminado)")
+
+
+def test_caminoB_sesgo_inmune_a_gate() -> None:
+    """CAMINO B (consejo 2026-08-08): el SESGO HTF es canonico SIEMPRE.
+
+    compute_htf_bias no acepta exp012; el GATE DURO vive solo en
+    detect_market_structure (estructura LTF). El sesgo no debe cambiar aunque
+    se le pase un frame ya censurado por el gate.
+    """
+    from engine.bias.narrative import compute_htf_bias
+    from engine.bos.structure import StructureConfig, detect_market_structure
+
+    # Frame con CHOCH de ruido (sin empuje) para forzar diferencia si el gate
+    # se colara al sesgo.
+    df = pd.DataFrame(
+        {
+            "high": [1.1, 1.12, 1.13, 1.11, 1.10, 1.14, 1.09, 1.15, 1.08, 1.16],
+            "low": [1.09, 1.11, 1.12, 1.10, 1.08, 1.13, 1.07, 1.14, 1.06, 1.15],
+            "open": [1.095, 1.115, 1.125, 1.105, 1.085, 1.135, 1.075, 1.145, 1.065, 1.155],
+            "close": [1.10, 1.12, 1.13, 1.105, 1.09, 1.135, 1.08, 1.145, 1.07, 1.155],
+        }
+    )
+    b_canon = compute_htf_bias(df, df, df)
+    # Frame del sesgo ya censurado por el gate
+    dgc = detect_market_structure(df, StructureConfig(exp012_choch=True)).frame
+    b_censurado = compute_htf_bias(dgc, dgc, dgc)
+    assert b_canon.direction == b_censurado.direction
+    assert b_canon.aligned == b_censurado.aligned

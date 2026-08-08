@@ -159,7 +159,6 @@ def _bias_for_frame(
     frame: pd.DataFrame,
     swing_lookback: int = 5,
     tail: int = 400,
-    exp012: bool = False,
 ) -> Bias:
     """Sesgo de UN timeframe (SPEC §1) por ESTRUCTURA VIGENTE, no por conteo.
 
@@ -168,6 +167,14 @@ def _bias_for_frame(
     "active" (no invalidado) en ese TF. Un BOS alcista que sigue vigente =>
     BULLISH; un CHOCH bajista que invalidó el BOS alcista => BEARISH. Sin
     ningún evento activo => NEUTRAL (rango auténtico, no fallback de ventana).
+
+    REGLA EXP-012 (camino B, consejo 2026-08-08): el SESGO usa CHOCH CANÓNICO
+    SIEMPRE (no aplica el GATE DURO). El gate vive SOLO en
+    detect_market_structure (estructura LTF/entrada, flag exp012_choch), no en
+    el sesgo: censurar CHOCH aquí desalineaba sesgo↔estructura (ALIGNED 42%->1.5%
+    medido en results/motor_veltick_EURUSD_M15.json). El sesgo es la "verdad
+    lenta" del motor y debe coincidir con la narrativa; el ruido de CHOCH solo
+    daña la EJECUCIÓN (capa LTF), no el contexto direccional.
 
     Reusa engine.bos.structure.detect_market_structure (única fuente de
     estructura del motor) para no duplicar detección ni divergir de plan.py.
@@ -181,7 +188,8 @@ def _bias_for_frame(
     if len(df) > tail:
         df = df.tail(tail)
     df = df.reset_index(drop=True)
-    ms = detect_market_structure(df, StructureConfig(swing_lookback=swing_lookback, exp012_choch=exp012))
+    # Sesgo SIEMPRE canónico (sin gate EXP-012): ver docstring de la regla.
+    ms = detect_market_structure(df, StructureConfig(swing_lookback=swing_lookback))
     fr = ms.frame
 
     # Criterio de TRADER HUMANO (sin conteo fijo de velas):
@@ -213,7 +221,6 @@ def compute_htf_bias(
     h4: pd.DataFrame,
     h1: pd.DataFrame,
     swing_lookback: int = 2,
-    exp012: bool = False,
 ) -> HtfBias:
     """Sesgo del día completo: D1 + H4 + H1 + alineación (SPEC §1).
 
@@ -222,16 +229,17 @@ def compute_htf_bias(
                   SOLO velas cerradas (sin look-ahead).
         swing_lookback: ventana de swing (AMBIG de ingeniería, default 2
                         para versión humana de swing).
-        exp012: si True, expone el conteo de CHOCH EXP-012 (bonus de
-                autoridad) en cada TF sin vetar el sesgo canónico.
+
+    REGLA EXP-012 (camino B): el sesgo usa CHOCH CANÓNICO SIEMPRE; el GATE DURO
+    vive solo en engine.bos.structure.detect_market_structure (estructura LTF).
 
     Returns:
         HtfBias con el sesgo de cada TF y la alineación global.
     """
     return HtfBias(
-        d1=_bias_for_frame(d1, swing_lookback, exp012=exp012),
-        h4=_bias_for_frame(h4, swing_lookback, exp012=exp012),
-        h1=_bias_for_frame(h1, swing_lookback, exp012=exp012),
+        d1=_bias_for_frame(d1, swing_lookback),
+        h4=_bias_for_frame(h4, swing_lookback),
+        h1=_bias_for_frame(h1, swing_lookback),
     )
 
 
@@ -241,13 +249,15 @@ def compute_htf_bias_series(
     h1: pd.DataFrame,
     m15: pd.DataFrame,
     swing_lookback: int = 2,
-    exp012: bool = False,
 ) -> pd.DataFrame:
     """Serie temporal de `HtfBias` propagada a H1 y M15.
 
     Se calcula en cada cierre de H4 y luego se expande por `ffill` sobre la
     línea de tiempo completa de H1 ∪ M15, porque en vivo el operador reutiliza
     el último bias confirmado hasta el próximo cierre H4.
+
+    REGLA EXP-012 (camino B): el sesgo de la serie usa CHOCH CANÓNICO SIEMPRE;
+    el GATE DURO vive solo en detect_market_structure (estructura LTF).
     """
     h4 = h4.sort_index()
     d1_cum = d1
@@ -263,7 +273,7 @@ def compute_htf_bias_series(
             h4_cum = h4.loc[h4.index <= ts]
         if len(d1_cum) < 2 or len(h4_cum) < 2 or len(h1_cum) < 2:
             continue
-        bias = compute_htf_bias(d1_cum, h4_cum, h1_cum, swing_lookback=swing_lookback, exp012=exp012)
+        bias = compute_htf_bias(d1_cum, h4_cum, h1_cum, swing_lookback=swing_lookback)
         rows.append(
             {
                 "timestamp": ts,

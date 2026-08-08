@@ -34,17 +34,21 @@ except Exception:  # pragma: no cover
 __all__ = ["build_htf_narrative", "narrative_ready_for_trade"]
 
 
-def _resolve_bias(frame: pd.DataFrame, htf_bias=None, exp012: bool = True) -> HtfBias:
+def _resolve_bias(frame: pd.DataFrame, htf_bias=None) -> HtfBias:
     """Sesgo HTF vigente. Si no se pasa uno, se deriva del propio frame.
 
     El frame de trabajo hace de proxy de D1/H4/H1 (misma geometría de swings);
     así la narrativa es autocontenida sin importar el backtest.
+
+    REGLA EXP-012 (camino B): el sesgo es SIEMPRE canónico (sin gate). El gate
+    vive solo en detect_market_structure (estructura LTF/entrada); censurarlo
+    aquí desalineaba sesgo↔estructura (ver results/motor_veltick_EURUSD_M15.json).
     """
     if htf_bias is not None:
         return htf_bias
     if frame is None or len(frame) < 3:
         return HtfBias(d1=NEUTRAL, h4=NEUTRAL, h1=NEUTRAL)
-    return compute_htf_bias(frame, frame, frame, exp012=exp012)
+    return compute_htf_bias(frame, frame, frame)
 
 
 def _last_bos_event(frame: pd.DataFrame, exp012: bool = False) -> dict | None:
@@ -122,7 +126,9 @@ def build_htf_narrative(
     Returns:
         {'bias', 'is_favorable', 'zone', 'liquidity_target', 'poi', 'summary'}
     """
-    bias_obj = _resolve_bias(frame, htf_bias, exp012=exp012)
+    # Sesgo SIEMPRE canónico (camino B): el flag exp012 solo controla la
+    # pintura de auditoría choch_exp012 (abajo), no el sesgo.
+    bias_obj = _resolve_bias(frame, htf_bias)
     direction = getattr(bias_obj, "direction", NEUTRAL) or NEUTRAL
 
     # 1) Donde esta el precio? premium/discount anclado al sesgo.
