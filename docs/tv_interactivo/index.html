@@ -16,9 +16,9 @@
 html,body{height:100%}
 body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;
   display:flex;flex-direction:column;overflow:hidden}
-header{display:flex;align-items:center;gap:16px;padding:12px 18px;
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;flex-wrap:wrap;
   border-bottom:1px solid var(--border);background:var(--panel)}
-header h1{font-size:16px;font-weight:700;letter-spacing:-.3px}
+header h1{font-size:15px;font-weight:700;letter-spacing:-.3px;white-space:nowrap}
 .badge{font-family:var(--mono);font-size:12px;padding:4px 9px;border-radius:8px;
   background:var(--panel2);color:var(--muted)}
 .badge.sesgo-BULLISH{color:var(--up);border:1px solid var(--up)}
@@ -26,44 +26,78 @@ header h1{font-size:16px;font-weight:700;letter-spacing:-.3px}
 .badge.lvl-Alta{color:var(--up)}
 .badge.lvl-Media{color:var(--mark)}
 .badge.lvl-Baja{color:var(--down)}
+select,button{font-family:inherit}
 select{background:var(--panel2);color:var(--text);border:1px solid var(--border);
   border-radius:8px;padding:6px 10px;font-family:var(--mono);font-size:13px;cursor:pointer}
+.btn{background:var(--accent);color:#fff;border:none;border-radius:9px;padding:7px 14px;
+  font-weight:600;font-size:13px;cursor:pointer;transition:.15s}
+.btn:hover{filter:brightness(1.12)}
+.btn.ghost{background:var(--panel2);color:var(--text)}
+.chips{display:flex;gap:5px}
+.chip{background:var(--panel2);color:var(--muted);border:1px solid transparent;
+  padding:5px 11px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
+.chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .main{flex:1;display:flex;min-height:0}
-.chart-wrap{flex:7;display:flex;flex-direction:column;min-width:0}
-.tabs{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--border);
-  background:var(--panel)}
+.chart-wrap{flex:1;display:flex;flex-direction:column;min-width:0}
+.tabs{display:flex;gap:6px;padding:9px 14px;border-bottom:1px solid var(--border);
+  background:var(--panel);flex-wrap:wrap}
 .tab{background:var(--panel2);color:var(--muted);border:1px solid transparent;
-  padding:7px 16px;border-radius:9px;font-weight:600;font-size:13px;cursor:pointer;
-  transition:.15s}
+  padding:7px 16px;border-radius:9px;font-weight:600;font-size:13px;cursor:pointer;transition:.15s}
 .tab:hover{color:var(--text)}
 .tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.canvas-box{flex:1;position:relative;min-height:0;background:var(--bg)}
+.canvas-box{flex:1;position:relative;min-height:0;background:var(--bg);cursor:crosshair}
 canvas{width:100%;height:100%;display:block}
-.rail{flex:3;min-width:320px;max-width:420px;border-left:1px solid var(--border);
+#tooltip{position:absolute;pointer-events:none;background:rgba(22,27,34,.96);
+  border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-family:var(--mono);
+  font-size:11px;color:var(--text);display:none;z-index:20;white-space:nowrap;line-height:1.5}
+#tooltip b{color:var(--mark)}
+.legend{display:flex;gap:14px;padding:7px 14px;border-top:1px solid var(--border);
+  font-size:11px;color:var(--muted);flex-wrap:wrap}
+.legend span{display:flex;align-items:center;gap:5px}
+.dot{width:11px;height:3px;border-radius:2px;display:inline-block}
+.rail{flex:0 0 360px;max-width:42vw;border-left:1px solid var(--border);
   background:var(--panel);display:flex;flex-direction:column}
 .rail-tabs{display:flex;border-bottom:1px solid var(--border)}
 .rail-tab{flex:1;text-align:center;padding:11px;font-weight:600;font-size:13px;
   color:var(--muted);cursor:pointer;background:none;border:none}
 .rail-tab.active{color:var(--text);box-shadow:inset 0 -2px 0 var(--accent)}
-.rail-body{flex:1;overflow-y:auto;padding:18px}
+.rail-body{flex:1;overflow-y:auto;padding:16px}
 .rail-body h2{font-size:15px;margin-bottom:10px;font-weight:700}
-.rail-body h3{font-size:13px;color:var(--accent);margin:16px 0 6px;text-transform:uppercase;
-  letter-spacing:.5px}
+.rail-body h3{font-size:12px;color:var(--accent);margin:16px 0 6px;text-transform:uppercase;letter-spacing:.5px}
 .rail-body p{font-size:13px;line-height:1.55;color:#c9d1d9;margin-bottom:8px}
 .rail-body .mono{font-family:var(--mono);font-size:12px;color:var(--text)}
-.kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);
-  font-size:13px}
+.kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
 .kv .k{color:var(--muted)}
 .kv .v{font-family:var(--mono);font-weight:600}
-.legend{display:flex;gap:14px;padding:8px 14px;border-top:1px solid var(--border);
-  font-size:11px;color:var(--muted);flex-wrap:wrap}
-.legend span{display:flex;align-items:center;gap:5px}
-.dot{width:11px;height:3px;border-radius:2px;display:inline-block}
-footer{padding:7px 18px;border-top:1px solid var(--border);background:var(--panel);
-  font-size:11px;color:var(--muted)}
-#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  color:var(--muted);font-size:14px}
-.err{color:var(--down)}
+.gloss{display:grid;grid-template-columns:1fr;gap:10px}
+.gloss dt{font-weight:700;color:var(--up);font-size:13px}
+.gloss dd{font-size:12px;color:#c9d1d9;line-height:1.45;margin-top:2px}
+footer{padding:6px 16px;border-top:1px solid var(--border);background:var(--panel);
+  font-size:11px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+footer .hint{color:var(--muted)}
+/* Tour overlay */
+#tour{position:absolute;inset:0;background:rgba(14,17,23,.92);display:none;z-index:30;
+  flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center}
+#tour.show{display:flex}
+#tour .card{max-width:520px;background:var(--panel);border:1px solid var(--border);
+  border-radius:16px;padding:28px 30px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+#tour h2{font-size:22px;margin-bottom:12px}
+#tour p{font-size:15px;line-height:1.6;color:#c9d1d9;margin-bottom:18px}
+#tour .nav{display:flex;gap:10px;justify-content:center}
+#tour .step{color:var(--muted);font-size:12px;margin-top:12px}
+/* Glosario modal */
+#modal{position:absolute;inset:0;background:rgba(14,17,23,.9);display:none;z-index:30;
+  align-items:center;justify-content:center;padding:24px}
+#modal.show{display:flex}
+#modal .box{max-width:600px;max-height:80vh;overflow-y:auto;background:var(--panel);
+  border:1px solid var(--border);border-radius:16px;padding:24px}
+#modal h2{font-size:18px;margin-bottom:14px}
+#modal .close{float:right;cursor:pointer;color:var(--muted);font-size:20px;line-height:1}
+@media(max-width:860px){
+  .rail{flex:0 0 100%;max-width:100%;border-left:none;border-top:1px solid var(--border)}
+  .main{flex-direction:column}
+  .canvas-box{min-height:46vh}
+}
 </style>
 </head>
 <body>
@@ -72,9 +106,17 @@ footer{padding:7px 18px;border-top:1px solid var(--border);background:var(--pane
   <span class="badge" id="b-setup">Setup —</span>
   <span class="badge" id="b-sesgo">Sesgo —</span>
   <span class="badge" id="b-lvl">Nivel —</span>
-  <label style="margin-left:auto;font-size:12px;color:var(--muted)">Escenario
+  <label style="font-size:12px;color:var(--muted)">Escenario
     <select id="setupSel"></select>
   </label>
+  <div class="chips" id="qChips">
+    <span class="chip active" data-q="all">Todos</span>
+    <span class="chip" data-q="Alta">Alta</span>
+    <span class="chip" data-q="Media">Media</span>
+    <span class="chip" data-q="Baja">Baja</span>
+  </div>
+  <button class="btn" id="tourBtn">▶ Clase guiada</button>
+  <button class="btn ghost" id="glossBtn">📖 Glosario ICT</button>
 </header>
 
 <div class="main">
@@ -86,17 +128,37 @@ footer{padding:7px 18px;border-top:1px solid var(--border);background:var(--pane
       <div class="tab" data-tf="M15">M15</div>
       <div class="tab" data-tf="M5">M5</div>
     </div>
-    <div class="canvas-box">
-      <div id="loading">Cargando datos del motor…</div>
+    <div class="canvas-box" id="cbox">
       <canvas id="cv"></canvas>
+      <div id="tooltip"></div>
+      <div id="tour">
+        <div class="card">
+          <h2 id="tourTitle"></h2>
+          <p id="tourText"></p>
+          <div class="nav">
+            <button class="btn ghost" id="tourPrev">← Ant</button>
+            <button class="btn" id="tourNext">Sig →</button>
+            <button class="btn ghost" id="tourExit">Salir</button>
+          </div>
+          <div class="step" id="tourStep"></div>
+        </div>
+      </div>
+      <div id="modal">
+        <div class="box">
+          <span class="close" id="modalClose">✕</span>
+          <h2>Glosario ICT — lenguaje simple</h2>
+          <dl class="gloss" id="glossList"></dl>
+        </div>
+      </div>
     </div>
     <div class="legend">
       <span><i class="dot" style="background:var(--up)"></i> Alcista</span>
       <span><i class="dot" style="background:var(--down)"></i> Bajista</span>
+      <span><i class="dot" style="background:var(--mark)"></i> POI</span>
       <span><i class="dot" style="background:var(--up)"></i> ENTRY</span>
       <span><i class="dot" style="background:var(--down)"></i> SL</span>
       <span><i class="dot" style="background:var(--tp)"></i> TP</span>
-      <span><i class="dot" style="background:var(--mark)"></i> Entrada</span>
+      <span><i class="dot" style="background:#9b8cff"></i> BOS</span>
     </div>
   </div>
 
@@ -109,7 +171,10 @@ footer{padding:7px 18px;border-top:1px solid var(--border);background:var(--pane
   </aside>
 </div>
 
-<footer id="foot">Datos históricos (auditoría WM=3, julio-agosto). No es señal en vivo.</footer>
+<footer>
+  <span>Datos históricos (auditoría WM=3, julio-agosto). No es señal en vivo.</span>
+  <span class="hint">Rueda = zoom · Arrastra = mover · Hover = OHLC · Clase guiada = tour paso a paso</span>
+</footer>
 
 <script>
 const TF_ORDER=["D1","H4","H1","M15","M5"];
@@ -124,113 +189,202 @@ const TF_TECH={
   D1:"Sesgo HTF canónico (camino B): D1/H4/H1 dictan dirección. El GATE DURO de CHOCH NO contamina el sesgo — se queda igual de selectivo.",
   H4:"Sesgo HTF intermedio. El motor valida alineación top-down: solo opera si H4/H1 confirman la dirección de D1.",
   H1:"Sesgo HTF de corto plazo. Último filtro antes de M15. Si H1 va contra D1, el setup se descarta (no alineado).",
-  M15:"GATE DURO exp012: CHOCH solo cuenta si empuje ≥2 HH/LL (ruido censurado). Aquí se ancla el POI (zona de interés). Estructura event-driven: sweep→displace→BOS→retorno.",
-  M5:"Ejecución fina. El motor entra en BOS/retorno con SL en mecha de sweep y TP a RR 1:3. Aquí ves entry/SL/TP marcados."
+  M15:"GATE DURO exp012: CHOCH solo cuenta si empuje ≥2 HH/LL (ruido censurado). Aquí se ancla el POI (zona de interés sombreada). Estructura event-driven: sweep→displace→BOS→retorno.",
+  M5:"Ejecución fina. El motor entra en BOS/retorno con SL en mecha de sweep y TP a RR 1:3. Aquí ves entry/SL/TP + triángulo."
 };
+const GLOSSARY=[
+  ["BOS","Break Of Structure. El precio rompe el último máximo (alcista) o mínimo (bajista). Confirma que la estructura cambió de dirección."],
+  ["CHOCH","Change Of Character. La primera señal de que la tendencia podría girar. El GATE DURO solo acepta CHOCH real (empuje ≥2 HH/LL), no ruido."],
+  ["POI","Point Of Interest. Zona donde el motor espera que el precio rebote para entrar. Se sombrea en M15."],
+  ["FVG","Fair Value Gap. Hueco entre velas que el precio suele volver a llenar. Zona de desequilibrio."],
+  ["Sweep","El precio caza los stop loss de otros traders (liquidez) antes de arrancar en la dirección real."],
+  ["Displacement","Movimiento fuerte y decidido del precio, no una velita débil. Confirma intención."],
+  ["Liquidez","Los sitios donde otros tienen sus stops (máximos/mínimos). El motor los usa como trampolín."],
+  ["Killzone","Ventanas de tiempo donde el dinero institucional opera (London/NY). Mayor probabilidad."],
+  ["RR","Risk:Reward. Cuánto ganas si aciertas vs cuánto pierdes si fallas. El motor usa 1:3."],
+  ["Sesgo","La dirección que manda el marco superior (D1/H4/H1). El motor solo opera a favor."]
+];
 
-let DATA=[], curSetup=0, curTF="M15", curRail="theory";
+let DATA=[], curSetup=0, curTF="M15", curRail="theory", curQuality="all";
+let view={start:0,end:0}; // indices visibles (zoom/pan)
+let hoverIdx=-1, dragX=null;
 
 function fmt(p){return p==null?"—":p.toFixed(5);}
+function curSetupObj(){return DATA[curSetup];}
 
+/* ---------- badges + selectors ---------- */
 function setupBadges(s){
   document.getElementById("b-setup").textContent="Setup "+s.n;
   const sb=document.getElementById("b-sesgo");
-  sb.textContent="Sesgo "+(s.bias_dir||"—");
-  sb.className="badge sesgo-"+(s.bias_dir||"");
+  sb.textContent="Sesgo "+(s.bias_dir||"—"); sb.className="badge sesgo-"+(s.bias_dir||"");
   const lb=document.getElementById("b-lvl");
-  lb.textContent="Nivel "+(s.lvl||"—");
-  lb.className="badge lvl-"+(s.lvl||"");
+  lb.textContent="Nivel "+(s.lvl||"—"); lb.className="badge lvl-"+(s.lvl||"");
+}
+function applyQualityFilter(){
+  const sel=document.getElementById("setupSel");
+  const keep=DATA.map((s,i)=>({s,i})).filter(o=>curQuality==="all"||o.s.lvl===curQuality);
+  sel.innerHTML="";
+  keep.forEach(o=>{const op=document.createElement("option");op.value=o.i;
+    op.textContent=`${o.s.n} · ${o.s.lvl} · ${o.s.bias_dir}`;sel.appendChild(op);});
+  if(!keep.some(o=>o.i===curSetup)&&keep.length)curSetup=keep[0].i;
+  sel.value=curSetup;
 }
 
+/* ---------- chart ---------- */
 function drawChart(){
-  const s=DATA[curSetup]; const p=s.panels[curTF];
-  const cv=document.getElementById("cv");
-  const box=cv.parentElement;
+  const s=curSetupObj(); const p=s.panels[curTF];
+  const cv=document.getElementById("cv"); const box=document.getElementById("cbox");
   const dpr=window.devicePixelRatio||1;
   cv.width=box.clientWidth*dpr; cv.height=box.clientHeight*dpr;
-  const ctx=cv.getContext("2d"); ctx.scale(dpr,dpr);
-  const W=box.clientWidth, H=box.clientHeight;
+  const ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
+  const W=box.clientWidth,H=box.clientHeight;
   ctx.clearRect(0,0,W,H); ctx.fillStyle="#0e1117"; ctx.fillRect(0,0,W,H);
 
   const cs=p.candles; if(!cs||!cs.length)return;
-  const highs=cs.map(c=>c[2]), lows=cs.map(c=>c[3]);
+  if(view.end<=view.start)view={start:0,end:cs.length};
+  const lo0=view.start, hi0=view.end;
+  const vis=cs.slice(lo0,hi0);
+  let lows=vis.map(c=>c[3]), highs=vis.map(c=>c[2]);
   let lo=Math.min(...lows), hi=Math.max(...highs);
-  if(curTF==="M15"||curTF==="M5"){
-    lo=Math.min(lo,s.sl,s.entry,s.tp); hi=Math.max(hi,s.sl,s.entry,s.tp);
-  }
-  const pad=(hi-lo)*0.12; lo-=pad; hi+=pad;
-  const n=cs.length, padL=8, padR=64, padT=24, padB=22;
+  if(curTF==="M15"||curTF==="M5"){lo=Math.min(lo,s.sl,s.entry,s.tp);hi=Math.max(hi,s.sl,s.entry,s.tp);}
+  const pad=(hi-lo)*0.12||0.001; lo-=pad; hi+=pad;
+  const n=hi0-lo0, padL=8,padR=64,padT=24,padB=22;
   const plotW=W-padL-padR, plotH=H-padT-padB;
-  const x=i=>padL+(i+0.5)/n*plotW;
+  const x=i=>padL+(i-lo0+0.5)/n*plotW;
   const y=v=>padT+(hi-v)/(hi-lo)*plotH;
 
   // grid + y labels
   ctx.strokeStyle="#1c2230"; ctx.fillStyle="#8b949e";
   ctx.font="11px 'JetBrains Mono'"; ctx.textAlign="left";
-  const ticks=5;
-  for(let t=0;t<=ticks;t++){
-    const v=lo+(hi-lo)*t/ticks, yy=y(v);
+  for(let t=0;t<=5;t++){const v=lo+(hi-lo)*t/5,yy=y(v);
     ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();
-    ctx.fillText(v.toFixed(5),W-padR+4,yy+3);
+    ctx.fillText(v.toFixed(5),W-padR+4,yy+3);}
+
+  // POI zone (M15/M5): sombrea rango entry ± 8 pips como zona de interés
+  if(curTF==="M15"||curTF==="M5"){
+    const poiHalf=Math.max(Math.abs(s.tp-s.entry),Math.abs(s.sl-s.entry))*0.4||0.0003;
+    ctx.fillStyle="rgba(255,213,79,.13)";
+    ctx.fillRect(padL,y(s.entry+poiHalf),plotW,y(s.entry-poiHalf)-y(s.entry+poiHalf));
+    ctx.strokeStyle="rgba(255,213,79,.5)";ctx.setLineDash([4,3]);
+    ctx.strokeRect(padL,y(s.entry+poiHalf),plotW,y(s.entry-poiHalf)-y(s.entry+poiHalf));
+    ctx.setLineDash([]);
   }
 
   // candles
   const bw=Math.max(1,plotW/n*0.62);
-  cs.forEach((c,i)=>{
-    const [t,o,h,l,cl]=c; const up=cl>=o;
-    ctx.strokeStyle=up?"#26a69a":"#ef5350";
-    ctx.fillStyle=up?"#26a69a":"#ef5350";
-    ctx.beginPath();ctx.moveTo(x(i),y(h));ctx.lineTo(x(i),y(l));ctx.stroke();
-    const yo=y(o),yc=y(cl); const top=Math.min(yo,yc), hgt=Math.max(1,Math.abs(yo-yc));
-    ctx.fillRect(x(i)-bw/2,top,bw,hgt);
-  });
+  vis.forEach((c,k)=>{const gi=lo0+k;[t,o,h,l,cl]=c;const up=cl>=o;
+    ctx.strokeStyle=up?"#26a69a":"#ef5350";ctx.fillStyle=up?"#26a69a":"#ef5350";
+    ctx.beginPath();ctx.moveTo(x(gi),y(h));ctx.lineTo(x(gi),y(l));ctx.stroke();
+    const yo=y(o),yc=y(cl),top=Math.min(yo,yc),hgt=Math.max(1,Math.abs(yo-yc));
+    ctx.fillRect(x(gi)-bw/2,top,bw,hgt);});
 
-  // entry marker + lines on M15/M5
+  // BOS arrow (M15/M5): flecha en entry_idx indicando dirección del sesgo
   if(curTF==="M15"||curTF==="M5"){
-    const specs=[["ENTRY",s.entry,"#26a69a"],["SL",s.sl,"#ef5350"],["TP",s.tp,"#42a5f5"]];
-    specs.sort((a,b)=>a[1]-b[1]).forEach((sp,k)=>{
-      ctx.strokeStyle=sp[2];ctx.lineWidth=1.2;ctx.setLineDash([]);
-      ctx.beginPath();ctx.moveTo(padL,y(sp[1]));ctx.lineTo(W-padR,y(sp[1]));ctx.stroke();
-      ctx.fillStyle=sp[2];ctx.font="bold 10px 'JetBrains Mono'";ctx.textAlign="right";
-      ctx.fillText(sp[0]+" "+fmt(sp[1]),W-padR-4,y(sp[1])-3+(k-1)*12);
-    });
-    // triangle on entry candle
-    const ei=p.entry_idx; if(ei>=0&&ei<n){
-      ctx.fillStyle="#ffd54f";ctx.beginPath();
-      ctx.moveTo(x(ei),y(cs[ei][2])-10);ctx.lineTo(x(ei)-6,y(cs[ei][2])-22);
-      ctx.lineTo(x(ei)+6,y(cs[ei][2])-22);ctx.closePath();ctx.fill();
+    const ei=p.entry_idx;
+    if(ei>=lo0&&ei<hi0){
+      const dir=s.bias_dir==="BULLISH"?1:-1;
+      ctx.fillStyle="#9b8cff";ctx.beginPath();
+      const ax=x(ei),ay=y(cs[ei][2])-14*dir;
+      ctx.moveTo(ax,ay);ctx.lineTo(ax-6,ay+10*dir);ctx.lineTo(ax+6,ay+10*dir);ctx.closePath();ctx.fill();
     }
   }
 
-  // title
+  // entry/SL/TP lines
+  if(curTF==="M15"||curTF==="M5"){
+    [["ENTRY",s.entry,"#26a69a"],["SL",s.sl,"#ef5350"],["TP",s.tp,"#42a5f5"]]
+      .sort((a,b)=>a[1]-b[1]).forEach((sp,k)=>{
+      ctx.strokeStyle=sp[2];ctx.lineWidth=1.2;
+      ctx.beginPath();ctx.moveTo(padL,y(sp[1]));ctx.lineTo(W-padR,y(sp[1]));ctx.stroke();
+      ctx.fillStyle=sp[2];ctx.font="bold 10px 'JetBrains Mono'";ctx.textAlign="right";
+      ctx.fillText(sp[0]+" "+fmt(sp[1]),W-padR-4,y(sp[1])-3+(k-1)*12);});
+    const ei=p.entry_idx;
+    if(ei>=lo0&&ei<hi0){
+      ctx.fillStyle="#ffd54f";ctx.beginPath();
+      ctx.moveTo(x(ei),y(cs[ei][2])-10);ctx.lineTo(x(ei)-6,y(cs[ei][2])-22);
+      ctx.lineTo(x(ei)+6,y(cs[ei][2])-22);ctx.closePath();ctx.fill();}
+  }
+
+  // hover highlight + crosshair
+  if(hoverIdx>=lo0&&hoverIdx<hi0){
+    ctx.strokeStyle="rgba(230,237,243,.25)";ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(x(hoverIdx),padT);ctx.lineTo(x(hoverIdx),H-padB);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle="rgba(255,213,79,.7)";
+    ctx.strokeRect(x(hoverIdx)-bw/2,y(Math.max(cs[hoverIdx][2],cs[hoverIdx][3])),
+      bw,y(Math.min(cs[hoverIdx][2],cs[hoverIdx][3]))-y(Math.max(cs[hoverIdx][2],cs[hoverIdx][3])));
+  }
+
+  // title + x labels
   ctx.fillStyle="#e6edf3";ctx.font="bold 13px Inter";ctx.textAlign="left";
   ctx.fillText(curTF+" — "+p.role.toUpperCase(),padL,15);
-  // x labels (sparse)
   ctx.fillStyle="#8b949e";ctx.font="9px 'JetBrains Mono'";ctx.textAlign="center";
   const step=Math.max(1,Math.floor(n/6));
-  for(let i=0;i<n;i+=step){
-    const d=cs[i][0].slice(5,16).replace("T"," ");
-    ctx.fillText(d,x(i),H-7);
-  }
+  for(let i=lo0;i<hi0;i+=step){const d=cs[i][0].slice(5,16).replace("T"," ");ctx.fillText(d,x(i),H-7);}
 }
 
+/* ---------- tooltip ---------- */
+function onMove(e){
+  const box=document.getElementById("cbox"); const cv=document.getElementById("cv");
+  const r=cv.getBoundingClientRect(); const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const s=curSetupObj(); const p=s.panels[curTF]; const cs=p.candles;
+  if(view.end<=view.start)view={start:0,end:cs.length};
+  const lo0=view.start,hi0=view.end,n=hi0-lo0;
+  const padL=8,padR=64,plotW=cv.clientWidth-padL-padR;
+  const gi=Math.floor((mx-padL)/plotW*n)+lo0;
+  hoverIdx=(gi>=lo0&&gi<hi0)?gi:-1;
+  const tip=document.getElementById("tooltip");
+  if(hoverIdx>=0&&hoverIdx<cs.length){
+    const c=cs[hoverIdx];
+    tip.style.display="block";
+    tip.style.left=Math.min(mx+14,cv.clientWidth-150)+"px";
+    tip.style.top=Math.max(my-10,8)+"px";
+    tip.innerHTML=`<b>${c[0].slice(5,16).replace("T"," ")}</b><br>O ${fmt(c[1])} H ${fmt(c[2])}<br>L ${fmt(c[3])} C ${fmt(c[4])}`;
+  }else tip.style.display="none";
+  drawChart();
+}
+function onLeave(){hoverIdx=-1;document.getElementById("tooltip").style.display="none";drawChart();}
+
+/* ---------- zoom / pan ---------- */
+function onWheel(e){
+  e.preventDefault();
+  const s=curSetupObj();const p=s.panels[curTF];const cs=p.candles;
+  if(view.end<=view.start)view={start:0,end:cs.length};
+  const span=view.end-view.start;
+  const ns=Math.max(10,Math.floor(span*(e.deltaY>0?1.15:0.87)));
+  const center=view.start+span/2;
+  view.start=Math.max(0,Math.floor(center-ns/2));view.end=Math.min(cs.length,view.start+ns);
+  if(view.end-view.start<10)view.end=view.start+10;
+  drawChart();
+}
+function onDown(e){dragX=e.clientX;const cs=curSetupObj().panels[curTF].candles;
+  const box=document.getElementById("cbox");const cv=document.getElementById("cv");
+  const plotW=cv.clientWidth-72;const span=view.end-view.start;
+  const pxPerBar=plotW/Math.max(1,span);
+  function mv(ev){const dx=ev.clientX-dragX;dragX=ev.clientX;
+    const shift=Math.round(dx/pxPerBar);
+    view.start=Math.max(0,view.start-shift);view.end=Math.min(cs.length,view.end-shift);
+    if(view.start===0)view.end=Math.min(cs.length,view.end);
+    drawChart();}
+  function up(){document.removeEventListener("mousemove",mv);document.removeEventListener("mouseup",up);}
+  document.addEventListener("mousemove",mv);document.addEventListener("mouseup",up);
+}
+
+/* ---------- rail ---------- */
 function renderRail(){
-  const s=DATA[curSetup]; const body=document.getElementById("railBody");
+  const s=curSetupObj(); const body=document.getElementById("railBody");
   if(curRail==="theory"){
-    body.innerHTML=`<h2>${curTF} — Teoría</h2>
-      <p>${TF_THEORY[curTF]}</p>
+    body.innerHTML=`<h2>${curTF} — Teoría</h2><p>${TF_THEORY[curTF]}</p>
       <h3>En este setup</h3>
       <p>El motor detectó <span class="mono">${s.lvl}</span> autoridad con sesgo
       <span class="mono">${s.bias_dir}</span>. En ${curTF} ves ${s.panels[curTF].role.toLowerCase()}.</p>
       <p style="color:var(--muted)">${curTF==="M15"||curTF==="M5"
-        ? "Las líneas verde/rojo/azul son entry / SL / TP reales del motor."
+        ? "Las líneas verde/rojo/azul son entry / SL / TP reales. La zona amarilla es el POI. La flecha violeta marca la ruptura (BOS)."
         : "Este marco solo muestra velas (es contexto de dirección)."}</p>`;
   }else{
     const p=s.panels[curTF];
     body.innerHTML=`<h2>${curTF} — Técnica ICT</h2>
       <h3>Qué detectó el motor</h3>
       <div class="kv"><span class="k">Rol</span><span class="v">${p.role}</span></div>
-      <div class="kv"><span class="k">Rol (ES)</span><span class="v">${p.role}</span></div>
       <div class="kv"><span class="k">Sesgo HTF</span><span class="v">${s.bias_dir}</span></div>
       <div class="kv"><span class="k">Alineado</span><span class="v">${s.bias_aligned?"SÍ":"NO"}</span></div>
       <div class="kv"><span class="k">Nivel POI</span><span class="v">${s.lvl}</span></div>
@@ -244,35 +398,86 @@ function renderRail(){
   }
 }
 
-function selectSetup(i){curSetup=i; setupBadges(DATA[i]); drawChart(); renderRail();
-  localStorage.setItem("tv_setup",i);}
+/* ---------- tour ---------- */
+let tourStep=0;
+const TOUR=[
+  ["D1 — El Jefe","Empieza arriba. El marco diario dicta la dirección. Aquí el motor decide si solo compra o solo vende. Fíjate en la tendencia general: máximos y mínimos más bajos = bajista."],
+  ["H4 — Contexto","Baja un piso. H4 confirma o matiza a D1. Si D1 dice bajista pero H4 hace mínimos más altos, algo cambió. El motor valida la alineación."],
+  ["H1 — Pulso corto","El pulso de corto plazo. Último filtro antes de la acción. Si H1 va contra D1, el setup se descarta: no alineado."],
+  ["M15 — La Puerta","Aquí pasa la magia. El precio rompe la estructura (BOS, flecha violeta) o cambia (CHOCH real). El motor ancla su zona de interés (POI, sombreado amarillo)."],
+  ["M5 — La Cerradura","La ejecución. El motor entra en entry (verde), con su límite SL (rojo) y meta TP (azul). El triángulo amarillo marca la vela exacta de entrada. ¡Eso es el setup!"],
+  ["Resumen","Cada marco tiene su trabajo: D1 manda, H4/H1 confirman, M15 encuentra la zona, M5 ejecuta. Así lee el mercado el motor SMC-SYSTEMS. Cambia de escenario y repite el ejercicio."]
+];
+function openTour(){tourStep=0;document.getElementById("tour").classList.add("show");renderTour();}
+function renderTour(){
+  document.getElementById("tourTitle").textContent=TOUR[tourStep][0];
+  document.getElementById("tourText").textContent=TOUR[tourStep][1];
+  document.getElementById("tourStep").textContent=`Paso ${tourStep+1} / ${TOUR.length}`;
+  const tfMap=["D1","H4","H1","M15","M5","M15"];
+  if(tourStep<5)selectTF(tfMap[tourStep]);
+}
+function closeTour(){document.getElementById("tour").classList.remove("show");}
+
+/* ---------- glosario ---------- */
+function openGloss(){
+  const dl=document.getElementById("glossList");dl.innerHTML="";
+  GLOSSARY.forEach(([t,d])=>{const dt=document.createElement("dt");dt.textContent=t;
+    const dd=document.createElement("dd");dd.textContent=d;dl.appendChild(dt);dl.appendChild(dd);});
+  document.getElementById("modal").classList.add("show");
+}
+
+/* ---------- nav ---------- */
+function selectSetup(i){curSetup=i;setupBadges(DATA[i]);view={start:0,end:DATA[i].panels[curTF].candles.length};
+  drawChart();renderRail();localStorage.setItem("tv_setup",i);}
 function selectTF(tf){curTF=tf;
   document.querySelectorAll("#tfTabs .tab").forEach(t=>t.classList.toggle("active",t.dataset.tf===tf));
-  drawChart(); renderRail(); localStorage.setItem("tv_tf",tf);}
+  view={start:0,end:curSetupObj().panels[tf].candles.length};
+  drawChart();renderRail();localStorage.setItem("tv_tf",tf);}
 function selectRail(r){curRail=r;
   document.querySelectorAll(".rail-tab").forEach(b=>b.classList.toggle("active",b.dataset.rail===r));
-  renderRail();}
+  renderRail();localStorage.setItem("tv_rail",r);}
 
+/* ---------- init ---------- */
 async function init(){
   try{
     const res=await fetch("../../results/tv_scenarios_multitf.json");
     if(!res.ok)throw new Error("HTTP "+res.status);
     DATA=await res.json();
-    document.getElementById("loading").style.display="none";
     const sel=document.getElementById("setupSel");
-    DATA.forEach((s,i)=>{const o=document.createElement("option");o.value=i;
-      o.textContent=`${s.n} · ${s.lvl} · ${s.bias_dir}`;sel.appendChild(o);});
-    sel.onchange=e=>selectSetup(+e.target.value);
+    applyQualityFilterInit();
+    sel.onchange=e=>{curSetup=+e.target.value;selectSetup(curSetup);};
     document.querySelectorAll("#tfTabs .tab").forEach(t=>t.onclick=()=>selectTF(t.dataset.tf));
     document.querySelectorAll(".rail-tab").forEach(b=>b.onclick=()=>selectRail(b.dataset.rail));
+    document.querySelectorAll("#qChips .chip").forEach(c=>c.onclick=()=>{
+      curQuality=c.dataset.q;
+      document.querySelectorAll("#qChips .chip").forEach(x=>x.classList.toggle("active",x===c));
+      applyQualityFilter();selectSetup(curSetup);});
+    document.getElementById("tourBtn").onclick=openTour;
+    document.getElementById("tourNext").onclick=()=>{if(tourStep<TOUR.length-1){tourStep++;renderTour();}else closeTour();};
+    document.getElementById("tourPrev").onclick=()=>{if(tourStep>0){tourStep--;renderTour();}};
+    document.getElementById("tourExit").onclick=closeTour;
+    document.getElementById("glossBtn").onclick=openGloss;
+    document.getElementById("modalClose").onclick=()=>document.getElementById("modal").classList.remove("show");
+    const cv=document.getElementById("cv");
+    cv.addEventListener("mousemove",onMove);cv.addEventListener("mouseleave",onLeave);
+    cv.addEventListener("wheel",onWheel,{passive:false});cv.addEventListener("mousedown",onDown);
+
     const si=+localStorage.getItem("tv_setup")||0;
     const tf=localStorage.getItem("tv_tf")||"M15";
-    sel.value=si; selectSetup(si); selectTF(tf); selectRail("theory");
+    const rl=localStorage.getItem("tv_rail")||"theory";
+    curSetup=si;curTF=tf;curRail=rl;
+    document.querySelectorAll(".rail-tab").forEach(b=>b.classList.toggle("active",b.dataset.rail===rl));
+    selectSetup(si);selectTF(tf);selectRail(rl);
     window.addEventListener("resize",drawChart);
   }catch(e){
-    document.getElementById("loading").innerHTML=
-      `<span class="err">Error: ${e.message}. Sirve la carpeta con http (no file://).</span>`;
+    document.getElementById("cbox").insertAdjacentHTML("beforeend",
+      `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ef5350;font-size:14px;padding:20px;text-align:center">Error: ${e.message}. Sirve la carpeta con http (no file://).</div>`);
   }
+}
+function applyQualityFilterInit(){
+  const sel=document.getElementById("setupSel");sel.innerHTML="";
+  DATA.forEach((s,i)=>{const op=document.createElement("option");op.value=i;
+    op.textContent=`${s.n} · ${s.lvl} · ${s.bias_dir}`;sel.appendChild(op);});
 }
 init();
 </script>
