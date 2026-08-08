@@ -1,121 +1,19 @@
-"""ict_backtest/rules.py — Reglas ICT rescatadas del dashboard observador.
+"""ict_backtest/rules.py — SHIM: killzone vive en engine.killzone (Ley).
 
-Estas reglas SON las mismas que usa app_observador/ui/resumen_widget.py
-(checklist_intradia / checklist_scalping). Se rescatan AQUI como funciones
-PURAS para que el backtest use EXACTAMENTE la misma logica que el observador
-en vivo (sin desincronizacion entre "lo que ves" y "lo que se prueba").
-
-Diferencia clave vs el dashboard:
-  - El dashboard usa killzone_activa_ahora() (reloj de la PC).
-  - AQUI la killzone se calcula del TIMESTAMP de la vela (backtest historico).
-  - Todo es puro: recibe `estructura: dict` (por TF) y devuelve checklist + puntuacion.
-
-Modelos cubiertos (docs/ict/*.md):
-  - INTRADIA  : PO3 / Turtle Soup  (H1/H4/M15)
-  - SCALPING  : Silver Bullet      (M1/M5, sweep en M15)
+La unica fuente de killzone_en es engine.killzone. Este modulo lo re-exporta para
+no romper el dashboard/observador. El checklist PO3 (intradia/scalping) queda.
 """
+from engine.killzone import (  # noqa: F401
+    KILLZONES_UTC,
+    KILLZONES_ET,
+    _KZ_ET_TO_SHORT,
+    server_to_utc,
+    _et_band_to_utc,
+    _killzone_en_utc,
+    killzone_en,
+    short_label,
+)
 
-from __future__ import annotations
-
-from datetime import datetime, time, timezone
-from typing import Any
-from zoneinfo import ZoneInfo
-
-from signals.po3 import evaluate_po3
-
-# Bandas killzone en UTC canónico (convención del proyecto / docs ict/01_KILLZONES).
-# Usadas SOLO cuando broker_tz=None (ts ya viene en UTC crudo, camino legacy de
-# canonical.py). NO son offsets fijos: son el rango UTC canónico ya convertido.
-# Clave -> (hora_ini, hora_fin) en horas decimales UTC.
-KILLZONES_UTC: dict[str, tuple[float, float]] = {
-    "Asia": (0.0, 3.0),
-    "London Open": (7.0, 10.0),
-    "New York AM": (12.5, 15.0),   # ~10-11 ET
-    "New York PM": (15.0, 17.5),
-    "London Close": (15.5, 17.5),
-}
-
-# Bandas killzone en ET FIJO (horario local del mentorship ICT). Se convierten a
-# UTC POR DIA usando ZoneInfo('America/New_York') -> DST automático. NUNCA offset
-# fijo. Clave -> ((h_ini, m_ini), (h_fin, m_fin)) en ET local.
-KILLZONES_ET: dict[str, tuple[tuple[int, int], tuple[int, int]]] = {
-    "London Open": ((2, 0), (5, 0)),    # 02:00-05:00 ET  (London 07:00-10:00 UK)
-    "New York AM": ((10, 0), (12, 0)),  # 10:00-12:00 ET  (Silver Bullet)
-    "New York PM": ((14, 0), (17, 0)),  # 14:00-17:00 ET  (NY PM session)
-}
-
-# Etiqueta corta usada por detectors/killzones.py (pintar banda de fondo).
-_KZ_ET_TO_SHORT = {
-    "London Open": "LDN_OPEN",
-    "New York AM": "NY_AM",
-    "New York PM": "NY_PM",
-}
-
-
-def server_to_utc(ts: datetime, broker_tz) -> datetime:
-    """Convierte hora del SERVIDOR (broker MT5) a UTC canónico del proyecto.
-
-    PRINCIPIO DE RUBEN (DEC-009i): la hora la da el servidor (broker time); se
-    CONVIERTE via ZoneInfo (DST automático) a UTC. NUNCA offset fijo hardcodeado.
-    - Si `ts` es naive, se asume que está en `broker_tz`.
-    - Si `ts` es tz-aware, se reconvertiza a UTC desde su zona.
-    `broker_tz` es ZoneInfo | str (nombre IANA).
-    """
-    if isinstance(broker_tz, str):
-        broker_tz = ZoneInfo(broker_tz)
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=broker_tz)
-    return ts.astimezone(timezone.utc)
-
-
-def _et_band_to_utc(et_h: int, et_m: int, day_utc: datetime) -> datetime:
-    """Convierte una hora ET fija del DIA de `day_utc` a su instante UTC real.
-
-    Se ancla al dia UTC de la vela y se aplica el DST vigente ese dia via
-    ZoneInfo('America/New_York'). Así la ventana UTC correcta se calcula sin
-    offset fijo.
-    """
-    ny = ZoneInfo("America/New_York")
-    # Construir el instante ET del dia de la vela (localize naive a NY).
-    et_local = datetime(day_utc.year, day_utc.month, day_utc.day, et_h, et_m,
-                        tzinfo=ny)
-    return et_local.astimezone(timezone.utc)
-
-
-def _killzone_en_utc(utc_ts: datetime) -> str:
-    """Evalúa las bandas KILLZONES_UTC (camino legacy, broker_tz=None)."""
-    h = utc_ts.hour + utc_ts.minute / 60.0
-    for nombre, (ini, fin) in KILLZONES_UTC.items():
-        if ini <= h < fin:
-            return nombre
-    return ""
-
-
-def killzone_en(ts: datetime, broker_tz: ZoneInfo | str | None = None) -> str:
-    """Killzone activa para un timestamp de vela. Backtest-safe.
-
-    REGLA DE ZONA HORARIA (MDS_KILLZONES / DEC-009i):
-    - Si `broker_tz` se pasa: PRIMERO server_to_utc (nunca evaluar sobre hora
-      broker cruda). Luego se evalúan las bandas ICT definidas en ET fijo,
-      convirtiendo ese ET a UTC POR DIA via ZoneInfo (DST automático).
-    - Si `broker_tz` es None: se asume que `ts` YA viene en UTC canónico (ruta
-      legacy de canonical.py) y se evalúa contra KILLZONES_UTC.
-
-    Devuelve 'London Open' | 'New York AM' | 'New York PM' | '' según corresponda.
-    """
-    if broker_tz is not None:
-        utc_ts = server_to_utc(ts, broker_tz)
-        # Bandas en ET fijo -> UTC por dia (DST automatico, sin offset fijo).
-        for nombre, ((h0, m0), (h1, m1)) in KILLZONES_ET.items():
-            ini = _et_band_to_utc(h0, m0, utc_ts)
-            fin = _et_band_to_utc(h1, m1, utc_ts)
-            if ini <= utc_ts < fin:
-                return nombre
-        return ""
-    # Legacy: ts ya en UTC.
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    return _killzone_en_utc(ts)
 
 
 def _dir_setup(bias: str, votes: dict | None, m15: dict, counter_trend: bool = False) -> str:

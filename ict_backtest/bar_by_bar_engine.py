@@ -12,7 +12,7 @@ from typing import Any
 
 import pandas as pd
 
-from ict_backtest.trade_mgmt import apply_trade_management
+from engine.trade_mgmt import apply_trade_management
 
 
 # ---------------------------------------------------------------------------

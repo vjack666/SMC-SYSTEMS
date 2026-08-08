@@ -35,9 +35,9 @@ from ict_backtest.market_structure import detect_market_structure
 from ict_backtest.multitf_context import MultiTFContext, build_multitf_context, extract_htf_layer
 from ict_backtest.dealing_range_motor import compute_zone_class
 from ict_backtest.po3_motor import compute_po3_complete, Po3MotorConfig
-from ict_backtest.rules import killzone_en
+from engine.killzone import killzone_en
 from ict_backtest.sequence import SequenceConfig, run_sequence
-from ict_backtest.setups.rr_map import rr_for
+from engine.rr_by_setup import rr_for
 # POI anclado: UNICA fuente = engine (Ley). El backtest NO tiene logica propia.
 from engine.poi_anchor import build_htf_structure_index, make_htf_poi_fn, poi_present
 # Fase B2 (libro 18): el calculo FIN de entry/SL/TP en el TF de ejecucion
@@ -385,10 +385,10 @@ def evaluate_signals(
     # como knob apagado (hard_filter=False). Asi el pipeline produce la
     # senal completa y quien consuma (scoring/E1) decide. Call-site real:
     # evaluate_signals AHORA llama estos flags sobre su propia salida.
-    from ict_backtest.setups.silver_bullet import flag_silver_bullet
-    from ict_backtest.setups.turtle_soup import flag_turtle_soup
+    from engine.silver_bullet import flag_silver_bullet
+    from engine.turtle_soup import flag_turtle_soup
     from ict_backtest.setups.ote import flag_ote
-    from ict_backtest.setups.rr_map import flag_rr
+    from engine.rr_by_setup import flag_rr
 
     ltf_df_for_flags = frames.get(ltf) if isinstance(frames, dict) else (frames if isinstance(frames, pd.DataFrame) else None)
     for _fn in (
