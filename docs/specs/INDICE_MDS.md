@@ -28,7 +28,7 @@
 | 11 | **Turtle Soup (C3)** | C3 | ✅ HECHO | engine/turtle_soup.py (rescatado dd8f7ef) | MDS_C3_TURTLE_SOUP.md |
 | 12 | **Trade Management BE/parciales (E1)** | E1 | ✅ HECHO | engine/trade_mgmt.py (rescatado dd8f7ef) | MDS_E1_TRADE_MANAGEMENT.md |
 | 13 | **RR por setup (C2)** | C2 | ✅ HECHO | engine/rr_by_setup.py (rescatado dd8f7ef) | MDS_RR_POR_SETUP.md |
-| 14 | Liquidez internal/external (B3) | B3 | 🔲 no iniciado | — | MDS_B3_LIQUIDEZ_INT_EXT.md |
+| 14 | Liquidez internal/external (B3) | B3 | ✅ HECHO | engine/liquidity_internal_external.py (IRL/ERL, commit fcce14d+) | MDS_B3_LIQUIDEZ_INT_EXT.md |
 
 ## Regla dura de implementación (Ruben 2026-08-08)
 - **CERO indicadores técnicos** (EMA/RSI/ATR/MACD/Bollinger...).
