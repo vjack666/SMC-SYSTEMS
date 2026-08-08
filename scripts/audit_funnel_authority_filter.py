@@ -57,7 +57,16 @@ for n, s in enumerate(signals, 1):
             media += 1
         else:
             baja += 1
-        detalle.append((str(tt), lvl, round(auth.get("confidence_weight", 0), 3), auth.get("tier"), auth.get("stacking_level")))
+        # Precio de referencia: nivel POI/ENTRY del setup (ICTSignal).
+        entry = getattr(s, "entry", None)
+        sl = getattr(s, "stop_loss", None)
+        tp = getattr(s, "take_profit", None)
+        detalle.append((
+            str(tt), lvl, round(auth.get("confidence_weight", 0), 3), auth.get("tier"), auth.get("stacking_level"),
+            round(float(entry), 5) if entry is not None else None,
+            round(float(sl), 5) if sl is not None else None,
+            round(float(tp), 5) if tp is not None else None,
+        ))
 
 print(f"\n[filt] ---- SETUPS COMPLETOS POR NIVEL DE AUTORIDAD HTF ({WM}m) ----", flush=True)
 print(f"  Alta : {alta}", flush=True)

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EURUSD — TV Interactivo SMC-SYSTEMS</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e1117; --panel:#161b22; --panel2:#1c2230; --border:#1c2230;
+  --text:#e6edf3; --muted:#8b949e; --up:#26a69a; --down:#ef5350;
+  --tp:#42a5f5; --mark:#ffd54f; --accent:#7132f5;
+  --radius:11px; --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;
+  display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:16px;padding:12px 18px;
+  border-bottom:1px solid var(--border);background:var(--panel)}
+header h1{font-size:16px;font-weight:700;letter-spacing:-.3px}
+.badge{font-family:var(--mono);font-size:12px;padding:4px 9px;border-radius:8px;
+  background:var(--panel2);color:var(--muted)}
+.badge.sesgo-BULLISH{color:var(--up);border:1px solid var(--up)}
+.badge.sesgo-BEARISH{color:var(--down);border:1px solid var(--down)}
+.badge.lvl-Alta{color:var(--up)}
+.badge.lvl-Media{color:var(--mark)}
+.badge.lvl-Baja{color:var(--down)}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:6px 10px;font-family:var(--mono);font-size:13px;cursor:pointer}
+.main{flex:1;display:flex;min-height:0}
+.chart-wrap{flex:7;display:flex;flex-direction:column;min-width:0}
+.tabs{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--border);
+  background:var(--panel)}
+.tab{background:var(--panel2);color:var(--muted);border:1px solid transparent;
+  padding:7px 16px;border-radius:9px;font-weight:600;font-size:13px;cursor:pointer;
+  transition:.15s}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.canvas-box{flex:1;position:relative;min-height:0;background:var(--bg)}
+canvas{width:100%;height:100%;display:block}
+.rail{flex:3;min-width:320px;max-width:420px;border-left:1px solid var(--border);
+  background:var(--panel);display:flex;flex-direction:column}
+.rail-tabs{display:flex;border-bottom:1px solid var(--border)}
+.rail-tab{flex:1;text-align:center;padding:11px;font-weight:600;font-size:13px;
+  color:var(--muted);cursor:pointer;background:none;border:none}
+.rail-tab.active{color:var(--text);box-shadow:inset 0 -2px 0 var(--accent)}
+.rail-body{flex:1;overflow-y:auto;padding:18px}
+.rail-body h2{font-size:15px;margin-bottom:10px;font-weight:700}
+.rail-body h3{font-size:13px;color:var(--accent);margin:16px 0 6px;text-transform:uppercase;
+  letter-spacing:.5px}
+.rail-body p{font-size:13px;line-height:1.55;color:#c9d1d9;margin-bottom:8px}
+.rail-body .mono{font-family:var(--mono);font-size:12px;color:var(--text)}
+.kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);
+  font-size:13px}
+.kv .k{color:var(--muted)}
+.kv .v{font-family:var(--mono);font-weight:600}
+.legend{display:flex;gap:14px;padding:8px 14px;border-top:1px solid var(--border);
+  font-size:11px;color:var(--muted);flex-wrap:wrap}
+.legend span{display:flex;align-items:center;gap:5px}
+.dot{width:11px;height:3px;border-radius:2px;display:inline-block}
+footer{padding:7px 18px;border-top:1px solid var(--border);background:var(--panel);
+  font-size:11px;color:var(--muted)}
+#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:14px}
+.err{color:var(--down)}
+</style>
+</head>
+<body>
+<header>
+  <h1>EURUSD — TV Interactivo SMC</h1>
+  <span class="badge" id="b-setup">Setup —</span>
+  <span class="badge" id="b-sesgo">Sesgo —</span>
+  <span class="badge" id="b-lvl">Nivel —</span>
+  <label style="margin-left:auto;font-size:12px;color:var(--muted)">Escenario
+    <select id="setupSel"></select>
+  </label>
+</header>
+
+<div class="main">
+  <div class="chart-wrap">
+    <div class="tabs" id="tfTabs">
+      <div class="tab" data-tf="D1">D1</div>
+      <div class="tab" data-tf="H4">H4</div>
+      <div class="tab" data-tf="H1">H1</div>
+      <div class="tab" data-tf="M15">M15</div>
+      <div class="tab" data-tf="M5">M5</div>
+    </div>
+    <div class="canvas-box">
+      <div id="loading">Cargando datos del motor…</div>
+      <canvas id="cv"></canvas>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--up)"></i> Alcista</span>
+      <span><i class="dot" style="background:var(--down)"></i> Bajista</span>
+      <span><i class="dot" style="background:var(--up)"></i> ENTRY</span>
+      <span><i class="dot" style="background:var(--down)"></i> SL</span>
+      <span><i class="dot" style="background:var(--tp)"></i> TP</span>
+      <span><i class="dot" style="background:var(--mark)"></i> Entrada</span>
+    </div>
+  </div>
+
+  <aside class="rail">
+    <div class="rail-tabs">
+      <button class="rail-tab active" data-rail="theory">Teoría</button>
+      <button class="rail-tab" data-rail="tech">Técnica ICT</button>
+    </div>
+    <div class="rail-body" id="railBody"></div>
+  </aside>
+</div>
+
+<footer id="foot">Datos históricos (auditoría WM=3, julio-agosto). No es señal en vivo.</footer>
+
+<script>
+const TF_ORDER=["D1","H4","H1","M15","M5"];
+const TF_THEORY={
+  D1:"🏢 EL JEFE. Mira la dirección general del mercado. Si dice 'baja', el motor solo busca vender. Es la voz que manda a todos los demás marcos.",
+  H4:"🏢 CONTEXTO. Confirma o matiza lo que dice D1. Aquí ves si la tendencia se mantiene o ya se cansó.",
+  H1:"🏢 CONTEXTO. El pulso de corto plazo. Te dice si estás a favor o en contra de la corriente antes de bajar al detalle.",
+  M15:"🔑 LA PUERTA. Donde el precio rompió la estructura (BOS) o cambió de dirección (CHOCH real, no ruido). El motor ancla aquí su zona de interés (POI).",
+  M5:"🔑 LA CERRADURA. Donde el motor realmente entra: entry, con su límite de pérdida (SL) y su meta (TP). Es la ejecución pura."
+};
+const TF_TECH={
+  D1:"Sesgo HTF canónico (camino B): D1/H4/H1 dictan dirección. El GATE DURO de CHOCH NO contamina el sesgo — se queda igual de selectivo.",
+  H4:"Sesgo HTF intermedio. El motor valida alineación top-down: solo opera si H4/H1 confirman la dirección de D1.",
+  H1:"Sesgo HTF de corto plazo. Último filtro antes de M15. Si H1 va contra D1, el setup se descarta (no alineado).",
+  M15:"GATE DURO exp012: CHOCH solo cuenta si empuje ≥2 HH/LL (ruido censurado). Aquí se ancla el POI (zona de interés). Estructura event-driven: sweep→displace→BOS→retorno.",
+  M5:"Ejecución fina. El motor entra en BOS/retorno con SL en mecha de sweep y TP a RR 1:3. Aquí ves entry/SL/TP marcados."
+};
+
+let DATA=[], curSetup=0, curTF="M15", curRail="theory";
+
+function fmt(p){return p==null?"—":p.toFixed(5);}
+
+function setupBadges(s){
+  document.getElementById("b-setup").textContent="Setup "+s.n;
+  const sb=document.getElementById("b-sesgo");
+  sb.textContent="Sesgo "+(s.bias_dir||"—");
+  sb.className="badge sesgo-"+(s.bias_dir||"");
+  const lb=document.getElementById("b-lvl");
+  lb.textContent="Nivel "+(s.lvl||"—");
+  lb.className="badge lvl-"+(s.lvl||"");
+}
+
+function drawChart(){
+  const s=DATA[curSetup]; const p=s.panels[curTF];
+  const cv=document.getElementById("cv");
+  const box=cv.parentElement;
+  const dpr=window.devicePixelRatio||1;
+  cv.width=box.clientWidth*dpr; cv.height=box.clientHeight*dpr;
+  const ctx=cv.getContext("2d"); ctx.scale(dpr,dpr);
+  const W=box.clientWidth, H=box.clientHeight;
+  ctx.clearRect(0,0,W,H); ctx.fillStyle="#0e1117"; ctx.fillRect(0,0,W,H);
+
+  const cs=p.candles; if(!cs||!cs.length)return;
+  const highs=cs.map(c=>c[2]), lows=cs.map(c=>c[3]);
+  let lo=Math.min(...lows), hi=Math.max(...highs);
+  if(curTF==="M15"||curTF==="M5"){
+    lo=Math.min(lo,s.sl,s.entry,s.tp); hi=Math.max(hi,s.sl,s.entry,s.tp);
+  }
+  const pad=(hi-lo)*0.12; lo-=pad; hi+=pad;
+  const n=cs.length, padL=8, padR=64, padT=24, padB=22;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const x=i=>padL+(i+0.5)/n*plotW;
+  const y=v=>padT+(hi-v)/(hi-lo)*plotH;
+
+  // grid + y labels
+  ctx.strokeStyle="#1c2230"; ctx.fillStyle="#8b949e";
+  ctx.font="11px 'JetBrains Mono'"; ctx.textAlign="left";
+  const ticks=5;
+  for(let t=0;t<=ticks;t++){
+    const v=lo+(hi-lo)*t/ticks, yy=y(v);
+    ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();
+    ctx.fillText(v.toFixed(5),W-padR+4,yy+3);
+  }
+
+  // candles
+  const bw=Math.max(1,plotW/n*0.62);
+  cs.forEach((c,i)=>{
+    const [t,o,h,l,cl]=c; const up=cl>=o;
+    ctx.strokeStyle=up?"#26a69a":"#ef5350";
+    ctx.fillStyle=up?"#26a69a":"#ef5350";
+    ctx.beginPath();ctx.moveTo(x(i),y(h));ctx.lineTo(x(i),y(l));ctx.stroke();
+    const yo=y(o),yc=y(cl); const top=Math.min(yo,yc), hgt=Math.max(1,Math.abs(yo-yc));
+    ctx.fillRect(x(i)-bw/2,top,bw,hgt);
+  });
+
+  // entry marker + lines on M15/M5
+  if(curTF==="M15"||curTF==="M5"){
+    const specs=[["ENTRY",s.entry,"#26a69a"],["SL",s.sl,"#ef5350"],["TP",s.tp,"#42a5f5"]];
+    specs.sort((a,b)=>a[1]-b[1]).forEach((sp,k)=>{
+      ctx.strokeStyle=sp[2];ctx.lineWidth=1.2;ctx.setLineDash([]);
+      ctx.beginPath();ctx.moveTo(padL,y(sp[1]));ctx.lineTo(W-padR,y(sp[1]));ctx.stroke();
+      ctx.fillStyle=sp[2];ctx.font="bold 10px 'JetBrains Mono'";ctx.textAlign="right";
+      ctx.fillText(sp[0]+" "+fmt(sp[1]),W-padR-4,y(sp[1])-3+(k-1)*12);
+    });
+    // triangle on entry candle
+    const ei=p.entry_idx; if(ei>=0&&ei<n){
+      ctx.fillStyle="#ffd54f";ctx.beginPath();
+      ctx.moveTo(x(ei),y(cs[ei][2])-10);ctx.lineTo(x(ei)-6,y(cs[ei][2])-22);
+      ctx.lineTo(x(ei)+6,y(cs[ei][2])-22);ctx.closePath();ctx.fill();
+    }
+  }
+
+  // title
+  ctx.fillStyle="#e6edf3";ctx.font="bold 13px Inter";ctx.textAlign="left";
+  ctx.fillText(curTF+" — "+p.role.toUpperCase(),padL,15);
+  // x labels (sparse)
+  ctx.fillStyle="#8b949e";ctx.font="9px 'JetBrains Mono'";ctx.textAlign="center";
+  const step=Math.max(1,Math.floor(n/6));
+  for(let i=0;i<n;i+=step){
+    const d=cs[i][0].slice(5,16).replace("T"," ");
+    ctx.fillText(d,x(i),H-7);
+  }
+}
+
+function renderRail(){
+  const s=DATA[curSetup]; const body=document.getElementById("railBody");
+  if(curRail==="theory"){
+    body.innerHTML=`<h2>${curTF} — Teoría</h2>
+      <p>${TF_THEORY[curTF]}</p>
+      <h3>En este setup</h3>
+      <p>El motor detectó <span class="mono">${s.lvl}</span> autoridad con sesgo
+      <span class="mono">${s.bias_dir}</span>. En ${curTF} ves ${s.panels[curTF].role.toLowerCase()}.</p>
+      <p style="color:var(--muted)">${curTF==="M15"||curTF==="M5"
+        ? "Las líneas verde/rojo/azul son entry / SL / TP reales del motor."
+        : "Este marco solo muestra velas (es contexto de dirección)."}</p>`;
+  }else{
+    const p=s.panels[curTF];
+    body.innerHTML=`<h2>${curTF} — Técnica ICT</h2>
+      <h3>Qué detectó el motor</h3>
+      <div class="kv"><span class="k">Rol</span><span class="v">${p.role}</span></div>
+      <div class="kv"><span class="k">Rol (ES)</span><span class="v">${p.role}</span></div>
+      <div class="kv"><span class="k">Sesgo HTF</span><span class="v">${s.bias_dir}</span></div>
+      <div class="kv"><span class="k">Alineado</span><span class="v">${s.bias_aligned?"SÍ":"NO"}</span></div>
+      <div class="kv"><span class="k">Nivel POI</span><span class="v">${s.lvl}</span></div>
+      ${curTF==="M15"?`<div class="kv"><span class="k">CHOCH cens. M15</span><span class="v">${s.m15_choch_censurado}</span></div>`:""}
+      ${curTF==="M5"?`<div class="kv"><span class="k">CHOCH cens. M5</span><span class="v">${s.m5_choch_censurado}</span></div>`:""}
+      <h3>Precios del setup</h3>
+      <div class="kv"><span class="k">ENTRY</span><span class="v" style="color:var(--up)">${fmt(s.entry)}</span></div>
+      <div class="kv"><span class="k">SL</span><span class="v" style="color:var(--down)">${fmt(s.sl)}</span></div>
+      <div class="kv"><span class="k">TP</span><span class="v" style="color:var(--tp)">${fmt(s.tp)}</span></div>
+      <h3>Método</h3><p>${TF_TECH[curTF]}</p>`;
+  }
+}
+
+function selectSetup(i){curSetup=i; setupBadges(DATA[i]); drawChart(); renderRail();
+  localStorage.setItem("tv_setup",i);}
+function selectTF(tf){curTF=tf;
+  document.querySelectorAll("#tfTabs .tab").forEach(t=>t.classList.toggle("active",t.dataset.tf===tf));
+  drawChart(); renderRail(); localStorage.setItem("tv_tf",tf);}
+function selectRail(r){curRail=r;
+  document.querySelectorAll(".rail-tab").forEach(b=>b.classList.toggle("active",b.dataset.rail===r));
+  renderRail();}
+
+async function init(){
+  try{
+    const res=await fetch("../../results/tv_scenarios_multitf.json");
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    DATA=await res.json();
+    document.getElementById("loading").style.display="none";
+    const sel=document.getElementById("setupSel");
+    DATA.forEach((s,i)=>{const o=document.createElement("option");o.value=i;
+      o.textContent=`${s.n} · ${s.lvl} · ${s.bias_dir}`;sel.appendChild(o);});
+    sel.onchange=e=>selectSetup(+e.target.value);
+    document.querySelectorAll("#tfTabs .tab").forEach(t=>t.onclick=()=>selectTF(t.dataset.tf));
+    document.querySelectorAll(".rail-tab").forEach(b=>b.onclick=()=>selectRail(b.dataset.rail));
+    const si=+localStorage.getItem("tv_setup")||0;
+    const tf=localStorage.getItem("tv_tf")||"M15";
+    sel.value=si; selectSetup(si); selectTF(tf); selectRail("theory");
+    window.addEventListener("resize",drawChart);
+  }catch(e){
+    document.getElementById("loading").innerHTML=
+      `<span class="err">Error: ${e.message}. Sirve la carpeta con http (no file://).</span>`;
+  }
+}
+init();
+</script>
+</body>
+</html>
