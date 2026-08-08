@@ -765,4 +765,33 @@ recupera la alineación sesgo↔estructura (ver base nueva).
 - Pendiente: medir ALIGNED para umbral ≥1 HH/LL (camino C) si se quiere comparar; por ahora
   B es el camino vigente por mayoría del consejo.
 
+**(A) CERRADO — filtro autoridad WM=3 (2026-08-08):** confirmado a escala 3 meses.
+Script `scripts/audit_funnel_authority_filter.py 3` (consume el motor vía
+`build_htf_narrative`, NO reimplementa). Resultado REAL (EURUSD M15, 3m, 6533
+velas, 3316.8s):
+- Funnel: SWEEP 82 -> DISPLACE 81 -> BOS 68 -> ENTRY 68. Setups ENTRY: 25.
+- Autoridad HTF: Alta 10, Media 15, Baja 0, sin_authority 0.
+- TOTAL 25 | Alta = 40.0% | **Alta+Media = 100.0%** (0 Baja, 0 sin autoridad).
+- Conclusión: el filtro de autoridad POI es sólido a escala — supera el 80% de
+  1 mes (Alta 2/Media 6/Baja 2 = 80%) y a 3 meses llega a 100% Alta+Media.
+  JSON en `results/funnel_authority_filter.json`.
+- NOTA tooling: `runner_monitor --window` FALLA en este bash MSYS ("no job
+  control"); para jobs largos usar `background=true` + `notify_on_complete`
+  directo (no runner_monitor --window). Documentado para futuros jobs.
+
+**(C) BASE MEDIDA — OTE mini-swing M5 vs rango HTF (2026-08-08):** decidido
+M5-dentro-de-M15. Script `scripts/measure_ote_c.py` reusa las 25 entries de (A)
+y calcula OTE (retroceso 0.62-0.79) sobre (1) rango HTF M15 (lookback=10) y
+(2) "mini-swing" M5 (rolling 60 velas previas). Resultado REAL (EURUSD, 25 entries):
+- Ancho zona: HTF=0.00025 | M5=0.00045. Ratio 0.57x — el OTE M5 resultó MAS
+  ANCHO, no mas ajustado (mi "mini-swing" M5 era rango rodante, no pivote real).
+- Entry en HTF=16% | en M5=16% | en ambos=0%.
+- HALLAZGO HONESTO: el motor ENTRA EN BOS, no en retroceso OTE. El OTE es zona
+  de confirmacion, no de entrada; por eso la entry rara vez cae en la zona OTE.
+  La idea (C) "OTE sobre mini-swing" no mejora tal cual: el rango M15 ya es
+  estrecho y la entry es el BOS. Para (C) real se necesita mini-swing por
+  PIVOTES (HL/LH) sobre el tramo swing->entry, no rango rodante. Pendiente
+  refinar si se quiere (C) como mejora de precision de entrada.
+- JSON: `results/ote_c_EURUSD.json`.
+
 **Sin commit/push (regla Ruben: requiere OK expreso).**
