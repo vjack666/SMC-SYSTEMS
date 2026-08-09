@@ -128,3 +128,21 @@ es este AGENTS.md + `docs/tesis/` + `engine/`.
 `docs/tesis/TRUTH_SOURCES.md`, `engine/`, `feature/motor-ict`, `feature/backtest-ict`.
 
 Tu prioridad es avanzar el proyecto de forma eficiente mientras mantienes la memoria del proyecto siempre actualizada.
+
+### Gobernanza institucional (agentes adaptativos)
+
+El organigrama de agentes de gobernanza vive en `agents/governance/`. Catálogo maestro:
+`agents/governance/ROLES_GOBERNANZA.md` (ROL ≠ AGENTE, metáfora del edificio/pisos).
+Constitución del roster y enrutamiento: `agents/governance/ORQUESTADOR.md`.
+Procedimiento obligatorio de todo agente: `agents/governance/PROTOCOLO_AGENTE.md`.
+Disciplina de edición: `agents/governance/CONTRATO_ORDEN.md`.
+
+Roles permanentes (capacidades institucionales adaptativas, no bots de una sola tarea):
+`investigador.md` (explora→hipótesis), `ingeniero.md` (spec→implementación verificable),
+`auditor_independiente.md` (veto de PROMOCIÓN, mata hipótesis), `memoria_institucional.md`
+(autoridad del registro), `cumplimiento_operativo.md` (Ley Fundamental + secretos),
+`alertas_tempranas.md` (severidad INFO/WARNING/CRITICAL/BLOCKING).
+
+> Los agentes de CÓDIGO que consumen el motor (`agents/ict_agent.py`, `wyckoff_agent.py`,
+> `structure_agent.py`, `decision_agent.py`, `orchestrator.py`) son infraestructura de
+> trading, distintos de los de gobernanza. No se pisan.
