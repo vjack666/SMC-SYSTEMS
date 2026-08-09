@@ -70,3 +70,10 @@ data/histdata_tmp_probe/
 
 # Accesos directos de Windows (no fuente de código)
 scripts/DisabledStartup/
+
+# === REGLA PARQUET (2026-08-09, Ruben) ===
+# Por defecto TODOS los *.parquet se ignoran (arriba, linea '*.parquet').
+# EXCEPCION: solo los de EURUSD suben a GitHub. El resto queda LOCAL.
+!data/raw/EURUSD_*.parquet
+!data/ml/EURUSD/*.parquet
+!data/ml/real/v4_EURUSD_2023_2024.parquet
