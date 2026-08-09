@@ -389,6 +389,7 @@ def evaluate_signals(
     from engine.turtle_soup import flag_turtle_soup
     from ict_backtest.setups.ote import flag_ote
     from engine.rr_by_setup import flag_rr
+    from engine.liquidity_internal_external import flag_liquidity_irl_erl
 
     ltf_df_for_flags = frames.get(ltf) if isinstance(frames, dict) else (frames if isinstance(frames, pd.DataFrame) else None)
     for _fn in (
@@ -396,6 +397,7 @@ def evaluate_signals(
         lambda s: flag_turtle_soup(s, frames, ltf) if isinstance(frames, dict) else None,
         lambda s: flag_ote(s, frames, ltf) if isinstance(frames, dict) else None,
         lambda s: flag_rr(s),
+        lambda s: flag_liquidity_irl_erl(s, frames, ltf) if isinstance(frames, dict) else None,
     ):
         try:
             _fn(signals)

@@ -21,6 +21,7 @@ __all__ = [
     "LiquidityModelConfig",
     "classify_liquidity",
     "volume_confirm",
+    "flag_liquidity_irl_erl",
 ]
 
 
@@ -182,3 +183,61 @@ def classify_liquidity(
             )
 
     return out
+
+
+# ---------------------------------------------------------------------------
+# Flag consumidor (para el backtest / ICTSignal) — patrón Brecha D.
+# Solo ANOTA metadato en cada senal; NO filtra ni altera entry/SL/TP.
+# El backtest (ict_backtest/) LO CONSUME; engine/ nunca importa ict_backtest/.
+# ---------------------------------------------------------------------------
+from engine.fvg_poi import detect_fvg
+
+
+def flag_liquidity_irl_erl(signals, frames, ltf: str = "M15", config: "LiquidityModelConfig | None" = None):
+    """Anota en cada ICTSignal: erl_sweep, irl_target, irl_fvg_idx,
+    seq_erl_then_irl, erl_vol_ratio, irl_vol_ratio (atributos dinamicos).
+
+    No filtra ni cambia entry/SL/TP (principio Brecha D). Quien consuma
+    (scoring / UI / E1) decide con ese metadato.
+    """
+    if not isinstance(signals, (list, tuple)):
+        signals = list(signals)
+    if not isinstance(frames, dict) or ltf not in frames:
+        for sig in signals:
+            sig.erl_sweep = None
+            sig.irl_target = None
+            sig.irl_fvg_idx = None
+            sig.seq_erl_then_irl = None
+            sig.erl_vol_ratio = None
+            sig.irl_vol_ratio = None
+        return signals
+
+    df = frames[ltf]
+    fvg_df = detect_fvg(df)
+    cfg = config or LiquidityModelConfig()
+    for sig in signals:
+        direction = int(getattr(sig, "direction", 0) or 0)
+        if direction == 0:
+            sig.erl_sweep = False
+            sig.irl_target = None
+            sig.irl_fvg_idx = None
+            sig.seq_erl_then_irl = False
+            sig.erl_vol_ratio = None
+            sig.irl_vol_ratio = None
+            continue
+        entry_at = getattr(sig, "entry_at", None)
+        end = int(entry_at) + 1 if entry_at is not None else len(df)
+        end = min(end, len(df))
+        window = df.iloc[:end]
+        meta = classify_liquidity(
+            window, direction,
+            fvg_df=fvg_df.iloc[:end] if len(fvg_df) >= end else fvg_df,
+            volume_confirm_fn=volume_confirm, config=cfg,
+        )
+        sig.erl_sweep = bool(meta.get("erl_sweep", False))
+        sig.irl_target = meta.get("irl_target")
+        sig.irl_fvg_idx = meta.get("irl_fvg_idx")
+        sig.seq_erl_then_irl = bool(meta.get("seq_erl_then_irl", False))
+        sig.erl_vol_ratio = meta.get("erl_volume_ratio")
+        sig.irl_vol_ratio = meta.get("irl_volume_ratio")
+    return signals
