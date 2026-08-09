@@ -1,6 +1,6 @@
 # MDS_VOLUMEN.md — Volumen como ÚNICO dato extra permitido
 
-- **Clasificación**: OBLIGATORIO (regla transversal) · **Estado: ✅ DEFINIDO**
+- **Clasificación**: OBLIGATORIO (regla transversal) · **Estado: ✅ IMPLEMENTADO**
 - **Regla de Ruben (2026-08-08)**: "nada de indicadores, solo geometría de
   mercado; el ÚNICO indicador será el de volumen".
 
@@ -37,6 +37,29 @@ ocurrieron en esa vela.
 Los módulos de decisión lo LEEN como dato extra, nunca lo transforman en señal
 direccional. Consumido por backtest sin duplicar lógica.
 
+### Helper único (DRY)
+`engine/_volume.py::volume_confirm(df, idx, window=20) -> float | None`
+Ratio `volumen[vela] / media(volumen ventana previa)`. Devuelve `None` si no hay
+columna `volume` o el índice está fuera de rango. **NUNCA es gate.**
+Reexportado/delegado por `engine/silver_bullet.py` (`volume_confirm`),
+`engine/turtle_soup.py` (`_volume_on_sweep`) y
+`engine/liquidity_internal_external.py` (`volume_confirm`).
+
+### Módulos que ANOTAN volumen (todos: float, nunca filtro)
+| Módulo | Campo | Punto de anotación |
+|---|---|---|
+| `engine/silver_bullet.py` | `volume_confirm()` | helper del setup |
+| `engine/turtle_soup.py` | `_volume_on_sweep()` | sweep PDH/PDL |
+| `engine/liquidity_internal_external.py` | `erl_volume_ratio` / `irl_volume_ratio` | sweep ERL / retorno IRL |
+| `engine/liquidity_levels.py` | `sweep_volume_ratio` (columna, NaN si no aplica) | vela que barre el BSL/SSL previo |
+| `engine/bos/structure.py` | `bos_volume_ratio` (columna, NaN fuera de evento) | vela de breakout BOS/CHOCH |
+| `engine/trade_mgmt.py` | `touch_volume_ratio` (clave dict, `None` si no hubo toque) | toque de tp1 / paso a BE |
+
 ## Verificación
 Smoke: `load_frames` devuelve columna `volume` no-nula; los módulos que lo usan
 no importan indicadores.
+
+Tests: `tests/test_engine_volume_wiring.py` (17 tests) verifica por módulo:
+(a) se anota el ratio cuando hay columna `volume`; (b) sin `volume` el campo es
+`None`/NaN y la geometría es IDÉNTICA (regresión cero); (c) con volumen ínfimo
+la geometría no cambia → **no-gate demostrado**.

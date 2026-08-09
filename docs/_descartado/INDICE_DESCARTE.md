@@ -36,6 +36,17 @@ en git, se pueden restaurar con `git mv` de vuelta. NO se borraron físicamente.
 - `arquitectura/DOCUMENTATION_INDEX.md` — flujo VISION→PRD→SRS→SAD del bot
   heredado; no es el flujo actual (AGENTS.md + tesis + engine/).
 
+### Roadmaps históricos (purga de `_roadmap_historico` → `roadmaps_historico`)
+- 22 archivos en `roadmaps_historico/` (CRONOGRAMA_Y_ROADMAP, HOJA_DE_RUTA_SMC-SYSTEMS,
+  IMPLEMENTATION_PLAN, PLAN_IMPLEMENTACION_ETAPAS, ETAPA_0..4_*, ETAPA_DIAGNOSIS_ENGINE_*,
+  DECISION_LOG, DECISION_TZ, PROJECT_PROTOCOL, PRINCIPIOS_ARQUITECTONICOS, R7_UNIFICACION_MOTOR,
+  ROADMAP_TESIS_DRIVEN_2026-07-17, ROADMAP_BIBLIOTECA_Y_APLICACION, PUNTO_DEL_ROADMAP_2026-08-05,
+  PROPUESTA_BRECHA_A1_CABLEADO_TOPDOWN).
+- Motivo: roadmaps históricos pre-2026-08-03, purgados de `docs/planificacion/_roadmap_historico/`
+  por política 2026-08-03 (los roadmaps de `docs/plan/` ya no son fuente de verdad; ver AGENTS.md).
+  Fuente de verdad vigente = `AGENTS.md` + `docs/tesis/` + `engine/`. Se movieron aquí con `git mv`
+  (REVERSIBLE, sin borrado físico) para mantener el árbol de trabajo limpio.
+
 ### Propuestas de cambios MEDIBLES para backtest ML (no del observador humano)
 - `proposals/item_B.md` .. `item_F.md` — borradores de walk-forward OOS /
   PurgedKFold / conflicto ICT-Wyckoff del proyecto bot. No ayudan al trader

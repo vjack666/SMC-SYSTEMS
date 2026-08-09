@@ -1,5 +1,7 @@
 # SDD — TV Interactivo SMC-SYSTEMS (v2, 150% humano)
 
+**Estado: ✅ COMPLETADO (v2)** — app `docs/tv_interactivo/index.html` operativa (26KB, canvas propio, 0 dependencias de pago); F1-F14 verificadas físicamente en `docs/tv_interactivo/VERIFICATION.md`. Los 2 ⚠️ parciales (sync cruzado de cursor, comparación lado a lado) están documentados como **fuera de scope** (§11) y no degradan la experiencia 150%: tour guiado + filtro por calidad + zoom/pan ya dan recorrido completo. La v2 está completa y operativa.
+
 > Documento de diseño y especificación. App HTML self-contained que consume
 > `results/tv_scenarios_multitf.json` (10 setups reales del motor, auditoría WM=3).
 > Estilo TradingView (dark fintech, referencia Kraken + smc-price-map).

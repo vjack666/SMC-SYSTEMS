@@ -1,9 +1,14 @@
 # MDS_B3_LIQUIDEZ_INT_EXT.md — Liquidez Interna (IRL) / Externa (ERL) — Fase B3
 
-- **Clasificación**: OBLIGATORIO · Fase B3 · **Estado: ✅ diseño listo (implementable en `engine/`)**
-- **SDD-first**: diseño a implementar en `engine/liquidity_zones.py` (módulo nuevo,
-  permanente), apoyado en `engine/liquidity_levels.py` (BSL/SSL ya existentes),
-  `engine/dealing_range.py`, `engine/fvg_poi.py` y `engine/bos/structure.py`.
+- **Clasificación**: OBLIGATORIO · Fase B3 · **Estado: ✅ HECHO (implementado en
+  `engine/liquidity_internal_external.py`, commit `fcce14d`+)**
+- **SDD-first**: diseño implementado en `engine/liquidity_internal_external.py`
+  (módulo permanente; el nombre `engine/liquidity_zones.py` del borrador original
+  NUNCA existió), apoyado en `engine/fvg_poi.py::detect_fvg` y, como referencia
+  geométrica, `engine/liquidity_levels.py` (BSL/SSL), `engine/dealing_range.py` y
+  `engine/bos/structure.py`.
+- **Nota de reconciliación (regla §9g-c)**: este documento fue actualizado para
+  reflejar el MOTOR REAL. Donde el diseño y el código difieren, manda el código.
 - **Fuente teórica**: ICT (innercircletrader.net) — Internal Range Liquidity /
   External Range Liquidity dentro del dealing range.
 
@@ -44,18 +49,33 @@ Y detectar la **secuencia canónica ICT**: `ERL sweep → retorno a IRL`.
 | Entrada | Tipo | Descripción |
 |---|---|---|
 | `df` | `pd.DataFrame` | OHLC(V) **solo velas cerradas**, index temporal ascendente. |
-| `dealing_range` | `dict` | Salida de `engine/dealing_range.py`: `range_high`, `range_low`, `range_high_ts`, `range_low_ts`, zona premium/discount, OTE 0.62–0.79. |
+| `direction` | `int` | **POSICIONAL, obligatorio**: `+1` (long) / `-1` (short). |
+| `dealing_range` | objeto/`None` | Opcional (keyword). Solo se lee su atributo `lookback` para fijar la ventana de swings del rango. |
 | `fvg_df` | `pd.DataFrame` | Salida de `engine/fvg_poi.py::detect_fvg`: `fvg_bullish`, `fvg_bearish`, `fvg_top`, `fvg_bottom`, `fvg_mid`, `fvg_fill_status`. |
-| `htf_bias` | `str` | `"bullish"` / `"bearish"` / `"neutral"` (sesgo HTF). |
-| `direction` | `str` | Dirección buscada en LTF: `"long"` / `"short"`. |
+| `htf_bias` | cualquiera / `None` | Opcional (keyword). Aceptado por compatibilidad; hoy **no** altera la geometría. |
 | `volume_confirm_fn` | `Callable \| None` | **OPCIONAL**. Firma `fn(df, idx, window=20) -> float` (ratio volumen/media). Mismo patrón que `engine/silver_bullet.py` y `engine/turtle_soup.py`. **Nunca gate.** |
-| `cfg` | `LiquidityZonesConfig` | `swing_lookback`, `max_bars_erl_to_irl`, `require_unfilled_fvg=True`, `vol_window=20`. |
+| `config` | `LiquidityModelConfig \| None` | `erl_swing_lookback=10`, `irl_fvg_min_size=0.0`, `volume_confirm_window=20`. |
 
 Sin parámetros de indicadores. No se aceptan EMA/RSI/ATR/MACD ni derivados.
 
 ---
 
 ## 4. Lógica (geometría pura)
+
+> **Reconciliación con el motor real** (`engine/liquidity_internal_external.py`):
+> el diseño de abajo describe la INTENCIÓN. La implementación vigente simplifica:
+> - ERL = swings rolling previos (`high.rolling(lb).max().shift(1)` /
+>   `low.rolling(lb).min().shift(1)`, `lb = dealing_range.lookback` o
+>   `cfg.erl_swing_lookback=10`); sweep = perforación del extremo OPUESTO a
+>   `direction` (long → SSL, short → BSL), sin exigir cierre dentro.
+> - IRL = FVG no llenado, del signo coherente con `direction`, con
+>   `fvg_size >= cfg.irl_fvg_min_size`, dentro del rango observado, y **más
+>   cercano al último `close`**.
+> - `seq_erl_then_irl` = tras el `erl_idx`, el precio TOCA `irl_target`, o bien
+>   un cierre posterior se ACERCA al IRL respecto al cierre del sweep
+>   (no hay `max_bars_erl_to_irl`).
+> - No hay `bias_aligned` ni `require_unfilled_fvg`: los FVG `filled` se
+>   descartan siempre.
 
 ### 4.1 Construcción del dealing range
 Tomar `range_high` / `range_low` de `dealing_range.py` (rolling max/min sobre
@@ -105,9 +125,9 @@ es un pullback interno (ruido), señal de menor calidad.
 
 ### 4.5 Volumen (opcional, nunca gate)
 Si `volume_confirm_fn` no es `None`:
-- `erl_sweep["vol_ratio"] = volume_confirm_fn(df, sweep_idx, cfg.vol_window)`
-- `irl_target["vol_ratio"] = volume_confirm_fn(df, irl_touch_idx, cfg.vol_window)`
-  (solo si hubo toque).
+- `erl_volume_ratio = volume_confirm_fn(df, erl_idx, cfg.volume_confirm_window)`
+- `irl_volume_ratio = volume_confirm_fn(df, irl_return_idx, cfg.volume_confirm_window)`
+  (solo si hubo retorno al IRL).
 Se anota `vol_confirmed = ratio >= 1.0` como **etiqueta informativa**. Ninguna rama
 de control usa `vol_ratio` para descartar la detección. Si `volume_confirm_fn` es
 `None` o falta la columna `volume`, los campos van a `None` y el resultado es
@@ -115,59 +135,71 @@ idéntico en todo lo demás.
 
 ---
 
-## 5. Salidas
+## 5. Salidas (REALES, tal como devuelve el motor)
 
 ```python
 {
-  "dealing_range": {"high": float, "low": float, "high_ts": ts, "low_ts": ts},
-  "erl": {"bsl": float, "ssl": float},
-  "erl_sweep": None | {
-      "side": "BSL" | "SSL",
-      "idx": int, "ts": Timestamp,
-      "sweep_price": float, "penetration": float,
-      "vol_ratio": float | None, "vol_confirmed": bool | None,
-  },
-  "irl_target": None | {
-      "fvg_idx": int, "top": float, "bottom": float, "mid": float,
-      "kind": "bullish" | "bearish", "fill_status": str,
-      "touched": bool, "touch_ts": Timestamp | None,
-      "vol_ratio": float | None, "vol_confirmed": bool | None,
-  },
-  "irl_fvg_idx": int | None,
-  "irl_pool": [ {...niveles internos secundarios...} ],
-  "seq_erl_then_irl": bool,
-  "bias_aligned": bool,
-  "direction": "long" | "short",
+  "erl_sweep": bool,            # hubo barrida del extremo opuesto a `direction`
+  "erl_level": float | None,    # nivel de swing barrido
+  "erl_idx": int | None,        # índice (posicional) de la vela del sweep
+  "irl_target": float | None,   # `fvg_mid` del FVG interno no llenado elegido
+  "irl_fvg_idx": int | None,    # índice de ese FVG en `fvg_df`
+  "seq_erl_then_irl": bool,     # secuencia ERL → retorno a IRL
+  "erl_volume_ratio": float | None,   # informativo (nunca gate)
+  "irl_volume_ratio": float | None,   # informativo (nunca gate)
+  "direction": int,             # +1 / -1
 }
 ```
+
+Salida PLANA (no anidada): el borrador original describía dicts anidados
+(`erl_sweep` como dict, `irl_pool`, `bias_aligned`, timestamps). El motor real
+devuelve escalares planos. No existen `irl_pool` ni `bias_aligned`.
 
 Contrato: la función **nunca lanza** por datos insuficientes; devuelve la estructura
 con `None`/`False` y `seq_erl_then_irl=False`.
 
-API pública propuesta:
+API pública REAL (leída de `engine/liquidity_internal_external.py`):
 
 ```python
-# engine/liquidity_zones.py
-@dataclass
-class LiquidityZonesConfig:
-    swing_lookback: int = 20
-    max_bars_erl_to_irl: int = 12
-    require_unfilled_fvg: bool = True
-    vol_window: int = 20
+# engine/liquidity_internal_external.py
+__all__ = ["LiquidityModelConfig", "classify_liquidity",
+           "volume_confirm", "flag_liquidity_irl_erl"]
 
-def classify_liquidity(df, dealing_range, fvg_df, htf_bias, direction,
-                       volume_confirm_fn=None, cfg=LiquidityZonesConfig()) -> dict: ...
+@dataclass(frozen=True)
+class LiquidityModelConfig:
+    erl_swing_lookback: int = 10
+    irl_fvg_min_size: float = 0.0
+    volume_confirm_window: int = 20
+
+def classify_liquidity(
+    df: pd.DataFrame,
+    direction: int,
+    *,
+    dealing_range=None,
+    fvg_df: pd.DataFrame | None = None,
+    htf_bias=None,
+    volume_confirm_fn=None,
+    config: LiquidityModelConfig | None = None,
+) -> dict: ...
+
+def volume_confirm(df, idx, window: int = 20) -> float | None: ...
+
+def flag_liquidity_irl_erl(signals, frames, ltf="M15", config=None): ...
 ```
+
+`flag_liquidity_irl_erl` (patrón Brecha D) ANOTA en cada `ICTSignal`
+`erl_sweep`, `irl_target`, `irl_fvg_idx`, `seq_erl_then_irl`, `erl_vol_ratio`,
+`irl_vol_ratio`. **No filtra** ni altera entry/SL/TP.
 
 ---
 
 ## 6. Integración
 
-- **engine/**: módulo nuevo `engine/liquidity_zones.py`. Importa solo de
-  `engine/liquidity_levels.py`, `engine/dealing_range.py`, `engine/fvg_poi.py`,
-  `engine/bos/structure.py` y stdlib/pandas.
+- **engine/**: módulo `engine/liquidity_internal_external.py`. Importa solo
+  `engine/fvg_poi.py::detect_fvg` y stdlib/numpy/pandas.
 - **ict_backtest/**: **CONSUME** `classify_liquidity(...)` por vela cerrada para
   filtrar entradas (`seq_erl_then_irl`) y fijar TP en la ERL opuesta.
+  El cableado real vive en `ict_backtest/canonical.py` vía `flag_liquidity_irl_erl`.
 - **Ley Fundamental**: `engine/` **NUNCA** importa `ict_backtest/`.
   `ict_backtest/` nunca reexporta este módulo de vuelta a `engine/`.
 - Consumidores previstos: `engine/silver_bullet.py`, `engine/turtle_soup.py`
@@ -191,7 +223,11 @@ def classify_liquidity(df, dealing_range, fvg_df, htf_bias, direction,
 
 ## 8. Verificación (pytest, datos sintéticos)
 
-`tests/test_liquidity_zones.py`:
+Suites REALES: `tests/test_engine_b3_iirl_erl.py` (unidad del módulo) y
+`tests/test_engine_b3_backtest_cable.py` (cableado con el backtest).
+El fichero `tests/test_liquidity_zones.py` nunca existió.
+
+Casos cubiertos (formulación original conservada como intención de diseño):
 
 1. `test_erl_sweep_bsl_detected`: serie sintética con swing high claro, mecha que lo
    supera y cierre por debajo → `erl_sweep["side"] == "BSL"`.
@@ -211,7 +247,8 @@ def classify_liquidity(df, dealing_range, fvg_df, htf_bias, direction,
    pasados no cambian al añadir velas futuras.
 10. `test_insufficient_data`: df de 3 velas → dict con `None`s, sin excepción.
 
-Regla de aceptación: 10/10 verdes y `grep -E "EMA|RSI|ATR|MACD" engine/liquidity_zones.py` vacío.
+Regla de aceptación: suites B3 en verde y
+`grep -E "EMA|RSI|ATR|MACD" engine/liquidity_internal_external.py` vacío.
 
 ---
 
@@ -230,6 +267,12 @@ Regla de aceptación: 10/10 verdes y `grep -E "EMA|RSI|ATR|MACD" engine/liquidit
 
 ## 10. Estado y siguiente paso
 
-- **Estado**: ✅ diseño listo. Implementable tal cual en `engine/liquidity_zones.py`.
-- Siguiente: implementación + `tests/test_liquidity_zones.py`, luego wiring de
-  consumo en `ict_backtest/` (nunca al revés).
+- **Estado**: ✅ **HECHO** — implementado en
+  `engine/liquidity_internal_external.py` (commit `fcce14d`+), con IRL/ERL,
+  `erl_volume_ratio` / `irl_volume_ratio` y secuencia ERL→IRL.
+- Tests: `tests/test_engine_b3_iirl_erl.py`,
+  `tests/test_engine_b3_backtest_cable.py`.
+- Consumo: `ict_backtest/canonical.py` vía `flag_liquidity_irl_erl` (patrón
+  Brecha D: solo metadato, sin filtrar).
+- Siguiente (opcional, no bloqueante): explotar el metadato en scoring/UI y
+  evaluar `irl_pool` / timestamps del diseño original si aportan medida.

@@ -30,6 +30,22 @@
 | 13 | **RR por setup (C2)** | C2 | ✅ HECHO | engine/rr_by_setup.py (rescatado dd8f7ef) | MDS_RR_POR_SETUP.md |
 | 14 | Liquidez internal/external (B3) | B3 | ✅ HECHO | engine/liquidity_internal_external.py (IRL/ERL, commit fcce14d+) | MDS_B3_LIQUIDEZ_INT_EXT.md |
 
+## SDD transversales / complementarios (fuera de la tabla de 14)
+
+Estos SDD no son "componentes" del motor sino reglas/entregables que cruzan
+varias fases o viven en la app. Se listan para que ningún SDD quede huérfano.
+
+| SDD | Tipo | Estado | Notas |
+|-----|------|--------|-------|
+| `MDS_VOLUMEN.md` | Regla transversal (volumen = única excepción cero-indicadores) | ✅ HECHO | Cableado en `engine/_volume.py` (helper centralizado) + consumido por `silver_bullet`, `turtle_soup`, `liquidity_internal_external`, `liquidity_levels`, `bos/structure`, `trade_mgmt` (anotación `volume_ratio`, NUNCA gate). |
+| `MDS_ALIGNMENT_GATE_RELAX.md` | Relajación gate sesgo HTF | ✅ IMPLEMENTADO | `HtfBias.aligned` en `engine/bias/narrative.py` (~l.87-94): `non_neutral>=2` y sin contradicción. Cerrado 2026-08-08. |
+| `sdd_tv_interactivo.md` | App educativa (HTML self-contained) | ✅ COMPLETADO (v2) | `docs/tv_interactivo/index.html` (26KB, canvas propio, 0 deps de pago), F1-F14 verificadas. 2 ⚠️ fuera de scope (§11). |
+
+> Nota de auditoría 2026-08-09 (§9g-c): el índice previo listaba 14 ✅ pero 5
+> SDD (BIAS_HTF, BOS_CHOCH, DEALING_RANGE, LIQUIDEZ_BSL_SSL, B1_POI_ANCLADO) NO
+> existían físicamente. Fueron creados leyendo el motor real. El índice ahora
+> refleja el motor real, no la ficción previa.
+
 ## Regla dura de implementación (Ruben 2026-08-08)
 - **CERO indicadores técnicos** (EMA/RSI/ATR/MACD/Bollinger...).
 - Solo **geometría de mercado pura**: OHLC, swings, estructura (BOS/CHOCH),

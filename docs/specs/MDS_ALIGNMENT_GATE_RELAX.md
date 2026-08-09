@@ -1,5 +1,9 @@
 # MDS — Relajación del gate de alineación HTF
 
+> **Estado: ✅ IMPLEMENTADO** — el gate relajado YA vive en el motor
+> (`engine/bias/narrative.py`, propiedad `HtfBias.aligned`, camino B del
+> 2026-08-08). Este documento se reconcilió con el código real (regla §9g-c).
+
 ## 1. Objetivo
 
 Hacer operable el filtro D1→H4→H1 en datos reales. Hoy el gate exige `D1 == H4 == H1 != NEUTRAL`, lo que produce `aligned_hit = 0%` en EURUSD 113k M15. Sin alineación, el laboratorio no puede medir si el sesgo HTF aporta edge.
@@ -31,7 +35,7 @@ aligned = (D1 == H4 == H1) and D1 != NEUTRAL
 ```
 - Problema: cualquier divergencia, incluso temporal, cierra el filtro.
 
-### 3.2 Propuesta
+### 3.2 Propuesta (= definición IMPLEMENTADA)
 ```
 aligned = (
   count_non_neutral([D1, H4, H1]) >= 2
@@ -43,6 +47,46 @@ contradictory = (
 ```
 - Sin contradicción: no mezcla bullish/bearish simultáneamente.
 - Mínimo 2/3 con dirección: permite 1 NEUTRAL sin romper la regla.
+
+### 3.3 Código REAL vigente (`engine/bias/narrative.py`)
+
+```python
+@dataclass(frozen=True)
+class HtfBias:
+    d1: Bias
+    h4: Bias
+    h1: Bias
+
+    @property
+    def aligned(self) -> bool:
+        """True si al menos 2/3 TFs tienen dirección y no hay contradicción."""
+        vals = [self.d1, self.h4, self.h1]
+        non_neutral = [v for v in vals if v != NEUTRAL]
+        if len(non_neutral) < 2:
+            return False
+        return len(set(non_neutral)) == 1
+```
+
+Equivalencia: `len(set(non_neutral)) == 1` implementa exactamente
+`not contradictory(...)` cuando ya hay ≥2 no-NEUTRAL.
+
+`compute_htf_bias(d1, h4, h1, swing_lookback=2)` devuelve ese `HtfBias`
+(sesgo por TF vía `_bias_for_frame`, que usa la estructura VIGENTE: último
+CHOCH activo y, si no hay, último BOS activo).
+`compute_htf_bias_series(d1, h4, h1, m15, swing_lookback=2)` recalcula en cada
+cierre H4 y emite la serie `direction` / `aligned` (bool) propagada por `ffill`
+sobre la línea temporal H1 ∪ M15. La `direction` global sale de
+`_compose_htf_bias` (D1/H4 autoridad, H1 desempate 2/3).
+
+### 3.4 Nota — sesgo HTF canónico vs gate EXP-012
+
+El **sesgo HTF es CANÓNICO**: `_bias_for_frame` usa CHOCH canónico SIEMPRE y
+**no** aplica el GATE DURO EXP-012. Ese gate vive únicamente en
+`engine.bos.structure.detect_market_structure` (estructura LTF / entrada, flag
+`exp012_choch`). Censurar CHOCH en el sesgo desalineaba sesgo↔estructura
+(ALIGNED 42% → 1.5%, medido en `results/motor_veltick_EURUSD_M15.json`).
+El sesgo es la "verdad lenta" del motor; el ruido de CHOCH solo daña la
+EJECUCIÓN (capa LTF), no el contexto direccional.
 
 ---
 
@@ -90,6 +134,10 @@ contradictory = (
 
 ## 8. Estado
 
-- Redacción: en progreso
-- Implementación: pendiente
-- Validación: pendiente
+- **Redacción: ✅ completa**
+- **Implementación: ✅ hecha** — `HtfBias.aligned` en `engine/bias/narrative.py`
+  (líneas ~87-94), consumida por `compute_htf_bias()` y
+  `compute_htf_bias_series()`. Camino B del 2026-08-08.
+- **Validación: ✅ por suite** — `tests/test_engine_bias.py`: 36 passed.
+- **Cierre**: este MDS queda CERRADO. Cualquier cambio futuro de la definición
+  de `aligned` requiere un MDS nuevo, no reabrir éste.
