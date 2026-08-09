@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from engine._volume import volume_confirm
+
 
 def _check_direction(direction: int) -> None:
     if direction not in (1, -1):
@@ -58,7 +60,8 @@ def trailing_stop(entry, sl, direction, current_price, step_r: float = 1.0):
     return float(min(sl, candidate))
 
 
-def _exit_dict(reason, exit_price, entry, sl, risk, partial_done, partial_price, partial_pct):
+def _exit_dict(reason, exit_price, entry, sl, risk, partial_done, partial_price, partial_pct,
+               touch_volume_ratio=None):
     if partial_done and partial_price is not None:
         p_partial = (partial_price - entry) / risk if risk > 0 else 0.0
         p_remain = (exit_price - entry) / risk if risk > 0 else 0.0
@@ -66,18 +69,28 @@ def _exit_dict(reason, exit_price, entry, sl, risk, partial_done, partial_price,
     else:
         pnl_r = (exit_price - entry) / risk if risk > 0 else 0.0
     return {"exit_reason": reason, "exit_price": float(exit_price),
-            "pnl_r": float(pnl_r), "partial_done": bool(partial_done), "risk": float(risk)}
+            "pnl_r": float(pnl_r), "partial_done": bool(partial_done), "risk": float(risk),
+            # MDS_VOLUMEN: confirmacion OPCIONAL en el toque de tp1/BE.
+            # float o None. NUNCA gate: no decide salida ni parcial.
+            "touch_volume_ratio": (
+                None if touch_volume_ratio is None else float(touch_volume_ratio)
+            )}
 
 
 def apply_trade_management(
     entry, sl, tp, direction, df: "pd.DataFrame", *,
     partial_pct: float = 0.5, tp1_r: float = 1.0, trail_step_r: float = 1.0, be_buf: float = 0.0,
+    volume_window: int | None = None,
 ) -> dict:
     """Simula la gestion post-entry de un trade sobre la serie df (call-site real).
 
     Recorre df (precios POST-entry) y aplica: (1) al tocar tp1 cierra partial_pct y
     mueve SL a BE; (2) trailing del SL tras el parcial; (3) cierre en TP/SL/BE/trailing.
     Devuelve exit_reason, exit_price, pnl_r (parcial+remanente), partial_done.
+
+    Ademas anota `touch_volume_ratio` (float|None): ratio de volumen de la vela
+    del toque de tp1/BE. Es SOLO confirmacion (MDS_VOLUMEN), NUNCA un filtro:
+    None si no hay columna 'volume' o si no hubo toque (regresion cero).
     """
     _check_direction(direction)
     risk = abs(entry - sl)
@@ -88,6 +101,8 @@ def apply_trade_management(
     cur_tp = float(tp)
     partial_done = False
     partial_price = None
+    touch_vol = None
+    vol_window = 20 if volume_window is None else int(volume_window)
     closes = df["close"] if "close" in df.columns else df.select_dtypes("number").iloc[:, -1]
     hi_series = df["high"] if "high" in df.columns else None
     lo_series = df["low"] if "low" in df.columns else None
@@ -99,6 +114,8 @@ def apply_trade_management(
         if not partial_done and partial_exit(entry, tp1, direction, hi, pct=partial_pct):
             partial_done = True
             partial_price = tp1
+            # Confirmacion (no gate): volumen de la vela que toca tp1/BE.
+            touch_vol = volume_confirm(df, i, vol_window)
             new_be = to_breakeven(entry, sl, direction, px, be_trigger_r=0.0)
             if new_be is not None:
                 if direction == 1:
@@ -114,15 +131,15 @@ def apply_trade_management(
                 cur_sl = min(cur_sl, trail)
         if direction == 1:
             if hi >= cur_tp - _EPS:
-                return _exit_dict("tp", cur_tp, entry, sl, risk, partial_done, partial_price, partial_pct)
+                return _exit_dict("tp", cur_tp, entry, sl, risk, partial_done, partial_price, partial_pct, touch_vol)
             if lo <= cur_sl + _EPS:
                 reason = "be" if partial_done and abs(cur_sl - entry) < 1e-12 else "sl"
-                return _exit_dict(reason, cur_sl, entry, sl, risk, partial_done, partial_price, partial_pct)
+                return _exit_dict(reason, cur_sl, entry, sl, risk, partial_done, partial_price, partial_pct, touch_vol)
         else:
             if lo <= cur_tp + _EPS:
-                return _exit_dict("tp", cur_tp, entry, sl, risk, partial_done, partial_price, partial_pct)
+                return _exit_dict("tp", cur_tp, entry, sl, risk, partial_done, partial_price, partial_pct, touch_vol)
             if hi >= cur_sl - _EPS:
                 reason = "be" if partial_done and abs(cur_sl - entry) < 1e-12 else "sl"
-                return _exit_dict(reason, cur_sl, entry, sl, risk, partial_done, partial_price, partial_pct)
+                return _exit_dict(reason, cur_sl, entry, sl, risk, partial_done, partial_price, partial_pct, touch_vol)
     last = float(closes.iloc[-1])
-    return _exit_dict("open", last, entry, sl, risk, partial_done, partial_price, partial_pct)
+    return _exit_dict("open", last, entry, sl, risk, partial_done, partial_price, partial_pct, touch_vol)

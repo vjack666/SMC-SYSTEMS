@@ -45,6 +45,7 @@ import numpy as np
 import pandas as pd
 
 from detectors.displacement import DisplacementConfig, detect_displacement
+from engine._volume import volume_confirm
 from engine.bias.narrative import _label_swings, _swing_points
 # B4 (Ley 12 / Ley 1): etiquetado de desenlace que MIRA EL FUTURO vive solo
 # aquí, en labels.py. structure.py conserva TODA la decisión con
@@ -80,6 +81,9 @@ class StructureConfig:
     # BOS quality score: umbral para considerar un BOS como "real" vs fakeout.
     # 0 = todo BOS confirmado es real; 1 = solo BOS con calidad maxima.
     quality_threshold: float = 0.45
+    # MDS_VOLUMEN: ventana para el ratio de volumen del breakout BOS/CHOCH.
+    # SOLO confirmacion (columna bos_volume_ratio), NUNCA gate.
+    volume_window: int = 20
     # EXP-012 (flag experimental, caducidad documentada en bitacora 2026-08-08):
     # cuando True, GATE DURO: marca choch_exp012 y choch_pivot_level, y ADEMAS
     # sobrescribe choch_dir=0 / choch_status="none" donde el CHOCH no cumple
@@ -587,4 +591,31 @@ def detect_market_structure(
     d["bos_quality_score"] = quality
     d["bos_real"] = real
 
+    # MDS_VOLUMEN — Confirmacion OPCIONAL por volumen del breakout BOS/CHOCH.
+    # Se ANOTA un ratio (float o NaN); NUNCA veta ni modifica bos_dir/choch_dir
+    # ni ninguna columna geometrica. Sin columna 'volume' -> todo NaN.
+    d["bos_volume_ratio"] = _bos_volume_ratio(d, config)
+
     return MarketStructure(frame=d)
+
+
+def _bos_volume_ratio(d: pd.DataFrame, config: StructureConfig) -> pd.Series:
+    """Ratio de volumen en las velas de breakout BOS/CHOCH (NO gate).
+
+    Devuelve una Serie float: ratio en las velas con `bos_dir != 0` o
+    `choch_dir != 0`, NaN en el resto. Todo NaN si no hay columna 'volume'
+    (regresion cero).
+    """
+    ratios = pd.Series(np.nan, index=d.index, dtype="float64")
+    if "volume" not in d.columns or len(d) == 0:
+        return ratios
+    bos_dir = d["bos_dir"].to_numpy()
+    choch_dir = (
+        d["choch_dir"].to_numpy() if "choch_dir" in d.columns else np.zeros(len(d), dtype=int)
+    )
+    window = int(getattr(config, "volume_window", 20) or 20)
+    for i in np.where((bos_dir != 0) | (choch_dir != 0))[0]:
+        r = volume_confirm(d, int(i), window)
+        if r is not None:
+            ratios.iat[int(i)] = float(r)
+    return ratios

@@ -10,12 +10,17 @@ El objetivo del día lo marca el sesgo HTF:
   NEUTRAL → NONE.
 
 Regla de oro: engine/ nunca importa ict_backtest/ ni usa ATR/EMA.
+
+Volumen (MDS_VOLUMEN): en el SWEEP de BSL/SSL se ANOTA `sweep_volume_ratio`
+(float o NaN). Es CONFIRMACION, nunca gate: no filtra ni cambia la geometria.
 """
 
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+
+from engine._volume import volume_confirm
 
 BULLISH = "BULLISH"
 BEARISH = "BEARISH"
@@ -39,6 +44,7 @@ def detect_liquidity_htf(
     htf_bias,
     left: int = 3,
     margin_ticks: float = 0.0,
+    volume_window: int | None = None,
 ) -> pd.DataFrame:
     """Marca niveles BSL/SSL relevantes por vela, sin look-ahead ni ATR.
 
@@ -47,6 +53,8 @@ def detect_liquidity_htf(
     - ssl_level: mínimo de las `left` velas previas si está por debajo de
       close - margin_ticks; si no, NaN.
     - target_liquidity: 'BSL' | 'SSL' | 'NONE' según el sesgo HTF.
+    - sweep_volume_ratio: SOLO confirmación (float o NaN) en las velas que
+      barren el BSL/SSL previo. NUNCA veta ni altera las columnas anteriores.
     """
     if left < 1:
         raise ValueError("left debe ser >= 1")
@@ -59,6 +67,7 @@ def detect_liquidity_htf(
         out["bsl_level"] = pd.Series(dtype="float64")
         out["ssl_level"] = pd.Series(dtype="float64")
         out["target_liquidity"] = pd.Series(dtype="object")
+        out["sweep_volume_ratio"] = pd.Series(dtype="float64")
         return out
 
     close = out["close"].astype("float64")
@@ -76,7 +85,37 @@ def detect_liquidity_htf(
     out["bsl_level"] = bsl
     out["ssl_level"] = ssl
     out["target_liquidity"] = target
+    out["sweep_volume_ratio"] = _sweep_volume_ratio(
+        out, bsl, ssl, 20 if volume_window is None else int(volume_window)
+    )
     return out
+
+
+def _sweep_volume_ratio(
+    out: pd.DataFrame,
+    bsl,
+    ssl,
+    window: int,
+) -> pd.Series:
+    """Ratio de volumen en las velas que BARREN el BSL/SSL previo (no gate).
+
+    Todo NaN si no hay columna 'volume' (regresión cero).
+    """
+    ratios = pd.Series(np.nan, index=out.index, dtype="float64")
+    if "volume" not in out.columns:
+        return ratios
+    high = out["high"].astype("float64").to_numpy()
+    low = out["low"].astype("float64").to_numpy()
+    bsl_prev = bsl.shift(1).to_numpy()
+    ssl_prev = ssl.shift(1).to_numpy()
+    for i in range(len(out)):
+        swept_bsl = np.isfinite(bsl_prev[i]) and high[i] > bsl_prev[i]
+        swept_ssl = np.isfinite(ssl_prev[i]) and low[i] < ssl_prev[i]
+        if swept_bsl or swept_ssl:
+            r = volume_confirm(out, i, window)
+            if r is not None:
+                ratios.iat[i] = float(r)
+    return ratios
 
 
 def nearest_liquidity_target(

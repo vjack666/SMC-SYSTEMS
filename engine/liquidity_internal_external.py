@@ -17,6 +17,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from engine._volume import volume_confirm as _volume_confirm
+
 __all__ = [
     "LiquidityModelConfig",
     "classify_liquidity",
@@ -26,14 +28,10 @@ __all__ = [
 
 
 def volume_confirm(df: pd.DataFrame, idx: int, window: int = 20):
-    """Ratio volumen vela / media previa. None si no hay columna 'volume'."""
-    if "volume" not in df.columns or idx < 0 or idx >= len(df):
-        return None
-    v = float(df["volume"].iloc[idx])
-    lo = max(0, idx - window)
-    prev = df["volume"].iloc[lo:idx]
-    mean = float(prev.mean()) if len(prev) else 0.0
-    return v / mean if mean > 0 else None
+    """Ratio volumen vela / media previa. None si no hay columna 'volume'.
+  DRY (MDS_VOLUMEN): delega en `engine._volume.volume_confirm`.
+  """
+    return _volume_confirm(df, idx, window)
 
 
 @dataclass(frozen=True)

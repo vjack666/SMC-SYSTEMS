@@ -16,6 +16,8 @@ from typing import Any, Callable, Optional
 
 import pandas as pd
 
+from engine._volume import volume_confirm as _volume_confirm
+
 
 # Killzones validas para Silver Bullet. Se mapea 'London Open' -> 'L'.
 _SB_KILLZONES = {
@@ -85,16 +87,10 @@ def volume_confirm(df: pd.DataFrame, idx: int, window: int = 20) -> Optional[flo
     Devuelve el ratio volumen[vela] / media(volumen ventana previa). None si no
     hay columna 'volume'. Ratio > 1 = participacion por encima de la media.
     NO es senal direccional ni indicador suavizado; es dato crudo de mercado.
+
+    DRY (MDS_VOLUMEN): delega en `engine._volume.volume_confirm`, unica fuente.
     """
-    if "volume" not in df.columns or idx < 0 or idx >= len(df):
-        return None
-    v = float(df["volume"].iloc[idx])
-    lo = max(0, idx - window)
-    prev = df["volume"].iloc[lo:idx]
-    mean = float(prev.mean()) if len(prev) else 0.0
-    if mean <= 0:
-        return None
-    return v / mean
+    return _volume_confirm(df, idx, window)
 
 
 def flag_silver_bullet(

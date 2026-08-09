@@ -16,6 +16,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from engine._volume import volume_confirm
+
 
 def _coerce_ts(value: Any) -> pd.Timestamp | None:
     if value is None:
@@ -73,15 +75,7 @@ def _has_reversal(df_ltf: pd.DataFrame, sweep_idx: int, direction: int) -> bool:
 
 def _volume_on_sweep(df: pd.DataFrame, idx: int, window: int = 20) -> float | None:
     """Confirmacion OPCIONAL por volumen del sweep (dato, no indicador)."""
-    if "volume" not in df.columns or idx < 0 or idx >= len(df):
-        return None
-    v = float(df["volume"].iloc[idx])
-    lo = max(0, idx - window)
-    prev = df["volume"].iloc[lo:idx]
-    mean = float(prev.mean()) if len(prev) else 0.0
-    if mean <= 0:
-        return None
-    return v / mean
+    return volume_confirm(df, idx, window)
 
 
 def is_turtle_soup(
