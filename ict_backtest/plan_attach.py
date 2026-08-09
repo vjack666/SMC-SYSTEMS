@@ -6,7 +6,7 @@ a la senal. NO filtra: el bot opera IGUAL; el reporte solo califica (Brecha D).
 
 Funcion PURA: recibe la senal + dict {tf: [MarketObject]} (ya construido por
 build_objects) + swing HTF para dealing range. Reusa emit_* (plan_emitters),
-anchor_objects (poi_anchor), classify_zone (dealing_range), build_confirm_from_tf
+classify_zone (dealing_range), build_confirm_from_tf
 (plan_driver), score_plan (plan_driver).
 
 El backtest real (run_backtest.py) lo llamara solo con flag --attach-plan.
@@ -43,7 +43,6 @@ def attach_alignment(
     """Adjunta AlignmentReport a la senal. Devuelve la senal con signal['alignment'].
 
     - emit_* deciden veredicto por capa (closed-only via _objs_before).
-    - anchor_objects marca el POI M15 (Brecha B) contra parent_objs HTF.
     - classify_zone marca zona premium/discount del POI M15 (Brecha C).
     - build_confirm_from_tf confirma M5/M1 desde su market_structure.
     - score_plan suma (bonus M5/M1/ancla/zona), NO filtra.
@@ -95,15 +94,6 @@ def attach_alignment(
     out["alignment"] = rep.as_dict()
     return out
 
-
-def anchor_m15(m15_objs, parent_objs) -> list[MarketObject]:
-    from ict_backtest.poi_anchor import anchor_objects
-
-    # objetos LTF que son FVG/OB (POI candidato)
-    ltf = [o for o in m15_objs if o.type in (ObjectType.FVG, ObjectType.ORDER_BLOCK)]
-    if not ltf:
-        return m15_objs
-    return anchor_objects(ltf, parent_objs)
 
 
 def _zone_ok_for_m15(m15_objs, swing) -> bool:

@@ -61,3 +61,12 @@ scripts/_inspect_*.py
 
 # Graphify map (generado localmente, vive fuera del repo)
 graphify-out/
+
+# Caché de skills/Hermes (generado, no fuente)
+.atl/
+
+# Probes de descarga (binarios .zip, no fuente)
+data/histdata_tmp_probe/
+
+# Accesos directos de Windows (no fuente de código)
+scripts/DisabledStartup/

@@ -152,13 +152,29 @@ D1 → H4 → H1 → M15 → M5 → M1
 - **Por qué**: para usar en vivo la misma etiqueta que el backtest, sin duplicar lógica.
 - **Resultado medido**: `_measure_timeframe()` ahora lee del motor; tests nuevos 4/4.
 
-### M7 — Versión humana del swing en el motor
-- **Archivo**: `engine/bias/narrative.py`
-- **Cambio**: `_swing_points` pasa a confirmación por rotura/retroceso con delay mínimo 2 velas.
-- **Antes**: ventana fija `swing_lookback` como delay artificial.
-- **Después**: delay mínimo + confirmación por rotura del swing previo; swing = pivote validado por precio.
-- **Por qué**: swing no es cuenta de velas; es cambio de dirección confirmado por estructura.
-- **Resultado medido**: BOS/CHOCH más oportunos; propagación `ffill` del bias cubre H1/M15 completamente.
+## 7. Hallazgos multi-timeframe con datos grandes
+
+### 7.0 BOS quality score — filtro de calidad con displacement integrado
+- **Archivo**: `engine/bos/structure.py`
+- **Cambio**: columnas `bos_quality_score` (0-1) y `bos_real` (bool) por evento BOS.
+- **Componentes**:
+  1. Displacement previo en la misma dirección (detectado por `detectors/displacement.py`).
+  2. Cuerpo de la vela de break / rango de esa vela.
+  3. Distancia del close al nivel roto / rango promedio (cap en 0.5).
+  4. No retorno inmediato en `confirm_bars` velas tras el break.
+- **Peso**: 25% cada componente.
+- **Umbral default**: `quality_threshold=0.45`.
+- **Por qué**: un BOS no es binario; el trader humano califica fuerza, contexto y confirmación. Esto implementa esa calificación sin indicadores.
+- **Resultado medido**: `bos_real` filtra fakeouts; el runner puede segmentar `aligned_hit` solo para BOS reales.
+- **Estado**: ✅ implementado, 37/37 tests verdes.
+
+### 7.1 Backtest “antes vs después” — dataset 5k M15
+- **Archivo**: `data/exports/effectiveness_5k_quality.json`
+- **Hallazgo principal**: `bos_real` empieza a filtrar ruido; M15 fakeouts medibles.
+- **M15**: BOS bullish 594 eventos, fakeouts 107; BOS bearish 636 eventos, fakeouts 141.
+- **H4**: BOS bullish 33 eventos, fakeouts 8; BOS bearish 45 eventos, fakeouts 7.
+- **Interpretación**: el filtro cualitativo elimina ~18-22% de BOS como fakeouts en M15, sin eliminar todos los eventos.
+- **Limitación**: 5k es muestra corta; no extrapolar a dataset completo sin correr 30k/113k.
 
 ## 7. Hallazgos multi-timeframe con datos grandes
 

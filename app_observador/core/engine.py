@@ -233,11 +233,17 @@ def run_cycle(force_fetch: bool = False) -> dict:
 
 
 def _canonical_plan(symbol: str) -> dict | None:
-    """R7: last sequence signal H4→M15 (or D1→H4 fallback) as live plan."""
-    from ict_backtest.canonical import latest_plan
-    from ict_backtest.data_feed import load_frames
+    """Plan en vivo desde el MOTOR (engine/), no del backtest (Ley).
 
-    # Prefer H4→M15 (intraday exec). Fall back to D1→H4 if M15 missing.
+    El motor es la lectura top-down del trader humano (D1->H4->H1->M15) hecha
+    codigo y es permanente; el backtest es desechable y solo lo demuestra. El
+    observador en vivo lee del motor, nunca del backtest.
+    """
+    from engine.data_feed import load_frames
+    from engine.plan import build_context_stack, top_down_allows_trade
+    from engine.htf_narrative import build_htf_narrative
+
+    # Preferir H4->M15 (exec intradia). Fallback a D1->H4 si M15 falta.
     for htf, ltf in (("H4", "M15"), ("D1", "H4")):
         try:
             frames = load_frames(symbol, tuple(dict.fromkeys([htf, ltf, "D1"])))
@@ -248,9 +254,35 @@ def _canonical_plan(symbol: str) -> dict | None:
                     capped[tf] = df.iloc[-2500:].reset_index(drop=True)
                 else:
                     capped[tf] = df.reset_index(drop=True)
-            plan = latest_plan(symbol, htf=htf, ltf=ltf, frames=capped, max_age_bars=64)
-            if plan:
-                return plan
+            ltf_df = capped.get(ltf)
+            if ltf_df is None or len(ltf_df) == 0:
+                continue
+            t = ltf_df.iloc[-1]["time"]
+            # Lectura del humano: narrativa HTF + gate top-down
+            htf_frames = {tf: df for tf, df in capped.items() if tf in ("D1", "H4", "H1")}
+            narr = build_htf_narrative(capped.get(htf, ltf_df), htf_frames=htf_frames)
+            stack = build_context_stack(capped, t, tfs=(htf, ltf, "D1") if htf == "H4" else (htf, ltf))
+            direction = 1 if narr.get("bias") == "BULLISH" else (-1 if narr.get("bias") == "BEARISH" else 0)
+            if direction == 0:
+                return None
+            ok, reason = top_down_allows_trade(stack, direction)
+            if not ok:
+                return None
+            poi = narr.get("poi") or {}
+            plan = {
+                "engine": "engine.plan (top_down)",
+                "symbol": symbol,
+                "side": "LONG" if direction == 1 else "SHORT",
+                "direction": direction,
+                "bias": narr.get("bias"),
+                "zone": narr.get("zone"),
+                "poi_kind": poi.get("kind"),
+                "anchored": poi.get("anchored"),
+                "liquidity_target": (narr.get("liquidity_target") or {}).get("side"),
+                "time": str(t),
+                "model": "top_down_htf_narrative",
+            }
+            return plan
         except Exception:
             continue
     return None

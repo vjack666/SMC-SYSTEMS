@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 
 from ict_backtest.canonical import evaluate_signals
-from ict_backtest.htf_pd_index import HtfPdZone
+from engine.htf_pd_index import HtfPdZone
 
 
 def _ltf(n: int = 50) -> pd.DataFrame:

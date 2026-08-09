@@ -104,9 +104,12 @@ GATE R6 NO PASA en ningún símbolo en producción. Números en `docs/METRICS_CA
 > - **3 capas reales CERRADAS**: `engine/plan.py` (`build_context_stack` + `top_down_allows_trade`)
 >   implementa lectura top-down D1→H4→H1→M15 con premium/discount y anti look-ahead por timestamp.
 > - **POI anclado CERRADO**: `engine/poi_anchor.py` ancla POI a BOS/CHOCH del TF padre ya cerrado;
->   `engine/htf_narrative.py` marca `poi["anchored"]`. El backtest ya lo consume (`run_backtest.py:479`
->   `enable_pd_index=True` → `ict_backtest.poi_filter`). El CAVEAT original (`htf_poi_fn=None`) está
->   DESACTUALIZADO.
+>   `engine/htf_narrative.py` marca `poi["anchored"]`. El backtest ya lo consume vía
+>   `ict_backtest/canonical.py:42` → `from engine.poi_anchor import ...` (fuente ÚNICA = motor).
+>   El CAVEAT original (`htf_poi_fn=None`) está DESACTUALIZADO.
+>   **NOTA (2026-08-07):** los módulos `ict_backtest/{poi_anchor,poi_filter,zone_authority,htf_pd_index,poi_anchor_motor}.py`
+>   fueron ELIMINADOS; la autoridad POI vive ahora en `engine/{poi_anchor,zone_authority,htf_pd_index}.py`.
+>   Cualquier import a `ict_backtest.poi_*` es código muerto y debe reapuntarse a `engine.*`.
 > - `dealing_range.py` (EQ 50% / premium-discount) y `liquidity_levels.py` (BSL/SSL) COMPLETOS.
 > - COMPLETO en el motor: secuencia event-driven (sweep→displace→BOS→retorno con memoria y reset),
 >   SL estructural en mecha de sweep, fill next-open, costs ON, killzone, RR 1:3, HTF closed-only.

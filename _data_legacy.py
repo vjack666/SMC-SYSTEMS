@@ -47,7 +47,12 @@ def _download_frame(data_dir: Path, symbol: str, timeframe: str) -> pd.DataFrame
         raise ValueError(f"Unsupported timeframe: {timeframe}")
 
     _ensure_symbol_in_market_watch(symbol)
-    rates = mt5.copy_rates_range(symbol, tf_val, datetime(2020, 1, 1), datetime(2026, 7, 7))
+    # Rango dinamico: desde el inicio del historial hasta AHORA (UTC).
+    # Antes estaba hardcodeado a datetime(2026, 7, 7), lo que dejaba el
+    # parquet congelado y nunca traia velas de hoy. Usar now() asegura que
+    # el merge con el parquet local siempre agregue las barras recientes.
+    now = datetime.now()
+    rates = mt5.copy_rates_range(symbol, tf_val, datetime(2020, 1, 1), now)
     if rates is None or len(rates) == 0:
         rates = mt5.copy_rates_from_pos(symbol, tf_val, 0, 50_000)
     if rates is None or len(rates) == 0:

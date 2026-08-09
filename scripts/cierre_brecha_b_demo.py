@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 
 from ict_backtest.canonical import evaluate_signals
-from ict_backtest.htf_pd_index import HtfPdZone
+from engine.htf_pd_index import HtfPdZone
 
 
 def _synthetic_ltf(n: int = 200, direction: int = 1) -> pd.DataFrame:

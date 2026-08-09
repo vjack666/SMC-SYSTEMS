@@ -91,7 +91,7 @@ def test_builder_freezes_trade_context_immutable():
 
 def test_builder_preserves_zone_authority_from_signal():
     """Fase C viaja al contexto como METADATA (no input de decision)."""
-    from ict_backtest.zone_authority import ZoneAuthority
+    from engine.zone_authority import ZoneAuthority
     df = _make_ltf()
     za = ZoneAuthority(has_htf_anchor=True, tier="T1", stacking_level=2,
                        confidence_weight=0.85, level="Alta")

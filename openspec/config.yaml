@@ -1,0 +1,138 @@
+schema: spec-driven
+
+project: SMC-SYSTEMS
+branch: feature/backtest-ict
+initialized: 2026-08-07
+artifact_store: openspec
+artifact_language: es-neutral
+
+context: |
+  Stack: Python 3.14.6 (C:\Python314\python.exe), pyproject.toml + setuptools, sin lockfile.
+  Dominio: motor de decision ICT/SMC (engine/) + backtest desechable (ict_backtest/) + observador PySide6.
+  LEY: engine/ es la UNICA fuente de decision; ict_backtest/ es consumidor puro y desechable.
+  LEY: engine/ NUNCA importa ict_backtest/ (guardian: tests/test_engine_no_backtest_import.py).
+  Testing: pytest 9.1.1; 936 tests colectables tras ignorar modulos rotos locales.
+  Estado: arbol de trabajo sucio; migracion poi_anchor de ict_backtest/ a engine/ en curso.
+  Estilo: prosa/documentacion en espanol neutro; identificadores, rutas y comandos en original.
+
+# ---------------------------------------------------------------------------
+# Ley arquitectonica del repositorio (fuente: AGENTS.md, seccion LEY FUNDAMENTAL)
+# Toda fase SDD posterior DEBE respetarla y verificarla.
+# ---------------------------------------------------------------------------
+architecture_law:
+  id: motor-vs-backtest
+  source: AGENTS.md
+  guard_test: tests/test_engine_no_backtest_import.py
+  statements:
+    - "engine/ es la UNICA fuente de decision: bias, estructura, POI y ejecucion viven en el motor."
+    - "El motor debe poder responder en vivo (sesgo del dia, opcion de trading) sin el backtest."
+    - "ict_backtest/ NO tiene logica propia: solo reloj vela a vela + llamada al motor + medicion."
+    - "PROHIBIDO crear en ict_backtest/ cualquier modulo de decision o deteccion."
+    - "ict_backtest/ es DESECHABLE: al completarse el motor se borra sin perdida funcional."
+    - "engine/ NUNCA importa ict_backtest/. ict_backtest/ SI puede importar engine/ (es su consumidor)."
+    - "Sin indicadores: matematica pura y geometria de mercado. EMA/RSI/ATR en engine/ es sospechoso y requiere justificacion contra la tesis."
+    - "Backtest unico y canonico: ict_backtest/run_backtest.run_sequence_backtest y ict_backtest/v2/orchestrator.run_sequence_parity."
+    - "No existe backtest v2 como ruta de decision. run_mtf_intraday y generate_mtf_signals fueron eliminados (docs/DECISION_BACKTEST_UNICO.md)."
+
+# ---------------------------------------------------------------------------
+# Regla de procesos largos (fuente: AGENTS.md, seccion Runner Monitor)
+# ---------------------------------------------------------------------------
+long_process_rule:
+  threshold_seconds: 60
+  launcher: 'python scripts\runner_monitor.py --window --title "NAME" -- <comando>'
+  result_file: results/runner_monitor_last.json
+  must:
+    - "Usar scripts/runner_monitor.py con --window (consola visible para el operador)."
+    - "Una sola espera bloqueante hasta el exit del proceso."
+    - "Tras el exit: leer stdout/stderr + results/runner_monitor_last.json y analizar UNA vez."
+    - "Workers ~70-80% de hilos via HERMES_WORKERS; prioridad Above Normal; nunca 100% CPU."
+    - "Multi-simbolo: maximo 2 jobs concurrentes por defecto, una ventana por simbolo."
+  must_not:
+    - "Background silencioso o detached sin ventana visible."
+    - "Polling en el chat cada N segundos."
+    - "Reportar porcentajes de progreso inventados."
+
+# ---------------------------------------------------------------------------
+# Capacidades de testing (detalle completo en openspec/testing-capabilities.md)
+# ---------------------------------------------------------------------------
+testing:
+  strict_tdd: true
+  runner: pytest
+  runner_version: "9.1.1"
+  interpreter: 'C:\Python314\python.exe'
+  framework_config: pyproject.toml [tool.pytest.ini_options]
+
+  # Comando RAPIDO y VERDE — usarlo como loop RED-GREEN-REFACTOR por defecto.
+  # Verificado 2026-08-07: 116 passed en 3.77 s (14 archivos).
+  test_command: 'C:\Python314\python.exe -m pytest -q tests/test_engine_bias.py tests/test_engine_bos.py tests/test_engine_dealing_range.py tests/test_engine_execution_b2.py tests/test_engine_fvg_poi.py tests/test_engine_htf_narrative.py tests/test_engine_liquidity_levels.py tests/test_engine_micro.py tests/test_engine_no_backtest_import.py tests/test_engine_order_block.py tests/test_engine_plan.py tests/test_engine_plan_ltf.py tests/test_engine_plan_pd.py tests/test_engine_poi_anchor.py'
+
+  # Suite completa local. Requiere los --ignore: sin ellos la coleccion ABORTA.
+  # Puede superar 60 s -> lanzar SIEMPRE via runner_monitor.
+  full_suite_command: 'python scripts\runner_monitor.py --window --title "pytest-full" -- C:\Python314\python.exe -m pytest tests -q --ignore=tests/_broken --ignore=tests/test_r4_po3_isolated.py --ignore=tests/test_r7_divergence_investigation.py --ignore=tests/test_semaforo_rr.py --ignore=tests/test_structure_medicion.py --ignore=tests/test_structure_run.py'
+
+  ci_command: 'pytest tests/ -q'   # .github/workflows/ci.yml (Python 3.11, ubuntu, solo main)
+
+  harness_command: null            # python -m harness NO EXISTE: harness/ solo contiene README.md obsoleto
+
+  coverage: false
+  linter: null
+  type_checker: null
+  formatter: null
+
+  baseline:
+    collected: 936
+    known_red: true
+    note: "La suite global NO esta verde (migracion poi_anchor en curso). Capturar baseline RED antes de tocar codigo."
+
+# ---------------------------------------------------------------------------
+# Reglas por fase SDD
+# ---------------------------------------------------------------------------
+rules:
+  proposal:
+    - "Ubicar el cambio respecto de la LEY: toda logica de estrategia va a engine/, nunca a ict_backtest/."
+    - "Declarar si el cambio afecta al motor (permanente) o al backtest (desechable)."
+    - "Incluir plan de rollback; el arbol de trabajo ya esta sucio, no mezclar con la migracion poi_anchor en curso."
+    - "Citar numeros de performance solo por referencia a docs/METRICS_CANON.md; nunca copiarlos ni inventarlos."
+
+  specs:
+    - "Usar Given/When/Then en escenarios y palabras clave RFC 2119 (MUST, SHALL, SHOULD, MAY)."
+    - "Prosa en espanol neutro; identificadores, rutas, simbolos y comandos en su forma original."
+    - "Trazar cada requisito a docs/ict/SPEC_TESIS_FORMAL.md o a docs/tesis/ cuando aplique."
+    - "Convivir con la convencion existente docs/specs/MDS_*.md; no duplicar ni contradecir esos MDS."
+
+  design:
+    - "Justificar toda decision contra la LEY motor-vs-backtest antes que contra performance."
+    - "Prohibido introducir indicadores (EMA/RSI/ATR) en engine/ sin justificacion explicita contra la tesis."
+    - "Documentar el punto de entrada afectado: engine/sequence.run_sequence, engine/plan.build_context_stack, etc."
+    - "Anti look-ahead: todo acceso a HTF debe ser closed-only por timestamp."
+
+  tasks:
+    - "Agrupar por fase con numeracion jerarquica; cada tarea completable en una sesion."
+    - "Marcar explicitamente las tareas que superan 60 s y deben ir por runner_monitor."
+    - "Separar tareas de engine/ (permanentes) de tareas de ict_backtest/ (desechables)."
+
+  apply:
+    tdd: true
+    test_command: 'C:\Python314\python.exe -m pytest -q tests/test_engine_bias.py tests/test_engine_bos.py tests/test_engine_dealing_range.py tests/test_engine_execution_b2.py tests/test_engine_fvg_poi.py tests/test_engine_htf_narrative.py tests/test_engine_liquidity_levels.py tests/test_engine_micro.py tests/test_engine_no_backtest_import.py tests/test_engine_order_block.py tests/test_engine_plan.py tests/test_engine_plan_ltf.py tests/test_engine_plan_pd.py tests/test_engine_poi_anchor.py'
+    notes:
+      - "Capturar baseline RED del subconjunto afectado ANTES de escribir codigo (la suite global no esta verde)."
+      - "Seguir los patrones existentes del modulo que se toca."
+      - "NO hacer commit ni push sin OK expreso del operador (regla de Ruben)."
+      - "No tocar tests/_broken/, scripts/_legacy/ ni results/_archive/ (huerfanos gitignored)."
+
+  verify:
+    test_command: 'C:\Python314\python.exe -m pytest -q tests/test_engine_no_backtest_import.py'
+    build_command: ''
+    coverage_threshold: 0
+    notes:
+      - "Verificar SIEMPRE el guardian de la LEY antes de dar por cerrado un cambio."
+      - "Comparar contra el baseline RED capturado en la fase apply: no basta con verde parcial."
+      - "Si se corre la suite completa, lanzarla via runner_monitor (puede superar 60 s)."
+
+  archive:
+    - "Avisar antes de fusionar deltas destructivos en openspec/specs/."
+    - "El archivo es traza de auditoria: nunca borrar ni editar cambios archivados."
+
+review_budget_lines: 800
+delivery_strategy: ask-always
+execution_mode: interactive

@@ -1,25 +1,24 @@
-"""Fase C (C0) — Plumbing HTF: indice temporal de PD Arrays del marco superior.
+"""engine/htf_pd_index.py — Indice temporal de PD Arrays HTF (RESCATE de la capa backtest).
 
-Este módulo es SOLO PERCEPCIÓN. No crea zonas nuevas: lee los detectores
-FVG/OB ya existentes en los frames HTF y los organiza en un mapa temporal para
-que el evaluador de autoridad (zone_authority.py, C2) pueda consultar, dada una
-vela del LTF, qué PD arrays del HTF están VIGENTES (no invalidados/llenados).
+RESCATE (2026-08-07): migrado desde ict_backtest/htf_pd_index.py para cumplir la
+Ley Fundamental (motor = fuente unica de decision/percepcion; backtest desechable).
+El original vivia en ict_backtest/ y se borro por violar esa ley. La LOGICA de
+dominio era pura (solo dependia de detectors.fvg / detectors.ob + pandas), asi que
+se rescata al motor y se reencausan los imports. CERO imports de ict_backtest/.
 
-CIERRE DEL ROOT CAUSE (ver ETAPA_4_FASE_C_PLAN.md §3): el hook htf_poi_fn ya
-existía en run_sequence, pero est_htf_fn nunca traía FVG/OB del HTF. Aquí
-construimos exactamente esa información que faltaba ("el cable que no llegaba").
+Este modulo es SOLO PERCEPCION. No crea zonas nuevas: lee los detectores FVG/OB ya
+existentes en los frames HTF y los organiza en un mapa temporal para que el evaluador
+de autoridad (engine.zone_authority) pueda consultar, dada una vela del LTF, que PD
+arrays del HTF estan VIGENTES (no invalidados/llenados).
 
-CONSTRUCCIÓN O(n), NO O(n²): el mapa LTF->HTF se resuelve UNA sola vez
-por TF HTF con closed_merge_asof (anti look-ahead, R6.1/G1). `zones_at` solo
-hace lookup O(1) sobre el mapa ya alineado. Esto evita el cuello que tendría
-consultar closed_row_at_time por cada una de las ~112k velas M15.
+CONSTRUCCION O(n), NO O(n^2): el mapa LTF->HTF se resuelve UNA sola vez por TF HTF
+con merge_asof cerrado (anti look-ahead). `zones_at` solo hace lookup O(1).
 
-Contrato de no invasión de C (§1 del plan): este módulo NO decide dirección,
-entry, SL ni TP; NO crea zonas; NO toca R7. Solo indexa lo que los detectores
-ya marcaron.
+Contrato de no invasion: este modulo NO decide direccion, entry, SL ni TP; NO crea
+zonas. Solo indexa lo que los detectores ya marcaron.
 
-Convención de tiers (libro 21 §2 / Fase B1):
-    T1 = BPR (FVG + OB en misma zona, máxima autoridad)  -> resuelto en C2
+Convencion de tiers (libro 21 sec2):
+    T1 = BPR (FVG + OB en misma zona, maxima autoridad)  -> resuelto en zone_authority
     T2 = FVG / OB / PROPULSION
     T3 = REJECTION_BLOCK
 Orden de autoridad: T1 > T2 > T3.
@@ -37,7 +36,7 @@ import pandas as pd
 class HtfPdZone:
     """Un PD array vigente del HTF, ya detectado por los detectores existentes.
 
-    Es SOLO lectura de lo que el detector marcó: C no inventa ninguno.
+    Es SOLO lectura de lo que el detector marco: este modulo no inventa ninguno.
     """
 
     tf: str          # marco superior de origen ("D1", "H4", "H1")
@@ -51,10 +50,10 @@ class HtfPdZone:
 def _detect_pd_arrays(frame: pd.DataFrame) -> pd.DataFrame:
     """Aplica FVG + OB al frame HTF y devuelve columnas de PD array + zonas activas.
 
-    Reusa los detectores ya canónicos (Fase B1: pd_type/pd_tier). Además calcula,
-    por barra HTF, la zona ACTIVA vigente por dirección (forward-filled hasta
-    invalidación), porque los flags fvg_*/ob_* solo valen en la barra de creación.
-    Así zones_at() lee el estado "vivo" correcto en cualquier vela LTF.
+    Reusa los detectores ya canonicos (detectors.fvg / detectors.ob). Ademas calcula,
+    por barra HTF, la zona ACTIVA vigente por direccion (forward-filled hasta
+    invalidacion), porque los flags fvg_*/ob_* solo valen en la barra de creacion.
+    Asi zones_at() lee el estado "vivo" correcto en cualquier vela LTF.
     """
     from detectors.fvg import detect_fvg
     from detectors.ob import detect_order_blocks
@@ -142,15 +141,9 @@ class HtfPdIndex:
 
         CERRADO-ONLY ANTI LOOK-AHEAD: el 'time' del HTF es el CIERRE de la
         vela. Un merge_asof backward sobre 'time' entre LTF y HTF entrega,
-        para cada vela LTF, la ULTIMA barra HTF que ya cerró (htf_close <=
+        para cada vela LTF, la ULTIMA barra HTF que ya cerro (htf_close <=
         ltf_time). Nunca lee una barra HTF que cierra DESPUES de la vela LTF
-        (eso seria look-ahead cross-timeframe, R6.1/G1).
-
-        Nota: NO usamos closed_merge_asof de _util porque este resta
-        `duration` al join (asume time=OPEN); aqui time=CIERRE, asi que el
-        merge directo es el closed-only correcto. Normalizamos el dtype de
-        'time' (us/ms/ns) en ambos extremos porque merge_asof exige llaves
-        del mismo tipo.
+        (eso seria look-ahead cross-timeframe).
         """
         ltf_t = pd.to_datetime(ltf_df["time"], utc=True, errors="coerce").astype("datetime64[us, UTC]")
         ltf_sorted = ltf_df.copy()
@@ -161,7 +154,6 @@ class HtfPdIndex:
             det_t = pd.to_datetime(det["time"], utc=True, errors="coerce").astype("datetime64[us, UTC]")
             htf_sorted = det.copy()
             htf_sorted["time"] = det_t
-            # Conservar time en el subset para poder ordenar/hacer merge asof.
             htf_sorted = htf_sorted[self._ACT_COLS + ["time"]].sort_values("time").reset_index(drop=True)
             merged = pd.merge_asof(
                 ltf_sorted[["time"]], htf_sorted, on="time", direction="backward"
@@ -172,11 +164,11 @@ class HtfPdIndex:
 
     def zones_at(self, ltf_i: int, htf_tf: str,
                  ltf_map: dict[str, pd.DataFrame] | None = None) -> list[HtfPdZone]:
-        """PD arrays vigentes del HTF `htf_tf` en la vela LTF de índice `ltf_i`.
+        """PD arrays vigentes del HTF `htf_tf` en la vela LTF de indice `ltf_i`.
 
         O(1): lee la fila ya alineada en `ltf_map[htf_tf].iloc[ltf_i]`
         (construido por build_ltf_map). Si no se pasa mapa, cae a lookup por
-        'time' (más lento, solo para tests unitarios).
+        'time' (mas lento, solo para tests unitarios).
         """
         det = self._detected.get(htf_tf)
         if det is None:
@@ -184,7 +176,6 @@ class HtfPdIndex:
         if ltf_map is not None and htf_tf in ltf_map:
             row = ltf_map[htf_tf].iloc[ltf_i]
         else:
-            # Modo test: requiere que se pasara el time en lugar de índice.
             raise ValueError(
                 "zones_at en modo test requiere ltf_map; pasa (ltf_i, htf_tf, ltf_map)"
             )

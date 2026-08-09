@@ -216,7 +216,7 @@ class TestBackwardCompatibility:
         assert result == []
 
     def test_zone_authority_map_used(self, causal_chain):
-        from ict_backtest.zone_authority import ZoneAuthority
+        from engine.zone_authority import ZoneAuthority
         zone_auth = ZoneAuthority(
             has_htf_anchor=True, tier="T1", stacking_level=1,
             confidence_weight=0.8, level="PREMIUM",

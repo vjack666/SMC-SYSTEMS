@@ -12,6 +12,8 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(".").resolve()))
 
 from ict_backtest.market_object import (
@@ -53,9 +55,12 @@ def test_emit_m15_desde_ictsignal_real():
     assert ev2.verdict is PlanVerdict.SETUP_LIVE
 
 
+@pytest.mark.skip(reason="API OBSOLETA (2026-08-07): anchor_objects() fue descartada en el "
+                        "rescate POI. engine/poi_anchor.py expone build_htf_structure_index/"
+                        "make_htf_poi_fn/poi_present. Reescribir contra la API nueva.")
 def test_poi_anchor_por_bartime_cross_tf():
     """poi_anchor debe anclar un FVG M15 a un BOS H4 por bar_time (no bar_index)."""
-    from ict_backtest.poi_anchor import anchor_objects
+    from engine.poi_anchor import anchor_objects
 
     t_htf = datetime(2024, 1, 1, 0, 0)
     t_ltf = datetime(2024, 1, 1, 4, 0)  # despues del HTF, mismo dia
