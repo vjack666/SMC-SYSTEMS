@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from ict_backtest.rules import server_to_utc, _et_band_to_utc
+from engine.killzone import server_to_utc, _et_band_to_utc
 
 # (nombre_corto, et_ini, et_fin) en horas/min ET locales del mentorship ICT.
 # Se convierten a UTC POR DIA via ZoneInfo('America/New_York') -> DST automático.
