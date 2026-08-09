@@ -39,7 +39,9 @@ def test_generate_sequence_signals_is_canonical_wrapper():
 
 def test_ict_agent_is_not_a_geometry_motor():
     """Agent must not reimplement structure geometry methods (R7 H1)."""
-    src = (ROOT / "agents" / "ict_agent.py").read_text(encoding="utf-8")
+    # FASE 3A-1 (F): la fuente única de ICTAgent vive ahora en analysis/ict_agent.py;
+    # agents/ict_agent.py es solo fachada de compatibilidad (re-export).
+    src = (ROOT / "analysis" / "ict_agent.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     method_names = {
         n.name
