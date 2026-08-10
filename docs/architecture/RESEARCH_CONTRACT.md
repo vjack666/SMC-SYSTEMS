@@ -532,4 +532,21 @@ Sin `engine/`, sin backtest, sin WR/PF/R, sin EXP-READ-001, sin ejecución de re
 
 ---
 
+#### 16.7.10 Auditoría de la contradicción ATR vs Ley Fundamental (SETUP AUDITOR)
+
+`research/hypotheses/HYP-002/SETUP_AUDITOR_ATR_AUDIT.md`: el Director detectó que C2/C5 mencionaban
+"ATR" y la Ley Fundamental prohíbe indicadores en `engine/`. Hallazgo: **contradicción de NOMBRE,
+no de sustancia**. `engine/` NO usa ATR/EMA/RSI (cada módulo lo declara en docstring); la columna
+`atr` del motor es un ALIAS contractual de `avg_candle_range` = media móvil de `high-low` (geometría
+pura, verificado en `ict_backtest/_util.py:128` y `detectors/displacement.py:19`). El motor ya decide
+displacement con `body > avg_range*1.5` + mecha pequeña (rango, no ATR). C2 (ya sin umbral por la
+Reconciliación) queda blindado: magnitud = DATO DESCRIPTIVO AUXILIAR, NO gate, NO evidencia de
+displacement. C5: el fallback `bos_level ± 0.5·rango_promedio` NUNCA se acepta como POI real; si se
+usa, capa 8 = WARNING ("retorno a cuadro de respaldo, no POI FVG/OB real"). Declaración explícita:
+el rango promedio es descriptivo, no gate de ninguna capa. La Ley Fundamental queda CUMPLIDA en
+sustancia; solo se renombra `atr`→`rango_promedio` en la documentación del auditor para no reactivar
+la sospecha. Sin `engine/`, sin backtest, sin ejecución, sin EXP.
+
+---
+
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*

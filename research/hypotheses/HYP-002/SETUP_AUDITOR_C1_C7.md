@@ -46,21 +46,21 @@ no toca el target (sweep de otra cosa) O flag ausente. UNKNOWN = sin `MarketObje
 
 ---
 
-## 2. C2 — Magnitud mínima de displacement (evitar flag subjetivo)
+## 2. C2 — Magnitud mínima de displacement (evidencia observada, NO gate)  [BLINDADO vs Ley Fundamental: ver `SETUP_AUDITOR_ATR_AUDIT.md`]
 
 **Evento afirmado:** impulso direccional REAL posterior al sweep, en dirección del setup.
-**Dato observable:** cuerpo de la vela `displace_idx` en dirección `target`, medido en unidades de
-volatilidad. Propuesta por defecto (CALIBRABLE en piloto, NO ley):
-`|close - open| ≥ k · avg_candle_range` con `k = 1.0` (el motor ya usa `atr = avg_candle_range`,
-`sequence.py:586`). O alternativamente `range ≥ k2 · atr`.
-**Relación causal:** `displace_at > sweep_at` Y el impulso ocurre SOBRE la misma liquidez barrida
-(C1 liga nivel→sweep); el displacement debe abrir por encima/debajo del nivel barrido, no en otro
-lado.
-**Qué faltaría para UNKNOWN:** si el `MarketObject` de `displace_idx` no tiene `open/close/atr`
-(para computar magnitud) → UNKNOWN. El flag `displacement_*` solo cuenta como evidencia de
-DIRECCIÓN, no de magnitud.
-**PASS/FAIL:** PASS = flag en dir correcta Y magnitud ≥ k·atr. FAIL = flag en dir correcta pero
-magnitud < k·atr (no es "real"). UNKNOWN = sin datos de magnitud. **Nunca** PASS por solo flag.
+**Dato observable (geometría pura):** `displacement_*` flag del `MarketObject` (ya calculado por
+`detectors/displacement.py` con cuerpo vs **rango promedio del contexto** + mecha pequeña), y como
+propiedades a **registrar** (no gate): cuerpo `|close-open|`, rango de la vela `high-low`, mecha, y
+`body / rango_promedio`. El rango promedio (`avg_candle_range`, alias interno `meta["atr"]`) es
+**DATO DESCRIPTIVO AUXILIAR**: NO es gate de ninguna capa, NO es evidencia suficiente de
+displacement. Su único uso es normalizar la magnitud para el registro.
+**Relación causal:** `displace_at > sweep_at` Y dirección coherente con el sweep (C1). Sin ligar a
+magnitud.
+**Qué faltaría para UNKNOWN:** si el `MarketObject` de `displace_idx` no existe → UNKNOWN.
+**PASS/FAIL:** PASS = flag en dir correcta Y posterior al sweep. UNKNOWN = sin `MarketObject`.
+**NUNCA** PASS por magnitud; la magnitud se archiva como observación (para investigar después qué
+caracteriza un displacement real de la tesis), no como veredicto. Sin umbral numérico aprobado.
 
 ---
 
@@ -100,17 +100,21 @@ con frames cargados, o ancla en otra dir. UNKNOWN = sin frames HTF.
 
 ---
 
-## 5. C5 — Retorno al POI REAL (marcar cuadro sintético)
+## 5. C5 — Retorno al POI REAL (el fallback de rango NO es POI)  [BLINDADO vs Ley Fundamental]
 
 **Evento afirmado:** el precio volvió al cuadro del POI (mitigation).
-**Dato observable:** `_touches_zone(zone_high, zone_low)` en `entry_at`. El auditor debe registrar
-CUÁL cuadro se usó: si `zone_high/zone_low` venían de la zona FVG/OB cacheada → cuadro REAL; si
-cayeron al fallback `bos_level ± 0.5·atr` (`sequence.py:594-596`) → cuadro SINTÉTICO.
+**Dato observable:** `_touches_zone(zone_high, zone_low)` en `entry_at`. El auditor registra CUÁL
+cuadro se usó: si `zone_high/zone_low` venían de la zona FVG/OB cacheada → cuadro REAL (geometría de
+imbalance, sin indicadores); si cayeron al fallback `bos_level ± 0.5·rango_promedio`
+(`sequence.py:594-596`, donde `rango_promedio` = `avg_candle_range`, geometría pura, NO indicador)
+→ cuadro de RESPALDO. **El fallback NUNCA se acepta como POI real**: es tolerancia de mitigación, no
+evidencia de setup.
 **Relación causal:** el retorno debe ser al cuadro nacido del POI de C4, no a un nivel arbitrario.
 **Qué faltaría para UNKNOWN:** si no hay `zone_high/zone_low` finitos ni `close[entry_at]` → UNKNOWN.
-**PASS/WARNING/FAIL:** PASS = toque del cuadro REAL del POI. **WARNING** = toque del cuadro
-SINTÉTICO (el motor no trazó el FVG real; el veredicto de capa 8 no es silencioso). FAIL = sin
-toque del cuadro. UNKNOWN = sin datos de zona/close.
+**PASS/WARNING/FAIL:** PASS = toque del cuadro REAL del POI. **WARNING** = toque del cuadro de
+respaldo (`bos_level ± 0.5·rango_promedio`); la capa 8 queda marcada como "retorno a cuadro de
+respaldo, no a POI FVG/OB real" y NO cuenta como POI validado. FAIL = sin toque del cuadro. UNKNOWN =
+sin datos de zona/close.
 
 ---
 
