@@ -549,4 +549,23 @@ la sospecha. Sin `engine/`, sin backtest, sin ejecución, sin EXP.
 
 ---
 
+#### 16.7.11 Matriz de preparación del piloto: ¿puede el SETUP AUDITOR demostrar causalidad sin inventarla?
+
+`research/hypotheses/HYP-002/PILOT_PREP_MATRIX.md`: auditoría documental final antes del piloto.
+Hallazgo estructural (verificado en `sequence.py`): la máquina de estados guarda en `state` SOLO
+ÍNDICES ENTEROS (`sweep_idx`, `displace_idx`, `bos_idx`, `entry_at`), NO referencias a `MarketObject`,
+ni `swing_id` roto, ni `parent_event` del POI. El `MarketObject` (`market_object.py:50`) SÍ tiene
+`parent_object`/`related_objects`, pero la secuencia NO los usa para ligar. El anclaje de POI
+(`poi_anchor.py`) empareja por dirección+timestamp cross-TF, no por identidad de swing roto.
+Por tanto el motor demuestra ORDEN TEMPORAL + DIRECCIÓN + ANCLAJE HTF POR TIMESTAMP, pero NO
+identidad causal 1:1 (este sweep→este displacement→este BOS→este POI). Las 3 uniones rotas
+(LIQUIDEZ→SWEEP nivel de pool; SWEEP→DISPLACEMENT swing ligado; DISPLACEMENT→BOS swing roto;
+BOS→POI parent_event) son RE-DERIVABLES del OHLC de `data/raw/*.parquet` por el auditor off-line, sin
+tocar `engine/`. MACRO/NEWS = GAP-1, siempre UNKNOWN (sin fuente en motor). Decisión: **PILOTO
+LISTO** — condición: el auditor emite UNKNOWN/BROKEN donde la identidad causal no se demuestre, nunca
+PASS por orden temporal solo, y MACRO/NEWS = UNKNOWN siempre. Sin `engine/`, sin backtest, sin
+ejecución, sin EXP-READ-001.
+
+---
+
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*
