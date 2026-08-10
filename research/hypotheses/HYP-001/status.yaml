@@ -1,0 +1,42 @@
+id: HYP-001
+title: "¿El contexto HTF (D1/H4/H1 alineado) aporta edge sobre ignorar el sesgo?"
+origin:
+  type: inventory_candidate
+  from: CAND-11
+  audit_doc: docs/architecture/MICRO_AUDIT_HYPOTHESES.md
+  phase: "3B.2 (Fase G, 2ª pasada científica)"
+status: formulada            # formulada -> auxiliares -> en_prueba -> promovida|refutada|inconclusa
+created: 2026-08-10
+domain:
+  real: "descubrimiento (tesis ICT/SMC del motor)"
+  otc: "validación por backtest canónico segmentando HtfBias.aligned"
+is_parent: true
+auxiliaries_required:        # experimentos de HABILITACIÓN (no evidencia de éxito)
+  - CAND-03
+  - CAND-05
+auxiliaries_are_not_evidence: true
+independent_branches:        # otras ramas de edge, no dependen de HYP-001
+  - CAND-09
+  - CAND-10
+engineering_diagnostic:      # NO edge, NO contamina prueba de edge
+  - CAND-04
+experiments: []              # ninguno creado todavía (prohibido por orden)
+baseline_doc: baseline.md     # baseline fijado 2026-08-10 (3 niveles: ruido/permutación/control intra-corrida)
+aux_protocol: ../protocols/PROTOCOL_AUX_CAND-03-05.md
+experiment_lock:
+  no_python_change: true
+  no_backtest_run: true
+  no_exp_created: true
+motor_state_verified:
+  gate: "YA RELAJADO (engine/bias/narrative.py:88-94, cierre M7 2026-08-08)"
+  note: "CAND-03 no modifica el motor; solo mide aligned bajo gate ya relajado. Pre-requisito G.4 relajado."
+traceability_debt:
+  ADR-005: "DEUDA — no existe físicamente en repo; separación REAL/OTC aplica por criterio del Director"
+  runner_path: "scripts/measure_structure_effectiveness.py NO existe; vive en scripts/_legacy/. LABORATORIO_ICT_SMC.md cita ruta obsoleta."
+rector_rule_review:           # bajo nueva REGLA RECTORA (docs/architecture/RESEARCH_CONTRACT.md §16, 2026-08-10)
+  rule: "Lectura del mercado ANTES que win rate. Orden: Lectura→Secuencia→Setup→Auditoría→Noticias/Contexto→Validación→Rendimiento."
+  conserved_as: "trazabilidad histórica del paradigma anterior (medir primero rendimiento). NO se reescribe ni destruye."
+  rector_adequacy: "EN REVISIÓN — HYP-001 pregunta '¿aporta edge?' bajo paradigma viejo. Bajo regla nueva, la hipótesis rectora probablemente pase a ser de LECTURA (¿el motor forma correctamente el setup ICT/SMC?), no de rendimiento."
+  exp_001_blocked: true        # NO avanzar a EXP-001 (WR_aligned/PF>1) hasta demostrar formación correcta del setup
+  auxiliaries_hold: "CAND-03/05 y baseline en ESPERA de validación de lectura; no ejecutar para producir WR_aligned."
+  next_gate: "Demostrar que el motor forma correctamente el setup ICT/SMC (hipótesis/experimento de LECTURA) antes de cualquier prueba de rendimiento."
