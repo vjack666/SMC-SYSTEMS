@@ -5,7 +5,19 @@ origin:
   rule: "RESEARCH_CONTRACT.md §16 (regla rectora 2026-08-10)"
   from_paradigm_shift: "Sustituye a HYP-001 como hipótesis RECTORA; HYP-001 queda como trazabilidad."
   prompted_by: "Revisión del Director en GitHub (rama feature/backtest-ict)"
-status: formulada            # formulada -> auxiliares -> en_prueba -> promovida|refutada|inconclusa
+status: en_prueba            # formulada -> auxiliares -> en_prueba -> promovida|refutada|inconclusa
+# 2026-08-10 (final del dia): Piloto 1 AUTORIZADO por el Director bajo regla
+# rectora estricta (14 condiciones). En EJECUCION (background) via
+# run_sequence_traced (consumidor puro, sin tocar engine/). Objetivo:
+# reconstruir/auditar la FORMACION del setup SIN inventar causalidad.
+pilot1:
+  authorized_by: "Director (revision GitHub feature/backtest-ict)"
+  rule: "NO medir WR/PF/edge; auditar formacion real; separar observado/reconstruido/inferido"
+  mode: "background (recogiendo emisiones reales del motor)"
+  target: "5 setups reales emitidos por el motor (>=5 confirmado: 79 en prueba de emision)"
+  constraints: "no tocar engine/, no backtester, no optimizar, ATR descriptivo, Macro=UNKNOWN"
+  output: "pilot1_output.md (fichas forenses por transicion)"
+  emitted_count_check: "79 setups reales (EURUSD 29, AUDUSD 29, GBPUSD 21 en 20k velas M15)"
 created: 2026-08-10
 is_parent: true              # hipótesis rectora del laboratorio bajo la regla nueva
 is_rector_hypothesis: true

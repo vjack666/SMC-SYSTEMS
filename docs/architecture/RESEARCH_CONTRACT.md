@@ -566,6 +566,43 @@ LISTO** — condición: el auditor emite UNKNOWN/BROKEN donde la identidad causa
 PASS por orden temporal solo, y MACRO/NEWS = UNKNOWN siempre. Sin `engine/`, sin backtest, sin
 ejecución, sin EXP-READ-001.
 
+#### 16.7.12 Piloto 1 de HYP-002 AUTORIZADO y en ejecución (2026-08-10)
+
+El Director autorizó el Piloto 1 bajo regla rectora estricta (14 condiciones, ver
+`research/hypotheses/HYP-002/status.yaml#pilot1`). Resumen de la orden:
+
+- **Objetivo NO es medir WR/PF/edge**, ni determinar si el setup "funciona".
+- Objetivo EXCLUSIVO: comprobar si podemos **reconstruir y auditar la FORMACIÓN REAL**
+  del setup ICT/SMC sin inventar causalidad.
+- Consumidor puro del motor: `engine.sequence.run_sequence_traced` (devuelve
+  `(signals, phase_seen, expedientes)`), con `est_htf_ctx_fn` cableado igual que
+  `ict_backtest/canonical.py` (vía `engine.plan.build_multitf_context` +
+  `engine.poi_anchor`). **Sin tocar `engine/`, ni detectores, ni backtester.**
+- Condición de datos verificada (prueba de emisión ad-hoc): el motor emite **79 setups
+  reales** en 20k velas M15 (EURUSD 29 + AUDUSD 29 + GBPUSD 21) → cumple ≥5.
+- Separación estricta OBSERVADO / RECONSTRUIDO / INFERIDO; orden temporal NUNCA → PASS
+  causal; ATR/avg_candle_range solo descriptivo; MACRO/NEWS = UNKNOWN (sin fuente).
+- El auditor emite UNKNOWN/BROKEN/CAUSALITY_BROKEN donde falte identidad causal; no
+  completa la historia por plausibilidad.
+
+**Veredicto agregado adelantado (mapa de formación real, sustentado en código ya
+auditado, no en el conteo del piloto):**
+
+| Capa del setup | Estado en el motor hoy |
+|---|---|
+| OBSERVABLE (emitido en el momento) | orden sweep→disp→BOS→retorno; dir coherente; flags; `bos_level`; `zone_*`; `htf_aligned`/`htf_reason`; `expediente.phase_events` |
+| CAUSAL (demostrable con datos actuales) | solo coherencia DIRECCIONAL (disp sigue dir del sweep; BOS sigue dir del disp). Ninguna unión 1:1. |
+| RECONSTRUIDA (derivable del OHLC, NO = causalidad) | nivel de liquidez barrido (wick emparejado con `bsl/ssl_price`); swing roto por BOS |
+| DESCONOCIDA (sin fuente) | MACRO/NEWS (GAP-1) → UNKNOWN; ejecución fina M5/M1 → UNKNOWN; `parent_event` del POI → UNKNOWN |
+| DÓNDE SE ROMPE EL LINAJE | SWEEP→DISPLACEMENT (sin `swing_id`); DISPLACEMENT→BOS (sin swing roto embolsado); BOS→POI (anclaje por dir+timestamp, no identidad) |
+
+Conclusión del piloto (esperada, coherente con la auditoría): el motor **FORMA** la
+secuencia (orden+dir observables) pero la **identidad causal 1:1 no está demostrada** en
+SWEEP→DISP, DISP→BOS, BOS→POI. Cada setup emitido → veredicto agregado
+**SETUP EMITIDO / CAUSALITY BROKEN** en esas uniones. Eso es resultado correcto: revela
+dónde el edificio lee realmente vs. donde narra después de los hechos. Reparaciones,
+si las hay, serán fase posterior separada (no durante el piloto).
+
 ---
 
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*
