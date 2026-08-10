@@ -1,0 +1,41 @@
+id: HYP-002
+title: "¿El motor reconstruye de forma determinista la formación completa de un setup ICT/SMC?"
+type: reading_hypothesis      # regla rectora (lectura), NO rendimiento
+origin:
+  rule: "RESEARCH_CONTRACT.md §16 (regla rectora 2026-08-10)"
+  from_paradigm_shift: "Sustituye a HYP-001 como hipótesis RECTORA; HYP-001 queda como trazabilidad."
+  prompted_by: "Revisión del Director en GitHub (rama feature/backtest-ict)"
+status: formulada            # formulada -> auxiliares -> en_prueba -> promovida|refutada|inconclusa
+created: 2026-08-10
+is_parent: true              # hipótesis rectora del laboratorio bajo la regla nueva
+is_rector_hypothesis: true
+primary_variable: "R_recon (tasa de reconstrucción determinista del setup completo)"
+not_primary: "WR / PF (son consecuencia posterior, paso 6 del orden rector)"
+domain:
+  real: "setups emitidos por engine/ sobre datos reales del motor"
+  otc: "backtest canónico (ict_backtest/run_backtest) como consumidor puro del motor"
+layers_audit:                # qué significa 'setup completo' (cadena causal)
+  - contexto: "sesgo HTF D1/H4/H1 vigente"
+  - estructura: "BOS/CHOCH/MSS vigente"
+  - liquidez: "BSL/SSL disponible"
+  - evento: "qué fue tomado/swept"
+  - displacement: "desplazamiento real posterior al evento"
+  - estructura2: "BOS/CHOCH ocurrió después del evento correcto"
+  - poi: "POI nació del evento correcto (anclado)"
+  - retorno: "precio volvió al POI esperado"
+  - ltf: "confirmación en timeframe de ejecución"
+  - macro: "noticias/eventos que rodean el setup (capa de CONTEXTO EXTERNO, no indicador)"
+  - estado: "setup válido o invalidado"
+macro_layer: "Contexto externo: NO es BUY/SELL; explica/invalida/contextualiza/eleva la lectura."
+experiments: []              # ninguno creado (prohibido por orden: sin EXP, sin Python)
+experiment_lock:
+  no_python_change: true
+  no_backtest_run: true
+  no_exp_created: true
+performance_blocked_until_reading_validated: true   # WR/PF SOLO tras validar la lectura
+relation_to_HYP_001:
+  HYP-001: "CONSERVADA como trazabilidad del paradigma anterior; exp_001_blocked: true"
+  HYP_002_role: "hipótesis rectora bajo regla nueva; cadena LECTURA->FORMACION->VALIDACION MACRO->SETUP AUDITADO->PERFORMANCE"
+next_gate: "Diseñar EXP de LECTURA que reconstruya la cadena causal vela por vela (sin medir WR). Autorización del Director."
+traceability_debt:
+  ADR-005: "DEUDA — no existe físicamente en repo; separación REAL/OTC aplica por criterio del Director"

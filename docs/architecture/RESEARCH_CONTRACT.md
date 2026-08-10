@@ -341,6 +341,82 @@ de esa decisión; NO se reescribe silenciosamente. Pero bajo esta regla rectora:
 - Cualquier nuevo `HYP-NNN` de ICT/SMC debe declarar explícitamente qué parte de la
   lectura/formación del setup pone a prueba (§16.4).
 
+### 16.7 Nueva línea científica — HYP-002 (hipótesis de LECTURA, rectora)
+
+Bajo esta regla, la hipótesis rectora del laboratorio YA NO es "¿HTF produce mejor WR?"
+(HYP-001, conservada como trazabilidad). Es:
+
+> **HYP-002 — ¿El motor reconstruye de forma determinista la formación completa de un setup
+> ICT/SMC?** (`research/hypotheses/HYP-002/`)
+>
+> Cuando el motor emite un SETUP, ¿puede reconstruir físicamente — vela por vela, con relación
+> causal — toda la cadena que llevó hasta ese setup? Variable primaria: `R_recon` (tasa de
+> reconstrucción determinista). NO `WR`/`PF` (esas son consecuencia posterior, paso 6).
+
+#### 16.7.1 Cadena de formación del setup (qué significa "completo")
+
+```
+CONTEXTO → ESTRUCTURA → LIQUIDEZ → EVENTO → DESPLAZAMIENTO → BOS/CHOCH → POI → RETORNO → CONFIRMACIÓN → SETUP COMPLETO
+```
+
+NO `HTF → entrada → ¿ganó?`. Si el setup está mal construido, un WR del 55-70% no dice por qué
+funciona ni qué se está leyendo.
+
+#### 16.7.2 Macro/noticias = capa de CONTEXTO EXTERNO (no indicador)
+
+```
+        MERCADO
+           │
+    ┌──────┴──────┐
+    │             │
+LECTURA SMC   CONTEXTO EXTERNO
+    │             │
+estructura    noticias
+liquidez      eventos
+POI           calendario
+desplazamiento riesgo macro
+    │             │
+    └──────┬──────┘
+           ↓
+    FORMACIÓN SETUP
+           ↓
+ ¿ES COHERENTE CON EL CONTEXTO DEL DÍA?
+           ↓
+    SETUP VALIDADO
+```
+
+La noticia NO "crea" el setup; puede explicarlo, invalidarlo, contextualizarlo o elevar su
+calidad. El sistema registra p.ej.: *"setup estructuralmente formado, pero apareció evento
+macro de alta relevancia en su ventana de ejecución"* — lectura más rica que `WIN=1`.
+
+#### 16.7.3 Marco de auditoría del setup (tabla de capas)
+
+| Capa         | Pregunta de auditoría                                   |
+| ------------ | ------------------------------------------------------- |
+| Contexto     | ¿Qué estaba haciendo el mercado (sesgo HTF D1/H4/H1)?   |
+| Estructura   | ¿Cuál era la estructura vigente (BOS/CHOCH/MSS)?         |
+| Liquidez     | ¿Qué liquidez (BSL/SSL) estaba disponible?               |
+| Evento       | ¿Qué fue tomado/swept?                                   |
+| Displacement | ¿Hubo desplazamiento real posterior al evento?          |
+| Estructura   | ¿El BOS/CHOCH ocurrió después del evento correcto?      |
+| POI          | ¿El POI nació del evento correcto (anclado)?            |
+| Retorno      | ¿El precio volvió al POI esperado?                      |
+| LTF          | ¿Hubo confirmación en el timeframe de ejecución?         |
+| Macro        | ¿Qué noticias/eventos rodeaban el setup?                |
+| Estado       | ¿El setup seguía válido o fue invalidado?               |
+
+#### 16.7.4 Orden evolutivo (no al revés)
+
+```
+LECTURA DEL MERCADO → FORMACIÓN DEL SETUP → VALIDACIÓN CONTEXTO MACRO → SETUP AUDITADO
+   → recién entonces → PERFORMANCE (WR/PF/expectancy)
+```
+
+El motor debe ser una **representación computable de cómo un humano lee y construye el setup**,
+no una máquina que descubre combinaciones de filtros por su win rate. Primero: Hermes señala un
+setup y lo explica causalmente vela por vela; después: se pregunta si ese tipo de setup tiene
+rendimiento estadístico.
+
 ---
 
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*
