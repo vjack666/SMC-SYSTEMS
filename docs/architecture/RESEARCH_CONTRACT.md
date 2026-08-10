@@ -417,6 +417,30 @@ no una máquina que descubre combinaciones de filtros por su win rate. Primero: 
 setup y lo explica causalmente vela por vela; después: se pregunta si ese tipo de setup tiene
 rendimiento estadístico.
 
+#### 16.7.5 Primer experimento de lectura — SETUP AUDITOR (diseñado, no ejecutado)
+
+El primer experimento verdaderamente importante del laboratorio NO es un backtest de WR. Es el
+**SETUP AUDITOR** (`research/hypotheses/HYP-002/SETUP_AUDITOR_DESIGN.md`), diseñado bajo HYP-002:
+
+- Reconstruye la historia causal de cada setup desde `Expediente.history` (traza vela por vela
+  `SWEEP→DISPLACE→BOS→ENTRY` ya registrada por `engine/sequence.py`).
+- Evalúa cada capa del SETUP_SPEC **individualmente** y distingue tres cosas:
+  **evento detectado** vs **relación causal demostrada** vs **setup completo**.
+- Reporta **PASS / FAIL / UNKNOWN** por capa.
+- Separa **OBLIGATORIAS** (Contexto, Liquidez, Sweep, Displacement, Estructura, Linaje causal,
+  POI, Retorno), **CONDICIONALES** (Confirmación LTF) y **CONTEXTO EXTERNO** (Noticias).
+- La capa de noticias aparece **explícitamente como GAP/PENDING** (GAP-1: `macro_direction` es
+  tendencia HTF, no calendario macro; `noticias_widget.py` está hardcodeado solo para UI). NO se
+  implementa todavía para no mezclar "¿el setup está bien formado?" con "¿las noticias lo modifican?".
+- Declara **COMPLETE** solo si todas las obligatorias PASAN con causalidad demostrada; **INCOMPLETE**
+  si alguna falla (con `FALLÓ EN: <capa>`); **INVALIDATED** si `engine/invalidation` lo marcó (aunque
+  las capas PASARAN). Nunca cuenta "8/9 PASS" como éxito.
+
+Fase post-diseño (a autorización del Director): validación humana/mecánica de ~50 setups
+históricos — *"¿el auditor describe lo que realmente ocurrió en el gráfico?"*. Solo si pasa esa
+prueba tiene sentido hablar de rendimiento (HYP-001 queda abajo en la pila: el rendimiento es el
+ÚLTIMO piso, no el cimiento).
+
 ---
 
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*

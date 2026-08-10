@@ -38,6 +38,7 @@ relation_to_HYP_001:
   HYP_002_role: "hipótesis rectora bajo regla nueva; cadena LECTURA->FORMACION->VALIDACION MACRO->SETUP AUDITADO->PERFORMANCE"
 next_gate: "Diseñar EXP de LECTURA que reconstruya la cadena causal vela por vela (sin medir WR). Autorización del Director."
 setup_spec: "SETUP_SPEC.md (anatomía por capas + linaje causal + macro contexto + umbral TBD)"
+setup_auditor_design: "SETUP_AUDITOR_DESIGN.md (primer EXP de lectura: PASS/FAIL/UNKNOWN por capa; obligatorias/condicionales/contexto externo; noticias=PENDING/GAP-1)"
 threshold_status: "R_recon NO fijado numericamente (decisión Director 2026-08-10); SETUP_SPEC.md debe operar primero"
 freeze_other_lines:
   HYP_001: "CONGELADA como trazabilidad del paradigma anterior; no dirige el laboratorio; exp_001_blocked: true"
