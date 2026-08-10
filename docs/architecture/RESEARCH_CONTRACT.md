@@ -484,4 +484,27 @@ donde falte dato, datos de 5 setups disponibles — bloqueo DATA R5/A6). HYP-001
 
 ---
 
+#### 16.7.8 Reconciliación final del SETUP AUDITOR (previa al piloto, sin ejecutar)
+
+Revisión del Director leyendo los docs desde GitHub encontró 3 problemas; reconciliados en
+`research/hypotheses/HYP-002/SETUP_AUDITOR_RECONCILIATION.md` (sin tocar los docs previos, para
+preservar trazabilidad):
+1. **C2 no introduce umbral**: se retira `k=1.0·ATR`; displacement = evento observado, propiedades
+   registradas como DATOS a observar, no veredicto. Umbral TBD por diseño (primero el objeto, después
+   la parametrización).
+2. **C3 separa causalidad demostrable de NO demostrable**: el motor conserva orden+dirección (sí
+   demostrable) pero NO el linaje de liquidez (nivel barrido, swing roto, `parent_event` del POI no
+   expuestos) → eso es UNKNOWN/CAUSALITY BROKEN, no inferencia. Hallazgo científico: "el motor no
+   conserva suficiente información para demostrar su propia causalidad".
+3. **Contradicción SETUP_SPEC §4 ↔ C7 resuelta**: el piloto audita **EMISIONES DEL MOTOR**, no
+   "setups completos"; `FORMATION: VALID` queda en suspenso (es el estándar de destino, no el
+   criterio de este piloto). Una emisión INCOMPLETE es hallazgo esperado, no fracaso.
+Regla rectora superior: **el auditor NO reconstruye retrospectivamente causalidad no observable →
+UNKNOWN/BROKEN**. C4/C5 bajo la misma regla (no asumir POI↔BOS ni retorno↔POI por proximidad).
+Objetivo del piloto de 5 emisiones: descubrir qué capas son demostrables, cuáles UNKNOWN, cuáles mal
+ligadas, y qué falta en el motor — NO una alta tasa de PASS. Macro=contexto externo. Sin `engine/`,
+sin backtest, sin WR/PF/R, sin EXP-READ-001, sin ejecución.
+
+---
+
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*
