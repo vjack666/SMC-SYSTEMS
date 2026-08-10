@@ -450,4 +450,20 @@ El primer experimento verdaderamente importante del laboratorio NO es un backtes
 
 ---
 
+#### 16.7.6 Auditoría de determinismo del SETUP AUDITOR (puerta previa al piloto)
+
+Antes de ejecutar cualquier piloto, el protocolo pasó una auditoría de determinismo
+(`research/hypotheses/HYP-002/SETUP_AUDITOR_PROTOCOL_AUDIT.md`). Veredicto: el protocolo es
+reproducible en **ORDEN** (la máquina de fases `IDLE→SWEEP→DISPLACE→BOS→ENTRY` lo garantiza) pero
+NO completamente en **CAUSALIDAD** ni en "evidencia suficiente", porque el motor no expone el nivel
+barrido ni liga sweep→liquidez→displacement→BOS→POI, el displacement es flag (no magnitud), el POI es
+bonus no-gate y el cuadro de retorno puede ser sintético. Ambigüedades documentadas B1-B8;
+decisiones pre-piloto C1-C7 (cómo el auditor reconstruye la ligadura y magnitud DESDE
+`MarketObject`/`Expediente`, sin tocar `engine/`). Hasta fijar C1-C7 **NO se ejecuta el piloto**.
+Esto es la puerta que separa "juez con reglas precisas" de "juez con opinión": dos auditores
+independientes deben llegar al mismo PASS/FAIL/UNKNOWN para el mismo setup antes de correr Piloto 1
+(5 setups). UNKNOWN nunca se convierte en PASS.
+
+---
+
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*
