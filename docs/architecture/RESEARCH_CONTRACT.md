@@ -265,4 +265,82 @@ research/
 | 16 | Experimentos históricos en `scripts/_legacy/` = candidatos | ✅ no mover hoy |
 
 ---
+
+## 16. Regla rectora — Lectura del mercado antes que win rate (2026-08-10)
+
+> **Cambio de dirección científica del laboratorio.** Principio rector para TODA investigación
+> futura sobre ICT/SMC y SMC-SYSTEMS. Anula el paradigma anterior de "medir primero rendimiento".
+> Registrada también en memoria persistente (Engram) como regla rectora permanente.
+
+### 16.1 Principio
+
+Cuando trabajamos con ICT/SMC y con la tesis de SMC-SYSTEMS, el objetivo primario **NO** es
+demostrar que existe un edge estadístico mediante win rate. El objetivo primario es:
+
+> **Reconstruir y auditar correctamente la formación de un setup según la tesis del repositorio,
+> demostrando primero que el motor realmente lee el mercado antes de evaluar si esa lectura
+> produce rendimiento.**
+
+### 16.2 Orden obligatorio de investigación
+
+1. **LECTURA DEL MERCADO** — contexto HTF, liquidez, sweep, displacement, BOS/CHOCH/MSS, POI,
+   retorno, confirmación LTF, secuencia temporal y causal.
+2. **FORMACIÓN DEL SETUP** — los eventos no deben simplemente coexistir; deben formar la
+   secuencia exigida por la tesis; el motor debe poder explicar por qué esos acontecimientos
+   constituyen un setup.
+3. **AUDITORÍA DEL SETUP** — ¿cada evento ocurrió realmente? ¿en el orden correcto? ¿existe
+   relación causal o solo coincidencia? ¿la estructura es coherente? ¿hay contradicciones?
+   ¿qué condiciones del edificio superó? ¿en qué piso falló?
+4. **CONTEXTO DE NOTICIAS / EVENTOS** — noticias del día, de la semana, eventos macroeconómicos,
+   proximidad de noticias de alto impacto, impacto potencial sobre la validez/interpretación del
+   setup. Las noticias forman parte del contexto de validación del setup; NO se añaden
+   posteriormente como una simple variable para mejorar el win rate.
+5. **VALIDACIÓN** — primero validar que el objeto SETUP que produce el motor representa realmente
+   la tesis ICT/SMC; después comprobar reproducibilidad y estabilidad.
+6. **RENDIMIENTO ESTADÍSTICO** — solo después de demostrar que el setup está correctamente
+   formado se estudian: MFE, MAE, RR, expectancy, win rate, profit factor, rendimiento económico.
+
+### 16.3 Regla fundamental
+
+> **No buscamos primero demostrar que el sistema gana. Buscamos demostrar primero que el sistema
+> sabe qué está viendo.**
+
+Por tanto: **Lectura → Secuencia → Setup → Auditoría → Noticias/Contexto → Validación → Rendimiento.**
+
+### 16.4 Regla para futuras hipótesis
+
+Cada nueva hipótesis ICT/SMC debe responder primero:
+
+> **¿Qué parte de la lectura/formación del setup estamos intentando demostrar o destruir?**
+
+y no:
+
+> **¿Qué combinación produce mayor win rate?**
+
+El rendimiento es consecuencia posterior de una lectura validada, no la definición de un setup válido.
+
+### 16.5 Consecuencia para HYP-001 (trazabilidad, no destrucción)
+
+HYP-001 ("¿el contexto HTF aporta edge?") fue formulada bajo el paradigma anterior de medir
+primero rendimiento. **Se CONSERVA** en `research/hypotheses/HYP-001/` como trazabilidad histórica
+de esa decisión; NO se reescribe silenciosamente. Pero bajo esta regla rectora:
+
+- **NO se avanza a EXP-001** (la prueba de rendimiento `WR_aligned`/`PF>1`) hasta demostrar que el
+  motor está formando correctamente el setup ICT/SMC.
+- Antes de continuar hacia EXP-001, se debe evaluar si HYP-001 sigue siendo la hipótesis rectora
+  adecuada. Lo probable es que la hipótesis rectora pase a ser una de **LECTURA**
+  (ej. "¿el motor forma correctamente el setup ICT/SMC según la secuencia de la tesis?"), y el
+  rendimiento se estudie solo tras validar esa lectura.
+- El `status.yaml` de HYP-001 lleva el campo `rector_rule_review` marcando este estado.
+
+### 16.6 Impacto en el flujo de `research/`
+
+- Los auxiliares CAND-03/05 (PROTOCOL_AUX_CAND-03-05.md) y el baseline de HYP-001 quedan
+  **en espera de validación de lectura**: no se ejecutan para producir `WR_aligned` hasta que
+  exista una HYP/EXP de lectura que demuestre formación correcta del setup.
+- Cualquier nuevo `HYP-NNN` de ICT/SMC debe declarar explícitamente qué parte de la
+  lectura/formación del setup pone a prueba (§16.4).
+
+---
+
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*
