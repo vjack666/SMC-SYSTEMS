@@ -66,11 +66,15 @@ SETUP_SPEC) contra el código (lo que hace el motor).
 
 ## Conclusión de la auditoría (sin ejecutar)
 
-El motor ya implementa **8 de 9 capas** del SETUP_SPEC, incluyendo el linaje causal codificado
-y el anti look-ahead. El GAP real que bloquea la "lectura completa" de HYP-002 es **GAP-1
-(macro/noticias no conectado al motor)** — exactamente la capa que el Director y la regla rectora
-piden incorporar como contexto externo ANTES del rendimiento. GAP-2 (confirmación LTF fina) y
-GAP-3 (POI como fallo de capa en el reporte) son menores.
+> **Reconciliación de taxonomía (ver `SETUP_AUDITOR_PROTOCOL.md` §1):** SETUP_SPEC define
+> **11 capas** (canónica). Esta matriz las presentó consolidadas en 9 (fusionó Liquidez+Sweep y
+> Estructura+Confirmación estructural); ambas vistas son ciertas bajo su propia presentación.
+
+El motor ya implementa **10 de las 11 capas** de SETUP_SPEC (la vista de 9 decía "8 de 9": mismo
+hecho, distinta cuenta), incluyendo el linaje causal codificado y el anti look-ahead. La única
+capa ausente en el motor es **Macro/noticias (capa 10, GAP-1)** — exactamente la capa que el
+Director y la regla rectora piden incorporar como contexto externo ANTES del rendimiento.
+GAP-2 (confirmación LTF fina) y GAP-3 (POI como fallo de capa en el reporte) son menores.
 
 Esto define el **primer experimento verdaderamente importante** del laboratorio (Director):
 un SETUP AUDITOR que, dada una muestra de setups emitidos, reconstruya la cadena causal vela por

@@ -420,26 +420,33 @@ rendimiento estadístico.
 #### 16.7.5 Primer experimento de lectura — SETUP AUDITOR (diseñado, no ejecutado)
 
 El primer experimento verdaderamente importante del laboratorio NO es un backtest de WR. Es el
-**SETUP AUDITOR** (`research/hypotheses/HYP-002/SETUP_AUDITOR_DESIGN.md`), diseñado bajo HYP-002:
+**SETUP AUDITOR** (`research/hypotheses/HYP-002/SETUP_AUDITOR_DESIGN.md` visión general;
+`SETUP_AUDITOR_PROTOCOL.md` protocolo EXP-READ-001), diseñado bajo HYP-002:
 
-- Reconstruye la historia causal de cada setup desde `Expediente.history` (traza vela por vela
-  `SWEEP→DISPLACE→BOS→ENTRY` ya registrada por `engine/sequence.py`).
-- Evalúa cada capa del SETUP_SPEC **individualmente** y distingue tres cosas:
-  **evento detectado** vs **relación causal demostrada** vs **setup completo**.
+- Es un **juez forense**, no un segundo motor: consume la evidencia ya producida por el motor
+  (`Expediente.history`, `SequenceState`, objetos de mercado) y comprueba, contra datos
+  observables y timestamps, si la historia que el motor cuenta es VERDAD. No confía ciegamente en
+  las etiquetas del motor; cada evento debe tener evidencia y timestamp.
+- Reconstruye cada setup vela por vela y distingue **evento detectado** vs **relación causal
+  demostrada** vs **setup completo**.
 - Reporta **PASS / FAIL / UNKNOWN** por capa.
-- Separa **OBLIGATORIAS** (Contexto, Liquidez, Sweep, Displacement, Estructura, Linaje causal,
-  POI, Retorno), **CONDICIONALES** (Confirmación LTF) y **CONTEXTO EXTERNO** (Noticias).
+- **Taxonomía canónica = SETUP_SPEC (11 capas)**. La matriz de evidencia las presentó consolidadas
+  en 9; ambas son ciertas bajo su vista. "Linaje causal" NO es una capa: es propiedad transversal
+  sobre las capas de evento (resuelto en `SETUP_AUDITOR_PROTOCOL.md` §1).
+- Separa **OBLIGATORIAS** (Contexto, Estructura, Liquidez, Sweep, Displacement, Confirmación
+  estructural, POI, Retorno), **CONDICIONALES** (Confirmación LTF) y **CONTEXTO EXTERNO**
+  (Noticias).
 - La capa de noticias aparece **explícitamente como GAP/PENDING** (GAP-1: `macro_direction` es
   tendencia HTF, no calendario macro; `noticias_widget.py` está hardcodeado solo para UI). NO se
-  implementa todavía para no mezclar "¿el setup está bien formado?" con "¿las noticias lo modifican?".
+  implementa `engine/macro_calendar` todavía para no contaminar la lectura con reglas prematuras.
 - Declara **COMPLETE** solo si todas las obligatorias PASAN con causalidad demostrada; **INCOMPLETE**
   si alguna falla (con `FALLÓ EN: <capa>`); **INVALIDATED** si `engine/invalidation` lo marcó (aunque
-  las capas PASARAN). Nunca cuenta "8/9 PASS" como éxito.
-
-Fase post-diseño (a autorización del Director): validación humana/mecánica de ~50 setups
-históricos — *"¿el auditor describe lo que realmente ocurrió en el gráfico?"*. Solo si pasa esa
-prueba tiene sentido hablar de rendimiento (HYP-001 queda abajo en la pila: el rendimiento es el
-ÚLTIMO piso, no el cimiento).
+  las capas PASARAN). Nunca cuenta "N PASS / 1 FAIL" como éxito.
+- **Muestra piloto 5–10 setups** (descubrir si el auditor puede reconstruirlos), luego 50, luego
+  100. No se fija `R_recon`, 0.90 ni umbral de rendimiento.
+- Al encontrar un fallo del motor, **NO se corrige durante el experimento**: se registra como
+  hallazgo con evidencia y capa. Observación → evidencia → diagnóstico → hipótesis de defecto →
+  experimento → recién entonces modificación. Cero cambios en `engine/`.
 
 ---
 

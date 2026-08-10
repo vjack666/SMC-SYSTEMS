@@ -38,15 +38,17 @@ Un setup con "8 PASS / 1 FAIL" NO es exitoso. El auditor reporta el fallo por ca
 
 Según corrección del Director:
 
-| Categoría            | Capas (SETUP_SPEC)                                   | Regla de veredicto                                    |
-|----------------------|------------------------------------------------------|-------------------------------------------------------|
-| **OBLIGATORIAS**     | Contexto, Liquidez, Sweep, Displacement, Estructura (BOS/CHOCH), Linaje causal, POI, Retorno | Todas deben PASS para que el setup sea COMPLETE. Un FAIL → INCOMPLETE. |
-| **CONDICIONAL**      | Confirmación LTF (M5/M1)                             | Depende del tipo de setup auditado. Si el setup exige LTF, debe PASS; si no aplica, se marca N/A (no FAIL). |
-| **CONTEXTO EXTERNO** | Noticias / macro calendario                         | NUNCA PASS/FAIL del setup. Solo `NO_EVENT` / `SAFE` / `WARNING` / `INVALIDATING`. Explícitamente **GAP/PENDING** en esta fase. No inventa señal técnica. |
+| Categoría            | Capas (SETUP_SPEC canónica, 11)                                                 | Regla de veredicto                                    |
+|----------------------|----------------------------------------------------------------------|-------------------------------------------------------|
+| **OBLIGATORIAS**     | Contexto, Estructura, Liquidez, Sweep, Displacement, Confirmación estructural (BOS/CHOCH), POI, Retorno | Todas deben PASS para que el setup sea COMPLETE. Un FAIL → INCOMPLETE. |
+| **CONDICIONAL**      | Confirmación LTF (M5/M1)                                             | Depende del tipo de setup auditado. Si el setup exige LTF, debe PASS; si no aplica, se marca N/A (no FAIL). |
+| **CONTEXTO EXTERNO** | Noticias / macro calendario                                         | NUNCA PASS/FAIL del setup. Solo `NO_EVENT` / `SAFE` / `WARNING` / `INVALIDATING`. Explícitamente **GAP/PENDING** en esta fase. No inventa señal técnica. |
 
-La capa "Linaje causal" es OBLIGATORIA y es la que separa evento de causalidad (ver §4).
-
----
+> **Nota de taxonomía (reconciliación 11↔9):** SETUP_SPEC define **11 capas**; la matriz de
+> evidencia las presentó consolidadas en **9** (fusionó Liquidez+Sweep y Estructura+Confirmación
+> estructural). Ambas son ciertas bajo su vista; la canónica es 11. **"Linaje causal" NO es una
+> capa** (aparecía mal listado como OBLIGATORIA aquí): es una propiedad TRANSVERSAL sobre las
+> capas de evento. Ver `SETUP_AUDITOR_PROTOCOL.md` §1 para la decisión y el mapeo.
 
 ## 3. Entrada del auditor
 
