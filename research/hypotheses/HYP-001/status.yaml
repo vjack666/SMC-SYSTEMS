@@ -36,7 +36,9 @@ traceability_debt:
 rector_rule_review:           # bajo nueva REGLA RECTORA (docs/architecture/RESEARCH_CONTRACT.md §16, 2026-08-10)
   rule: "Lectura del mercado ANTES que win rate. Orden: Lectura→Secuencia→Setup→Auditoría→Noticias/Contexto→Validación→Rendimiento."
   conserved_as: "trazabilidad histórica del paradigma anterior (medir primero rendimiento). NO se reescribe ni destruye."
-  rector_adequacy: "EN REVISIÓN — HYP-001 pregunta '¿aporta edge?' bajo paradigma viejo. Bajo regla nueva, la hipótesis rectora probablemente pase a ser de LECTURA (¿el motor forma correctamente el setup ICT/SMC?), no de rendimiento."
+  rector_adequacy: "EN REVISIÓN — HYP-001 pregunta '¿aporta edge?' bajo paradigma viejo. Bajo regla nueva, la hipótesis rectora pase a ser de LECTURA (¿el motor forma correctamente el setup ICT/SMC?) [→ HYP-002]."
   exp_001_blocked: true        # NO avanzar a EXP-001 (WR_aligned/PF>1) hasta demostrar formación correcta del setup
   auxiliaries_hold: "CAND-03/05 y baseline en ESPERA de validación de lectura; no ejecutar para producir WR_aligned."
-  next_gate: "Demostrar que el motor forma correctamente el setup ICT/SMC (hipótesis/experimento de LECTURA) antes de cualquier prueba de rendimiento."
+  frozen_by_director: true     # revisión GitHub 2026-08-10: HYP-001 CONGELADA; NO dirige el laboratorio
+  cand_03_05_status: "ARCHIVADOS/bloqueados (paradigma anterior, aligned_hit_pct/WR/PF). Decision del Director: NO ejecutar. No eliminados."
+  next_gate: "Demostrar que el motor forma correctamente el setup ICT/SMC (hipótesis/experimento de LECTURA [HYP-002]) antes de cualquier prueba de rendimiento."

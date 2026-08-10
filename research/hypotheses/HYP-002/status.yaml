@@ -37,5 +37,11 @@ relation_to_HYP_001:
   HYP-001: "CONSERVADA como trazabilidad del paradigma anterior; exp_001_blocked: true"
   HYP_002_role: "hipótesis rectora bajo regla nueva; cadena LECTURA->FORMACION->VALIDACION MACRO->SETUP AUDITADO->PERFORMANCE"
 next_gate: "Diseñar EXP de LECTURA que reconstruya la cadena causal vela por vela (sin medir WR). Autorización del Director."
+setup_spec: "SETUP_SPEC.md (anatomía por capas + linaje causal + macro contexto + umbral TBD)"
+threshold_status: "R_recon NO fijado numericamente (decisión Director 2026-08-10); SETUP_SPEC.md debe operar primero"
+freeze_other_lines:
+  HYP_001: "CONGELADA como trazabilidad del paradigma anterior; no dirige el laboratorio; exp_001_blocked: true"
+  CAND_03_05: "ARCHIVADOS/bloqueados (paradigma anterior, giro alrededor de aligned_hit_pct/WR/PF). NO ejecutar ahora. No eliminados."
+  directive: "No ejecutar CAND-03/05, no EXP-001, no buscar WR, no modificar el motor hasta validar la lectura."
 traceability_debt:
   ADR-005: "DEUDA — no existe físicamente en repo; separación REAL/OTC aplica por criterio del Director"

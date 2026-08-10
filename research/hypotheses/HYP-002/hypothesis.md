@@ -31,9 +31,12 @@ backtest canónico como consumidor del motor):
 - **Tasa de reconstrucción determinista** `R_recon`: fracción de setups donde CADA capa de la
   cadena (Contexto→Estructura→Liquidez→Evento→Displacement→BOS/CHOCH→POI→Retorno→Confirmación)
   puede reconstruirse con los datos brutos y el timestamp correcto, en el ORDEN causal exigido.
-- Predicción: `R_recon` es ALTA (umbral a fijar en el protocolo del EXP de lectura, ej. ≥ 0.90)
-  y, cuando un setup NO se reconstruye, el fallo se localiza en una capa concreta (no es
-  "ruido").
+- Predicción (cualitativa por ahora): `R_recon` es ALTA y, cuando un setup NO se reconstruye,
+  el fallo se localiza en una capa concreta (no es "ruido").
+
+> **Umbral numérico NO fijado aún (decisión del Director, 2026-08-10).** No se fija `≥ 0.90`
+> porque primero debe definirse el objeto "setup completo" (ver `SETUP_SPEC.md`). El número se
+> fija SOLO después de que el objeto esté operable. Hasta entonces la predicción es cualitativa.
 
 Si la predicción no se cumple (setups que el motor "ve" pero no puede explicar causalmente), la
 tesis de LECTURA cae y se abre un diagnóstico de qué capa del motor falla.
