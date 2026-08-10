@@ -43,7 +43,8 @@ setup_auditor_protocol: "SETUP_AUDITOR_PROTOCOL.md (protocolo EXP-READ-001: entr
 setup_auditor_protocol_audit: "SETUP_AUDITOR_PROTOCOL_AUDIT.md (auditoría del determinismo: matriz 11 capas, ambigüedades B1-B8, decisiones C1-C7 pre-piloto, TBD, propuesta Piloto 1 de 5)"
 setup_auditor_c1_c7: "SETUP_AUDITOR_C1_C7.md (cierre documental C1-C7: evidencia mínima 4-preguntas/capa, jerarquía veredicto, consistencia 4 docs, condiciones piloto)"
 setup_auditor_reconciliation: "SETUP_AUDITOR_RECONCILIATION.md (reconciliación final: retira umbral C2, separa causalidad demostrable de NO demostrable en C3, C4/C5 no-invención, SETUP_SPEC§4<->C7: piloto audita EMISIONES no setups completos)"
-reconcile_note: "Regla superior: el auditor NO reconstruye retrospectivamente causalidad no observable -> UNKNOWN/BROKEN. Piloto = 5 EMISIONES del motor, no setups completos."
+setup_auditor_data_forensics: "SETUP_AUDITOR_DATA_FORENSICS.md (auditoría forense de datos: run_sequence_traced expone Expediente; parquet raw SOLO OHLC; 5/6 forex symbols con D1/H4/M15, EURUSD+H1; linaje no embolsado)"
+reconcile_note: "Regla superior: el auditor NO reconstruye retrospectivamente causalidad no observable -> UNKNOWN/BROKEN. Piloto = 5 EMISIONES del motor, no setups completos. Emisiones NO persistidas; obtenibles via run_sequence_traced sin tocar engine/."
 threshold_status: "R_recon NO fijado numericamente (decisión Director 2026-08-10); SETUP_SPEC.md debe operar primero"
 freeze_other_lines:
   HYP_001: "CONGELADA como trazabilidad del paradigma anterior; no dirige el laboratorio; exp_001_blocked: true"

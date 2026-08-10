@@ -507,4 +507,29 @@ sin backtest, sin WR/PF/R, sin EXP-READ-001, sin ejecución.
 
 ---
 
+#### 16.7.9 Auditoría forense de datos del SETUP AUDITOR (etapa previa al piloto)
+
+`research/hypotheses/HYP-002/SETUP_AUDITOR_DATA_FORENSICS.md`: localiza cómo obtener 5 emisiones de
+`run_sequence` conservando `Expediente` + `MarketObject[]` + señal + timestamps + contexto HTF, SIN
+modificar `engine/` ni backtest de rendimiento. Hallazgos:
+- `run_sequence` (público) descarta el `Expediente`; `run_sequence_traced` (`engine/sequence.py:660`)
+  SÍ devuelve `(signals, phase_seen, expedientes)` — esa es la vía correcta. El atributo real es
+  `Expediente.phase_events` (los docs HYP-002 lo llaman `history` por error de nombre).
+- `data/raw/*.parquet` contiene SOLO `time,O,H,L,C` (verificado EURUSD_M15 = 114,237 filas, OHLC);
+  las features ICT (`sweep_low`, `bsl/ssl_price`, `fvg_mid`, `displacement_mag`) NO están persistidas
+  — se recalculan on-the-fly en `ict_backtest/data_feed.build_features`. El auditor debe leer el wick
+  del sweep de OHLC y compararlo con pools recalculados.
+- **No hay 5 emisiones ya persistidas en disco** (el motor descarta el `Expediente` salvo por
+  `_traced`); pero SON obtenibles ejecutando `run_sequence_traced` sobre `data/raw` (obtención, no
+  rendimiento — permitido).
+- Cobertura top-down: EURUSD tiene D1/H1/H4/M15 (cadena completa); AUDUSD/GBPUSD/NZDUSD/USDCAD/USDCHF/
+  USDJPY tienen D1/H4/M15 (sin H1); XAUUSD NO en raw (solo zip sin procesar). 6 símbolos forex = 5
+  emisiones reproducibles alcanzables.
+- Linaje de causalidad (sweep→ESA liquidez→displacement→ESE BOS→POI) sigue sin ser observable: el
+  motor no embolsa `swing_id` roto ni `parent_event` del POI → el auditor emitirá UNKNOWN/BROKEN donde
+  falte eslabón (coincide con Reconciliation). Macro/Noticias = GAP-1 fuera de alcance.
+Sin `engine/`, sin backtest, sin WR/PF/R, sin EXP-READ-001, sin ejecución de rendimiento.
+
+---
+
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*
