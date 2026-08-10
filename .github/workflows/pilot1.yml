@@ -1,0 +1,39 @@
+name: PILOT1-HYP002
+
+on:
+  workflow_dispatch:        # se corre manualmente desde la pestaña Actions
+  push:
+    branches: [feature/backtest-ict]
+    paths:
+      - 'research/hypotheses/HYP-002/pilot1_run.py'
+      - '.github/workflows/pilot1.yml'
+
+jobs:
+  pilot1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout (incluye data/raw commiteado, no LFS)
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install solo dependencias del piloto (rapido)
+        run: |
+          python -m pip install --upgrade pip
+          pip install "pandas>=2.0" "numpy>=1.24" "pyyaml>=6.0" "pyarrow>=14.0" "scipy>=1.10"
+
+      - name: Correr Piloto 1 (consumidor puro del motor, sin tocar engine/)
+        run: |
+          python research/hypotheses/HYP-002/pilot1_run.py
+
+      - name: Subir fichas forenses como artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pilot1-output
+          path: research/hypotheses/HYP-002/pilot1_output.md
+          if-no-files-found: warn
