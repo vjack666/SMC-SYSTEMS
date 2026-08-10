@@ -1,0 +1,268 @@
+# RESEARCH_CONTRACT.md — Contrato arquitectónico del Mundo CIENCIA (`research/`)
+
+> **Diseño (2026-08-10).** NO es ejecución: no se crea `research/`, no se mueve nada, no se
+> repara `geometry_lab/`, no se toca Python. Es el estándar del laboratorio antes de
+> construirlo físicamente. Pendiente de autorización del Director.
+>
+> Alineado con: `ARCHITECTURE.md` §4 (Mundo CIENCIA), `DEPENDENCY_RULES.md` §2/§3
+> (`research/experiments/ → engine/backtest/data/` ✅; `research/ → backtest` "backtest
+> decide" ❌).
+
+## 0. Regla fundamental (del Director)
+
+> **Un experimento no debe depender de recordar qué hizo Hermes en una conversación. Todo lo
+> necesario para reproducirlo debe existir en el repositorio.**
+
+Corolario: `research/` es una **unidad física de investigación reproducible**, no una carpeta
+de documentos interesantes. Si no se puede reconstruir desde el repo, no es un experimento:
+es una anécdota.
+
+---
+
+## 1. HYP-NNN vs EXP-NNN (pregunta 1)
+
+| | `HYP-NNN` (Hipótesis) | `EXP-NNN` (Experimento) |
+|---|---|---|
+| Naturaleza | **Pregunta + predicción falsable** | **Ejecución que pone a prueba la hipótesis** |
+| Contenido | pregunta, tesis, predicción, criterios de falsación | protocolo + código + datos + resultados + veredicto |
+| Estado | boceto / formulada / lista-para-probar | diseñado / en-ejecución / completado / archivado |
+| Depende de | nada (puede surgir de `results/`) | de UNA `HYP-NNN` (padre) |
+| Reproducible por sí sola | NO (es una afirmación) | SÍ (tiene todo lo necesario) |
+
+**Una hipótesis NO es reproducible; un experimento SÍ.** Por eso la hipótesis es texto, el
+experimento es una unidad de carpeta con código y datos.
+
+### 2. ¿Cuándo una hipótesis se convierte en experimento? (pregunta 2)
+
+Una `HYP-NNN` puede convertirse en `EXP-NNN` **solo si** cumple las 3 condiciones de
+falsación:
+
+1. Tiene **predicción medible** (qué número/patrón espera).
+2. Tiene **criterio de refutación explícito** (si X, la hipótesis cae).
+3. Tiene un **protocolo de ejecución determinista** (mismos inputs → mismos outputs).
+
+Si falta alguna, sigue siendo `HYP-NNN` (no promovida). Esto evita "experimentos" que son
+opiniones disfrazadas.
+
+### 3. Contrato mínimo obligatorio de un `EXP-NNN` reproducible (pregunta 3)
+
+Un `EXP-NNN` NO es válido si falta alguno de estos archivos:
+
+```
+research/experiments/EXP-NNN/
+├── experiment.md     ← por qué existe, qué HYP proba, predicción
+├── protocol.yaml     ← pasos deterministas de ejecución (versionado)
+├── config.yaml       ← parámetros exactos de la corrida
+├── code/             ← código fuente del experimento (self-contained o imports de engine/backtest/data)
+├── data_manifest.json← QUÉ datos y de DÓNDE (IDs, hashes, rango), NO los datos en sí
+├── run/              ← log de ejecución + entorno (python -m X, seed, commit hash)
+├── results/          ← salida cruda de la corrida
+├── evidence/         ← análisis/figuras derivadas de results/
+└── verdict.yaml      ← REFUTADA | INCONCLUSIVA | PROMOVIDA + justificación + tribunal
+```
+
+Cualquier `EXP-NNN` sin `protocol.yaml` + `config.yaml` + `data_manifest.json` + `verdict.yaml`
+es **incompleto** y no debe promoverse.
+
+### 4. Datos e identificación (pregunta 4)
+
+- Los **datos NO viven en `research/`** (son grandes, externos). Viven en `data/raw/` o se
+  referencian por ID.
+- `data_manifest.json` registra: símbolo(s), timeframe(s), rango de fechas, fuente, hash de
+  los CSV/parquet.
+- Reproducibilidad = `data_manifest` + `config` + `protocol` + commit hash del repo.
+- Esto cumple la regla fundamental: abres `EXP-NNN` en 2 años y sabes exactamente qué datos
+  usó sin preguntarle a nadie.
+
+### 5. Configuración exacta de ejecución (pregunta 5)
+
+- `config.yaml`: todos los hiperparámetros, seeds, límites (n_perm, FDR_alpha, etc.).
+- `run/` guarda: `python -m research.experiments.EXP-NNN.code.main`, commit SHA
+  (`git rev-parse HEAD` al ejecutar), hash de `config.yaml`, timestamp.
+- Esto bloquea "lo corrí con otros parámetros y no lo anoté".
+
+### 6. `research/` ↔ `results/` (pregunta 6) — FUENTE PRIMARIA vs DERIVADA
+
+> **Ajuste del Director (2026-08-10):** no usar "espejo". El término sugiere dos copias
+> igualmente válidas y abre la pregunta peligrosa "¿cuál es la verdad si divergen?".
+
+- **`research/experiments/EXP-NNN/` = FUENTE PRIMARIA E INMUTABLE del experimento.** Contiene
+  `results/` (salida de ESA corrida), `evidence/`, `verdict.yaml`. Es la única fuente de
+  verdad del experimento.
+- **`results/experiments/EXP-NNN/` = PUBLICACIÓN/REGISTRO DERIVADO de una promoción.** Se crea
+  ÚNICAMENTE cuando el experimento es PROMOVIDO, y es una *referencia* a la fuente primaria
+  (apunta al ID + commit + hash de `research/experiments/EXP-NNN/`), nunca una copia
+  independiente que pueda divergir. Si algún día difieren, la fuente primaria (`research/`)
+  manda; `results/` es derivado y debe regenerarse desde ella.
+- `results/` es hoja (no importa nada). `research/` propone y es la fuente; `results/` es el
+  registro publicado de lo promovido.
+- `results/ → engine/` está PROHIBIDO (DEPENDENCY_RULES §3): la promoción a `engine/` requiere
+  decisión explícita y pre-registrada, nunca silenciosa.
+
+### 7. Experimento ↔ Backtest (pregunta 7)
+
+- `research/experiments/ → ict_backtest/`, `engine/`, `data/` es **PERMITIDO** ✅
+  (DEPENDENCY_RULES §2): el experimento CONSUME el motor/backtest para poner a prueba la
+  hipótesis.
+- `research/ → backtest` en sentido "backtest decide" es **PROHIBIDO** ❌: la investigación
+  propone, no manda. El backtest es una herramienta del experimento, no su juez.
+- `ict_backtest/diagnostics/` (FDR/Bonferroni/veredictos de backtest) **NO se mueve a
+  `research/`**: es diagnóstico del backtest, acoplado a él. La separación epistemológica se
+  mantiene.
+
+### 8. Registro de veredicto (pregunta 8)
+
+`verdict.yaml` tiene exactamente uno de tres estados (tribunal):
+
+```yaml
+exp: EXP-NNN
+hyp: HYP-NNN
+verdict: REFUTADA | INCONCLUSIVA | PROMOVIDA
+promoted_to: engine/<modulo>   # solo si PROMOVIDA
+tribunal:
+  method: fdr | bonferroni | both
+  alpha: 0.05
+  adjusted_p: 0.03
+justification: "..."
+date: 2026-08-10
+commit: <sha>
+```
+
+- **REFUTADA**: la hipótesis cae; se archiva con su evidencia (valor científico = aprendizaje).
+- **INCONCLUSIVA**: evidencia insuficiente; puede re-ejecutarse con más datos (nuevo `EXP`).
+- **PROMOVIDA**: pasa el tribunal; se pre-registra la decisión de llevarla a `engine/`.
+
+### 9. Inmutabilidad del veredicto (pregunta 9)
+
+> Cómo garantizar que un resultado no pueda editarse a posteriori para cambiar el veredicto.
+
+- `results/` y `research/experiments/EXP-NNN/results/` son **inmutables tras el veredicto**:
+  sellados por hash. El `verdict.yaml` incluye el hash de `results/`.
+- Cambiar el veredicto requiere un **nuevo `EXP-NNN`** (re-ejecución) con nuevo ID, no
+  editar el anterior. El historial es aditivo, no mutable.
+- Esto impide "ajustar el veredicto a la narrativa": si los datos cambian, es un experimento
+  distinto con ID distinto.
+
+### 10. Linaje completo (pregunta 10)
+
+Cadena trazable de extremo a extremo:
+
+```
+HYP-NNN (pregunta + predicción + falsación)
+   │ padre
+   ▼
+EXP-NNN (protocol + config + code + data_manifest)
+   │ ejecución (run/ con commit + seed)
+   ▼
+results/ (crudo) ──► evidence/ (análisis)
+   │
+   ▼
+verdict.yaml (tribunal FDR/Bonferroni)
+   │
+   ├─ REFUTADA ──► archivo (se conserva, valor = aprendizaje)
+   ├─ INCONCLUSIVA ──► nuevo EXP-NNN (más datos)
+   └─ PROMOVIDA ──► results/experiments/EXP-NNN/ + pre-registro ──► engine/<modulo>
+```
+
+Cada eslabón es un archivo en el repo. El linaje se lee abriendo las carpetas, no recordando
+conversaciones.
+
+---
+
+## 11. Evidencia válida vs solo documentación
+
+| Es evidencia válida | Es solo documentación |
+|---------------------|----------------------|
+| `results/` crudos + `evidence/` derivado de ellos | `docs/specs/` (hipótesis en texto) |
+| `verdict.yaml` con tribunal + hashes | `docs/ict/*.md` (prosa de estrategia) |
+| `data_manifest.json` con hashes | `knowledge/` (aprendizajes) |
+| `run/` con commit SHA + seed | `docs/lab/*.md` (notas de laboratorio) |
+
+La documentación (docs/, knowledge/) **alimenta** hipótesis (`HYP-NNN`), pero por sí sola no
+constituye un experimento. Esto responde a tu distinción: diferenciar afirmación de evidencia
+física.
+
+## 12. Tratamiento de experimentos históricos y `geometry_lab/`
+
+- **`scripts/_legacy/fase*_demo_plan.py`, `fase_e_demo_e1.py`, `audit_experiment_f_structural.py`**:
+  experimentos huérfanos en `scripts/_legacy/`. Se registran como **candidatos** a
+  `research/experiments/EXP-NNN/` cuando el Director autorice su clasificación. NO se mueven
+  hoy.
+- **`geometry_lab/` (ROTO, 0 consumidores)**: se deja INTACTO. No se repara para moverlo.
+  Cuando se defina "qué es un experimento válido" (este contrato), se evalúa si
+  `geometry_lab` puede convertirse en un `EXP-D3` real. Hasta entonces: experimento huérfano
+  roto pendiente de clasificación.
+- **EXP-069 / EXP-071**: son **convenciones de la constitución**, no experimentos físicos.
+  NO se inventan carpetas con esos IDs.
+
+## 13. Estructura propuesta de `research/` (para cuando se autorice crear)
+
+```
+research/
+├── hypotheses/
+│   └── HYP-NNN/
+│       ├── hypothesis.md
+│       └── status.yaml          ← boceto | formulada | lista-para-probar
+├── experiments/
+│   └── EXP-NNN/                 ← arranca VACÍO; solo unidades autorizadas
+│       ├── experiment.md
+│       ├── protocol.yaml
+│       ├── config.yaml
+│       ├── code/
+│       ├── data_manifest.json
+│       ├── run/
+│       ├── results/
+│       ├── evidence/
+│       └── verdict.yaml
+├── protocols/                   ← protocolos versionados reutilizables
+└── validation/                  ← validación independiente (vacío al inicio)
+```
+
+## 14. Ejemplo concreto (ilustrativo, NO ejecutado)
+
+**HYP-001 — "La curvatura de Menger del precio es invariante de escala en M1→M15"**
+- `hypothesis.md`: pregunta + predicción (coseno de ángulo estable bajo permutación) + criterio
+  de falsación (p < 0.05 bajo null model refuta invariancia).
+- `status.yaml`: formulada.
+
+**EXP-001 — poner a prueba HYP-001**
+- `protocol.yaml`: pasos deterministas (cargar M1/M5/M15, computar signed_turn, permutation
+  test n=500).
+- `config.yaml`: symbols=[EURUSD,GBPUSD,XAUUSD], n_perm=500, seed=42, fdr_alpha=0.05.
+- `code/`: implementación (hoy sería el contenido de `geometry_lab/run_experiment.py` SI se
+  reparara).
+- `data_manifest.json`: ranges + hashes de `data/raw/`.
+- `run/`: `git rev-parse HEAD` + `python -m ...` + seed.
+- `results/`: `geometry_lab_d3.json`.
+- `evidence/`: reporte de p-values.
+- `verdict.yaml`: REFUTADA/INCONCLUSIVA/PROMOVIDA + tribunal FDR + hash de results.
+
+> Nota: `geometry_lab/` hoy está ROTO (falta `core.py`/`null_test.py`), así que EXP-001 no
+> puede materializarse hasta repararlo — y repararlo es trabajo de INVESTIGACIÓN, no de
+> arquitectura. Por eso NO se toca en 3B.
+
+---
+
+## 15. Matriz de decisiones (para autorización del Director)
+
+| # | Decisión | Estado en este diseño |
+|---|----------|----------------------|
+| 1 | Crear `research/` ahora | ❌ NO (se diseña primero) |
+| 2 | HYP-NNN ≠ EXP-NNN (texto vs unidad reproducible) | ✅ definido |
+| 3 | Promoción HYP→EXP requiere 3 condiciones de falsación | ✅ definido |
+| 4 | Archivos obligatorios de EXP-NNN | ✅ protocol+config+data_manifest+verdict |
+| 5 | Datos fuera de `research/` (manifest con hashes) | ✅ definido |
+| 6 | `run/` con commit SHA + seed (regla fundamental) | ✅ definido |
+| 7 | `research/experiments/ → engine/backtest/data` permitido | ✅ (DEPENDENCY_RULES §2) |
+| 8 | `research/ → backtest` "backtest decide" prohibido | ✅ (DEPENDENCY_RULES §3) |
+| 9 | `ict_backtest/diagnostics/` queda en backtest | ✅ NO se mueve |
+| 10 | Veredicto: REFUTADA/INCONCLUSIVA/PROMOVIDA + tribunal | ✅ definido |
+| 11 | Inmutabilidad: veredicto sellado por hash, aditivo | ✅ definido |
+| 12 | Linaje HYP→EXP→results→verdict→promoción | ✅ trazable por archivos |
+| 13 | Evidencia física ≠ documentación | ✅ diferenciado |
+| 14 | `geometry_lab/` intacto, no reparar para mover | ✅ registrado huérfano roto |
+| 15 | EXP-069/071 = convención, no inventar carpetas | ✅ registrado |
+| 16 | Experimentos históricos en `scripts/_legacy/` = candidatos | ✅ no mover hoy |
+
+---
+*Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*

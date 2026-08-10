@@ -1,0 +1,3 @@
+# research/experiments/ — EXP-NNN/ (unidad reproducible; arranca VACÍO)
+# NO crear EXP ficticios. Cada EXP requiere protocol+config+code+data_manifest+verdict.
+# Ver contrato: docs/architecture/RESEARCH_CONTRACT.md
