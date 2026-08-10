@@ -466,4 +466,22 @@ independientes deben llegar al mismo PASS/FAIL/UNKNOWN para el mismo setup antes
 
 ---
 
+#### 16.7.7 Cierre documental C1-C7 (evidencia mínima por capa, anti-sesgo de aprobación)
+
+C1-C7 se cerraron documentalmente (`research/hypotheses/HYP-002/SETUP_AUDITOR_C1_C7.md`) sin tocar
+`engine/`. Cada capa responde las 4 preguntas del Director (evento afirmado / dato observable /
+relación causal / qué faltaría para UNKNOWN), y se aplican LEYENDO `MarketObject`/`Expediente`/
+`poi_anchor.build_htf_structure_index`, no añadiendo lógica al motor. Regla anti-sesgo: C1-C7 existen
+para responder *"¿qué evidencia mínima necesito para afirmar que este evento causó al siguiente?"*,
+NO para hacer que el setup pase. Jerarquía de veredicto: evidencia existe → causalidad demostrada →
+PASS/FAIL; ante dato faltante → UNKNOWN (nunca UNKNOWN→PASS). C1 liga sweep al nivel de liquidez
+(real, no inferido por orden); C2 exige magnitud de displacement (flag no basta); C3 liga BOS a ESE
+displacement/liquidez; C4 recupera el evento ancla del POI (no solo booleano); C5 marca WARNING si el
+cuadro de retorno es sintético; C6 documenta el gate de contexto; C7 declara LTF=FAIL/N-A y
+Macro=UNKNOWN explícitos. Revisión de consistencia de los 4 docs: sin contradicciones. **NO ejecutar
+el piloto** hasta cumplir las 4 condiciones (C1-C7 cerrados, acuerdo de 2 auditores, UNKNOWN usado
+donde falte dato, datos de 5 setups disponibles — bloqueo DATA R5/A6). HYP-001 sigue congelada.
+
+---
+
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*
