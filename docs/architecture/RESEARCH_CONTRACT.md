@@ -634,6 +634,43 @@ INTERPRETACIÓN NUEVA ya estaban previstas en el protocolo como UNKNOWN/BROKEN y
 deja así. Ejecución diferida a Opción B (reescribir `pilot1_run.py` evitando el import de
 `ict_backtest` que arrastra `rules.py` bug `datetime`, para no contaminar el objeto auditado).
 
+#### 16.7.14 Resultado real del Piloto 1 — ejecutado (2026-08-11, cliente = CEO)
+
+Ejecutado como CEO del laboratorio (autonomía total, sin micro-dirección). Opción B aplicada:
+`pilot1_run.py` reescrito para NO importar `ict_backtest` (evita el bug `datetime` en
+`rules.py` y no contamina el objeto auditado). Consumidor puro: usa `detectors.*`,
+`engine.bos.structure.detect_market_structure`, `engine.sequence.run_sequence_traced` y
+`engine.poi_anchor.make_htf_poi_fn` directamente. Corrido en GitHub Actions (Ubuntu,
+`run 31497898201`, 32s) porque el entorno local es lento en la fase de features.
+
+- **Muestra:** EURUSD M15, 3000 velas (2022-01..02). Setups emitidos por el motor: **4**.
+- **Fichas forenses:** `research/hypotheses/HYP-002/pilot1_output.md` (formato del cliente:
+  CONTEXTO/LIQUIDEZ/FORMACIÓN/CAUSALIDAD/POI/RETORNO/MACRO/LTF/VEREDICTO).
+- **Mapa agregado:** `research/hypotheses/HYP-002/SETUP_FORMATION_MAP.md`.
+
+**Resultado confirmado (setup por setup):**
+- ✓ demostrado (OBSERVABLE/DERIVABLE): contexto HTF (`htf_aligned=PASS`), liquidez tomada
+  (mecha del sweep con nivel real), sweep, displacement, BOS/CHOCH, zona POI (re-derivada
+  FVG/OB entre sweep y BOS con niveles reales), retorno, dirección coherente en los 4.
+- ✗/UNKNOWN (no demostrado): las **3 uniones causales** (Sweep→Disp, Disp→BOS, BOS→POI) —
+  el motor no conserva linaje 1:1 (solo orden+dirección). MACRO/NEWS (GAP-1) → UNKNOWN.
+  Ejecución fina M5/M1 → UNKNOWN.
+
+**Hallazgos (registrados, NO reparados en el piloto — regla AUDITAR→DIAGNOSTICAR→DECIDIR→MODIFICAR):**
+- H1: `bos_level` no se conserva en la emisión (`state.bos_level` existe pero no se emite;
+  columna `bos_level` vacía en velas BOS). Brecha de trazabilidad.
+- H2: liquidez estructural no anclada al sweep (pools `bsl/ssl_price` escasos; 3/4 sin match).
+- H3: `Expediente.meta` solo `{symbol, ltf_tf}`; no `MarketObject[]` ni niveles.
+- H4/H5: GAP-1 macro y LTF fina → UNKNOWN por diseño (fuera de alcance del piloto).
+
+**Veredicto de fase (cierre de unidad científica):** **B) SETUP FORMADO / CAUSALITY BROKEN.**
+El motor lee y forma correctamente contexto, liquidez tomada, sweep, displacement, BOS, POI y
+retorno — pero la **identidad causal del linaje no está demostrada** (3 uniones UNKNOWN). No es
+"el setup perdió": es que **el setup no llega a estar completamente formado como cadena causal
+demostrable** con lo que el motor emite hoy. Reparaciones (enriquecer `Expediente` con
+`MarketObject[]` + linaje 1:1) son fase posterior separada. Orden de apertura de siguientes
+fases respetado: FORMACIÓN → VALIDACIÓN MACRO/NEWS → OOS/OTC → ESTADÍSTICA → EDGE.
+
 ---
 
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*

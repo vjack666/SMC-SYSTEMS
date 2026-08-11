@@ -8,11 +8,11 @@ origin:
 status: en_prueba            # formulada -> auxiliares -> en_prueba -> promovida|refutada|inconclusa
 # 2026-08-10: Piloto 1 AUTORIZADO por el Director bajo regla rectora estricta (14 condiciones).
 # 2026-08-11 (orden Director): NO ejecutar piloto hasta cerrar puerta de RECONSTRUCCION.
-#   Paso 1 (HECHO): SETUP_AUDITOR_RECONSTRUCTION_AUDIT.md — clasifica cada relacion causal del
-#   auditor como OBSERVABLE / DERIVABLE SIN INTERPRETACION / INTERPRETACION NUEVA. Puerta
-#   CERRADA Y CONSISTENTE: el auditor NO introduce 2da tesis; usa los MISMOS detectores del motor.
-#   Paso 2 (PENDIENTE autorizacion): reescribir pilot1_run.py (Opcion B: evita import ict_backtest,
-#   que arrastra rules.py bug datetime) y ejecutar 5 setups como auditoria de formacion.
+#   Paso 1 (HECHO): SETUP_AUDITOR_RECONSTRUCTION_AUDIT.md — puerta CERRADA: sin 2da tesis.
+#   Paso 2 (HECHO, cliente 2026-08-11 = CEO): ejecutar piloto como CEO. Opción B (pilot1_run.py
+#   SIN import ict_backtest). GitHub Actions run 31497898201: 4 setups EURUSD M15 reales,
+#   fichas en pilot1_output.md. MAPA en SETUP_FORMATION_MAP.md. Veredicto fase:
+#   SETUP FORMADO / CAUSALITY BROKEN (3 uniones UNKNOWN; motor no conserva linaje causal).
 pilot1:
   authorized_by: "Director (revision GitHub feature/backtest-ict)"
   rule: "NO medir WR/PF/edge; auditar formacion real; separar observado/reconstruido/inferido"
