@@ -1,367 +1,173 @@
 # SMC-SYSTEMS
 
-> **⚠️ MODO ACTUAL: OBSERVADOR FUNDEDNEXT (SIN BOT)**
-> El sistema se usa hoy como **observador de análisis** para el challenge de
-> prop firm FundedNext (cuenta demo). El loop `scripts/loop_analisis.py` corre
-> 24/7 (lun-vie, finde apagado) y genera ficha técnica + informe + semáforo +
-> alertas locales. **NUNCA abre órdenes.** El `vigilante_riesgo.py` solo CIERRA
-> posiciones (2%/4% flotante) si operás manualmente.
-> Las secciones de abajo (desktop PySide6, live/paper trading, ML gate, puente
-> MQL5) describen el proyecto "SMC_SUCCESSOR" original y **NO están cableadas
-> al flujo diario actual**. Están en el repo por si se activa el bot en el futuro.
+> **⚠️ PROYECTO: FOREX / ICT-SMC (Sistema profesional de trading Forex).**
+> SMC-SYSTEMS es un sistema de **Smart Money Concepts (ICT/SMC)** para Forex. NO es un bot de
+> opciones binarias, NO es Quotex, NO es mercado OTC de binarias. Toda la lógica de decisión
+> vive en `engine/` (geometría de mercado pura: OHLC, estructura, liquidez, POI — **CERO
+> indicadores técnicos** EMA/RSI/ATR/MACD/Bollinger; única excepción: volumen como confirmación).
+> El backtest (`ict_backtest/`) es consumidor puro y desechable del motor.
+>
+> **Modo actual: OBSERVADOR FUNDEDNEXT (SIN BOT).** El loop `scripts/loop_analisis.py` corre
+> 24/7 (lun-vie) y genera ficha técnica + informe + semáforo + alertas. **NUNCA abre órdenes.**
+> El `vigilante_riesgo.py` solo CIERRA posiciones (2%/4% flotante) si operás manualmente.
 
-**Smart Money Concepts trading system** — modular, event-driven, observador de análisis ICT/Wyckoff para prop firm (FundedNext) con app de escritorio PySide6 del observador, integración MetaTrader 5, análisis multi-agente y filtro ML.
-
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![PySide6](https://img.shields.io/badge/PySide6-observador-green)
-![License](https://img.shields.io/badge/license-MIT-yellow)
+**Smart Money Concepts trading system** — modular, event-driven, motor de decisión ICT/SMC en
+`engine/`, backtest adaptativo en `ict_backtest/`, observador de análisis para prop firm
+(FundedNext) con app de escritorio PySide6, y biblioteca ICT (`docs/ict/`) como tesis formal.
 
 ---
 
 ## 📌 Fuente de verdad del proyecto
 
-**La única fuente de verdad para hitos, estado y roadmap es
-[`docs/CRONOGRAMA_Y_ROADMAP.md`](docs/CRONOGRAMA_Y_ROADMAP.md) (v2.2, 2026-07-10).**
-`docs/HOJA_DE_RUTA_SMC-SYSTEMS.md` quedó obsoleta y redirige al Cronograma.
+La autoridad del proyecto se determina por la **cadena de autoridad** (no por un solo archivo):
+
+1. `AGENTS.md` (raíz) — Ley Fundamental motor≠backtest, regla de commit/push. **Constitución.**
+2. `docs/ict/SPEC_TESIS_FORMAL.md` — contrato formal firmado de la estrategia ICT/SMC.
+3. `docs/DECISION_BACKTEST_UNICO.md` — arquitectura de backtest (canónico único).
+4. `engine/` — única fuente de decisión en vivo.
+5. `docs/specs/SDD_GOVERNANCE.md` — proceso SDD (DoR/DoD/estados/verificación semántica).
+6. `docs/tesis/SDD_*.md` — specs de diseño de estrategia.
+7. `docs/specs/INDICE_MDS.md` — índice maestro de componentes del motor.
+8. `research/` (HYP/EXP) — hipótesis/experimentos fuera del producto.
+
+> ⚠️ **NO EXISTEN** `docs/CRONOGRAMA_Y_ROADMAP.md` ni `docs/HOJA_DE_RUTA_SMC-SYSTEMS.md`
+> (fueron eliminados/purgados). Cualquier documento que los cite como "única fuente de verdad"
+> está desactualizado. Los roadmaps históricos viven en `docs/planificacion/_roadmap_historico/`
+> marcados como HISTÓRICOS (no fuente de verdad).
 
 ---
 
-## Features
+## Architecture (vigente)
 
-| Area | Status | Description |
-|------|--------|-------------|
-| **App observador (UI)** | ✅ Producción | `app_observador/` PySide6: semáforo FundedNext, sesgo + alineación Wyckoff D1/H4/M15, mapa ICT embebido, noticias rojas, black-box JSON 90d |
-| **Rutina EURUSD diaria** | ✅ Producción | `scripts/rutina_eurusd.py` + `scripts/loop_analisis.py` 24/7 (lun-vie) → ficha + informe + semáforo + alertas |
-| **Arranque automático** | ✅ Producción | `start_hermes_session.ps1` abre MT5 FundedNext, baja datos en vivo, lanza loop + vigilante + observador, reporte de salud (Carpeta de Inicio) |
-| **Vigilante de riesgo** | ✅ Producción | `scripts/vigilante_riesgo.py` SOLO CIERRA posiciones (2%/4% flotante) |
-| **Edge Diagnosis (SMC puro)** | ✅ Completada | 21 variantes × 8 símbolos = 168 celdas, 0 errores. Mejor celda `no_session`×XAUUSD OOS PF 1.642 |
-| **Multi-agent analysis** | ✅ Production | ICT, Wyckoff (+ stochastic exhaustion), Structure, Decision Agent (weighted voting) |
-| **ML quality filter** | ✅ Wired | XGBoost model gates trades en backtest, paper, live, y desktop UI |
-| **ML training pipeline** | ✅ Offline | Dataset builder, chronological training, walk-forward, Optuna tuning, stats validation |
-| **Backtest engine** | ✅ Production | Combined multi-symbol backtest with ML filter and governor |
-| **Risk governor** | ✅ Production | NORMAL → CAUTION → DEFENSIVE → LOCKDOWN |
-| **MT5 bridge + MQL5 EA** | ✅ Implemented | ZeroMQ bridge for live execution (bot heredado, no usado en modo observador) |
-| **Monitoring & governance** | ⚠️ Harness-level | Drift baseline (PSI), model registry; scheduler via harness adapters |
-| **Harness-first testing** | ✅ Production | 11 adapters, 14 scenarios |
-| **LangGraph orchestration** | ✅ Implemented | Backtest validation graph |
-
-### SMC concepts
-
-Order Blocks (OB), Fair Value Gaps (FVG), displacement, premium/discount zones, BOS, CHOCH, liquidity sweeps, multi-timeframe trend (D1/H4/LTF).
-
----
-
-## Architecture
-
+```text
+Datos (MT5 / Parquet histórico)
+        │
+        ▼
+engine/  ← ÚNICA fuente de decisión (ICT/SMC, geometría pura, CERO indicadores)
+  ├─ bias/        sesgo HTF D1/H4/H1 (premium-discount, anti look-ahead)
+  ├─ bos/          estructura BOS/CHOCH real
+  ├─ dealing_range.py   EQ 50% / premium-discount
+  ├─ liquidity_levels.py  BSL/SSL (sweeps)
+  ├─ poi_anchor.py        POI anclado a BOS/CHOCH del TF padre ya cerrado
+  ├─ plan.py       build_context_stack + top_down_allows_trade (top-down D1→M1)
+  ├─ sequence.py   run_sequence (event-driven: sweep→displace→BOS→retorno)
+  ├─ execution.py  fine_execution M5/M1 (SL mecha sweep, RR 1:3)
+  └─ trade_mgmt.py BE + parciales
+        │  (el motor es la tesis hecha código; responde en vivo)
+        ▼
+ict_backtest/  ← Consumidor PURO y desechable (NO decide, NO detecta)
+  ├─ run_backtest.run_sequence_backtest
+  └─ v2/orchestrator.run_sequence_parity
+        │
+        ▼
+app_observador/  ← UI PySide6 del observador FundedNext (semáforo, mapa ICT, black-box)
+scripts/         ← loop_analisis.py, rutina_eurusd.py, vigilante_riesgo.py, runner_monitor.py
 ```
-MT5 Terminal (live) / Parquet (historical)
-    │
-    ▼
-build_scalping_context()
-    │ detectors: BOS, CHOCH, FVG, OB, displacement, zones
-    │ indicators: EMA, RSI, Stochastic, ATR
-    │ trend_context: D1 / H4 / LTF alignment
-    │
-    ▼
-AgentOrchestrator (when ML or agents enabled)
-    │ ICTAgent ────┐
-    │ WyckoffAgent ─┤ (+ stochastic exhaustion)
-    │ StructureAgent┘
-    │ DecisionAgent → weighted voting
-    │
-    ▼
-Confluence scoring → signal confidence → regime-based threshold
-    │
-    ▼
-QualityFilter (ml/inference.py) — XGBoost predict_proba gate
-    │
-    ▼
-PaperTradingRunner (PAPER / LIVE) + Risk Governor   [bot heredado, NO en modo observador]
-    │
-    ▼
-Desktop UI (PySide6) ← DataStreamer + TradingWorker
-```
+
+> El backtest NO tiene lógica propia y NO debe crearse en él ningún módulo de decisión/detección.
+> `engine/` NUNCA importa `ict_backtest/`.
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-
-- Python 3.11+ (se usa `C:\Python314\python.exe` con MT5 real; el venv `smc_probe` solo tiene stub de MT5 para backtests offline)
-- [MetaTrader 5](https://www.metatrader5.com/) terminal (build 4000+), logged in a la cuenta FundedNext
-- PySide6 instalado para la app del observador
+- Python 3.11+ (entorno real usa `C:\Python314\python.exe` con MT5 real; venv `smc_probe` solo stub).
+- PySide6 para la app del observador.
 
 ### Install
-
 ```bash
 git clone https://github.com/vjack666/SMC-SYSTEMS.git
 cd SMC-SYSTEMS
 pip install -e .
 ```
+Dependencias: `pandas`, `numpy`, `PySide6`, `MetaTrader5`, `scikit-learn`, `xgboost`, `pyarrow`,
+`scipy`, `optuna`, `langgraph`.
 
-Dependencies include `PySide6`, `MetaTrader5`, `xgboost`, `pyarrow`, `scipy`, `optuna`, `langgraph`.
-
-### Arranque automático diario (modo observador)
-
-Al iniciar sesión en Windows se ejecuta `start_hermes_session.ps1` (vía `.lnk` en la
-Carpeta de Inicio con Bypass). Hace:
-
-1. Abre el terminal MT5 de FundedNext (si no está corriendo).
-2. Baja datos EN VIVO a `data/raw/` (EURUSD D1/H4/M15).
-3. Lanza `scripts/loop_analisis.py` (ficha + informe + alertas, 24/7 lun-vie).
-4. Lanza `scripts/vigilante_riesgo.py` (solo cierra, 2%/4%).
-5. Lanza `run_app.py` (observador PySide6).
-6. Imprime reporte de salud (MT5 abierto, procesos vivos, estado git).
-
-Para arrancar a mano:
-
+### Rutina EURUSD (observador)
 ```bat
-start_hermes_session.ps1        # PowerShell (recomendado)
-rem o bien:
-start_all_session.bat
+C:\Python314\python.exe scripts\rutina_eurusd.py          # ver ficha
+C:\Python314\python.exe scripts\rutina_eurusd.py --save   # guardar al diario (docs/diario/)
 ```
 
-### Rutina EURUSD manual
-
-```bat
-C:\Python314\python.exe scripts\rutina_eurusd.py         # ver ficha
-C:\Python314\python.exe scripts\rutina_eurusd.py --save  # guardar al diario (docs/diario/)
-```
-
-### Run Observador UI (app_observador)
-
+### Run Observador UI
 ```bash
 python app_observador/main.py
 ```
+Ventana: semáforo FundedNext, sesgo + alineación D1/H4/M15, mapa ICT embebido, noticias rojas.
 
-Ventana del observador: semáforo FundedNext, sesgo + alineación Wyckoff D1/H4/M15,
-mapa ICT embebido, noticias rojas y estado del loop/vigilante. Refresca cada 5 min.
-Black-box en `data/blackbox/` (JSON, retención 90 días).
-
-### Run Paper / Live Trading (bot heredado, NO usado en modo observador)
-
-```bash
-python scripts/run_paper_trading.py --symbols EURUSD,GBPUSD --timeframe M15
-python scripts/run_live_trading.py --symbols EURUSD,GBPUSD --risk 1.0 --min-confidence 0.7
+### Backtest (consumidor del motor, demostración de tesis)
+```bat
+python scripts\runner_monitor.py --window --title "bt_eurusd" -- python ict_backtest/run_backtest.py --symbol EURUSD --htf H4 --ltf M15
 ```
 
-### Train / refresh ML model
-
-```bash
-python scripts/run_ml_pipeline.py
-```
-
-Pipeline steps: build v4 dataset from `data/raw` → chronological holdout training → save `ml/models/quality_filter.pkl` → integration checks. Progress in `results/ml_pipeline_status.json`. On completion prints `ML_PIPELINE_COMPLETE`.
-
 ---
 
-## Edge Diagnosis (SMC puro, sin ML ni agentes)
+## Documentation
 
-Matriz **21 variantes × 8 símbolos = 168 celdas**, gobernador neutralizado.
-Resultado (2026-07-10, ver [`docs/EDGE_DIAGNOSIS_REPORT.md`](docs/EDGE_DIAGNOSIS_REPORT.md)):
-
-- Mejor variante promedio: `no_session` → **OOS PF 1.159**.
-- Peor: `prox_1` → **OOS PF 1.084** (el filtro de proximidad OB/FVG erosiona el edge).
-- Mejor símbolo: **XAUUSD OOS PF 1.376**; peor: AUDUSD (0.849) y NZDUSD (0.809) PIERDEN.
-- Celda TOP: `no_session` × XAUUSD → **OOS PF 1.642, N=900, Sharpe 3.28, WR 55.1%**.
-- **Próximo paso (pendiente A12):** walk-forward OOS real (PurgedKFold, DSR>0, N>=200/fold, PF>=1.10) de la celda ganadora antes de cualquier automatización.
-
----
-
-## App Observador (app_observador)
-
-Ventana PySide6 del observador (reemplaza el antiguo `desktop/` del bot):
-
-| Panel | Contenido |
-|-------|-----------|
-| **Semáforo** | VERDE/AMARILLO/ROJO FundedNext + motivo |
-| **Sesgo** | Sesgo del día + alineación Wyckoff D1/H4/M15 |
-| **Mapa ICT** | Velas D1/H4/M15 con OB/FVG/Liquidez/Killzones (matplotlib embebido) |
-| **Noticias** | Eventos rojos del día (news_report) |
-| **Estado** | loop ON/OFF, vigilante ON/OFF, cuenta MT5, equity |
-
-Black-box: `data/blackbox/app_AAAA-MM-DD.log` (JSON, rotación + retención 90 días).
-Ver SDD en `docs/specs/app_observador.md`.
-
----
-
-## ML Pipeline
-
-### Modules (`ml/`)
-
-| Module | Role |
-|--------|------|
-| `dataset_builder.py` | Builds labeled v4 parquets from real OHLCV via signal simulation |
-| `trainer.py` | Train, save, load, `predict_proba`, chronological split |
-| `inference.py` | `QualityFilter` — shared gate for backtest and live/paper |
-| `walk_forward.py` | Date/index walk-forward with optional purged K-fold |
-| `stats_validator.py` | CVaR, Deflated Sharpe, PBO, bootstrap CI |
-| `tuner.py` | Optuna hyperparameter search |
-| `validator.py` | Dataset schema and leakage checks |
-
-### Production model
-
-| Field | Value |
-|-------|-------|
-| Path | `ml/models/quality_filter.pkl` |
-| Schema | v4 (67 features incl. agent columns) |
-| Training samples | 1,649 (7 symbols, real data) |
-| Holdout ROC-AUC | ~0.55 (chronological 80/20 split) |
-| Backtest WR / PF / Sharpe | 63.7% / 1.61 / 3.33 (4-symbol combined) |
-
-The ML filter is **conservative** — it rejects most candidate signals. Treat holdout AUC as modest; retrain with `run_ml_pipeline.py` as data grows.
-
-### Where ML runs
-
-| Context | Wired |
-|---------|-------|
-| `backtest/engine.py` | ✅ `use_ml_quality_filter` on `CombinedBacktestConfig` |
-| `paper_trading/runner.py` | ✅ via `ScalpingConfig.use_ml_quality_filter` |
-| `scripts/run_live_trading.py` | ✅ `--no-ml` flag |
-| `app_observador/` | 🔧 En construcción (observador, reemplaza desktop/ del bot) |
-
----
-
-## Entry Protocol (summary)
-
-1. Session — London or New York (Asia optional for XAUUSD)
-2. ATR filter — `atr_ratio ≥ min_atr_ratio`
-3. Trend — macro direction + confidence threshold
-4. BOS, OB/FVG proximity, CHOCH, swing, micro structure (EMA/RSI)
-5. Confluence score ≥ 2
-6. Signal confidence ≥ configured minimum
-7. **ML quality filter** — `predict_proba ≥ dynamic regime threshold`
-8. Risk governor — LOCKDOWN blocks all entries
-
-**Execution:** structural SL (20-bar swing) with ATR fallback; TP at 2× ATR; max hold 16 bars.
-
-Full checklist in [COMPLETION_REPORT.md](COMPLETION_REPORT.md).
-
----
-
-## Data
-
-- Parquet in `data/raw/` per symbol + timeframe (M15, H4, D1)
-- ML datasets in `data/ml/` — per-symbol and `multi_symbol/v4_dataset.parquet`
-- Auto-download from MT5 when files are missing or stale
-- Symbols: EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, NZDUSD, USDCHF, XAUUSD
-
----
-
-## Project Structure
-
-```
-SMC-SYSTEMS/
-├── agents/             # ICT, Wyckoff, Structure, Decision + orchestrator
-├── app_observador/     # App PySide6 del observador (semáforo, mapa ICT, black-box)
-├── backtest/           # Combined backtest engine with ML gate
-├── data/               # MT5 connector, raw parquets, ML datasets
-├── detectors/          # BOS, CHOCH, FVG, OB, displacement, zones
-├── docs/               # CRONOGRAMA_Y_ROADMAP.md (fuente de verdad) + rulebooks
-├── features/           # FeatureEngine (30+ features for ML)
-├── governance/         # Model registry, retraining scheduler
-├── harness/            # Harness-first testing framework
-├── integration/        # MT5 ZeroMQ bridge
-├── ml/                 # Dataset, trainer, inference, walk-forward, tuner, stats
-├── monitoring/         # Drift detection (PSI), alerts, telemetry
-├── MQL5/               # MQL5 EA bridge
-├── paper_trading/      # Runner (PAPER/LIVE), models, persistence
-├── risk/               # Governor, sizer, dynamic thresholds
-├── scripts/            # CLI entry points (loop_analisis, rutina_eurusd, etc.)
-├── signals/            # Scalping pipeline + ScalpingConfig
-├── tests/              # pytest modules
-└── tools/              # fundednext_compliance.py (reglas Stellar Lite $5K)
-```
-
-### Key scripts
-
-| Script | Purpose |
-|--------|---------|
-| `start_hermes_session.ps1` | Arranque automático diario (MT5 + datos + loop + vigilante + observador) |
-| `app_observador/main.py` | App observador (UI PySide6) |
-| `scripts/loop_analisis.py` | Loop de análisis 24/7 (observador) |
-| `scripts/rutina_eurusd.py` | Ficha top-down EURUSD D1/H4/M15 |
-| `scripts/vigilante_riesgo.py` | Cierra posiciones manuales al 2%/4% flotante |
-| `run_paper_trading.py` | Headless paper loop (bot heredado) |
-| `run_live_trading.py` | Live / paper CLI runner (bot heredado) |
-| `run_ml_pipeline.py` | Full ML train + verify pipeline |
-| `scripts/edge_diagnosis/run.py` | Edge diagnosis 21×8 (SMC puro) |
+| Document | Authoridad | Descripción |
+|----------|-----------|-------------|
+| `AGENTS.md` | CURRENT | Ley Fundamental, regla commit/push, cadena de autoridad (§16) |
+| `docs/ict/SPEC_TESIS_FORMAL.md` | CURRENT | Contrato formal firmado de la estrategia ICT/SMC |
+| `docs/DECISION_BACKTEST_UNICO.md` | CURRENT | Arquitectura de backtest (canónico único) |
+| `docs/specs/SDD_GOVERNANCE.md` | CURRENT | Proceso SDD (DoR/DoD/estados/verificación semántica) |
+| `docs/specs/INDICE_MDS.md` | CURRENT | Índice maestro de componentes del motor |
+| `docs/tesis/SDD_*.md` | CURRENT | Specs de diseño (rescate POI HTF, capa LTF) |
+| `docs/architecture/RESEARCH_CONTRACT.md` | CURRENT | Contrato de investigación (HYP/EXP) |
+| `docs/ict/00_INDICE.md` | CURRENT | Biblioteca ICT (libros 01–21) |
+| `docs/specs/app_observador.md` | CURRENT | SDD de la UI del observador |
+| `docs/METRICS_CANON.md` | HISTÓRICO | Números de backtest R6 (julio 2026, previos al motor `engine/`) |
+| `docs/planificacion/_roadmap_historico/` | HISTÓRICO | Roadmaps y decisiones previas (marcados HISTÓRICO) |
+| `docs/_descartado/` | DESCARTADO | Documentación de proyectos/historia no vigente |
+| `openspec/` | HISTÓRICO | Línea base forense SDD-00 (2026-08-07, baseline 9842394) — no SDD vivo |
+| `harness/` | OBSOLETO | Solo `README.md`; framework inexistente, no aporta tests |
 
 ---
 
 ## Running Tests
 
 ```bash
-pytest tests/ -v
-```
-
-ML-focused subset:
-
-```bash
-pytest tests/test_ml_inference.py tests/test_ml_stats_validator.py tests/test_ml_train.py -q
+pytest tests/ -q
 ```
 
 ---
 
-## Harness
+## ⚠️ SECCIONES HISTÓRICAS — BOT "SMC_SUCCESSOR" (NO VIGENTES)
 
-```bash
-python -m harness
-```
+Las secciones siguientes describen el proyecto **"SMC_SUCCESSOR"** original (bot scalping con
+EMA/RSI/ATR, `paper_trading/`, `ml/` quality filter, MQL5 bridge). **NO están cableadas al flujo
+diario actual** (modo observador) y **contradicen la Ley Fundamental de CERO INDICADORES** del
+proyecto Forex/ICT-SMC vigente. Se conservan solo por trazabilidad histórica.
 
-11 registered adapters with 14 scenarios.
+- `ml/` (XGBoost quality filter), `paper_trading/`, `signals/`, `integration/`, `MQL5/`,
+  `risk/`, `features/`, `monitoring/`, `governance/` — módulos del bot heredado, no usados en
+  modo observador.
+- `detectors/` (BOS/CHOCH/FVG/OB) — del bot heredado; el motor vigente usa `engine/`.
+- `bin/smc_trading.spec` — packaging del bot heredado.
+- Cualquier mención de ATR filter, EMA/RSI, "live trading bot" — obsoleta para el proyecto actual.
 
----
-
-## Packaging
-
-```bash
-pip install pyinstaller
-pyinstaller smc_trading.spec
-```
-
-Output: `dist/SMC_Trading.exe`. Requires MT5 on the target machine.
-
----
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [CRONOGRAMA_Y_ROADMAP.md](docs/CRONOGRAMA_Y_ROADMAP.md) | **ÚNICA fuente de verdad** — hitos y estado (v2.2) |
-| [COMPLETION_REPORT.md](COMPLETION_REPORT.md) | Pipeline wiring, backtest metrics, entry protocol |
-| [EDGE_DIAGNOSIS_REPORT.md](docs/EDGE_DIAGNOSIS_REPORT.md) | Resultado edge diagnosis 21×8 (2026-07-10) |
-| [ESTADO_ACTUAL.md](docs/ESTADO_ACTUAL.md) | Estado edge diagnosis cerrada |
-| [RUTINA_EURUSD.md](docs/RUTINA_EURUSD.md) | Manual de uso diario de la rutina EURUSD |
-| [AUDITORIA_USO_2026-07-09.md](docs/AUDITORIA_USO_2026-07-09.md) | Cadena real de uso de la rutina vs código bot heredado |
-| [Agent Architecture](docs/AGENT_ARCHITECTURE.md) | Agent system design |
-| [App Observador](docs/specs/app_observador.md) | SDD de la UI del observador |
-| [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) | VPS, systemd, NSSM (pendiente A8) |
-| [ICT Rulebook](docs/ICT_RULEBOOK.md) | ICT specifications |
-| [Biblioteca ICT](docs/ict/00_INDICE.md) | Libros por concepto |
-| [Wyckoff Rulebook](docs/WYCKOFF_RULEBOOK.md) | Wyckoff specifications |
+> Para reactivar el bot se requiere una decisión explícita del Director y re-evaluación contra la
+> Ley Fundamental (el motor `engine/` actual NO usa indicadores; un bot con EMA/RSI/ATR necesitaría
+> justificación de tesis).
 
 ---
 
-## Current Status (2026-07-10)
+## Current Status (motor Forex/ICT-SMC)
 
-| Component | State |
-|-----------|-------|
+| Componente | Estado |
+|-----------|--------|
+| Sesgo HTF (D1/H4/H1) | ✅ CERRADO (`engine/bias/`) |
+| Estructura BOS/CHOCH real | ✅ CERRADO (`engine/bos/`) |
+| Dealing Range / EQ / Prem-Disc | ✅ CERRADO (`engine/dealing_range.py`) |
+| Liquidez BSL/SSL | ✅ CERRADO (`engine/liquidity_levels.py`) |
+| POI anclado (PD arrays) | ✅ CERRADO (`engine/poi_anchor.py` + `zone_authority.py`) |
+| 3 capas HTF/ITF/exec (top-down) | ✅ CERRADO (`engine/plan.py`) |
+| Exec fino M5/M1 | ✅ CERRADO (`engine/execution.py`) |
+| Trade Management BE/parciales | ✅ CERRADO (`engine/trade_mgmt.py`) |
+| Secuencia event-driven + backtest canónico | ✅ CERRADO (`engine/sequence.py` + `ict_backtest/`) |
 | Observador FundedNext (loop 24/7) | ✅ Producción |
-| Arranque automático (PowerShell + Inicio) | ✅ Producción |
-| Rutina EURUSD + diario | ✅ Producción |
-| Edge Diagnosis (SMC puro, 168 celdas) | ✅ Completada |
-| Signal pipeline + agents | ✅ Complete |
-| Backtest (4 symbols, ML) | ✅ WR 63.7%, PF 1.61, Sharpe 3.33, DD 4.96% |
-| ML inference in trading loop | ✅ Complete |
-| ML training pipeline | ✅ Complete (modest holdout AUC — retrain as data grows) |
-| Desktop UI | ✅ Stable (main-thread chart, single instance) |
-| Statistical validation (CVaR, DSR, PBO, bootstrap) | ✅ Implemented |
-| Optuna tuning | ✅ Implemented |
-| MT5 bridge + MQL5 EA | ✅ Implemented (bot heredado) |
-| Walk-forward OOS celda ganadora | ⚠️ Pendiente (A12) |
-| Production monitoring in live loop | ⚠️ Drift baseline saved on train; live drift check not in runner yet |
-| Deployment automation | ⚠️ Documented (A8); not fully automated |
+| SDD governance | ✅ CERRADO (`docs/specs/SDD_GOVERNANCE.md`) |
 
-**Bottom line:** research, backtest, edge-diagnosis, paper, and desktop trading paths are functional end-to-end with ML. Live deployment still requires operational hardening (walk-forward OOS validation, monitoring in loop, VPS setup, model refresh cadence).
+**Bottom line:** el motor Forex/ICT-SMC es la fuente de decisión vigente (geometría pura, sin
+indicadores). El backtest lo consume para demostrar la tesis. Las secciones del bot "SMC_SUCCESSOR"
+son históricas y no cableadas al flujo diario.

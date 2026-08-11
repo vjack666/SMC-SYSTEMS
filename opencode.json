@@ -10,20 +10,15 @@
     }
   },
   "instructions": [
-    "docs/plan/PROJECT_PROTOCOL.md",
-    "docs/plan/VISION.md",
-    "docs/plan/PRD.md",
-    "docs/plan/SRS.md",
-    "docs/plan/SAD.md",
-    "docs/plan/RFC-001_actualizacion_biblioteca_ict.md",
-    "docs/plan/ADR-021_filosofia_documentacion_ict.md",
-    "docs/plan/ROADMAP_BIBLIOTECA_Y_APLICACION.md",
-    "docs/plan/RUNNER_MONITOR.md",
-    "docs/METRICS_CANON.md",
     "AGENTS.md",
     "README.md",
-    "COMPLETION_REPORT.md",
-    "harness/README.md"
+    "docs/specs/SDD_GOVERNANCE.md",
+    "docs/ict/SPEC_TESIS_FORMAL.md",
+    "docs/DECISION_BACKTEST_UNICO.md",
+    "docs/specs/INDICE_MDS.md",
+    "docs/architecture/RESEARCH_CONTRACT.md",
+    "docs/architecture/DIRECTORY_CONTRACT.md",
+    "agents/governance/ROLES_GOBERNANZA.md"
   ],
   "skills": {
     "paths": [".opencode/skills"]
