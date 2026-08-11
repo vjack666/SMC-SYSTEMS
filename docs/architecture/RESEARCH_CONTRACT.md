@@ -720,3 +720,38 @@ deterministas en el auditor = híbrido A-lite en B).
 ---
 
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*
+
+#### 16.7.16 Prueba de Falsabilidad de la Arquitectura B — HYP-002 Fase 3 (2026-08-11, cliente = CEO)
+
+Misión del Director: intentar ROMPER B antes de aceptarla. No asumir que B funciona.
+Entregable: `research/hypotheses/HYP-002/b_falsifiability.py` + `b_falsifiability_report.md`.
+Ejecutado en GitHub Actions `run 31500261312` (2m9s, 35 setups EURUSD M15, muestras 5k/15k/38k/60k
+velas). Consumidor puro (Opción B, sin ict_backtest). NO se tocó engine/.
+
+Método: el AUDITOR (no el motor) reconstruye el linaje por PROXIMIDAD+DIRECCIÓN usando los
+mismos detectores. Por cada unión CUENTA el nº de candidatos plausibles. Si >1 → AMBIGUOUS
+(NUNCA elige el más cercano silenciosamente). Sensibilidad: repite con ventanas de gap {2,3,4,5,7}.
+
+Resultados (35 setups):
+- **UNIQUE (3/3 uniones): 11% (4/35).**
+- **AMBIGUOUS (≥1 unión con múltiples candidatos): 77% (27/35).**
+- **NONE (sin candidato en alguna unión): 31% (11/35).**
+- Unión más frágil: **BOS→POI** (candidatos promedio 1.6, hasta 3; ≥2 en 50-60% de setups).
+- **DISP→BOS** ~25% con ≥2 candidatos. **SWEEP→DISP** robusta (≤1 siempre; el motor exige
+  displacement único entre sweep y BOS).
+
+Veredicto por evidencia: **RESULTADO C (tendencia).** La reconstrucción offline por proximidad
+produce ambigüedad material (>10%): en 77% de los setups hay múltiples padres plausibles, por lo
+que NO demuestra identidad causal — solo una cadena plausible. Esto confirma la advertencia del
+Director: proximidad ≠ causalidad; "reconstruir retrospectivamente una cadena plausible" =
+narrativa retrospectiva, no lectura del mercado. La información necesaria **no se recupera
+fiablemente post-hoc**.
+
+Conclusión arquitectónica: **estudiar Arquitectura A** (el motor conserva IDs enlazados
+sweep_id→displacement_id→bos_id→poi_id en `MarketObject`/`Expediente`) — SOLO porque la evidencia
+demostró que B no alcanza para DEMOSTRAR FORMACIÓN, no por elegancia. A queda como fase de
+DECISIÓN/MODIFICACIÓN separada, fuera de HYP-002 fase de lectura. Hasta entonces, el veredicto de
+setup individual debe ser: RECONSTRUCTED (único) / RECONSTRUCTED / AMBIGUOUS / UNKNOWN — nunca PASS
+por proximidad.
+
+---
