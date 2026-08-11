@@ -1,0 +1,28 @@
+name: PILOT-PHASE6-A
+
+on:
+  push:
+    branches: [feature/backtest-ict]
+    paths:
+      - 'research/hypotheses/HYP-002/phase6_validation.py'
+      - 'engine/sequence.py'
+      - 'engine/expediente.py'
+      - '.github/workflows/pilot-phase6-a.yml'
+  workflow_dispatch:
+
+jobs:
+  phase6:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pandas numpy pyarrow
+      - run: python research/hypotheses/HYP-002/phase6_validation.py
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6-report
+          path: research/hypotheses/HYP-002/phase6_validation_report.md
+          if-no-files-found: warn

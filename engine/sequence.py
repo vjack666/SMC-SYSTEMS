@@ -111,6 +111,10 @@ class SequenceState:
     displace_id: str = ""
     bos_id: str = ""
     entry_id: str = ""
+    # Fase 6: cierre de la formacion. LIQUIDITY (raiz) y POI/REFINEMENT.
+    liquidity_id: str = ""
+    poi_id: str = ""
+    refinement_id: str = ""
     event_objs: dict = field(default_factory=dict)  # id -> MarketObject del evento
 
     def reset(self):
@@ -134,6 +138,9 @@ class SequenceState:
         self.displace_id = ""
         self.bos_id = ""
         self.entry_id = ""
+        self.liquidity_id = ""
+        self.poi_id = ""
+        self.refinement_id = ""
         self.event_objs = {}
 
     def note(self, tag: str, i: int, extra: str = ""):
@@ -295,19 +302,24 @@ def _direction_from_bias(bias: str, counter_trend: bool) -> int:
 
 
 def _make_event_object(symbol, ltf_tf, event_type, direction, i, time, level,
-                        parent_id, meta) -> "MarketObject":
-    """Fase 5 (Arquitectura A): crea el MarketObject de UN evento de secuencia.
+                        parent_id, meta, role=None, obj_type=None) -> "MarketObject":
+    """Fase 5/6 (Arquitectura A): crea el MarketObject de UN evento de secuencia.
 
     `id` es uuid unico (no hash) para evitar colision entre eventos del mismo
     idx. `parent_object` apunta al id del evento padre YA confirmado. Anti-
     look-ahead: el llamador solo pasa parent_id de un evento con idx <= i.
     El nivel es DERIVABLE de OHLC (sin indicadores).
+    `role`/`obj_type` permiten respetar la ontologia (POI=HTF, FVG/OB=REFINEMENT).
     """
     from uuid import uuid4
+    if obj_type is None:
+        obj_type = event_type if event_type in ObjectType.__members__ else "CANDLE"
+    if role is None:
+        role = "CONTEXT"
     obj = MarketObject(
-        type=ObjectType[event_type] if event_type in ObjectType.__members__ else ObjectType.CANDLE,
+        type=ObjectType[obj_type],
         origin_tf=ltf_tf,
-        role=Role.CONTEXT,
+        role=Role[role],
         direction=int(direction),
         zone_high=float(level) if level == level else float("nan"),
         zone_low=float(level) if level == level else float("nan"),
@@ -323,11 +335,13 @@ def _make_event_object(symbol, ltf_tf, event_type, direction, i, time, level,
 
 
 def _build_expediente(symbol: str, ltf_tf: str, direction: int, i: int,
-                      time, birth_condition: str) -> "tuple[Expediente, MarketObject]":
+                      time, birth_condition: str,
+                      liquidity_id: str = "") -> "tuple[Expediente, MarketObject]":
     """B5: crea el Expediente en el nacimiento (sweep) y registra SWEEP.
 
     Fase 5: el evento SWEEP recibe su propio MarketObject con id; su padre es
     la liquidez (ausente como objeto explicito) -> parent_object="" (raiz).
+    Fase 6: el SWEEP SI tiene padre explicito = LIQUIDITY (liquidity_id).
     """
     exp = Expediente.open(
         symbol=symbol,
@@ -339,11 +353,12 @@ def _build_expediente(symbol: str, ltf_tf: str, direction: int, i: int,
         invalidation_rule="",  # se predefine en el nacimiento (B3)
         meta={"symbol": symbol, "ltf_tf": ltf_tf},
     )
-    # Evento SWEEP: raiz del linaje (parent = liquidez implícita, no objetada).
+    # Evento SWEEP: hijo de LIQUIDITY ya confirmada.
     sweep_obj = _make_event_object(symbol, ltf_tf, "SWEEP", direction, i, time,
-                                   float("nan"), "", {"phase": "SWEEP", "condition": birth_condition})
+                                   float("nan"), liquidity_id,
+                                   {"phase": "SWEEP", "condition": birth_condition})
     exp.advance("SWEEP", i, time, birth_condition,
-                event_id=sweep_obj.id, parent_event_id="")
+                event_id=sweep_obj.id, parent_event_id=liquidity_id)
     return exp, sweep_obj
 
 
@@ -579,12 +594,27 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 state.sweep_idx = i
                 state.note("SWEEP", i)
                 # B5: Expediente nace con el sweep (Ley 7 unicidad por id hash).
-                # Fase 5 (Arq A): guarda el id del evento SWEEP para enlazar hijos.
+                # Fase 5/6 (Arq A): guarda el id del evento SWEEP para enlazar hijos.
+                # Fase 6: crea LIQUIDITY (raiz) y enlaza SWEEP -> LIQUIDITY.
+                _liq_level = (float(obj.meta.get("ssl_price", np.nan)) if target == 1
+                              else float(obj.meta.get("bsl_price", np.nan)))
+                _liq_obj = _make_event_object(
+                    obj.meta.get("symbol", "") or "", ltf_tf, "LIQUIDITY",
+                    target, i, obj.meta.get("time"), _liq_level, "",
+                    {"phase": "LIQUIDITY",
+                     "kind": "SSL" if target == 1 else "BSL"},
+                    role="CONTEXT", obj_type="LIQUIDITY")
+                state.liquidity_id = _liq_obj.id
+                state.event_objs[_liq_obj.id] = _liq_obj
                 _exp, _sweep_obj = _build_expediente(
                     obj.meta.get("symbol", "") or "",
                     ltf_tf, target, i, obj.meta.get("time"),
                     ("SWEEP_DOWN@LTF" if target == 1 else "SWEEP_UP@LTF"),
+                    liquidity_id=_liq_obj.id,
                 )
+                # Fase 6: registra LIQUIDITY en el Expediente (ya existe _exp) antes del SWEEP.
+                _advance_expediente(_exp, "LIQUIDITY", i, obj.meta.get("time"),
+                                    event_id=_liq_obj.id, parent_event_id="")
                 state.expediente = _exp
                 state.sweep_id = _sweep_obj.id
                 state.event_objs[_sweep_obj.id] = _sweep_obj
@@ -649,6 +679,43 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     {"phase": "BOS"})
                 state.bos_id = _bos_obj.id
                 state.event_objs[_bos_obj.id] = _bos_obj
+                # Fase 6: POI institucional HTF (role=POI) anclado al BOS padre ya
+                # cerrado, y REFINEMENT LTF (role=REFINEMENT, la zona FVG/OB) hijo
+                # del POI. Si no hay POI HTF anclado (htf_poi_fn=None o False), el
+                # REFINEMENT LTF se ancla directo al BOS (sin inventar POI).
+                _poi_anchored = bool(htf_poi_fn is not None and htf_poi_fn(i, target))
+                if _poi_anchored:
+                    _poi_obj = _make_event_object(
+                        obj.meta.get("symbol", "") or "", htf or ltf_tf, "BOS",
+                        target, i, obj.meta.get("time"), state.bos_level, state.bos_id,
+                        {"phase": "POI", "anchored": True},
+                        role="POI", obj_type="BOS")
+                    state.poi_id = _poi_obj.id
+                    state.event_objs[_poi_obj.id] = _poi_obj
+                    _ref_parent = _poi_obj.id
+                else:
+                    state.poi_id = ""
+                    _ref_parent = state.bos_id
+                # REFINEMENT LTF = zona FVG/OB ya cacheada (zone_high/zone_low).
+                _ref_obj = _make_event_object(
+                    obj.meta.get("symbol", "") or "", ltf_tf,
+                    state.zone_pd_type if state.zone_pd_type in ("FVG", "ORDER_BLOCK") else "ORDER_BLOCK",
+                    target, i, obj.meta.get("time"),
+                    (state.zone_high + state.zone_low) / 2.0 if (np.isfinite(state.zone_high) and np.isfinite(state.zone_low)) else state.bos_level,
+                    _ref_parent,
+                    {"phase": "REFINEMENT", "pd_type": state.zone_pd_type,
+                     "poi_anchored": _poi_anchored},
+                    role="REFINEMENT", obj_type=state.zone_pd_type if state.zone_pd_type in ("FVG", "ORDER_BLOCK") else "ORDER_BLOCK")
+                state.refinement_id = _ref_obj.id
+                state.event_objs[_ref_obj.id] = _ref_obj
+                # Fase 6: el Expediente debe contar la historia COMPLETA (Director §4).
+                # POI y REFINEMENT se confirman en el instante del BOS (mismo idx,
+                # ya validado por la guarda anti-look-ahead de advance).
+                if _poi_anchored:
+                    _advance_expediente(state.expediente, "POI", i, obj.meta.get("time"),
+                                        event_id=_poi_obj.id, parent_event_id=state.bos_id)
+                _advance_expediente(state.expediente, "REFINEMENT", i, obj.meta.get("time"),
+                                    event_id=_ref_obj.id, parent_event_id=_ref_parent)
                 # TRAZAR EL CUADRO: usar la zona cacheada (FVG/OB del tramo
                 # sweep->displacement, memoria arriba), NO la vela del BOS donde
                 # el imbalance ya no esta. El trader marca ese cuadro y ESPERA
@@ -683,16 +750,16 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 # B5: cierra el expediente (ENTRY) y lo adjunta a la señal.
                 _exp = state.expediente
                 if _exp is not None:
-                    # Fase 5 (Arq A): evento RETURN, padre = BOS ya confirmado.
+                    # Fase 5/6 (Arq A): evento RETURN, padre = REFINEMENT (no BOS).
                     _ret_obj = _make_event_object(
                         obj.meta.get("symbol", "") or "", ltf_tf, "RETURN",
                         target, i, obj.meta.get("time"),
-                        float(obj.meta.get("close", np.nan)), state.bos_id,
-                        {"phase": "ENTRY"})
+                        float(obj.meta.get("close", np.nan)), state.refinement_id or state.bos_id,
+                        {"phase": "ENTRY", "poi_anchored": bool(state.poi_id)})
                     state.entry_id = _ret_obj.id
                     state.event_objs[_ret_obj.id] = _ret_obj
                     _advance_expediente(_exp, "ENTRY", i, obj.meta.get("time"),
-                                        event_id=_ret_obj.id, parent_event_id=state.bos_id)
+                                        event_id=_ret_obj.id, parent_event_id=state.refinement_id or state.bos_id)
                     _exp.outcome = "ENTRY"
                     expedientes.append(_exp)
                 signals.append({
@@ -708,14 +775,21 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     "poi_present": _poi_present,
                     "htf_aligned": state.htf_aligned,
                     "htf_reason": state.htf_reason,
-                    # Fase 5 (Arq A): ids de eventos + niveles derivables (aditivo).
+                    # Fase 5/6 (Arq A): ids de eventos + niveles derivables (aditivo).
                     "event_ids": {
+                        "LIQUIDITY": state.liquidity_id,
                         "SWEEP": state.sweep_id,
                         "DISPLACE": state.displace_id,
                         "BOS": state.bos_id,
+                        "POI": state.poi_id,
+                        "REFINEMENT": state.refinement_id,
                         "RETURN": state.entry_id,
                     },
                     "levels": {
+                        "liquidity": (float(objs[state.sweep_idx].meta.get("ssl_price", np.nan))
+                                      if target == 1 else
+                                      float(objs[state.sweep_idx].meta.get("bsl_price", np.nan))
+                                      ) if state.sweep_idx >= 0 else float("nan"),
                         "sweep": (float(objs[state.sweep_idx].meta.get("low", np.nan))
                                   if target == 1 else
                                   float(objs[state.sweep_idx].meta.get("high", np.nan))
