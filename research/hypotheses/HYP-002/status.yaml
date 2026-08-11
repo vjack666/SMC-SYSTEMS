@@ -18,13 +18,12 @@ status: en_prueba            # formulada -> auxiliares -> en_prueba -> promovida
 #   Hallazgo: problema de TRAZABILIDAD, no detección. IDs/parent nunca se crean. Arquitectura B
 #   (auditor reconstruye offline, determinista) respaldada por evidencia; A postergada. GAP-1 macro
 #   = noticias hardcoded (sin feed timestamp) -> solo contexto observable. NO se tocó engine/.
-# 2026-08-11 (cliente=CEO, Fase 3): PRUEBA DE FALSABILIDAD de B. b_falsifiability.py en GitHub Actions
-#   run 31500261312 (2m9s, 35 setups EURUSD M15, muestras 5k/15k/38k/60k velas). Veredicto:
-#   RESULTADO C (tendencia) — B produce AMBIGUOUS en 77% (27/35); UNIQUE solo 11% (4/35).
-#   La union mas fragil: BOS->POI (>=2 candidatos en 50-60%). DISP->BOS ~25% con >=2.
-#   SWEEP->DISP robusta (<=1 siempre, el motor exige displacement unico). CONCLUSION: la info no se
-#   recupera fiablemente post-hoc -> estudiar Arquitectura A (motor conserva ids enlazados) SOLO
-#   porque la evidencia lo demostró. Prox NO es causalidad; >1 candidato -> AMBIGUOUS.
+# 2026-08-11 (cliente=CEO, Fase 4): DECISION ARQUITECTONICA. PHASE4_ARCHITECTURE_DECISION.md.
+#   B falsada Fase 3 (77% ambiguo). Diseno puro SIN tocar engine/. Hallazgo: MarketObject YA EXISTE
+#   en engine/market_object.py (id/parent/bar_index); ict_backtest/market_object = shim. A es barata:
+#   poblar ids+parent en el instante del evento. Modelo: LIQ->SWEEP->DISP->BOS->POI->RETURN como
+#   MarketObject con parent_object. DECISION: Arquitectura A (por evidencia + bajo coste). Cambios
+#   solo disenados, NO ejecutados. Anti-look-ahead: advance(idx>=_last_idx) ya existe. WR/PF bloqueados.
 pilot1:
   authorized_by: "Director (revision GitHub feature/backtest-ict)"
   rule: "NO medir WR/PF/edge; auditar formacion real; separar observado/reconstruido/inferido"
