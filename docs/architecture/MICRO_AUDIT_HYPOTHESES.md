@@ -7,7 +7,7 @@
 > Regla fundamental del contrato (RESEARCH_CONTRACT.md §0): si no está en el repo, no es evidencia.
 > ADR-005 fue invocado por el Director pero **NO EXISTE en el repositorio** (grep de `ADR-005`
 > en `docs/` = 0 hits, ni archivo ADR alguno). Se aplica el criterio literal del Director:
-> REAL = descubrimiento (datos reales), OTC = validación (backtest/experimento). Ver FASE D.
+> REAL = descubrimiento (datos reales), FOREX = validación (backtest/experimento). Ver FASE D.
 
 ## FASE A — DESCUBRIMIENTO (fuentes reales del repo)
 
@@ -31,7 +31,7 @@ NO se usó memoria de conversación como fuente.
 - **Criterio de refutación**: si `against_hit_pct` ≤ baseline (ruido), la estructura no aporta edge.
 - **Evidencia existente**: EURUSD 113k M15 → against_hit 72-75%; baseline contra 0.72-0.77.
   **Conclusión medida**: NO supera el baseline de ruido en este dataset (edge no demostrado).
-- **Dominio**: REAL (datos EURUSD reales). Pendiente OTC en otros símbolos.
+- **Dominio**: REAL (datos EURUSD reales). Pendiente FOREX en otros símbolos.
 - **Falsable**: SÍ. **Predicción medible**: SÍ. **Criterio refutación**: SÍ. **Protocolo determinista**: SÍ (runner existe).
 - **Estado**: RESULTADO — parcialmente REFUTADA en EURUSD (el ~72-75% es ruido browniano del tramo).
 
@@ -54,7 +54,7 @@ NO se usó memoria de conversación como fuente.
 - **Variable medible**: `aligned_hit_pct`, `against_hit_pct` post-relajación.
 - **Criterio de refutación**: si tras relajar sigue `aligned_hit = 0%` y `against_hit` no supera baseline, la hipótesis cae.
 - **Evidencia existente**: solo la observación de que el gate actual da 0% (CAND-02). No hay corrida con gate relajado.
-- **Dominio**: REAL (descubrimiento en datos); validación OTC vía backtest del motor.
+- **Dominio**: REAL (descubrimiento en datos); validación FOREX vía backtest del motor.
 - **Falsable**: SÍ. **Predicción medible**: SÍ. **Criterio refutación**: SÍ. **Protocolo determinista**: SÍ (cambiar `aligned` en motor + re-correr `scripts/measure_structure_effectiveness.py` con mismos params).
 - **Estado**: HIPÓTESIS candidata a HYP (cumple las 3 condiciones).
 
@@ -112,7 +112,7 @@ NO se usó memoria de conversación como fuente.
 - **Variable medible**: WR/PF por grupo (anclado vs no).
 - **Criterio de refutación**: si anclado ≠ no anclado en WR/PF, la ancla no aporta edge.
 - **Evidencia existente**: implementación hecha; NO vi medición comparativa en `docs/tesis/`.
-- **Dominio**: REAL (descubrimiento) → validación OTC pendiente.
+- **Dominio**: REAL (descubrimiento) → validación FOREX pendiente.
 - **Falsable**: SÍ. **Predicción medible**: SÍ. **Criterio**: SÍ. **Protocolo**: SÍ (backtest segmentando por `poi["anchored"]`).
 - **Estado**: HIPÓTESIS candidata a HYP (premisa de la regla B1 no verificada empíricamente).
 
@@ -124,7 +124,7 @@ NO se usó memoria de conversación como fuente.
 - **Variable medible**: WR/PF top-down vs single-TF.
 - **Criterio de refutación**: si WR top-down ≤ single-TF, la jerarquía no aporta.
 - **Evidencia**: implementación hecha; NO vi A/B comparativo en `docs/tesis/`.
-- **Dominio**: REAL → OTC pendiente.
+- **Dominio**: REAL → FOREX pendiente.
 - **Falsable**: SÍ. **Predicción medible**: SÍ. **Criterio**: SÍ. **Protocolo**: SÍ.
 - **Estado**: HIPÓTESIS candidata a HYP.
 
@@ -136,37 +136,37 @@ NO se usó memoria de conversación como fuente.
 - **Variable medible**: WR/PF aligned vs against.
 - **Criterio de refutación**: si aligned ≯ against, el filtro HTF no es edge.
 - **Evidencia**: en EURUSD aligned=0% → no medible; CAND-03/05 son los caminos para hacerla medible.
-- **Dominio**: REAL (descubrimiento de la tesis) → validación OTC pendiente.
+- **Dominio**: REAL (descubrimiento de la tesis) → validación FOREX pendiente.
 - **Falsable**: SÍ. **Predicción medible**: SÍ. **Criterio**: SÍ. **Protocolo**: SÍ.
 - **Estado**: HIPÓTESIS candidata a HYP (tesis central, aún no validada por datos).
 
-### CAND-12 — ADR-005 (separación REAL/OTC)
+### CAND-12 — ADR-005 (separación REAL/FOREX)
 - **Tipo**: NO REPRODUCIBLE DESDE REPO.
 - **Origen**: invocado por el Director en la orden de 3B.2; **no existe archivo ADR-005 ni ADR alguno en `docs/`** (grep = 0).
 - **Decisión**: NO se convierte en candidata científica. Se aplica el criterio literal del Director
-  (REAL=descubrimiento, OTC=validación) sobre la evidencia disponible, sin depender del ADR.
+  (REAL=descubrimiento, FOREX=validación) sobre la evidencia disponible, sin depender del ADR.
 - **Estado**: DESCARTADA como fuente (falta artefacto documental).
 
-## FASE D — SEPARACIÓN REAL / OTC
+## FASE D — SEPARACIÓN REAL / FOREX
 
-Aplicando el criterio del Director (REAL=descubrimiento, OTC=validación) sobre evidencia real:
+Aplicando el criterio del Director (REAL=descubrimiento, FOREX=validación) sobre evidencia real:
 
 | CAND | Dominio | Evidencia disponible | Nota |
 |------|---------|----------------------|------|
-| 01 | REAL | EURUSD M15 (REAL data) corrida canónica 113k | edge NO demostrado vs ruido; pendiente OTC otros símbolos |
+| 01 | REAL | EURUSD M15 (REAL data) corrida canónica 113k | edge NO demostrado vs ruido; pendiente FOREX otros símbolos |
 | 02 | REAL | EURUSD M15 corrida 113k/30k | refutada bajo gate estricto |
-| 03 | REAL→OTC | observación de CAND-02 | pendiente corrida con gate relajado (OTC) |
+| 03 | REAL→FOREX | observación de CAND-02 | pendiente corrida con gate relajado (FOREX) |
 | 04 | REAL | T8 instrumentado cable/EURUSD | fix M1 parcial ya en motor |
 | 05 | REAL | solo EURUSD medido | pendiente descubrimiento en GBPUSD (REAL) |
 | 06 | REAL | 5k M15 | resuelta |
 | 07 | REAL | 113k M15 | refuta CHOCH solitario |
 | 08 | REAL | 113k M15 | hallazgo |
-| 09 | REAL→OTC | implementación B1, sin medir | pendiente OTC |
-| 10 | REAL→OTC | implementación B2, sin A/B | pendiente OTC |
-| 11 | REAL→OTC | tesis, sin validar por datos | pendiente OTC |
+| 09 | REAL→FOREX | implementación B1, sin medir | pendiente FOREX |
+| 10 | REAL→FOREX | implementación B2, sin A/B | pendiente FOREX |
+| 11 | REAL→FOREX | tesis, sin validar por datos | pendiente FOREX |
 | 12 | — | ADR-005 inexistente en repo | no reproducible |
 
-Ninguna hipótesis descubierta en REAL se presenta como ya validada en OTC.
+Ninguna hipótesis descubierta en REAL se presenta como ya validada en FOREX.
 
 ## FASE E — TRAZABILIDAD
 
@@ -181,15 +181,15 @@ NO se convirtieron en candidatas.
 |----|-----------|------|-----------|----------|---------------------|-------------------|---------|-----------|--------|
 | 01 | BOS/CHOCH predictivo | HALLAZGO/RES | against_hit>baseline | SÍ | ≤baseline | SÍ | REAL | 113k EURUSD | REFUTADA parcial EURUSD |
 | 02 | Alineación exacta disponible | HALLAZGO/RES | aligned>0 | SÍ | =0% | SÍ | REAL | 113k EURUSD | REFUTADA gate estricto |
-| 03 | Relajar gate activa filtro | HIPÓTESIS | aligned>0 post-relajación | SÍ | sigue 0% | SÍ | REAL→OTC | obs CAND-02 | candidata HYP |
+| 03 | Relajar gate activa filtro | HIPÓTESIS | aligned>0 post-relajación | SÍ | sigue 0% | SÍ | REAL→FOREX | obs CAND-02 | candidata HYP |
 | 04 | NEUTRAL perpetuo=defecto empate | HIPÓTESIS | fix restaura bias | SÍ | sigue NEUTRAL | SÍ | REAL | T8 | candidata HYP |
 | 05 | Otros símbolos tienen alineación | HIPÓTESIS | GBPUSD aligned>0 | SÍ | todos 0% | SÍ | REAL | solo EURUSD | candidata HYP |
 | 06 | bos_real filtra fakeouts | HALLAZGO/RES | — | — | — | — | REAL | 5k M15 | resuelta |
 | 07 | CHOCH no es edge | HALLAZGO/RES | baseline=1.0 | — | — | — | REAL | 113k | refuta CHOCH solitario |
 | 08 | MSS reduce ruido, 0 aligned | HALLAZGO | — | — | — | — | REAL | 113k | hallazgo |
-| 09 | POI anclado > no anclado | HIPÓTESIS | WR anclado>no | SÍ | igual WR | SÍ | REAL→OTC | B1 hecho, sin medir | candidata HYP |
-| 10 | 3 capas > 1-2 capas | HIPÓTESIS | WR top-down>single | SÍ | ≤ single | SÍ | REAL→OTC | B2 hecho, sin A/B | candidata HYP |
-| 11 | Sesgo HTF mejora backtest | HIPÓTESIS | WR aligned>against | SÍ | igual | SÍ | REAL→OTC | tesis, sin validar | candidata HYP |
+| 09 | POI anclado > no anclado | HIPÓTESIS | WR anclado>no | SÍ | igual WR | SÍ | REAL→FOREX | B1 hecho, sin medir | candidata HYP |
+| 10 | 3 capas > 1-2 capas | HIPÓTESIS | WR top-down>single | SÍ | ≤ single | SÍ | REAL→FOREX | B2 hecho, sin A/B | candidata HYP |
+| 11 | Sesgo HTF mejora backtest | HIPÓTESIS | WR aligned>against | SÍ | igual | SÍ | REAL→FOREX | tesis, sin validar | candidata HYP |
 | 12 | ADR-005 | NO REPRODUCIBLE | — | — | — | — | — | inexistente | descartada |
 
 ## SEPARACIÓN DE GRUPOS
@@ -275,7 +275,7 @@ HALLAZGOS CERRADOS (no hipótesis, ya medidos)
 - **Criterio de falsación**: si `WR_aligned ≤ WR_against` (o `PF_aligned ≤ 1.0`), la tesis HTF no aporta edge.
 - **Protocolo determinista**: backtest canónico (`ict_backtest/run_backtest`) con `top_down_allows_trade` activo, segmentando fills por `HtfBias.aligned`; mismos params que corrida R6.4; misma semilla/costs ON.
 - **Datos necesarios**: EURUSD/GBPUSD/USDCHF/USDCAD M15 + HTF, ~4.5 años (los del repo). Población con `aligned>0` requiere previamente CAND-03/05.
-- **Dominio REAL/OTC**: REAL (descubrimiento de la tesis ICT/SMC) → OTC (validación por backtest canónico).
+- **Dominio REAL/FOREX**: REAL (descubrimiento de la tesis ICT/SMC) → FOREX (validación por backtest canónico).
 - **Dependencia**: depende de CAND-03 y CAND-05 para volverse *medible* (hoy `aligned=0%` en EURUSD la hace unfalsiable). No depende de CAND-04 (ingeniería).
 - **Decisión si positiva**: el motor HTF queda validado como fuente de edge → promoción a `engine/` ya consolidada, se documenta evidencia. Si negativa: el filtro HTF se reubica como sesgo teórico sin valor predictivo; se revisa la tesis.
 
@@ -287,7 +287,7 @@ HALLAZGOS CERRADOS (no hipótesis, ya medidos)
 - **Criterio de falsación**: si tras relajar sigue `aligned_hit = 0%`, el gate no era el cuello de botella (la causa es el mercado/otro parámetro).
 - **Protocolo determinista**: cambiar `aligned` en `engine/bias/narrative.py` (snapshot del commit actual ANTES del cambio) + re-correr `scripts/measure_structure_effectiveness.py` con `SMCS_EFFECTIVENESS_MAX_BARS=113123`. **PRE-REQUISITO (ver G.4): congelar hash del motor actual antes de tocarlo.**
 - **Datos necesarios**: EURUSD M15 113k (ya en repo).
-- **Dominio REAL/OTC**: REAL (descubrimiento) → OTC (validación del cambio de motor).
+- **Dominio REAL/FOREX**: REAL (descubrimiento) → FOREX (validación del cambio de motor).
 - **Dependencia**: es auxiliar de CAND-11. Su resultado decide si CAND-11 es testeable.
 - **Decisión si positiva**: habilita la prueba de CAND-11 (la tesis padre se vuelve falsable). Si negativa: se descarta el gate como cuello de botella y se investiga el sesgo en sí (acerca a CAND-04).
 
@@ -299,7 +299,7 @@ HALLAZGOS CERRADOS (no hipótesis, ya medidos)
 - **Criterio de falsación**: si todos los símbolos dan `aligned_hit = 0%`, la alineación no es propiedad del régimen sino del gate (empuja a relajar gate = CAND-03).
 - **Protocolo determinista**: `SMCS_EFFECTIVENESS_SYMBOL=GBPUSD` (ya soportado por runner) con mismos params; comparar contra EURUSD.
 - **Datos necesarios**: GBPUSD M15 + HTF (~4.5 años) del repo.
-- **Dominio REAL/OTC**: REAL (descubrimiento en datos reales de otros símbolos).
+- **Dominio REAL/FOREX**: REAL (descubrimiento en datos reales de otros símbolos).
 - **Dependencia**: auxiliar de CAND-11; complementaria a CAND-03.
 - **Decisión si positiva**: la tesis HTF es testeable en población GBPUSD → habilita CAND-11. Si negativa en todos: la alineación es artefacto de gate, no de mercado.
 
@@ -311,7 +311,7 @@ HALLAZGOS CERRADOS (no hipótesis, ya medidos)
 - **Criterio de falsación**: si `WR(anclado) ≈ WR(no_anclado)`, la ancla no aporta edge.
 - **Protocolo determinista**: backtest canónico segmentando fills por `poi["anchored"]` (campo ya emitido por `engine/poi_anchor.py`); mismos params R6.4.
 - **Datos necesarios**: los del repo (EURUSD etc. M15+HTF).
-- **Dominio REAL/OTC**: REAL (descubrimiento de la regla B1) → OTC (validación).
+- **Dominio REAL/FOREX**: REAL (descubrimiento de la regla B1) → FOREX (validación).
 - **Dependencia**: ninguna con HTF; rama propia.
 - **Decisión si positiva**: la regla B1 queda validada empíricamente (hoy solo está implementada). Si negativa: la ancla es complejidad sin edge → candidata a simplificación.
 
@@ -323,7 +323,7 @@ HALLAZGOS CERRADOS (no hipótesis, ya medidos)
 - **Criterio de falsación**: si `WR(3capas) ≤ WR(1-2capas)`, la jerarquía no aporta edge.
 - **Protocolo determinista**: backtest A/B (top-down vs single-TF) con `build_context_stack` activo/desactivado; mismos params/costs/seed.
 - **Datos necesarios**: los del repo.
-- **Dominio REAL/OTC**: REAL (descubrimiento de arquitectura B2) → OTC.
+- **Dominio REAL/FOREX**: REAL (descubrimiento de arquitectura B2) → FOREX.
 - **Dependencia**: ninguna con HTF.
 - **Decisión si positiva**: la jerarquía B2 queda validada. Si negativa: 3 capas = complejidad sin edge.
 
@@ -335,7 +335,7 @@ HALLAZGOS CERRADOS (no hipótesis, ya medidos)
 - **Criterio de falsación**: si tras el fix el bias sigue 100% NEUTRAL, la causa no era el empate.
 - **Protocolo determinista**: ya hay fix M1 (desempate por tramo reciente) en `engine/bias/narrative.py`; medir con `compute_htf_bias_series` sobre buffer real. **No requiere nuevo EXP de edge; es diagnóstico de motor.**
 - **Datos necesarios**: EURUSD M15 20k (T8).
-- **Dominio REAL/OTC**: REAL (diagnóstico de implementación).
+- **Dominio REAL/FOREX**: REAL (diagnóstico de implementación).
 - **Dependencia**: ninguna con CAND-11 (no contamina prueba de edge).
 - **Decisión si positiva**: el motor HTF queda correcto de base (pre-requisito para que CAND-03/11 midan sesgo real, no artefacto de bug). Si negativa: la causa es más profunda (quizá la propia noción de tramo).
 
@@ -352,12 +352,12 @@ actual como `results/experiments/.../run/commit`, (b) el cambio de `aligned` com
 
 ### G.5 ADR-005 — DEUDA DE TRAZABILIDAD
 
-ADR-005 ("REAL=descubrimiento, OTC=validación") fue invocado por el Director en la orden de 3B.2
+ADR-005 ("REAL=descubrimiento, FOREX=validación") fue invocado por el Director en la orden de 3B.2
 pero **NO EXISTE físicamente en el repositorio** (grep `ADR-005`/`ADR*` en `docs/` = 0). No se
 inventa su contenido ni se convierte en evidencia. Se registra como **deuda de trazabilidad
 arquitectónica**: una decisión conceptual usada para separar dominios, pero sin artefacto que la
 respalden. Debe resolverse (crear el ADR o citar su fuente real) ANTES de que el laboratorio
-dependa de la separación REAL/OTC en un EXP-NNN. Mientras tanto, se aplica el criterio literal del
+dependa de la separación REAL/FOREX en un EXP-NNN. Mientras tanto, se aplica el criterio literal del
 Director sobre la evidencia del repo.
 
 ### G.6 RECOMENDACIÓN RAZONADA DE HYP-001

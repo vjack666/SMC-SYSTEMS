@@ -25,7 +25,7 @@ eventos.
 
 ## Predicción cuantitativa
 
-Sobre una muestra de setups emitidos por el motor (dominio REAL = datos del motor; OTC =
+Sobre una muestra de setups emitidos por el motor (dominio REAL = datos del motor; FOREX =
 backtest canónico como consumidor del motor):
 
 - **Tasa de reconstrucción determinista** `R_recon`: fracción de setups donde CADA capa de la
@@ -65,11 +65,11 @@ HYP-002 queda REFUTADA si, sobre la muestra:
 
 No hay ajuste de narrativa: el veredicto lo dicta si la cadena causal se sostiene vela por vela.
 
-## Dominio REAL / OTC
+## Dominio REAL / FOREX
 
 - **REAL (descubrimiento)**: los setups emitidos por `engine/` sobre datos reales del motor
   (documentados en AGENTS.md Ley Fundamental y `docs/lab/LABORATORIO_ICT_SMC.md`).
-- **OTC (validación)**: el backtest canónico (`ict_backtest/run_backtest`) como consumidor
+- **FOREX (validación)**: el backtest canónico (`ict_backtest/run_backtest`) como consumidor
   PURO del motor, auditando setups que el motor marca como válidos.
 
 ## Marco de capas (qué significa "setup completo")

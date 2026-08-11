@@ -48,14 +48,14 @@ HYP-001 queda REFUTADA si, en la población con `aligned>0`:
 No hay forma de "ajustar la narrativa": el veredicto lo dicta la comparación
 `aligned` vs `against` sobre la misma corrida.
 
-## Dominio REAL / OTC
+## Dominio REAL / FOREX
 
 - **REAL (descubrimiento)**: nace de la tesis ICT/SMC del motor (documentada en
   `docs/lab/LABORATORIO_ICT_SMC.md` §2.1 y AGENTS.md Ley Fundamental).
-- **OTC (validación)**: se valida por backtest canónico (`ict_backtest/run_backtest`)
+- **FOREX (validación)**: se valida por backtest canónico (`ict_backtest/run_backtest`)
   segmentando fills por `HtfBias.aligned`.
 
-> Nota de trazabilidad: la separación REAL/OTC aplica el criterio del Director.
+> Nota de trazabilidad: la separación REAL/FOREX aplica el criterio del Director.
 > ADR-005 (que la define formalmente) es DEUDA de trazabilidad — no existe físicamente
 > en el repo. Ver `MICRO_AUDIT_HYPOTHESES.md` Fase G.5.
 

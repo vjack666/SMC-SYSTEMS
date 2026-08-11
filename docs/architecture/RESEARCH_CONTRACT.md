@@ -671,7 +671,7 @@ forma correctamente contexto, liquidez tomada, sweep, displacement, BOS, POI y r
 es que **el setup no llega a estar completamente formado como cadena causal demostrable** con lo
 que el motor emite hoy. Reparaciones (enriquecer `Expediente` con `MarketObject[]` + linaje 1:1)
 son fase posterior separada. Auditoría de pérdida de información en §16.7.15. Orden de apertura
-de siguientes fases respetado: FORMACIÓN → VALIDACIÓN MACRO/NEWS → OOS/OTC → ESTADÍSTICA → EDGE.
+de siguientes fases respetado: FORMACIÓN → VALIDACIÓN MACRO/NEWS → OOS/FOREX → ESTADÍSTICA → EDGE.
 
 #### 16.7.15 Auditoría de Pérdida de Información — HYP-002 Fase 2 (2026-08-11, cliente = CEO)
 
@@ -827,7 +827,7 @@ zone_high/zone_low + niveles sweep/displacement. Riesgos: regresión de única f
 que el motor ya decide); ruptura backtester (mitigación: señal aditiva). Criterios de falsación de A:
 parent con idx>child (look-ahead), parent None donde debiera haberlo, o >5% AMBIGUOUS en 50 setups
 post-impl. Validación posterior (fase MODIFICACIÓN, tras autorización): implementar + re-correr
-auditor esperando UNIQUE≈100%, luego GAP-1 macro (contexto, no filtro), luego OOS/OTC→ESTADÍSTICA→EDGE.
+auditor esperando UNIQUE≈100%, luego GAP-1 macro (contexto, no filtro), luego OOS/FOREX→ESTADÍSTICA→EDGE.
 WR/PF/edge BLOQUEADOS hasta FORMACIÓN validada. NO se modifica engine/ sin OK expreso del Director.
 
 ---

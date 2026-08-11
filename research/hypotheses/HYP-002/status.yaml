@@ -67,7 +67,7 @@ primary_variable: "R_recon (tasa de reconstrucción determinista del setup compl
 not_primary: "WR / PF (son consecuencia posterior, paso 6 del orden rector)"
 domain:
   real: "setups emitidos por engine/ sobre datos reales del motor"
-  otc: "backtest canónico (ict_backtest/run_backtest) como consumidor puro del motor"
+  forex: "backtest canónico (ict_backtest/run_backtest, forex) como consumidor puro del motor"
 layers_audit:                # qué significa 'setup completo' (cadena causal)
   - contexto: "sesgo HTF D1/H4/H1 vigente"
   - estructura: "BOS/CHOCH/MSS vigente"
@@ -119,4 +119,4 @@ freeze_other_lines:
   CAND_03_05: "ARCHIVADOS/bloqueados (paradigma anterior, giro alrededor de aligned_hit_pct/WR/PF). NO ejecutar ahora. No eliminados."
   directive: "No ejecutar CAND-03/05, no EXP-001, no buscar WR, no modificar el motor hasta validar la lectura."
 traceability_debt:
-  ADR-005: "DEUDA — no existe físicamente en repo; separación REAL/OTC aplica por criterio del Director"
+  ADR-005: "DEUDA — no existe físicamente en repo; separación REAL/FOREX aplica por criterio del Director"

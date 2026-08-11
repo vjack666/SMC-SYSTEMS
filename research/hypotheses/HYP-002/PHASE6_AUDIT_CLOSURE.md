@@ -129,4 +129,4 @@ COMPLETA del setup ICT/SMC. El motor puede mostrar exactamente qué piezas lo
 construyeron, en qué orden, quién depende de quién, y qué ocurrió al invalidarse.
 
 Siguiente puerta científica (cuando el Director autorice): **Macro/News como
-contexto** + luego OOS/OTC → estadística → edge. El orden de la tesis se respeta.
+contexto** + luego OOS/FOREX → estadística → edge. El orden de la tesis se respeta.

@@ -75,4 +75,4 @@ linaje causal) son fase posterior separada, fuera de HYP-002 fase de lectura.
    y linaje causal 1:1 (sweep_id→displacement_id→bos_id→poi_id). Eso cerraría las 3 uniones UNKNOWN.
 2. **Cerrar GAP-1 (macro)**: conectar una fuente macro objetiva antes de claim de contexto.
 3. **Solo tras validar la lectura** (esta fase): abrir FORMACIÓN→VALIDACIÓN MACRO/NEWS→
-   OUT-OF-SAMPLE/OTC→ESTUDIO ESTADÍSTICO→EDGE/WR/PF. No invertir el orden.
+   OUT-OF-SAMPLE/FOREX→ESTUDIO ESTADÍSTICO→EDGE/WR/PF. No invertir el orden.

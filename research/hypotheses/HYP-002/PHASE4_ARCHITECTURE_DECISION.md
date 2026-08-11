@@ -185,7 +185,7 @@ A es falsable si, tras implementarse:
 1. Implementar §17 en `engine/` + tests unitarios de `MarketObject`/`Expediente`.
 2. Re-correr el auditor (Fase 3 `b_falsifiability.py` adaptado) sobre 50 setups: esperar UNIQUE≈100%.
 3. Cerrar GAP-1 macro (fuente con timestamp) como capa de CONTEXTO, no filtro.
-4. Solo entonces: OOS/OTC → ESTADÍSTICA → EDGE. WR/PF siguen bloqueados hasta (3).
+4. Solo entonces: OOS/FOREX → ESTADÍSTICA → EDGE. WR/PF siguen bloqueados hasta (3).
 
 ---
 

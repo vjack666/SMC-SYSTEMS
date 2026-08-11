@@ -9,7 +9,7 @@ status: formulada            # formulada -> auxiliares -> en_prueba -> promovida
 created: 2026-08-10
 domain:
   real: "descubrimiento (tesis ICT/SMC del motor)"
-  otc: "validación por backtest canónico segmentando HtfBias.aligned"
+  forex: "validación por backtest canónico (forex) segmentando HtfBias.aligned"
 is_parent: true
 auxiliaries_required:        # experimentos de HABILITACIÓN (no evidencia de éxito)
   - CAND-03
@@ -31,7 +31,7 @@ motor_state_verified:
   gate: "YA RELAJADO (engine/bias/narrative.py:88-94, cierre M7 2026-08-08)"
   note: "CAND-03 no modifica el motor; solo mide aligned bajo gate ya relajado. Pre-requisito G.4 relajado."
 traceability_debt:
-  ADR-005: "DEUDA — no existe físicamente en repo; separación REAL/OTC aplica por criterio del Director"
+  ADR-005: "DEUDA — no existe físicamente en repo; separación REAL/FOREX aplica por criterio del Director"
   runner_path: "scripts/measure_structure_effectiveness.py NO existe; vive en scripts/_legacy/. LABORATORIO_ICT_SMC.md cita ruta obsoleta."
 rector_rule_review:           # bajo nueva REGLA RECTORA (docs/architecture/RESEARCH_CONTRACT.md §16, 2026-08-10)
   rule: "Lectura del mercado ANTES que win rate. Orden: Lectura→Secuencia→Setup→Auditoría→Noticias/Contexto→Validación→Rendimiento."

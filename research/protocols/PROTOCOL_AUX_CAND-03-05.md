@@ -95,10 +95,10 @@ seed: 42
 - La PRUEBA PADRE (EXP-001) es un EXP distinto (backtest canónico segmentando fills por `aligned`
   vs `against`), que se diseña aparte tras este.
 
-## 6. Dominio REAL / OTC
+## 6. Dominio REAL / FOREX
 
 - REAL (descubrimiento): datos reales EURUSD/GBPUSD del repo; medición de si `aligned` aparece.
-- OTC (validación): la prueba padre (EXP-001) valida el edge; los auxiliares solo lohabilitan.
+- FOREX (validación): la prueba padre (EXP-001) valida el edge; los auxiliares solo lohabilitan.
 - ADR-005: DEUDA de trazabilidad (no existe físicamente en repo); se aplica criterio literal del
   Director hasta crear el artefacto.
 

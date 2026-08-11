@@ -176,4 +176,4 @@ calendario económico). Fuera de alcance del piloto; se documenta como pendiente
   de proximidad)", no "OBSERVABLE causal". Esto cierra la demostración de FORMACIÓN bajo B.
 - Mantener UNKNOWN explícito para identidad 1:1 estricta hasta decidir A.
 - Cerrar GAP-1 solo con registro de contexto (sin filtro).
-- Orden respetado: FORMACIÓN → MACRO/NEWS → OOS/OTC → ESTADÍSTICA → EDGE.
+- Orden respetado: FORMACIÓN → MACRO/NEWS → OOS/FOREX → ESTADÍSTICA → EDGE.
