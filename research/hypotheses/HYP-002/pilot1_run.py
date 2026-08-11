@@ -1,31 +1,93 @@
-"""PILOTO 1 de HYP-002 — Auditor de FORMACION de setups ICT/SMC (consumidor puro).
+"""PILOTO 1 de HYP-002 — Auditor forense de FORMACION de setups ICT/SMC.
 
-Consumidor puro del motor: usa run_sequence_traced. NO toca engine/. Lee SOLO
-lo que el motor emitio (indices sweep/displace/bos/entry, zone_*, htf_aligned,
-phase_events).
+Consumidor PURO del motor. NO toca engine/, detectores ni backtester.
+OPCION B (orden Director 2026-08-11): NO importa ict_backtest (evita el bug
+`datetime` en ict_backtest/rules.py para no contaminar el objeto auditado).
+Ensambla las MISMAS columnas del contrato que ict_backtest/data_feed.build_features
+pero usando directamente los detectores del repo (detectors.* y engine.bos.structure),
+sin pasar por el paquete ict_backtest.
 
-REGLAS RECTORAS (Director 2026-08-10): NO medir WR/PF/edge; auditar la
-FORMACION REAL sin inventar causalidad. Separa OBSERVADO/RECONSTRUIDO/INFERIDO.
-Orden temporal NUNCA -> PASS causal. ATR descriptivo. Macro/News = UNKNOWN.
+REGLAS RECTORAS (Director 2026-08-10 / cliente 2026-08-11):
+- NO medir WR/PF/edge; auditar la FORMACION REAL sin inventar causalidad.
+- Separar OBSERVABLE / DERIVABLE / UNKNOWN. Orden temporal NUNCA = PASS causal.
+- ATR descriptivo (alias de avg_candle_range). Macro/News = UNKNOWN (GAP-1).
+- UNKNOWN jamas se convierte en PASS por intuicion.
 
-HTF: se usa est_htf_ctx_fn=None + est_htf_fn plano (lee columnas HTF
-precomputadas por indice). Esto es consumidor puro del motor (no reconstruye
-el contexto 6-TF por vela, que es prohibitivamente lento). La capa HTF se
-audita igual (htf_aligned por direccion). Disenado para correr rapido en
-GitHub Actions (Linux) sin colgar. Resultado -> pilot1_output.md.
+Salida: pilot1_output.md (fichas forenses por setup en el formato del cliente).
 """
-import sys, time, datetime
+import sys, time
+import numpy as np
 import pandas as pd
+
 sys.path.insert(0, ".")
-from ict_backtest.data_feed import load_frames
-from ict_backtest.sequence import SequenceConfig, run_sequence_traced
-from ict_backtest.market_structure import detect_market_structure
+
+# Detectores del repo (sin tocar ict_backtest)
+from detectors import (
+    detect_displacement, detect_fvg, detect_liquidity, detect_order_blocks,
+)
+from detectors.liquidity_context import canonical_sweep, DEFAULT_SWEEP_LOOKBACK
+from engine.bos.structure import detect_market_structure
+from engine.sequence import SequenceConfig, run_sequence_traced
 from engine.poi_anchor import make_htf_poi_fn
 
-SYM = "EURUSD"
-N_LTF = 3000
-MAX_SETUPS = 5
 
+SYM = "EURUSD"
+N_LTF = 3000           # ventana M15; la nube (Ubuntu) la corre en minutos
+MAX_SETUPS = 5
+DATA_DIR = "data/raw"
+
+
+def _avg_candle_range(df, window=50):
+    return (df["high"] - df["low"]).clip(lower=0.0).rolling(window).mean()
+
+
+def build_features_like(df: pd.DataFrame) -> pd.DataFrame:
+    """Replica el contrato de columnas de ict_backtest/data_feed.build_features
+    usando los MISMOS detectores del motor. Sin importar ict_backtest."""
+    d = df.copy().reset_index(drop=True)
+    ms = detect_market_structure(d, None)
+    frame = ms.frame if hasattr(ms, "frame") else ms
+    d["bos_dir"] = frame["bos_dir"].astype(int).values
+    d["choch_dir"] = frame["choch_dir"].astype(int).values
+    d["bos_direction"] = frame["bos_dir"].map({1: "BULLISH", -1: "BEARISH"}).fillna("NONE").astype(str).values
+    d["choch_signal"] = frame["choch_dir"].map({1: "CHOCH_BULLISH", -1: "CHOCH_BEARISH"}).fillna("NONE").astype(str).values
+    d["bos_status"] = frame["bos_status"].where(frame["bos_dir"] != 0, "none").values
+    d["choch_status"] = frame["choch_status"].values
+    d["trend"] = frame["trend"].values
+    d["swing_high"] = frame["swing_high"].values
+    d["swing_low"] = frame["swing_low"].values
+    d["swing_label"] = frame.get("swing_label", pd.Series("", index=d.index)).values
+    d["atr"] = _avg_candle_range(d, 50).to_numpy()  # alias avg_candle_range (geometria pura)
+    f = detect_fvg(d)
+    for c in f.columns:
+        d[c] = f[c].values
+    o = detect_order_blocks(d)
+    for c in o.columns:
+        d[c] = o[c].values
+    disp = detect_displacement(d)
+    d["displacement_bullish"] = disp["displacement_bullish"].values
+    d["displacement_bearish"] = disp["displacement_bearish"].values
+    d["displacement_mag"] = disp["displacement_magnitude"].values
+    liq = detect_liquidity(d)
+    d["bsl_price"] = liq["bsl_price"].values
+    d["ssl_price"] = liq["ssl_price"].values
+    swept = canonical_sweep(d, lookback=DEFAULT_SWEEP_LOOKBACK)
+    d["liquidity_sweep_up"] = swept["liquidity_sweep_up"].values
+    d["liquidity_sweep_down"] = swept["liquidity_sweep_down"].values
+    d["sweep_low"] = swept.get("sweep_low", pd.Series(np.nan, index=d.index)).values
+    d["sweep_high"] = swept.get("sweep_high", pd.Series(np.nan, index=d.index)).values
+    return d
+
+
+def load_parquet(symbol, tf):
+    p = f"{DATA_DIR}/{symbol}_{tf}.parquet"
+    df = pd.read_parquet(p)
+    if "time" not in df.columns and df.index.name == "time":
+        df = df.reset_index()
+    return df
+
+
+# HTF por indice (lector plano, consumidor puro)
 def est_htf_fn_for(htf_df):
     def f(i):
         if htf_df is not None and i < len(htf_df):
@@ -44,132 +106,105 @@ def est_htf_fn_for(htf_df):
         return {"trend": "RANGING"}
     return f
 
-htf_frames = {}
-for tf in ("H4",):   # solo H4 para acelerar (D1/H1 opcional, no requerido para auditar formacion)
+
+def fmt(v):
     try:
-        htf_frames[tf] = load_frames(SYM, (tf,))[tf]
-    except FileNotFoundError:
-        pass
-ltf_df = load_frames(SYM, ("M15",))["M15"].iloc[:N_LTF].reset_index(drop=True)
-# HTF alineado por indice (aprox de la prueba; el auditor final usa ctx real si es viable)
-htf_df = None
-for tf in ("H4", "H1", "D1"):
-    if tf in htf_frames:
-        htf_df = htf_frames[tf].iloc[:N_LTF].reset_index(drop=True)
-        break
-est_fn = est_htf_fn_for(htf_df) if htf_df is not None else (lambda i: {"trend": "RANGING"})
-htf_poi_fn = make_htf_poi_fn(ltf_df, htf_frames) if htf_frames else None
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return "—"
+        return f"{float(v):.5f}"
+    except Exception:
+        return str(v)
 
-t0 = time.time()
-sigs, phase, exps = run_sequence_traced(
-    ltf_df, est_fn, SequenceConfig(),
-    htf_poi_fn=htf_poi_fn, ltf_tf="M15", htf="H4",
-    est_htf_ctx_fn=None,
-)
-print(f"motor emitio {len(sigs)} setups en {N_LTF} velas M15 ({time.time()-t0:.1f}s)")
 
-if len(sigs) < MAX_SETUPS:
-    print(f"AVISO: solo {len(sigs)} setups en la ventana; subo N_LTF y reintento no automatico.")
-sigs = sigs[:MAX_SETUPS]
+def audit_card(sig, ltf_df, htf_df, idx):
+    """Construye la ficha forense en el formato del cliente. Solo LEE lo emitido
+    + re-deriva hechos objetivos con los mismos detectores (sin 2da tesis)."""
+    dir_name = "LONG" if sig["direction"] == 1 else "SHORT"
+    sweep_i = int(sig["sweep_at"]); disp_i = int(sig["displace_at"])
+    bos_i = int(sig["bos_at"]); entry_i = int(sig["entry_at"])
+    out = []
+    out.append(f"SETUP #{idx+1}  [{SYM} M15]  dir={dir_name}")
+    out.append("")
+    # CONTEXTO HTF
+    htf_ctx = "UNKNOWN"
+    if htf_df is not None and len(htf_df) > bos_i:
+        htf_ctx = str(htf_df.iloc[bos_i].get("trend", "RANGING"))
+    out.append("CONTEXTO")
+    out.append(f"  HTF (H4 trend @ BOS)      {htf_ctx}")
+    out.append(f"  htf_aligned (emitido)     {'PASS' if sig.get('htf_aligned') else 'FAIL/BROKEN'}")
+    # LIQUIDEZ
+    sweep_row = ltf_df.iloc[sweep_i]
+    pool = "ssl_price" if sig["direction"] == 1 else "bsl_price"
+    liq_level = sweep_row.get(pool, np.nan)
+    mecha = sweep_row["low"] if sig["direction"] == 1 else sweep_row["high"]
+    out.append("LIQUIDEZ")
+    out.append(f"  BSL/SSL pool existe       DERIVABLE ({pool})")
+    out.append(f"  Liquidez tomada (wick)    OBSERVABLE @idx{sweep_i} = {fmt(mecha)}")
+    out.append(f"  Pool mas cercano          {fmt(liq_level)}  (emparejamiento por proximidad, NO causalidad)")
+    # FORMACION
+    out.append("FORMACION")
+    out.append(f"  SWEEP                     OBSERVABLE @idx{sweep_i} ({fmt(sweep_row['time']) if 'time' in sweep_row else '?'})")
+    out.append(f"  DISPLACEMENT              OBSERVABLE @idx{disp_i}")
+    out.append(f"  BOS/CHOCH                 OBSERVABLE @idx{bos_i} nivel={fmt(sig.get('bos_level'))}")
+    # CAUSALIDAD (las 3 uniones = UNKNOWN por diseno, no se infiere)
+    out.append("CAUSALIDAD")
+    out.append(f"  Sweep -> Disp.            UNKNOWN (orden temporal: {sweep_i}<{disp_i}; no identidad causal)")
+    out.append(f"  Disp. -> BOS              UNKNOWN (orden temporal: {disp_i}<{bos_i}; swing roto no embolsado)")
+    out.append(f"  BOS -> POI                UNKNOWN (anclaje por dir+ts, no identidad)")
+    # POI
+    out.append("POI")
+    out.append(f"  POI valido (zona)         OBSERVABLE zone=[{fmt(sig.get('zone_high'))},{fmt(sig.get('zone_low'))}]")
+    out.append(f"  Anclaje causal            UNKNOWN (poi_present={sig.get('poi_present')})")
+    # RETORNO
+    out.append("RETORNO")
+    entry_row = ltf_df.iloc[entry_i]
+    out.append(f"  Retorno al POI            OBSERVABLE @idx{entry_i} close={fmt(entry_row['close'])}")
+    # MACRO
+    out.append("MACRO")
+    out.append("  Noticias                  UNKNOWN (GAP-1: sin fuente macro conectada)")
+    # LTF
+    out.append("LTF")
+    out.append("  Confirmacion M5/M1        UNKNOWN (ejecucion fina no auditada en esta fase)")
+    # VEREDICTO
+    out.append("═" * 30)
+    out.append("VEREDICTO")
+    out.append("  SETUP FORMADO: INCOMPLETO (causal lineage UNKNOWN en 3 uniones)")
+    out.append("  CAUSA: linaje causal sweep->disp->bos->poi no conservado por el motor")
+    out.append("═" * 30)
+    out.append("")
+    return "\n".join(out)
 
-def row_at(i):
-    r = ltf_df.iloc[int(i)]
-    return {
-        "time": str(r.get("time")),
-        "open": float(r.get("open")), "high": float(r.get("high")),
-        "low": float(r.get("low")), "close": float(r.get("close")),
-        "bsl": float(r.get("bsl_price")) if "bsl_price" in ltf_df else None,
-        "ssl": float(r.get("ssl_price")) if "ssl_price" in ltf_df else None,
-        "sweep_low": float(r.get("sweep_low")) if "sweep_low" in ltf_df else None,
-        "sweep_high": float(r.get("sweep_high")) if "sweep_high" in ltf_df else None,
-        "atr": float(r.get("atr")) if "atr" in ltf_df and pd.notna(r.get("atr")) else None,
-        "displacement_bullish": bool(r.get("displacement_bullish", False)),
-        "displacement_bearish": bool(r.get("displacement_bearish", False)),
-        "displacement_mag": float(r.get("displacement_mag")) if "displacement_mag" in ltf_df else None,
-    }
 
-def nearest_pool(row, direction):
-    """RECONSTRUIDO: pool de liquidez mas cercano al wick del sweep. NO causalidad."""
-    pools = []
-    if direction == 1 and row["ssl"] is not None:
-        pools.append(("SSL", row["ssl"]))
-    if direction == -1 and row["bsl"] is not None:
-        pools.append(("BSL", row["bsl"]))
-    if not pools:
-        return None
-    wick = row["low"] if direction == 1 else row["high"]
-    pools.sort(key=lambda p: abs(p[1]-wick))
-    return pools[0]
+def main():
+    t0 = time.time()
+    ltf_df = build_features_like(load_parquet(SYM, "M15").iloc[:N_LTF].reset_index(drop=True))
+    # HTF: usa engine.bos.structure (mismo detector) para trend por indice
+    htf_raw = load_parquet(SYM, "H4").iloc[:N_LTF].reset_index(drop=True)
+    htf_feat = build_features_like(htf_raw)
+    est_fn = est_htf_fn_for(htf_feat)
+    htf_poi_fn = make_htf_poi_fn(ltf_df, {"H4": htf_raw})
 
-out = []
-out.append("# PILOT 1 — Fichas forenses de formacion (HYP-002)\n")
-out.append(f"Simbolo: {SYM} | Ventana M15: {N_LTF} velas | Setups auditados: {len(sigs)}")
-out.append("Motor: engine.sequence.run_sequence_traced (consumidor puro, SIN modificar engine/)\n")
-out.append("REGLA RECTORA: el objetivo NO es medir WR/PF/edge. Es comprobar si podemos")
-out.append("reconstruir/auditar la FORMACION REAL del setup SIN inventar causalidad.\n")
-out.append("Leyenda: PASS (observado+demostrado) | UNKNOWN (falta evidencia) |")
-out.append("BROKEN (linaje roto, no demostrable) | WARNING (cuadro fallback, no POI real)\n")
+    sigs, phase, exps = run_sequence_traced(
+        ltf_df, est_fn, SequenceConfig(),
+        htf_poi_fn=htf_poi_fn, ltf_tf="M15", htf="H4",
+        est_htf_ctx_fn=None,
+    )
+    print(f"motor emitio {len(sigs)} setups en {N_LTF} velas M15 ({time.time()-t0:.1f}s)")
 
-for n, s in enumerate(sigs, 1):
-    d = int(s["direction"])
-    r_sw, r_di, r_bo, r_en = row_at(s["sweep_at"]), row_at(s["displace_at"]), row_at(s["bos_at"]), row_at(s["entry_at"])
-    pool = nearest_pool(r_sw, d)
-    exp = s.get("expediente")
-    phases = exp.phase_events if exp is not None else []
-    out.append(f"\n{'='*70}\nSETUP #{n}  dir={'LONG' if d==1 else 'SHORT'}  entry_time={r_en['time']}\n{'='*70}")
-    out.append(f"Expediente (phase_events): {phases}")
-    out.append(f"htf_aligned={s.get('htf_aligned')} htf_reason={s.get('htf_reason')} poi_present={s.get('poi_present')}")
+    if len(sigs) == 0:
+        with open("research/hypotheses/HYP-002/pilot1_output.md", "w") as fh:
+            fh.write(f"# Piloto 1 HYP-002 — {SYM} M15\n\n0 setups en {N_LTF} velas. Subir N_LTF y reintentar (no automatico).\n")
+        return
 
-    out.append("\n[1] LIQUIDEZ -> SWEEP")
-    out.append(f"  OBSERVADO: wick sweep low={r_sw['low']} high={r_sw['high']} (OHLC real)")
-    out.append(f"  RECONSTRUIDO: pool mas cercano al wick = {pool} (derivado de bsl/ssl, NO embolsado)")
-    out.append("  INFERIDO: 'este pool fue barrido por ESTE sweep' = NO demostrable (solo coincide precio)")
-    out.append("  Veredicto: PASS (sweep ocurrio). Causalidad de pool = UNKNOWN")
+    cards = [f"# Piloto 1 HYP-002 — Auditoria de FORMACION (consumidor puro, sin WR/PF)\n",
+             f"Símbolo: {SYM} | Ventana M15: {N_LTF} velas | Setups auditados: {min(len(sigs), MAX_SETUPS)}\n",
+             "---\n"]
+    for k, sig in enumerate(sigs[:MAX_SETUPS]):
+        cards.append(audit_card(sig, ltf_df, htf_feat, k))
+    with open("research/hypotheses/HYP-002/pilot1_output.md", "w") as fh:
+        fh.write("\n".join(cards))
+    print(f"fichas escritas: {min(len(sigs), MAX_SETUPS)}")
 
-    out.append("\n[2] SWEEP -> DISPLACEMENT")
-    out.append(f"  OBSERVADO: displace bull={r_di['displacement_bullish']} bear={r_di['displacement_bearish']} idx {s['displace_at']} > sweep {s['sweep_at']}: {s['displace_at']>s['sweep_at']}")
-    out.append(f"  OBSERVADO: magnitud (DESCRIPTIVO, no gate) = {r_di['displacement_mag']} (atr alias avg_candle_range={r_di['atr']})")
-    out.append("  INFERIDO: 'el displacement nacio del nivel barrido' = NO demostrable (motor no liga swing_id)")
-    out.append("  Veredicto: PASS (dir correcta + POSTERIOR al sweep). Causalidad sweep->disp = UNKNOWN")
 
-    out.append("\n[3] DISPLACEMENT -> BOS/CHOCH")
-    out.append(f"  OBSERVADO: BOS idx {s['bos_at']} > displace {s['displace_at']}: {s['bos_at']>s['displace_at']}; bos_level={s.get('bos_level')}")
-    out.append("  INFERIDO: 'el BOS rompio el swing que este displacement produjo' = NO demostrable (swing_id roto no embolsado)")
-    out.append("  Veredicto: PASS (orden+dir+nivel). Causalidad disp->BOS = BROKEN (linaje no conservado)")
-
-    out.append("\n[4] BOS/CHOCH -> POI")
-    out.append(f"  OBSERVADO: poi_present(ancla HTF por dir+ts)={s.get('poi_present')}")
-    out.append(f"  OBSERVADO: zone_authority={s.get('zone_authority')} (None => motor la elimino del backtest)")
-    out.append("  INFERIDO: 'que BOS/CHOCH de HTF ancla EXACTAMENTE este POI LTF' = NO demostrable (anclaje por dir+ts)")
-    out.append(f"  Veredicto: {'PASS' if s.get('poi_present') else 'UNKNOWN'} (anclaje por timestamp, no identidad)")
-
-    out.append("\n[5] POI -> RETORNO")
-    out.append(f"  OBSERVADO: entry idx {s['entry_at']} > bos {s['bos_at']}: {s['entry_at']>s['bos_at']}; close={r_en['close']}")
-    out.append("  INFERIDO: 'el retorno es al POI ANCLADO y no a nivel arbitrario' = NO demostrable sin distinguir real/fallback")
-    out.append("  Veredicto: UNKNOWN (la signal dict no expone zone_high/low finitos; no se distingue real/fallback)")
-
-    out.append("\n[6] HTF -> SETUP")
-    out.append(f"  OBSERVADO: htf_aligned={s.get('htf_aligned')} reason={s.get('htf_reason')} (cascada D1->H4->H1)")
-    out.append("  INFERIDO: 'sesgo institucional profundo (premium/discount)' = NO embolsado como veredicto")
-    out.append(f"  Veredicto: {'PASS' if s.get('htf_aligned') else 'UNKNOWN'} (alineacion por dir; POI es bonus no veto)")
-
-    out.append("\n[7] LTF (M15) -> ejecucion fina")
-    out.append(f"  OBSERVADO: setup detectado en M15 (entry_at={s['entry_at']})")
-    out.append("  INFERIDO: 'entrada fina M5/M1 anclada' = NO disponible (exec_tf no usado en piloto)")
-    out.append("  Veredicto: UNKNOWN (ejecucion fina M5/M1 fuera de alcance del piloto)")
-
-    out.append("\n[8] MACRO/NEWS -> SETUP")
-    out.append("  OBSERVADO: NADA (el motor no consume calendario macro)")
-    out.append("  Veredicto: UNKNOWN — Motivo: no existe evidencia macro disponible. No se infiere ausencia de noticias.")
-
-    out.append("\n>>> VEREDICTO SETUP #{n}: SETUP EMITIDO | CAUSALIDAD = BROKEN (linaje disp->BOS no conservado)")
-    out.append(">>> El motor FORMO la secuencia (orden+dir observables) pero la identidad causal 1:1")
-    out.append(">>> no esta demostrada en SWEEP->DISP, DISP->BOS, BOS->POI (anclaje por ts).")
-
-result = "\n".join(out)
-out_path = "research/hypotheses/HYP-002/pilot1_output.md"
-with open(out_path, "w", encoding="utf-8") as f:
-    f.write(result)
-print(f"FICHAS ESCRITAS en {out_path}")
-for n, s in enumerate(sigs, 1):
-    print(f"  SETUP #{n}: dir={s['direction']} htf_aligned={s.get('htf_aligned')} poi_present={s.get('poi_present')}")
+if __name__ == "__main__":
+    main()
