@@ -30,7 +30,10 @@ ACTION: <qué necesita para avanzar>
 Al recibir una tarea, NO edites nada. El primer instinto es descubrir, no ejecutar.
 
 ## 2. DESCUBRE EL CONTEXTO
-- Lee `AGENTS.md` (Ley Fundamental) y el SDD relevante de `docs/specs/`.
+- Lee `AGENTS.md` (Ley Fundamental), el SDD de diseño de tu componente en `docs/tesis/SDD_*.md`
+  (si existe) y el meta-SDD de gobierno `docs/specs/SDD_GOVERNANCE.md` (DoR §1, DoD §2, estados
+  §3, verificación semántica §4). Si no hay SDD de diseño para tu componente, pídelo al
+  Investigador/Arquitecto y no implementes sin DoR cumplido.
 - Identifica a qué componente del motor/backtest afecta (`INDICE_MDS.md`).
 - Si es nueva lógica de estrategia → DEBE ir a `engine/` (nunca a `ict_backtest/`).
 

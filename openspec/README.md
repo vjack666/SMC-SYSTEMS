@@ -1,5 +1,11 @@
 # openspec — Almacén SDD de SMC-SYSTEMS
 
+> ⚠️ **LÍNEA BASE FORENSE CONGELADA (2026-08-07, baseline `9842394`).** Hoy el HEAD es
+> `76a8faa`; varios "riesgos" de esta auditoría ya se resolvieron (ej. `engine/poi_anchor.py`
+> ya está trackeado). `openspec/` es **evidencia histórica de la auditoría SDD-00**, NO el SDD
+> vivo del proyecto. El SDD vivo y su árbol de autoridad están en
+> `docs/specs/SDD_GOVERNANCE.md`. No competir con él; si se reabre, nuevo spec.
+
 Contexto y artefactos del flujo Spec-Driven Development. Inicializado el **2026-08-07** sobre la
 rama `feature/backtest-ict`. Modo de persistencia: **archivos** (Engram MCP no disponible).
 

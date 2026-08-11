@@ -10,8 +10,12 @@
 ## 1. Fidelidad al esquema (README.md / AGENTS.md)
 - Toda carpeta tiene UNA responsabilidad. No se mezclan datos, código y experimentos.
 - Nunca se crea una carpeta vacía. Solo se crea con contenido real.
-- `docs/tesis/` y `docs/specs/` son SDD; `engine/` es motor; `ict_backtest/` es consumidor;
-  `results/` son salidas; `data/` son datos; `scripts/` son herramientas.
+- SDD del proyecto (tres ubicaciones con jerarquía, ver `docs/specs/SDD_GOVERNANCE.md` §0):
+  `docs/tesis/SDD_*.md` = specs de **diseño de estrategia**; `docs/specs/SDD_GOVERNANCE.md`
+  = **meta-SDD** (proceso DoR/DoD/estados/semántica); `docs/specs/INDICE_MDS.md` = índice de
+  componentes. `openspec/` = línea base forense **congelada** (no SDD vivo).
+  `engine/` es motor; `ict_backtest/` es consumidor; `results/` salidas; `data/` datos;
+  `scripts/` herramientas.
 - Sigue `AGENTS.md` (Ley Fundamental) y `docs/specs/INDICE_MDS.md`.
 
 ## 2. Disciplina de renombres
@@ -29,8 +33,9 @@
 - Volumen = única excepción a cero-indicadores; SOLO confirmación (`volume_ratio`), NUNCA gate.
 
 ## 5. Sincronización de documentación
-- Crear/modificar módulo del motor o SDD ⇒ actualizar `docs/specs/INDICE_MDS.md` y
-  `AGENTS.md` si cambia la arquitectura. No quedan documentos huérfanos.
+- Crear/modificar módulo del motor o SDD ⇒ actualizar `docs/specs/INDICE_MDS.md`,
+  `docs/specs/SDD_GOVERNANCE.md` (si cambia proceso) y `AGENTS.md` si cambia la arquitectura.
+  No quedan documentos huérfanos.
 - Bitácora en `docs/bitacora/bitacora_trabajo.md`.
 - Los agentes de gobernanza (`agents/governance/*.md`) se enlazan desde `AGENTS.md` o
   `README.md` para no quedar huérfanos.
