@@ -24,6 +24,23 @@ status: en_prueba            # formulada -> auxiliares -> en_prueba -> promovida
 #   poblar ids+parent en el instante del evento. Modelo: LIQ->SWEEP->DISP->BOS->POI->RETURN como
 #   MarketObject con parent_object. DECISION: Arquitectura A (por evidencia + bajo coste). Cambios
 #   solo disenados, NO ejecutados. Anti-look-ahead: advance(idx>=_last_idx) ya existe. WR/PF bloqueados.
+# 2026-08-11 (Director autoriza Fase 5): MODIFICACION + FALSACION Arquitectura A. engineering/sequence.py
+#   + expediente.py: memoria causal minima aditiva (event_id/parent_event_id en PhaseEvent; MarketObject por
+#   evento con id+parent_object; state.sweep_id/displace_id/bos_id/entry_id; senal incluye event_ids+levels).
+#   SIN tocar logica de decision/thresholds/detectores/indices. SIN ATR/RSI/EMA. SIN macro-filtro. SIN WR/PF.
+#   GitHub Actions run 31504921344 (60k velas M15): 10 setups, 40 ids unicos, IDENTITY/LINK/CAUSALITY 10/10 OK,
+#   0 ciclos, cadena recorrible 10/10. Adversariales: parent futuro RECHAZADO, ghost CHILD_MISSING, invalidate OK,
+#   2 expedientes no comparten id. VEREDICTO Fase 5: A VALIDADA (linaje demostrable sin reconstruccion por proximidad).
+#   GAP MENOR: POI = zona derivable anclada al BOS (no MarketObject con id propio) => DERIVABLE, no OBSERVABLE;
+#   queda como UNKNOWN/RECONSTRUCTED para auditoria fina. Macro/News y LTF M5/M1 FUERA de fase (regla 11).
+phase5:
+  authorized_by: "Director (mensaje CEO, 2026-08-11)"
+  scope: "memoria causal minima en eventos que el motor YA decide; aditivo a run_sequence_traced"
+  changes: "engine/sequence.py (+_make_event_object, ids en transiciones, senal event_ids/levels); engine/expediente.py (PhaseEvent+advance+invalidate con event_id/parent_event_id)"
+  unchanged: "logica decision, detectores, thresholds, secuencia, filtros, indices, ATR/RSI/EMA, macro-filtro, WR/PF"
+  verdict: "A VALIDADA"
+  evidence: "GitHub Actions run 31504921344 (60k velas EURUSD M15); phase5_validation.py (regla 7+8)"
+  remaining_gap: "POI como id OBSERVABLE pendiente (hoy DERIVABLE/zona); Macro/News y LTF M5/M1 fuera de fase"
 pilot1:
   authorized_by: "Director (revision GitHub feature/backtest-ict)"
   rule: "NO medir WR/PF/edge; auditar formacion real; separar observado/reconstruido/inferido"

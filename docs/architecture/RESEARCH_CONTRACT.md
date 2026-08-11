@@ -754,6 +754,22 @@ DECISIÓN/MODIFICACIÓN separada, fuera de HYP-002 fase de lectura. Hasta entonc
 setup individual debe ser: RECONSTRUCTED (único) / RECONSTRUCTED / AMBIGUOUS / UNKNOWN — nunca PASS
 por proximidad.
 
+#### 16.7.18 Fase 5 — Modificación + Falsación Arquitectura A (2026-08-11, cliente = CEO, autorizado)
+
+Fase 4 eligió A. Fase 5 IMPLEMENTÓ la memoria causal mínima en engine/ (aditiva, sin tocar
+decisión). Cambios: `PhaseEvent` gana `event_id`/`parent_event_id`; `Expediente.advance`/`invalidate`
+los propagan; `SequenceState` gana `sweep_id/displace_id/bos_id/entry_id/event_objs`;
+`_make_event_object` crea un `MarketObject` por evento con `parent_object`=id del padre ya
+confirmado; la señal de `run_sequence_traced` incluye `event_ids` + `levels` (DERIVABLE de OHLC).
+Verificación: `phase5_validation.py` (regla 7 estructural + regla 8 adversarial) en GitHub
+Actions run 31504921344 (60k velas EURUSD M15): 10 setups, 40 ids únicos, IDENTITY/LINK/CAUSALITY
+10/10 OK, 0 ciclos, cadena recorrible 10/10; adversariales detectados (parent futuro RECHAZADO
+por guarda advance; GHOST marcado CHILD_MISSING; invalidate corta; 2 expedientes no comparten id).
+VEREDICTO: A VALIDADA — linaje demostrable sin reconstrucción por proximidad. GAP MENOR: el POI
+sigue siendo zona DERIVABLE anclada al BOS (no MarketObject con id propio OBSERVABLE); Macro/News
+y LTF M5/M1 FUERA de fase. WR/PF/edge BLOQUEADOS. Siguiente fase (cuando autorice el Director):
+cerrar GAP POI como OBSERVABLE y abrir Macro/News como contexto (no filtro).
+
 #### 16.7.17 Fase 4 — Decisión Arquitectónica: Identidad y Linaje Causal (2026-08-11, cliente = CEO)
 
 Fase 3 cerró con B FALSADA (77% ambiguo). Fase 4 es DISEÑO puro (sin tocar engine/). Documento:
