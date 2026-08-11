@@ -114,6 +114,9 @@ def audit_graph(sig):
         cid = ids.get(child_ph, ""); pid = ids.get(parent_ph, "")
         if not cid:
             continue
+        if cid not in ev:
+            out["link"] = "CHILD_MISSING"; out["issues"].append(f"{child_ph} id {cid} ausente en traza")
+            continue
         if pid and pid not in ev:
             out["link"] = "PARENT_MISSING"; out["issues"].append(f"{child_ph}->padre {pid} ausente")
             continue
