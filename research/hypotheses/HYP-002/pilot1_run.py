@@ -14,7 +14,7 @@ el contexto 6-TF por vela, que es prohibitivamente lento). La capa HTF se
 audita igual (htf_aligned por direccion). Disenado para correr rapido en
 GitHub Actions (Linux) sin colgar. Resultado -> pilot1_output.md.
 """
-import sys, time
+import sys, time, datetime
 import pandas as pd
 sys.path.insert(0, ".")
 from ict_backtest.data_feed import load_frames
