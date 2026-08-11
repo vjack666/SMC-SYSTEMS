@@ -663,13 +663,59 @@ Ejecutado como CEO del laboratorio (autonomía total, sin micro-dirección). Opc
 - H3: `Expediente.meta` solo `{symbol, ltf_tf}`; no `MarketObject[]` ni niveles.
 - H4/H5: GAP-1 macro y LTF fina → UNKNOWN por diseño (fuera de alcance del piloto).
 
-**Veredicto de fase (cierre de unidad científica):** **B) SETUP FORMADO / CAUSALITY BROKEN.**
-El motor lee y forma correctamente contexto, liquidez tomada, sweep, displacement, BOS, POI y
-retorno — pero la **identidad causal del linaje no está demostrada** (3 uniones UNKNOWN). No es
-"el setup perdió": es que **el setup no llega a estar completamente formado como cadena causal
-demostrable** con lo que el motor emite hoy. Reparaciones (enriquecer `Expediente` con
-`MarketObject[]` + linaje 1:1) son fase posterior separada. Orden de apertura de siguientes
-fases respetado: FORMACIÓN → VALIDACIÓN MACRO/NEWS → OOS/OTC → ESTADÍSTICA → EDGE.
+**Veredicto de fase (corrección de wording por el Director 2026-08-11):** **SETUP CANDIDATO —
+formación parcial demostrada; linaje causal 1:1 incompleto.** Tener los eventos ≠ demostrar que
+forman UN setup causal. Componentes demostrables; unidad causal NO demostrada. El motor lee y
+forma correctamente contexto, liquidez tomada, sweep, displacement, BOS, POI y retorno — pero la
+**identidad causal del linaje no está demostrada** (3 uniones UNKNOWN). No es "el setup perdió":
+es que **el setup no llega a estar completamente formado como cadena causal demostrable** con lo
+que el motor emite hoy. Reparaciones (enriquecer `Expediente` con `MarketObject[]` + linaje 1:1)
+son fase posterior separada. Auditoría de pérdida de información en §16.7.15. Orden de apertura
+de siguientes fases respetado: FORMACIÓN → VALIDACIÓN MACRO/NEWS → OOS/OTC → ESTADÍSTICA → EDGE.
+
+#### 16.7.15 Auditoría de Pérdida de Información — HYP-002 Fase 2 (2026-08-11, cliente = CEO)
+
+Misión del Director: determinar dónde se pierde la información para el linaje causal 1:1, SIN
+modificar engine/. Entregable: `research/hypotheses/HYP-002/INFO_LOSS_AUDIT.md`.
+
+Hallazgos de lectura forense (código real):
+- `MarketObject` (`engine/market_object.py`) TIENE `id`/`parent_object`/`related_objects`, pero
+  `engine/sequence.py` solo crea `MarketObject(type=CANDLE)` por vela. **Nunca se crea objeto
+  para sweep/disp/bos/poi con su id+parent.** Los detectores devuelven flags por vela SIN IDs.
+- `SequenceState` conserva índices + `bos_level/zone_*` internamente; la señal emitida
+  (`sequence.py:618-634`) NO copia `zone_high/zone_low`, y `bos_level` queda NaN a menudo (H1).
+- `Expediente` (`expediente.py`) guarda `PhaseEvent(phase,idx,time,condition)` — índice+timestamp,
+  SIN nivel, SIN id de objeto, SIN parent_event.
+- Precedente de reconstrucción offline (Arquitectura B): `engine/fvg_poi.fvg_for_bos` ya hace
+  BOS→POI por proximidad+dirección (idx). Mismo patrón extensible a SWEEP→DISP y DISP→BOS.
+
+Matriz (ver doc): niveles casi todos DERIVABLES desde OHLC por índice; lo que **NO existe en
+ningún lado** es IDENTIDAD ÚNICA y PARENT_EVENT (nunca se creó, no se "perdió").
+
+**Diagnóstico:** el problema es de **TRAZABILIDAD** (y parcialmente representación), NO de
+detección. Los eventos SMC se detectan; el motor opera por índices+dirección, no por grafo de
+objetos enlazados.
+
+**A vs B (por evidencia, no preferencia):**
+- **A** (motor conserva linaje): requiere tocar engine/ (crear MarketObject enlazados). Garantiza
+  1:1 en vivo; riesgo de regresión; contamina motor con preocupación de auditoría. Hoy NO existe.
+- **B** (auditor reconstruye offline): el motor intacto emite índices+dirección+niveles parciales;
+  el auditor re-deriva por proximidad+dirección con `detectors.*` + `fvg_for_bos`. **Determinista**
+  (detectores puros sobre OHLC, sin estado/random). El piloto ya reconstruyó la zona POI offline.
+  Límite: linaje por inferencia de proximidad, no identidad estricta; ambiguo si dos eventos del
+  mismo tipo colapsan en la ventana.
+
+**Determinación:** para DEMOSTRAR LA FORMACIÓN (esta fase), **B está respaldada por la evidencia
+y respeta la Ley Fundamental** (motor = única fuente de decisión; auditor = consumidor puro). A
+queda postergado hasta demostrar que B es ambiguo en la práctica.
+
+**GAP-1 macro:** `noticias_widget.py` tiene noticias FIJAS hardcoded (sin feed por timestamp).
+Fase: registrar SOLO contexto observable (qué ocurrió, cuándo, relación temporal) — NO filtro de
+aprobación. Requiere fuente de eventos macro con timestamp para relación temporal real.
+
+**Veredicto Fase 2:** problema de trazabilidad, no detección. Arquitectura B suficiente para
+demostrar formación sin tocar engine/. Identidad 1:1 estricta imposible sin A (o IDs derivados
+deterministas en el auditor = híbrido A-lite en B).
 
 ---
 

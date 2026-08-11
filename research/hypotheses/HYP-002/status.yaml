@@ -11,8 +11,13 @@ status: en_prueba            # formulada -> auxiliares -> en_prueba -> promovida
 #   Paso 1 (HECHO): SETUP_AUDITOR_RECONSTRUCTION_AUDIT.md — puerta CERRADA: sin 2da tesis.
 #   Paso 2 (HECHO, cliente 2026-08-11 = CEO): ejecutar piloto como CEO. Opción B (pilot1_run.py
 #   SIN import ict_backtest). GitHub Actions run 31497898201: 4 setups EURUSD M15 reales,
-#   fichas en pilot1_output.md. MAPA en SETUP_FORMATION_MAP.md. Veredicto fase:
-#   SETUP FORMADO / CAUSALITY BROKEN (3 uniones UNKNOWN; motor no conserva linaje causal).
+#   fichas en pilot1_output.md. MAPA en SETUP_FORMATION_MAP.md.
+#   Veredicto fase (corregido por Director): SETUP CANDIDATO — formación parcial demostrada;
+#   linaje causal 1:1 incompleto (3 uniones UNKNOWN; motor no conserva identidad de objetos).
+# 2026-08-11 (cliente=CEO, Fase 2): AUDITORÍA DE PÉRDIDA DE INFORMACIÓN. INFO_LOSS_AUDIT.md.
+#   Hallazgo: problema de TRAZABILIDAD, no detección. IDs/parent nunca se crean. Arquitectura B
+#   (auditor reconstruye offline, determinista) respaldada por evidencia; A postergada. GAP-1 macro
+#   = noticias hardcoded (sin feed timestamp) -> solo contexto observable. NO se tocó engine/.
 pilot1:
   authorized_by: "Director (revision GitHub feature/backtest-ict)"
   rule: "NO medir WR/PF/edge; auditar formacion real; separar observado/reconstruido/inferido"
