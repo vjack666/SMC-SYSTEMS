@@ -770,6 +770,35 @@ sigue siendo zona DERIVABLE anclada al BOS (no MarketObject con id propio OBSERV
 y LTF M5/M1 FUERA de fase. WR/PF/edge BLOQUEADOS. Siguiente fase (cuando autorice el Director):
 cerrar GAP POI como OBSERVABLE y abrir Macro/News como contexto (no filtro).
 
+#### 16.7.19 Fase 6 — Cierre de la Formación Causal Completa (2026-08-11, cliente = CEO, autorizado)
+
+Director autorizó cerrar la arquitectura causal completa. Auditoría previa (lectura de
+`engine/market_object.py`, `sequence.py`, `expediente.py`, `poi_anchor.py`) confirmó que
+`MarketObject` YA definía la ontología correcta: `Role.POI` (POI institucional HTF, solo D1/H4/H1)
+vs `Role.REFINEMENT` (FVG/OB LTF). No se inventó ontología. Cambios ADITIVOS en engine/:
+
+- `SequenceState` +`liquidity_id/poi_id/refinement_id`; `_make_event_object` acepta `role/obj_type`.
+- Nacimiento SWEEP: crea `MarketObject` LIQUIDITY (nivel `ssl_price`/`bsl_price`) y lo registra en
+  el Expediente; SWEEP padre = LIQUIDITY.
+- Transición BOS: crea `POI` (`role=POI`, origin_tf=HTF) SOLO si `htf_poi_fn` True, y `REFINEMENT`
+  (`role=REFINEMENT`, zona FVG/OB cacheada) con padre = POI (o BOS si no hay POI). Ambos registrados
+  en el Expediente. **POI sin ancla HTF => nodo ausente (honesto, no simulado).**
+- ENTRY/RETURN: padre = REFINEMENT (no BOS). Señal expone 7 `event_ids` + nivel de liquidez.
+
+Cadena resultante: `LIQUIDITY → SWEEP → DISPLACEMENT → BOS → POI(HTF) → REFINEMENT(LTF) → RETURN`.
+SIN tocar lógica de decisión/detectores/thresholds/índices; SIN ATR/RSI/EMA; SIN macro-filtro;
+SIN WR/PF. `run_sequence`/`run_sequence_traced` firma intacta.
+
+Verificación: `phase6_validation.py` (regla 7 estructural + regla 8/9 adversariales, consumidor
+puro) en GitHub Actions run 31511916595 (60k velas EURUSD M15): 10 setups, 70 ids únicos,
+IDENTITY/LINK/CAUSALITY 10/10 OK, 0 ciclos, cadena RETURN→LIQUIDITY 10/10, POI HTF anclado 10/10.
+Adversariales: parent futuro RECHAZADO; GHOST→CHILD_MISSING; `invalidate()` conserva historia;
+2 expedientes distintos NO comparten id; **PADRE INCORRECTO (RETURN→BOS en vez de REFINEMENT)
+→PARENT_MISMATCH** (demuestra que NO elige por proximidad: fuente = parent_event_id en origen).
+VEREDICTO: **A VALIDADA (completa)** — la relación `BOS→POI` y `POI→RETURN` ahora es OBSERVABLE
+(no DERIVABLE/INFERIDA). GAP RESTANTE (fuera de fase, no simulado): Macro/News contexto UNKNOWN;
+LTF M5/M1 confirmation fuera de fase; POI sin ancla HTF ausente. Documento:
+`research/hypotheses/HYP-002/PHASE6_AUDIT_CLOSURE.md`. WR/PF/edge siguen BLOQUEADOS.
 #### 16.7.17 Fase 4 — Decisión Arquitectónica: Identidad y Linaje Causal (2026-08-11, cliente = CEO)
 
 Fase 3 cerró con B FALSADA (77% ambiguo). Fase 4 es DISEÑO puro (sin tocar engine/). Documento:

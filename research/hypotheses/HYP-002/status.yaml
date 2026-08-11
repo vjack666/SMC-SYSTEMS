@@ -33,6 +33,17 @@ status: en_prueba            # formulada -> auxiliares -> en_prueba -> promovida
 #   2 expedientes no comparten id. VEREDICTO Fase 5: A VALIDADA (linaje demostrable sin reconstruccion por proximidad).
 #   GAP MENOR: POI = zona derivable anclada al BOS (no MarketObject con id propio) => DERIVABLE, no OBSERVABLE;
 #   queda como UNKNOWN/RECONSTRUCTED para auditoria fina. Macro/News y LTF M5/M1 FUERA de fase (regla 11).
+# 2026-08-11 (Director autoriza Fase 6): CIERRE DE LA FORMACION CAUSAL COMPLETA. engine/sequence.py + expediente.py
+#   (aditivo): LIQUIDITY (raiz, nivel BSL/SSL) -> SWEEP -> DISPLACEMENT -> BOS -> POI(role=POI, HTF, si htf_poi_fn)
+#   -> REFINEMENT(role=REFINEMENT, FVG/OB LTF, padre POI o BOS) -> RETURN (padre REFINEMENT, no BOS). Ontologia
+#   respetada (MarketObject Role.POI solo HTF). Expediente ahora lleva fases LIQUIDITY/POI/REFINEMENT => historia
+#   completa. SIN tocar logica decision/detectores/thresholds/indices/ATR-EMA. SIN macro-filtro. SIN WR/PF.
+#   GitHub Actions run 31511916595 (60k velas M15): 10 setups, 70 ids unicos, IDENTITY/LINK/CAUSALITY 10/10 OK,
+#   0 ciclos, cadena RETURN->LIQUIDITY 10/10, POI HTF anclado 10/10. Adversariales: parent futuro RECHAZADO,
+#   ghost CHILD_MISSING, invalidate conserva historia, 2 expedientes no comparten id, PADRE INCORRECTO (RETURN->BOS)
+#   marcado PARENT_MISMATCH => NO elige por proximidad. VEREDICTO Fase 6: A VALIDADA (completa).
+#   GAP RESTANTE: Macro/News contexto UNKNOWN (fuera de fase); LTF M5/M1 confirmation fuera de fase; POI sin ancla
+#   HTF => nodo POI ausente (honesto, no simulado).
 phase5:
   authorized_by: "Director (mensaje CEO, 2026-08-11)"
   scope: "memoria causal minima en eventos que el motor YA decide; aditivo a run_sequence_traced"
@@ -80,6 +91,17 @@ relation_to_HYP_001:
   HYP-001: "CONSERVADA como trazabilidad del paradigma anterior; exp_001_blocked: true"
   HYP_002_role: "hipótesis rectora bajo regla nueva; cadena LECTURA->FORMACION->VALIDACION MACRO->SETUP AUDITADO->PERFORMANCE"
 next_gate: "Diseñar EXP de LECTURA que reconstruya la cadena causal vela por vela (sin medir WR). Autorización del Director."
+phase6:
+  authorized_by: "Director (mensaje CEO, 2026-08-11)"
+  scope: "cierre de la formacion causal completa: LIQUIDITY+POI/REFINEMENT como nodos de linaje; ontologia POI-HTF/REFINEMENT-LTF preservada"
+  changes: "engine/sequence.py (_make_event_object role/obj_type; SequenceState +liquidity_id/poi_id/refinement_id; nacimiento SWEEP crea LIQUIDITY y la registra; BOS crea POI+REFINEMENT y los registra; RETURN padre=REFINEMENT; senal expone 7 event_ids + nivel liquidity); engine/expediente.py (fases LIQUIDITY/POI/REFINEMENT en linaje)"
+  unchanged: "logica decision, detectores, thresholds, secuencia, filtros, indices, run_sequence/run_sequence_traced (firma intacta), ATR/RSI/EMA, macro-filtro, WR/PF"
+  ontology_preserved: "MarketObject Role.POI solo HTF (D1/H4/H1); FVG/OB LTF = REFINEMENT. POI sin ancla HTF => nodo ausente (no simulado)"
+  verdict: "A VALIDADA (completa)"
+  evidence: "GitHub Actions run 31511916595 (60k velas EURUSD M15); phase6_validation.py (regla 7+8+9 adversariales incl. padre incorrecto)"
+  adversarial: "parent futuro RECHAZADO; ghost CHILD_MISSING; invalidate conserva historia; 2 expedientes no comparten id; PADRE INCORRECTO (RETURN->BOS) => PARENT_MISMATCH (no proximidad)"
+  remaining_gap: "Macro/News contexto UNKNOWN (fuera de fase); LTF M5/M1 confirmation fuera de fase; POI sin ancla HTF = nodo ausente (honesto)"
+
 setup_spec: "SETUP_SPEC.md (anatomía por capas + linaje causal + macro contexto + umbral TBD)"
 setup_auditor_design: "SETUP_AUDITOR_DESIGN.md (visión general: juez forense, no 2do motor)"
 setup_auditor_protocol: "SETUP_AUDITOR_PROTOCOL.md (protocolo EXP-READ-001: entrada/salida, taxonomía 11 canónica resuelve 11vs9, PASS/FAIL/UNKNOWN, causalidad, COMPLETE, muestra 5-10->50->100)"
