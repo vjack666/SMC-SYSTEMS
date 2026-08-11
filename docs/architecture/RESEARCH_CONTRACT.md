@@ -754,4 +754,35 @@ DECISIÓN/MODIFICACIÓN separada, fuera de HYP-002 fase de lectura. Hasta entonc
 setup individual debe ser: RECONSTRUCTED (único) / RECONSTRUCTED / AMBIGUOUS / UNKNOWN — nunca PASS
 por proximidad.
 
+#### 16.7.17 Fase 4 — Decisión Arquitectónica: Identidad y Linaje Causal (2026-08-11, cliente = CEO)
+
+Fase 3 cerró con B FALSADA (77% ambiguo). Fase 4 es DISEÑO puro (sin tocar engine/). Documento:
+`research/hypotheses/HYP-002/PHASE4_ARCHITECTURE_DECISION.md`. Workstreams delegados a roles del
+repo: Arquitectura, Investigación SMC/ICT, Auditoría, Data/Trazabilidad (lectura + diseño, 0 modifs).
+
+Hallazgo de verificación cruzada: `MarketObject` YA EXISTE en `engine/market_object.py` (L49-75) con
+`id/parent_object/related_objects/bar_index/bar_time`; `engine/sequence.py:50` lo importa de ahí.
+`ict_backtest/market_object.py` es solo shim/re-export. → **Arquitectura A es barata**: el modelo de
+objeto ya está en el motor; solo falta POBLARLO con id+parent en el instante del evento.
+
+Estado actual: trazabilidad TEMPORAL (índices en cascada + Expediente con guarda anti-look-ahead ya
+existente en expediente.py L99-112), pero SIN identidad causal de objetos (PhaseEvent sin id/parent;
+SequenceState sin ids por evento; señal emitida descarta zone_high/zone_low y niveles sweep/disp).
+
+Modelo causal: LIQUIDITY→SWEEP→DISPLACEMENT→BOS/CHOCH→POI→RETURN, cada evento = MarketObject con
+`parent_object` = id del evento padre ya cerrado. Grafo resuelto en el instante (no post-hoc) →
+AMBIGUOUS desaparece (el motor ya elige 1 evento por fase). Anti-look-ahead: parent apunta a evento
+con idx <= _last_idx; guarda advance(idx >= _last_idx) ya blinda.
+
+DECISIÓN RECOMENDADA: **Arquitectura A** (por evidencia Fase 3 + bajo coste). Cambios (SOLO diseño,
+no ejecutados): (1) sequence.py crea MarketObject con id+parent por fase y guarda xxx_id en
+SequenceState; (2) expediente.py PhaseEvent gana event_id/parent_event_id; (3) señal emitida incluye
+zone_high/zone_low + niveles sweep/displacement. Riesgos: regresión de única fuente de decisión
+(mitigación: ids puros, sin rama nueva); acople auditoría→motor (mitigación: grafo subproducto de lo
+que el motor ya decide); ruptura backtester (mitigación: señal aditiva). Criterios de falsación de A:
+parent con idx>child (look-ahead), parent None donde debiera haberlo, o >5% AMBIGUOUS en 50 setups
+post-impl. Validación posterior (fase MODIFICACIÓN, tras autorización): implementar + re-correr
+auditor esperando UNIQUE≈100%, luego GAP-1 macro (contexto, no filtro), luego OOS/OTC→ESTADÍSTICA→EDGE.
+WR/PF/edge BLOQUEADOS hasta FORMACIÓN validada. NO se modifica engine/ sin OK expreso del Director.
+
 ---
