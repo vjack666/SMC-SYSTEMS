@@ -1,0 +1,40 @@
+name: PILOT-B-FALSIFIABILITY
+
+on:
+  push:
+    branches: [feature/backtest-ict]
+    paths:
+      - 'research/hypotheses/HYP-002/b_falsifiability.py'
+      - '.github/workflows/pilot-b-falsifiability.yml'
+      - 'detectors/**'
+      - 'engine/**'
+  workflow_dispatch:
+
+jobs:
+  pilot-b:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (incluye data/raw commiteado, no LFS)
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install solo dependencias del piloto (rapido)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy pyarrow
+
+      - name: Correr Prueba de Falsabilidad Arquitectura B (consumidor puro, sin tocar engine/)
+        run: |
+          python research/hypotheses/HYP-002/b_falsifiability.py
+
+      - name: Subir reporte como artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pilot-b-report
+          path: research/hypotheses/HYP-002/b_falsifiability_report.md
+          if-no-files-found: warn
