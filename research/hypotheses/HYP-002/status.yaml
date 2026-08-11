@@ -6,10 +6,13 @@ origin:
   from_paradigm_shift: "Sustituye a HYP-001 como hipótesis RECTORA; HYP-001 queda como trazabilidad."
   prompted_by: "Revisión del Director en GitHub (rama feature/backtest-ict)"
 status: en_prueba            # formulada -> auxiliares -> en_prueba -> promovida|refutada|inconclusa
-# 2026-08-10 (final del dia): Piloto 1 AUTORIZADO por el Director bajo regla
-# rectora estricta (14 condiciones). En EJECUCION (background) via
-# run_sequence_traced (consumidor puro, sin tocar engine/). Objetivo:
-# reconstruir/auditar la FORMACION del setup SIN inventar causalidad.
+# 2026-08-10: Piloto 1 AUTORIZADO por el Director bajo regla rectora estricta (14 condiciones).
+# 2026-08-11 (orden Director): NO ejecutar piloto hasta cerrar puerta de RECONSTRUCCION.
+#   Paso 1 (HECHO): SETUP_AUDITOR_RECONSTRUCTION_AUDIT.md — clasifica cada relacion causal del
+#   auditor como OBSERVABLE / DERIVABLE SIN INTERPRETACION / INTERPRETACION NUEVA. Puerta
+#   CERRADA Y CONSISTENTE: el auditor NO introduce 2da tesis; usa los MISMOS detectores del motor.
+#   Paso 2 (PENDIENTE autorizacion): reescribir pilot1_run.py (Opcion B: evita import ict_backtest,
+#   que arrastra rules.py bug datetime) y ejecutar 5 setups como auditoria de formacion.
 pilot1:
   authorized_by: "Director (revision GitHub feature/backtest-ict)"
   rule: "NO medir WR/PF/edge; auditar formacion real; separar observado/reconstruido/inferido"
@@ -58,6 +61,7 @@ setup_auditor_reconciliation: "SETUP_AUDITOR_RECONCILIATION.md (reconciliación 
 setup_auditor_data_forensics: "SETUP_AUDITOR_DATA_FORENSICS.md (auditoría forense de datos: run_sequence_traced expone Expediente; parquet raw SOLO OHLC; 5/6 forex symbols con D1/H4/M15, EURUSD+H1; linaje no embolsado)"
 setup_auditor_atr_audit: "SETUP_AUDITOR_ATR_AUDIT.md (auditoría contradicción ATR vs Ley Fundamental: motor usa geometría pura avg_candle_range, no indicador; C2/C5 blindados sin ATR)"
 setup_auditor_pilot_prep: "PILOT_PREP_MATRIX.md (matriz de preparación: el motor guarda SOLO indices, no ligaduras; 3 uniones no demuestran identidad causal -> UNKNOWN/BROKEN; PILOTO LISTO)"
+setup_auditor_reconstruction_audit: "SETUP_AUDITOR_RECONSTRUCTION_AUDIT.md (auditoria de reglas de reconstruccion offline 2026-08-11: cada relacion causal del auditor clasificada OBSERVABLE/DERIVABLE/INTERPRETACION_NUEVA; puerta CERRADA: sin 2da tesis escondida; 3 uniones = UNKNOWN; macro GAP-1)"
 reconcile_note: "Regla superior: el auditor NO reconstruye retrospectivamente causalidad no observable -> UNKNOWN/BROKEN. Piloto = 5 EMISIONES del motor, no setups completos. Emisiones NO persistidas; obtenibles via run_sequence_traced sin tocar engine/. ATR auditado: la columna 'atr' del motor es alias de avg_candle_range (geometría pura); C2/C5 blindados sin indicador. Causalidad 1:1 no demostrable con datos actuales (motor guarda solo indices); piloto emite UNKNOWN/BROKEN donde falte identidad."
 threshold_status: "R_recon NO fijado numericamente (decisión Director 2026-08-10); SETUP_SPEC.md debe operar primero"
 freeze_other_lines:

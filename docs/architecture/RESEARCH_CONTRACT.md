@@ -603,6 +603,37 @@ SWEEP→DISP, DISP→BOS, BOS→POI. Cada setup emitido → veredicto agregado
 dónde el edificio lee realmente vs. donde narra después de los hechos. Reparaciones,
 si las hay, serán fase posterior separada (no durante el piloto).
 
+#### 16.7.13 Puerta de reconstrucción offline del SETUP AUDITOR (2026-08-11)
+
+Orden del Director (2026-08-11): **NO ejecutar el piloto hasta cerrar la puerta de
+reconstrucción offline** — auditoría de que cada relación causal que el auditor pretende
+recuperar desde OHLC usa una regla YA DEFINIDA por la tesis/código del repo, y que el
+auditor NO introduce una segunda interpretación ICT/SMC escondida.
+
+Entregable: `research/hypotheses/HYP-002/SETUP_AUDITOR_RECONSTRUCTION_AUDIT.md`
+(auditoría forense de lectura, cero ejecución). Hallazgo central confirmado en código
+(`engine/sequence.py`, `engine/expediente.py`): el `Expediente` conserva SOLO índices +
+timestamps de fases (`sweep_idx < displace_idx < bos_idx < entry_at`) + dirección; NO
+conserva `MarketObject[]` ni niveles de liquidez/sweep/POI. El linaje causal no se guarda
+como identidad, solo como orden+dirección.
+
+Clasificación por elemento:
+- **OBSERVABLE** (dato directo del emitido): htf_aligned, sweep ocurrió+dir+ts, displacement
+  ocurrió+dir, BOS ocurrió+dir, POI zona (`zone_*`), retorno al POI, poi_present.
+- **DERIVABLE SIN INTERPRETACIÓN** (mismos detectores del motor sobre el OHLC): HTF bias
+  (`detect_market_structure`), pools BSL/SSL (`detect_liquidity`), niveles de mecha sweep
+  (`sweep_low/high`), BOS rompió "un swing" (`ms["swing_*"]`).
+- **INTERPRETACIÓN NUEVA = PROHIBIDA** (se marca **UNKNOWN**, no se infiere): displacement←sweep
+  (causal), BOS←swing específico (causal), POI←BOS LTF (causal). El motor solo exige
+  proximidad temporal (`displace_gap`/`bos_gap`), no causalidad.
+- **GAP-1** (sin fuente): MACRO/NEWS → siempre UNKNOWN.
+
+Veredicto de la puerta: **CERRADA Y CONSISTENTE**. El auditor usa los MISMOS detectores que
+el motor; no redefine BOS/swing/POI. No hay segunda tesis escondida. Las 3 uniones marcadas
+INTERPRETACIÓN NUEVA ya estaban previstas en el protocolo como UNKNOWN/BROKEN y el auditor las
+deja así. Ejecución diferida a Opción B (reescribir `pilot1_run.py` evitando el import de
+`ict_backtest` que arrastra `rules.py` bug `datetime`, para no contaminar el objeto auditado).
+
 ---
 
 *Diseño puro del contrato. Pendiente de autorización del Director para crear/migrar `research/`.*
