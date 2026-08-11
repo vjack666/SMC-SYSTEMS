@@ -101,10 +101,17 @@ class SequenceState:
     zone_authority: Any = None     # Fase C (C2/C3): ZoneAuthority anotada (peso de confianza)
     htf_aligned: bool = True       # A1 (Brecha A1): ¿la cascada D1->H4->H1 permite la dir?
     htf_reason: str = "ok"         # A1: motivo del filtro top-down (observabilidad)
-    poi_present: Any = None        # Brecha A (Fase C): ¿hay POI HTF anclado en dir? (bonus, no gate)
+    poi_present: Any = None          # Brecha A (Fase C): ¿hay POI HTF anclado en dir? (bonus, no gate)
     expediente: Any = None          # B5: Expediente por señal (Ley 8/7/4)
     invalidation_rules: list = field(default_factory=list)  # B3: reglas congeladas al nacimiento
     history: list = field(default_factory=list)
+    # Fase 5 (Arquitectura A): memoria causal minima. ids de cada evento ya
+    # decidido por el motor; parent apunta a id YA confirmado (anti-look-ahead).
+    sweep_id: str = ""
+    displace_id: str = ""
+    bos_id: str = ""
+    entry_id: str = ""
+    event_objs: dict = field(default_factory=dict)  # id -> MarketObject del evento
 
     def reset(self):
         self.phase = "IDLE"
@@ -123,6 +130,11 @@ class SequenceState:
         self.poi_present = None
         self.expediente = None
         self.invalidation_rules = []
+        self.sweep_id = ""
+        self.displace_id = ""
+        self.bos_id = ""
+        self.entry_id = ""
+        self.event_objs = {}
 
     def note(self, tag: str, i: int, extra: str = ""):
         self.history.append((tag, i, extra))
@@ -282,9 +294,41 @@ def _direction_from_bias(bias: str, counter_trend: bool) -> int:
     return 0
 
 
+def _make_event_object(symbol, ltf_tf, event_type, direction, i, time, level,
+                        parent_id, meta) -> "MarketObject":
+    """Fase 5 (Arquitectura A): crea el MarketObject de UN evento de secuencia.
+
+    `id` es uuid unico (no hash) para evitar colision entre eventos del mismo
+    idx. `parent_object` apunta al id del evento padre YA confirmado. Anti-
+    look-ahead: el llamador solo pasa parent_id de un evento con idx <= i.
+    El nivel es DERIVABLE de OHLC (sin indicadores).
+    """
+    from uuid import uuid4
+    obj = MarketObject(
+        type=ObjectType[event_type] if event_type in ObjectType.__members__ else ObjectType.CANDLE,
+        origin_tf=ltf_tf,
+        role=Role.CONTEXT,
+        direction=int(direction),
+        zone_high=float(level) if level == level else float("nan"),
+        zone_low=float(level) if level == level else float("nan"),
+        creation_time=time,
+        state=ObjectState.CREATED,
+        bar_index=int(i),
+        bar_time=time,
+        parent_object=parent_id or None,
+        meta=dict(meta or {}),
+        symbol=symbol,
+    )
+    return obj
+
+
 def _build_expediente(symbol: str, ltf_tf: str, direction: int, i: int,
-                      time, birth_condition: str) -> "Expediente":
-    """B5: crea el Expediente en el nacimiento (sweep) y registra SWEEP."""
+                      time, birth_condition: str) -> "tuple[Expediente, MarketObject]":
+    """B5: crea el Expediente en el nacimiento (sweep) y registra SWEEP.
+
+    Fase 5: el evento SWEEP recibe su propio MarketObject con id; su padre es
+    la liquidez (ausente como objeto explicito) -> parent_object="" (raiz).
+    """
     exp = Expediente.open(
         symbol=symbol,
         tf=ltf_tf,
@@ -295,16 +339,22 @@ def _build_expediente(symbol: str, ltf_tf: str, direction: int, i: int,
         invalidation_rule="",  # se predefine en el nacimiento (B3)
         meta={"symbol": symbol, "ltf_tf": ltf_tf},
     )
-    exp.advance("SWEEP", i, time, birth_condition)
-    return exp
+    # Evento SWEEP: raiz del linaje (parent = liquidez implícita, no objetada).
+    sweep_obj = _make_event_object(symbol, ltf_tf, "SWEEP", direction, i, time,
+                                   float("nan"), "", {"phase": "SWEEP", "condition": birth_condition})
+    exp.advance("SWEEP", i, time, birth_condition,
+                event_id=sweep_obj.id, parent_event_id="")
+    return exp, sweep_obj
 
 
 def _advance_expediente(exp: "Expediente | None", phase: str, i: int, time,
-                        condition: str = "") -> None:
+                        condition: str = "", event_id: str = "",
+                        parent_event_id: str = "") -> None:
     if exp is None:
         return
     try:
-        exp.advance(phase, i, time, condition)
+        exp.advance(phase, i, time, condition, event_id=event_id,
+                    parent_event_id=parent_event_id)
     except ValueError:
         # Guarda anti-look-ahead: si algo intenta registrar idx menor, no
         # rompe la señal (defensivo). No debe ocurrir en flujo normal.
@@ -529,11 +579,15 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 state.sweep_idx = i
                 state.note("SWEEP", i)
                 # B5: Expediente nace con el sweep (Ley 7 unicidad por id hash).
-                state.expediente = _build_expediente(
+                # Fase 5 (Arq A): guarda el id del evento SWEEP para enlazar hijos.
+                _exp, _sweep_obj = _build_expediente(
                     obj.meta.get("symbol", "") or "",
                     ltf_tf, target, i, obj.meta.get("time"),
                     ("SWEEP_DOWN@LTF" if target == 1 else "SWEEP_UP@LTF"),
                 )
+                state.expediente = _exp
+                state.sweep_id = _sweep_obj.id
+                state.event_objs[_sweep_obj.id] = _sweep_obj
                 # B3: congela las reglas de invalidacion en el nacimiento.
                 # build_rules usa estructura pura cerrada hasta el sweep.
                 state.invalidation_rules = build_rules(
@@ -560,7 +614,16 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 state.phase = "DISPLACE_DONE"
                 state.displace_idx = i
                 state.note("DISPLACE", i)
-                _advance_expediente(state.expediente, "DISPLACE", i, obj.meta.get("time"))
+                # Fase 5 (Arq A): evento DISPLACEMENT, padre = SWEEP ya confirmado.
+                _level = float(obj.meta.get("close", np.nan))
+                _disp_obj = _make_event_object(
+                    obj.meta.get("symbol", "") or "", ltf_tf, "DISPLACEMENT",
+                    target, i, obj.meta.get("time"), _level, state.sweep_id,
+                    {"phase": "DISPLACE"})
+                state.displace_id = _disp_obj.id
+                state.event_objs[_disp_obj.id] = _disp_obj
+                _advance_expediente(state.expediente, "DISPLACE", i, obj.meta.get("time"),
+                                    event_id=_disp_obj.id, parent_event_id=state.sweep_id)
                 phase_seen["DISPLACE"] += 1
         elif state.phase == "DISPLACE_DONE":
             if i - state.displace_idx > _effective_bos_gap(cfg, i, obj, est_htf, objs, bos_table):
@@ -579,6 +642,13 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     state.bos_level = float(obj.meta.get("bos_level", np.nan))
                 except (TypeError, ValueError):
                     state.bos_level = float("nan")
+                # Fase 5 (Arq A): evento BOS, padre = DISPLACEMENT ya confirmado.
+                _bos_obj = _make_event_object(
+                    obj.meta.get("symbol", "") or "", ltf_tf, "BOS",
+                    target, i, obj.meta.get("time"), state.bos_level, state.displace_id,
+                    {"phase": "BOS"})
+                state.bos_id = _bos_obj.id
+                state.event_objs[_bos_obj.id] = _bos_obj
                 # TRAZAR EL CUADRO: usar la zona cacheada (FVG/OB del tramo
                 # sweep->displacement, memoria arriba), NO la vela del BOS donde
                 # el imbalance ya no esta. El trader marca ese cuadro y ESPERA
@@ -595,7 +665,8 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                         state.zone_high = state.bos_level + 0.5 * atr
                         state.zone_low = state.bos_level - 0.5 * atr
                 state.note("BOS", i)
-                _advance_expediente(state.expediente, "BOS", i, obj.meta.get("time"))
+                _advance_expediente(state.expediente, "BOS", i, obj.meta.get("time"),
+                                    event_id=_bos_obj.id, parent_event_id=state.displace_id)
                 phase_seen["BOS"] += 1
         elif state.phase == "BOS_DONE":
             if i - state.bos_idx > _effective_bos_gap(cfg, i, obj, est_htf, objs, bos_table):
@@ -612,7 +683,16 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 # B5: cierra el expediente (ENTRY) y lo adjunta a la señal.
                 _exp = state.expediente
                 if _exp is not None:
-                    _advance_expediente(_exp, "ENTRY", i, obj.meta.get("time"))
+                    # Fase 5 (Arq A): evento RETURN, padre = BOS ya confirmado.
+                    _ret_obj = _make_event_object(
+                        obj.meta.get("symbol", "") or "", ltf_tf, "RETURN",
+                        target, i, obj.meta.get("time"),
+                        float(obj.meta.get("close", np.nan)), state.bos_id,
+                        {"phase": "ENTRY"})
+                    state.entry_id = _ret_obj.id
+                    state.event_objs[_ret_obj.id] = _ret_obj
+                    _advance_expediente(_exp, "ENTRY", i, obj.meta.get("time"),
+                                        event_id=_ret_obj.id, parent_event_id=state.bos_id)
                     _exp.outcome = "ENTRY"
                     expedientes.append(_exp)
                 signals.append({
@@ -628,6 +708,24 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     "poi_present": _poi_present,
                     "htf_aligned": state.htf_aligned,
                     "htf_reason": state.htf_reason,
+                    # Fase 5 (Arq A): ids de eventos + niveles derivables (aditivo).
+                    "event_ids": {
+                        "SWEEP": state.sweep_id,
+                        "DISPLACE": state.displace_id,
+                        "BOS": state.bos_id,
+                        "RETURN": state.entry_id,
+                    },
+                    "levels": {
+                        "sweep": (float(objs[state.sweep_idx].meta.get("low", np.nan))
+                                  if target == 1 else
+                                  float(objs[state.sweep_idx].meta.get("high", np.nan))
+                                  ) if state.sweep_idx >= 0 else float("nan"),
+                        "displace": float(objs[state.displace_idx].meta.get("close", np.nan))
+                        if state.displace_idx >= 0 else float("nan"),
+                        "bos": state.bos_level,
+                        "zone_high": state.zone_high,
+                        "zone_low": state.zone_low,
+                    },
                     # B5: Expediente adjunto (Ley 8 trazabilidad). No altera la
                     # firma vieja; es metadata extra dentro de la señal.
                     "expediente": _exp,

@@ -28,12 +28,20 @@ from typing import Any
 
 @dataclass
 class PhaseEvent:
-    """Un hecho ya decidido en la vida de la señal."""
+    """Un hecho ya decidido en la vida de la señal.
+
+    Añadido Fase 5 (Arquitectura A): event_id / parent_event_id dan identidad
+    causal al evento. event_id es el id del MarketObject de este evento;
+    parent_event_id es el id del evento padre ya confirmado (anti-look-ahead:
+    el padre siempre tiene idx <= este). Sin ellos, el linaje es solo temporal.
+    """
 
     phase: str          # "SWEEP" | "DISPLACE" | "BOS" | "ENTRY" | "INVALID"
     idx: int            # índice de la vela LTF donde ocurrió
     time: Any = None    # timestamp de la vela (cerrada)
     condition: str = ""  # texto descriptivo (p.ej. "SWEEP_DOWN@LTF")
+    event_id: str = ""   # id del MarketObject de este evento (Arq A)
+    parent_event_id: str = ""  # id del evento padre ya confirmado (Arq A)
 
     def to_dict(self) -> dict:
         return {
@@ -41,6 +49,8 @@ class PhaseEvent:
             "idx": int(self.idx),
             "time": str(self.time) if self.time is not None else None,
             "condition": self.condition,
+            "event_id": self.event_id,
+            "parent_event_id": self.parent_event_id,
         }
 
 
@@ -96,7 +106,8 @@ class Expediente:
         obj._last_idx = int(birth_idx)
         return obj
 
-    def advance(self, phase: str, idx: int, time: Any = None, condition: str = "") -> None:
+    def advance(self, phase: str, idx: int, time: Any = None, condition: str = "",
+                 event_id: str = "", parent_event_id: str = "") -> None:
         """Registra un hecho ya decidido. Índice monótono no decreciente."""
         idx = int(idx)
         if idx < self._last_idx:
@@ -108,10 +119,12 @@ class Expediente:
             # mismo índice y misma fase -> idempotente, no duplica
             self._last_idx = idx
             return
-        self.phase_events.append(PhaseEvent(phase, idx, time, condition))
+        self.phase_events.append(PhaseEvent(phase, idx, time, condition,
+                                            event_id=event_id, parent_event_id=parent_event_id))
         self._last_idx = idx
 
-    def invalidate(self, idx: int, time: Any = None, reason: str | None = None) -> None:
+    def invalidate(self, idx: int, time: Any = None, reason: str | None = None,
+                   event_id: str = "", parent_event_id: str = "") -> None:
         """Marca la señal como invalidada por su regla predefinida."""
         idx = int(idx)
         if idx < self._last_idx:
@@ -119,7 +132,8 @@ class Expediente:
                 f"Expediente.invalidate: idx={idx} < último idx registrado "
                 f"{self._last_idx} (anti-look-ahead)"
             )
-        self.phase_events.append(PhaseEvent("INVALID", idx, time, reason or ""))
+        self.phase_events.append(PhaseEvent("INVALID", idx, time, reason or "",
+                                            event_id=event_id, parent_event_id=parent_event_id))
         self.invalidation_idx = idx
         self.invalidation_time = time
         self.invalidation_reason = reason
