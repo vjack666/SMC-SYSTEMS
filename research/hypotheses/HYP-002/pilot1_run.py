@@ -132,28 +132,37 @@ def audit_card(sig, ltf_df, htf_df, idx):
     out.append("CONTEXTO")
     out.append(f"  HTF (H4 trend @ BOS)      {htf_ctx}")
     out.append(f"  htf_aligned (emitido)     {'PASS' if sig.get('htf_aligned') else 'FAIL/BROKEN'}")
-    # LIQUIDEZ
+    # LIQUIDEZ — wick del sweep (OBSERVABLE) + pool mas cercano por proximidad (DERIVABLE)
     sweep_row = ltf_df.iloc[sweep_i]
     pool = "ssl_price" if sig["direction"] == 1 else "bsl_price"
-    liq_level = sweep_row.get(pool, np.nan)
     mecha = sweep_row["low"] if sig["direction"] == 1 else sweep_row["high"]
+    # pool mas cercano en velas previas al sweep (misma columna del detector)
+    near_pool = np.nan
+    if pool in ltf_df.columns:
+        prev = ltf_df[pool].iloc[max(0, sweep_i-200):sweep_i+1]
+        prev = prev.dropna()
+        if len(prev):
+            near_pool = float(prev.iloc[-1])
     out.append("LIQUIDEZ")
     out.append(f"  BSL/SSL pool existe       DERIVABLE ({pool})")
     out.append(f"  Liquidez tomada (wick)    OBSERVABLE @idx{sweep_i} = {fmt(mecha)}")
-    out.append(f"  Pool mas cercano          {fmt(liq_level)}  (emparejamiento por proximidad, NO causalidad)")
+    out.append(f"  Pool mas cercano          {fmt(near_pool)}  (proximidad temporal, NO causalidad)")
     # FORMACION
+    bos_row = ltf_df.iloc[bos_i]
+    bos_lvl = bos_row.get("bos_level", np.nan) if "bos_level" in bos_row else np.nan
     out.append("FORMACION")
     out.append(f"  SWEEP                     OBSERVABLE @idx{sweep_i} ({fmt(sweep_row['time']) if 'time' in sweep_row else '?'})")
     out.append(f"  DISPLACEMENT              OBSERVABLE @idx{disp_i}")
-    out.append(f"  BOS/CHOCH                 OBSERVABLE @idx{bos_i} nivel={fmt(sig.get('bos_level'))}")
+    out.append(f"  BOS/CHOCH                 OBSERVABLE @idx{bos_i} nivel={fmt(bos_lvl)}")
     # CAUSALIDAD (las 3 uniones = UNKNOWN por diseno, no se infiere)
     out.append("CAUSALIDAD")
     out.append(f"  Sweep -> Disp.            UNKNOWN (orden temporal: {sweep_i}<{disp_i}; no identidad causal)")
     out.append(f"  Disp. -> BOS              UNKNOWN (orden temporal: {disp_i}<{bos_i}; swing roto no embolsado)")
     out.append(f"  BOS -> POI                UNKNOWN (anclaje por dir+ts, no identidad)")
-    # POI
+    # POI — zona re-derivada de FVG/OB entre sweep y BOS (DERIVABLE, mismos detectores)
+    z_h, z_l = _derive_zone(ltf_df, sweep_i, bos_i, sig["direction"])
     out.append("POI")
-    out.append(f"  POI valido (zona)         OBSERVABLE zone=[{fmt(sig.get('zone_high'))},{fmt(sig.get('zone_low'))}]")
+    out.append(f"  POI valido (zona FVG/OB)  DERIVABLE zona=[{fmt(z_h)},{fmt(z_l)}]  (entre sweep y BOS)")
     out.append(f"  Anclaje causal            UNKNOWN (poi_present={sig.get('poi_present')})")
     # RETORNO
     out.append("RETORNO")
@@ -173,6 +182,27 @@ def audit_card(sig, ltf_df, htf_df, idx):
     out.append("═" * 30)
     out.append("")
     return "\n".join(out)
+
+
+def _derive_zone(ltf_df, sweep_i, bos_i, direction):
+    """Re-deriva la zona POI (FVG/OB) entre sweep y BOS usando las MISMAS columnas
+    que el motor (fvg_*/ob_* de detectors). DERIVABLE, no nueva interpretacion.
+    Devuelve (zone_high, zone_low) o (nan, nan)."""
+    seg = ltf_df.iloc[max(0, sweep_i):bos_i+1]
+    if len(seg) == 0:
+        return np.nan, np.nan
+    if direction == 1:  # long: busca FVG/OB bullish
+        fvgs = seg[seg.get("fvg_bullish", False)]
+        obs = seg[seg.get("ob_bullish", False)]
+    else:
+        fvgs = seg[seg.get("fvg_bearish", False)]
+        obs = seg[seg.get("ob_bearish", False)]
+    cand = pd.concat([fvgs, obs])
+    if len(cand) == 0:
+        return np.nan, np.nan
+    last = cand.iloc[-1]
+    hi = last.get("high", np.nan); lo = last.get("low", np.nan)
+    return hi, lo
 
 
 def main():
