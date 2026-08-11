@@ -204,9 +204,10 @@ def main():
     exp_inv.invalidate(4, "t", "BOS roto", event_id="inv1", parent_event_id="d1")
     invalid_cut = exp_inv.outcome == "INVALID"
     history_kept = len(exp_inv.phase_events) == 4  # LIQ, SWEEP, DISP, INVALID
-    # D: dos expedientes no comparten identidad
+    # D: dos expedientes DISTINTOS no comparten identidad (Ley 7: iguales colisionan
+    # intencionalmente; distintos deben ser únicos). Usamos birth_idx distinto.
     e1 = Expediente.open(symbol="X", tf="M15", direction=1, birth_idx=1, birth_time="t")
-    e2 = Expediente.open(symbol="X", tf="M15", direction=1, birth_idx=1, birth_time="t")
+    e2 = Expediente.open(symbol="X", tf="M15", direction=1, birth_idx=2, birth_time="t")
     no_share = e1.id != e2.id
     # E: PADRE INCORRECTO (dos candidatos plausibles) — el motor NO elige por proximidad.
     # Construimos un setup donde el RETURN declara parent=REFINEMENT (correcto) y otro donde
