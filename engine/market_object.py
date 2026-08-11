@@ -73,3 +73,28 @@ class MarketObject:
             raise ValueError(
                 f"POI solo en HTF ({sorted(_POI_TFS)}); recibido {self.origin_tf}"
             )
+
+    def to_dict(self) -> dict:
+        """Representación plana del objeto (sin semántica de trading).
+
+        Permite que un consumidor puro (engine/lineage.py) reconstruya el
+        linaje causal por parent_object sin acoplarse al dataclass. No altera
+        ninguna regla ICT/SMC ni introduce indicadores.
+        """
+        return {
+            "id": self.id,
+            "symbol": self.symbol,
+            "type": self.type.value if isinstance(self.type, ObjectType) else self.type,
+            "origin_tf": self.origin_tf,
+            "role": self.role.value if isinstance(self.role, Role) else self.role,
+            "direction": int(self.direction),
+            "zone_high": float(self.zone_high),
+            "zone_low": float(self.zone_low),
+            "creation_time": str(self.creation_time) if self.creation_time is not None else None,
+            "state": self.state.value if isinstance(self.state, ObjectState) else self.state,
+            "parent_object": self.parent_object,
+            "related_objects": list(self.related_objects),
+            "bar_index": int(self.bar_index) if self.bar_index is not None else None,
+            "bar_time": str(self.bar_time) if self.bar_time is not None else None,
+            "meta": dict(self.meta),
+        }

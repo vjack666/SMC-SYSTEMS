@@ -803,6 +803,13 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     # B5: Expediente adjunto (Ley 8 trazabilidad). No altera la
                     # firma vieja; es metadata extra dentro de la señal.
                     "expediente": _exp,
+                    # M2 (SDD_M2_LINEAGE): grafo causal real de objetos, snapshot
+                    # inmutable en el instante de señal. Permite a un consumidor
+                    # puro reconstruir la cadena por parent_object (origen), no por
+                    # proximidad temporal. Aditivo: run_sequence 2-tuple intacto.
+                    "event_objects": {
+                        _id: _o.to_dict() for _id, _o in state.event_objs.items()
+                    },
                 })
                 state.note("ENTRY", i)
                 phase_seen["ENTRY"] += 1
@@ -841,8 +848,3 @@ def run_sequence_traced(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
         htf_pd_index=htf_pd_index, ltf_map=ltf_map,
         htf=htf, est_htf_ctx_fn=est_htf_ctx_fn,
     )
-
-
-
-    if sigs:
-        print("primera:", sigs[0])
