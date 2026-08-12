@@ -96,3 +96,30 @@ El linaje ahora es recorrible setup por setup sin reconstrucción por proximidad
 (ver `PHASE6_AUDIT_CLOSURE.md` §9 y `PHASE6_FINDINGS_AUDIT.md`). El `SETUP_FORMATION_MAP`
 original se conserva como registro histórico de la fase de lectura; no contradice el
 cierre de la Fase 6.
+
+---
+
+## Addendum: cierre del tramo ITF/LTF + CONTRACT (extensión post-Fase 6)
+
+El tramo **POI → REFINEMENT → RETURN** quedó como formación causal completa y
+robusta:
+
+- **REFINEMENT** padre = POI (si anclado HTF) o BOS (si no). No BOS en todos los casos.
+- **RETURN** padre = REFINEMENT (no BOS). El retorno es mitigación de la zona,
+  no ruptura de estructura.
+- **Caso límite FVG-en-BOS**: la zona se captura ahora de la vela del BOS (o la
+  anterior), cerrando la deuda de diseño de §4 de `PHASE6_FINDINGS_AUDIT.md`.
+- **CONTRACT** (nuevo): hijo del RETURN, `role=EXECUTION`, `type=CONTRACT`. Empaqueta
+  `entry/sl/tp/rr/exec_tf` con geometría LTF pura (RR 1:3 ICT). Es el **límite**
+  formación→ejecución: NO mezcla sus eventos con los de la formación (id propio,
+  no reusa ids de LIQ/SWEEP/DISPLACE/BOS/POI/REF/RETURN). Ver `SDD_CONTRATO_LTF.md`.
+
+Cadena canónica final (hijo → padre):
+
+```
+CONTRACT → RETURN → REFINEMENT → {POI → BOS | BOS} → DISPLACE → SWEEP → LIQUIDITY
+```
+
+El verificador independiente (`phase6_verifier.py`) audita CONTRACT como parte de la
+cadena y rechaza `CONTRACT_REUSES_FORMATION_ID` / `CONTRACT_NO_EXECUTION`. Todas las
+corridas (sin POI / con POI / FVG-en-BOS) → **A VALIDADA**, 0 ciclos, 0 UNKNOWN.

@@ -27,12 +27,14 @@ class ObjectType(str, Enum):
     SWEEP = "SWEEP"
     DISPLACEMENT = "DISPLACEMENT"
     RETURN = "RETURN"
+    CONTRACT = "CONTRACT"  # Contratacion LTF (entry/sl/tp) hija del RETURN
     CANDLE = "CANDLE"  # R9 Paso 3: vista de vela con su contexto ICT completo (sequence)
 
 
 class Role(str, Enum):
     POI = "POI"
     REFINEMENT = "REFINEMENT"
+    EXECUTION = "EXECUTION"  # Contrato LTF: limite formacion->ejecucion (no mezcla eventos)
     CONTEXT = "CONTEXT"
 
 

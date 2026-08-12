@@ -80,6 +80,8 @@ class SequenceConfig:
     require_displacement: bool = True
     counter_trend: bool = False
     tp_mode: str = "fixed2r"
+    # RR de la contratacion LTF (ICT 1:3). Usado por el nodo CONTRACT.
+    rr: float = 3.0
     # B3: nueva regla sustantiva OPPOSITE_SWING_BREAK, detras de flag.
     # OFF = bit a bit identico al historico (regresion cero).
     invalidate_on_opposite_swing: bool = False
@@ -115,8 +117,9 @@ class SequenceState:
     liquidity_id: str = ""
     poi_id: str = ""
     refinement_id: str = ""
+    entry_id: str = ""
+    contract_id: str = ""   # Contratacion LTF (hijo del RETURN, role=EXECUTION)
     event_objs: dict = field(default_factory=dict)  # id -> MarketObject del evento
-
     def reset(self):
         self.phase = "IDLE"
         self.direction = 0
@@ -141,8 +144,9 @@ class SequenceState:
         self.liquidity_id = ""
         self.poi_id = ""
         self.refinement_id = ""
+        self.entry_id = ""
+        self.contract_id = ""
         self.event_objs = {}
-
     def note(self, tag: str, i: int, extra: str = ""):
         self.history.append((tag, i, extra))
 # ---------------------------------------------------------------------------
@@ -264,9 +268,12 @@ def _latest_fvg_zone(obj: MarketObject, direction: int) -> tuple[float, float] |
     espera el retorno (mitigation). Si no hay FVG, None.
     """
     if direction == 1 and bool(obj.meta.get("fvg_bullish", False)):
-        return (float(obj.meta.get("high")), float(obj.meta.get("low")))
+        # Normaliza: un FVG puede dejar low>high (gap); la zona es (max, min).
+        h, l = float(obj.meta.get("high")), float(obj.meta.get("low"))
+        return (max(h, l), min(h, l))
     if direction == -1 and bool(obj.meta.get("fvg_bearish", False)):
-        return (float(obj.meta.get("high")), float(obj.meta.get("low")))
+        h, l = float(obj.meta.get("high")), float(obj.meta.get("low"))
+        return (max(h, l), min(h, l))
     return None
 
 
@@ -452,11 +459,68 @@ def _effective_bos_gap(cfg: SequenceConfig, i: int, obj, est_htf,
     return cfg.bos_gap
 
 
+def _build_ltf_contract(state: "SequenceState", objs, obj, ltf_tf: str, target: int,
+                         cfg: "SequenceConfig", exec_frames: dict | None = None):
+    """Contratacion LTF (nodo CONTRACT, hijo del RETURN).
+
+    entry/sl/tp SIN mezclar con los eventos de formacion. Geometria LTF pura
+    por defecto; si se pasan `exec_frames` (M5/M1) se reancla la entrada fina
+    via engine.execution.fine_execution (el motor NO inventa deteccion).
+
+    Devuelve dict con entry, sl, tp, rr, exec_tf, fine.
+    """
+    # entry = precio del RETURN (toque de la zona LTF por el que se disparo).
+    entry = float(obj.meta.get("close", np.nan))
+    # SL estructural = mecha del sweep LTF (libro 18: SL SIEMPRE en estructura).
+    _sweep = objs[state.sweep_idx] if 0 <= state.sweep_idx < len(objs) else None
+    _buf = 0.3
+    if _sweep is not None:
+        _rng = float(_sweep.meta.get("high", 0.0)) - float(_sweep.meta.get("low", 0.0))
+        if _rng > 0:
+            _buf = _buf * _rng
+        if target > 0:
+            _sl_level = float(_sweep.meta.get("low", np.nan))
+            sl = _sl_level - _buf
+        else:
+            _sl_level = float(_sweep.meta.get("high", np.nan))
+            sl = _sl_level + _buf
+    else:
+        sl = float("nan")
+    rr = float(getattr(cfg, "rr", 3.0))
+    if np.isfinite(entry) and np.isfinite(sl) and sl != entry:
+        if target > 0:
+            tp = entry + rr * (entry - sl)
+        else:
+            tp = entry - rr * (sl - entry)
+    else:
+        tp = float("nan")
+    exec_tf = "M15"
+    fine = False
+    # Reanclaje fino opcional (NO deteccion nueva; solo reancla lo ya validado).
+    if exec_frames:
+        try:
+            from engine.execution import fine_execution
+            _fe = fine_execution(
+                exec_frames, obj.meta.get("time"), target, exec_tf="M5",
+                rr=rr, sweep_ts=_sweep.meta.get("time") if _sweep is not None else None,
+            )
+            if _fe.get("ok"):
+                entry, sl, tp = float(_fe["entry"]), float(_fe["sl"]), float(_fe["tp"])
+                exec_tf = _fe.get("exec_tf", "M5")
+                fine = True
+        except Exception:
+            pass
+    return {
+        "entry": entry, "sl": sl, "tp": tp, "rr": rr,
+        "exec_tf": exec_tf, "fine": fine,
+    }
+
+
 def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                  htf_poi_fn=None, ltf_tf: str = "M15", bos_table: dict | None = None,
                  htf_pd_index=None, ltf_map: dict | None = None,
                  htf: str | None = None,
-                 est_htf_ctx_fn=None):
+                 est_htf_ctx_fn=None, exec_frames: dict | None = None):
     """Recorre el LTF y devuelve lista de dicts de senal.
 
     R9 Paso 3: acepta DataFrame O lista de MarketObject (type=CANDLE). En
@@ -727,14 +791,38 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 # promedio (meta["atr"] ya es avg_candle_range, fuente unica de
                 # volatilidad; migrado de ATR a rango puro, Fase 1).
                 if not (np.isfinite(state.zone_high) and np.isfinite(state.zone_low)):
-                    _atr = obj.meta.get("atr", np.nan)
-                    try:
-                        atr = float(_atr) if _atr is not None else float("nan")
-                    except (TypeError, ValueError):
-                        atr = float("nan")
-                    if np.isfinite(atr) and np.isfinite(state.bos_level):
-                        state.zone_high = state.bos_level + 0.5 * atr
-                        state.zone_low = state.bos_level - 0.5 * atr
+                    # CASO LIMITE (FVG-coincidente-con-BOS): la zona LTF puede
+                    # caer en la MISMA vela que el BOS, donde la rama de
+                    # memorizacion (SWEEP_DONE/DISPLACE_DONE) ya no corre. Se
+                    # intenta la vela del BOS y la inmediatamente ANTERIOR (ambas
+                    # ya cerradas -> anti look-ahead preservado). Cubre setups
+                    # ICT reales.
+                    for _ji in (state.bos_idx, state.bos_idx - 1):
+                        if _ji < 0 or _ji >= len(objs):
+                            continue
+                        _prev = objs[_ji]
+                        _pf = _latest_fvg_zone(_prev, target)
+                        _po = _latest_ob_zone(_prev, target)
+                        if _pf is not None:
+                            state.zone_high, state.zone_low = _pf
+                            state.zone_pd_type = str(_prev.meta.get("pd_type", "FVG"))
+                            break
+                        elif _po is not None:
+                            state.zone_high, state.zone_low = _po
+                            state.zone_pd_type = str(_prev.meta.get("pd_type", "OB"))
+                            break
+                    # Fallback historico: nivel del BOS +- 0.5 * rango promedio
+                    # (meta["atr"] ya es avg_candle_range; migrado de ATR a rango
+                    # puro, Fase 1).
+                    if not (np.isfinite(state.zone_high) and np.isfinite(state.zone_low)):
+                        _atr = obj.meta.get("atr", np.nan)
+                        try:
+                            atr = float(_atr) if _atr is not None else float("nan")
+                        except (TypeError, ValueError):
+                            atr = float("nan")
+                        if np.isfinite(atr) and np.isfinite(state.bos_level):
+                            state.zone_high = state.bos_level + 0.5 * atr
+                            state.zone_low = state.bos_level - 0.5 * atr
                 state.note("BOS", i)
                 _advance_expediente(state.expediente, "BOS", i, obj.meta.get("time"),
                                     event_id=_bos_obj.id, parent_event_id=state.displace_id)
@@ -765,6 +853,23 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                     _advance_expediente(_exp, "ENTRY", i, obj.meta.get("time"),
                                         event_id=_ret_obj.id, parent_event_id=state.refinement_id or state.bos_id)
                     _exp.outcome = "ENTRY"
+                    # CONTRACT (contratacion LTF): nodo SEPARADO hijo del RETURN.
+                    # NO mezcla sus niveles con los eventos de formacion. Empaqueta
+                    # entry/sl/tp (geometria LTF pura; exec fino opcional).
+                    _ct = _build_ltf_contract(
+                        state, objs, obj, ltf_tf, target, cfg, exec_frames)
+                    _ct_obj = _make_event_object(
+                        obj.meta.get("symbol", "") or "", _ct["exec_tf"], "CONTRACT",
+                        target, i, obj.meta.get("time"), _ct["entry"],
+                        state.entry_id,
+                        {"phase": "CONTRACT", "entry": _ct["entry"], "sl": _ct["sl"],
+                         "tp": _ct["tp"], "rr": _ct["rr"], "exec_tf": _ct["exec_tf"],
+                         "fine": _ct["fine"], "poi_anchored": bool(state.poi_id)},
+                        role="EXECUTION", obj_type="CONTRACT")
+                    state.contract_id = _ct_obj.id
+                    state.event_objs[_ct_obj.id] = _ct_obj
+                    _advance_expediente(_exp, "CONTRACT", i, obj.meta.get("time"),
+                                        event_id=_ct_obj.id, parent_event_id=state.entry_id)
                     expedientes.append(_exp)
                 signals.append({
                     "time": str(obj.meta.get("time")),
@@ -788,6 +893,7 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                         "POI": state.poi_id,
                         "REFINEMENT": state.refinement_id,
                         "RETURN": state.entry_id,
+                        "CONTRACT": state.contract_id,
                     },
                     "levels": {
                         "liquidity": (float(objs[state.sweep_idx].meta.get("ssl_price", np.nan))
@@ -825,7 +931,7 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 htf_poi_fn=None, ltf_tf: str = "M15", bos_table: dict | None = None,
                 htf_pd_index=None, ltf_map: dict | None = None,
                 htf: str | None = None,
-                est_htf_ctx_fn=None):
+                est_htf_ctx_fn=None, exec_frames: dict | None = None):
     """Wrapper 2-tuple (signals, phase_seen) — firma legacy preservada.
 
     El motor autónomo usa _run_sequence_impl (3-tuple); aquí se descarta la
@@ -835,7 +941,7 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
         ltf_df_or_objs, est_htf_fn, cfg,
         htf_poi_fn=htf_poi_fn, ltf_tf=ltf_tf, bos_table=bos_table,
         htf_pd_index=htf_pd_index, ltf_map=ltf_map,
-        htf=htf, est_htf_ctx_fn=est_htf_ctx_fn,
+        htf=htf, est_htf_ctx_fn=est_htf_ctx_fn, exec_frames=exec_frames,
     )
     return s, p
 
@@ -844,11 +950,11 @@ def run_sequence_traced(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                         htf_poi_fn=None, ltf_tf: str = "M15", bos_table: dict | None = None,
                         htf_pd_index=None, ltf_map: dict | None = None,
                         htf: str | None = None,
-                        est_htf_ctx_fn=None):
+                        est_htf_ctx_fn=None, exec_frames: dict | None = None):
     """B1: (signals, phase_seen, expedientes) — trazabilidad completa (Ley 8/7/4)."""
     return _run_sequence_impl(
         ltf_df_or_objs, est_htf_fn, cfg,
         htf_poi_fn=htf_poi_fn, ltf_tf=ltf_tf, bos_table=bos_table,
         htf_pd_index=htf_pd_index, ltf_map=ltf_map,
-        htf=htf, est_htf_ctx_fn=est_htf_ctx_fn,
+        htf=htf, est_htf_ctx_fn=est_htf_ctx_fn, exec_frames=exec_frames,
     )

@@ -158,15 +158,34 @@ Re-ejecución del consumidor + verificador independiente contra el grafo REA emi
 - `tests/test_phase6_lineage.py`: **7 passed, 1 skipped**; batería motor/lineage/gate
   **32 passed, 0 regresiones**.
 
-### 9.3 Hallazgo de diseño (deuda, fuera de Fase 6)
+### 9.3 Cierre del caso límite FVG-en-BOS (resuelto en extensión de contrato)
 
-La zona LTF solo se traza en `SWEEP_DONE`/`DISPLACE_DONE`. Si FVG y BOS caen en la
-misma vela (común en ICT), la zona queda NaN y el setup no completa. Documentado en
-§4 de `PHASE6_FINDINGS_AUDIT.md`. No se alteró el motor de decisión para "arreglarlo".
+La deuda de diseño documentada en §4 de `PHASE6_FINDINGS_AUDIT.md` (zona NaN cuando
+FVG y BOS caen en la MISMA vela) **quedó CERRADA**. En `engine/sequence.py` la
+congелación de zona en `BOS_DONE` ahora intenta capturar el FVG/OB de la vela del
+BOS y de la inmediatamente anterior (ambas ya cerradas → anti look-ahead
+preservado). Además `_latest_fvg_zone` normaliza `(max, min)` para que la zona
+siempre cumpla `zone_high > zone_low` aunque la vela FVG deje `low > high` (gap).
+Cubierto por `tests/test_phase6_lineage.py::test_zone_capture_fvg_on_bos`.
 
-### 9.4 Veredicto reconfirmado
+### 9.4 Nodo CONTRACT (límite formación → ejecución, sin mezclar eventos)
 
-**A VALIDADA (completa)** con las 3 correcciones aplicadas. Los 6 ejes (identity,
-link, causality, temporality, graph, ontology) son OBSERVABLE; UNKNOWN = 0.
-Caveat: evidencia sobre datos reales no reproducible local (sin parquet en `data/`);
-evidencia de 60k velas en corrida nube (§3 de este doc).
+Se añadió `ObjectType.CONTRACT` + `Role.EXECUTION` en `engine/market_object.py` y
+el nodo se emite como hijo del RETURN (`parent_object == RETURN.id`) con
+`entry/sl/tp/rr/exec_tf` en `meta`. La contratación LTF usa geometría pura
+(entry = toque de zona del RETURN, sl = mecha del sweep LTF, tp = entry ± rr·(entry−sl),
+rr = 1:3 ICT por defecto, `exec_tf = ltf_tf`). No reusa los ids de formación
+(verificado por `test_contract_not_mixing_events` y el verificador
+independiente: `CONTRACT_REUSES_FORMATION_ID` rechazado). Refinamiento fino vía
+`engine/execution.fine_execution` es OPCIONAL y solo si el llamador provee
+`exec_frames`; el motor no depende de frames M5/M1 para emitir el contrato. Ver
+`SDD_CONTRATO_LTF.md`.
+
+### 9.5 Veredicto reconfirmado
+
+**A VALIDADA (completa)** con las 3 correcciones de Fase 6 + cierre de caso límite
++ nodo CONTRACT. 8 ejes auditables (los 6 originales + CONTRACT hijo de RETURN +
+ontología EXECUTION). UNKNOWN = 0. Evidencia: `pytest` 35 passed/1 skipped, y
+`phase6_verifier` sobre 3 corridas (sin POI / con POI / FVG-en-BOS) → todas
+A VALIDADA, 0 ciclos. Caveat: evidencia sobre datos reales no reproducible local
+(sin parquet en `data/`); corrida de 60k velas en nube (§3).

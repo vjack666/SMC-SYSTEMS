@@ -267,3 +267,65 @@ def test_two_setups_distinct_identity():
         pytest.skip("dataset determina 1 setup; cubierto por multiples corridas en nube")
     all_ids = [v for s in sigs for v in s["event_ids"].values() if v]
     assert len(all_ids) == len(set(all_ids))
+
+
+# ---------------------------------------------------------------------------
+# 9) CONTRATO LTF: nodo CONTRACT emitido, hijo de RETURN, auditable
+# ---------------------------------------------------------------------------
+def test_contract_ltf_emitted():
+    sigs = _run_setup(htf_poi=True)
+    assert sigs, "debe emitir al menos 1 setup"
+    sig = sigs[0]
+    ids = sig["event_ids"]
+    # El CONTRACT debe existir y ser hijo del RETURN.
+    assert ids.get("CONTRACT"), "el motor debe emitir el nodo CONTRACT"
+    ct = sig["event_objects"][ids["CONTRACT"]]
+    assert ct["parent_object"] == ids["RETURN"], "CONTRACT debe ser hijo de RETURN"
+    assert ct["role"] == "EXECUTION", "CONTRACT role=EXECUTION (limite formacion->ejecucion)"
+    meta = ct["meta"]
+    assert np.isfinite(meta.get("entry", float("nan")))
+    assert np.isfinite(meta.get("sl", float("nan")))
+    assert np.isfinite(meta.get("tp", float("nan")))
+    # RR coherente (1:3 ICT por defecto).
+    assert abs((meta["tp"] - meta["entry"]) / (meta["entry"] - meta["sl"]) - 3.0) < 1e-6
+    agg = V.verify_run(sigs)
+    assert agg["ontology_ok"] == agg["n_setups"]
+    assert agg["causality_ok"] == agg["n_setups"]
+
+
+# ---------------------------------------------------------------------------
+# 10) CONTRATO SIN MEZCLAR EVENTOS: id propio, distinto a formacion
+# ---------------------------------------------------------------------------
+def test_contract_not_mixing_events():
+    sigs = _run_setup(htf_poi=True)
+    sig = sigs[0]
+    ids = sig["event_ids"]
+    ct_id = ids["CONTRACT"]
+    form_ids = {ids["RETURN"], ids["REFINEMENT"], ids["BOS"], ids["POI"],
+                ids["DISPLACE"], ids["SWEEP"], ids["LIQUIDITY"]}
+    assert ct_id not in form_ids, "CONTRACT NO debe reusar id de formacion"
+    r = V.verify_setup(sig)
+    assert r["ontology"] == "OK"
+
+
+# ---------------------------------------------------------------------------
+# 11) CASO LIMITE: FVG en la MISMA vela que el BOS (FVG-coincidente-con-BOS)
+#     La zona debe capturarse de la vela previa al BOS y el setup completar.
+# ---------------------------------------------------------------------------
+def test_zone_capture_fvg_on_bos():
+    n = 250
+    # fvg_i == bos_i (caso limite): el FVG cae en la vela del BOS.
+    ltf = _make_ltf(n, 40, 44, 50, 50, 80)
+    hdf = _make_htf_df(n)
+    est = _est_htf_fn(hdf)
+    sigs, _, _ = run_sequence_traced(ltf, est, SequenceConfig(),
+                                     htf_poi_fn=None, ltf_tf="M15", htf=None)
+    assert sigs, "el caso limite FVG-en-BOS debe completar el setup"
+    sig = sigs[0]
+    # La zona debe haberse capturado (no NaN) pese al solapamiento.
+    assert np.isfinite(sig["levels"]["zone_high"])
+    assert np.isfinite(sig["levels"]["zone_low"])
+    assert sig["event_ids"].get("CONTRACT"), "CONTRACT emitido tambien en caso limite"
+    agg = V.verify_run(sigs)
+    assert agg["cycles_total"] == 0
+    assert agg["graph_ok"] == agg["n_setups"]

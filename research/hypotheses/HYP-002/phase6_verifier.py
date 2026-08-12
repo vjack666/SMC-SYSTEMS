@@ -29,7 +29,9 @@ from __future__ import annotations
 from typing import Any
 
 # Cadena canónica hijo -> padre (roles). POI es opcional (solo si anclado HTF).
+# CONTRACT es el limite formacion->ejecucion (hijo del RETURN, role=EXECUTION).
 _CHAIN = [
+    ("CONTRACT", "RETURN"),
     ("RETURN", "REFINEMENT"),
     ("REFINEMENT", "POI"),
     ("REFINEMENT", "BOS"),     # fallback si no hay POI
@@ -143,7 +145,7 @@ def verify_setup(signal: dict) -> dict:
         if p == oid:
             out["cycles"] += 1
 
-    # --- ONTOLOGIA: POI solo HTF; REFINEMENT en LTF ---
+    # --- ONTOLOGIA: POI solo HTF; REFINEMENT en LTF; CONTRACT=EXECUTION ---
     for oid, o in eo.items():
         if o.get("role") == "POI" and o.get("origin_tf") not in ("D1", "H4", "H1"):
             out["ontology"] = "POI_NO_HTF"
@@ -151,6 +153,20 @@ def verify_setup(signal: dict) -> dict:
         if o.get("role") == "REFINEMENT" and o.get("origin_tf") in ("D1", "H4", "H1"):
             out["ontology"] = "REFINEMENT_EN_HTF"
             out["issues"].append(f"REFINEMENT {oid} en HTF {o.get('origin_tf')}")
+        if o.get("type") == "CONTRACT":
+            # El CONTRACT es el limite formacion->ejecucion; NO debe reusar ids
+            # de eventos de formacion (sin mezclar eventos).
+            if o.get("role") != "EXECUTION":
+                out["ontology"] = "CONTRACT_NO_EXECUTION"
+                out["issues"].append(f"CONTRACT {oid} role={o.get('role')} (debe ser EXECUTION)")
+            if o.get("parent_object") == oid:
+                out["cycles"] += 1
+            # Sin mezclar: el CONTRACT no comparte id con RETURN/REF/BOS/POI.
+            _form_ids = {ids.get("RETURN"), ids.get("REFINEMENT"),
+                         ids.get("BOS"), ids.get("POI")}
+            if o.get("id") in _form_ids:
+                out["ontology"] = "CONTRACT_REUSES_FORMATION_ID"
+                out["issues"].append("CONTRACT reusa id de formacion (mezcla eventos)")
 
     # --- GRAPH: recorrible RETURN->LIQUIDITY cuando todos los nodos existen ---
     if all(ids.get(r) for r in ("RETURN", "LIQUIDITY")):
