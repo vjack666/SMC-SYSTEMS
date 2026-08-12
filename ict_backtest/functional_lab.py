@@ -465,9 +465,12 @@ def audit_restart_parity(objs=None, cut=6):
     """FASE 6 (HYP-002 M3). RUN CONTINUO vs SAVE -> CRASH -> LOAD -> RESUME.
 
     El motor almacena en state.*_idx la POSICION en el feed. Por eso el resume
-    NO rebasa el slice: se re-alimenta el OBJS COMPLETO con start_i=cut+1 y el
-    estado restaurado (posiciones absolutas preservadas). Se compara el grafo
-    causal de cada senal (no los uuid, que son aleatorios por disenio).
+    NO rebasa el slice: se re-alimenta el OBJS COMPLETO y el estado restaurado
+    (posiciones absolutas preservadas). Convencion de `start_i`: representa la
+    ULTIMA vela YA PROCESADA (no la primera del resume). El loop interno itera
+    range(start_i + 1, n), asi que pasar start_i=cut reanuda efectivamente en
+    cut+1. Se compara el grafo causal de cada senal (no los uuid, que son
+    aleatorios por disenio).
     """
     from engine.sequence import SequenceState
     if objs is None:

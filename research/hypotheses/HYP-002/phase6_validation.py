@@ -144,7 +144,7 @@ def main():
     htf_feat = build_features_like(htf_raw.iloc[:n].reset_index(drop=True))
     est_fn = est_htf_fn_for(htf_feat)
     htf_poi_fn = make_htf_poi_fn(ltf_df, {"H4": htf_raw.iloc[:n]})
-    sigs, phase_seen, exps = run_sequence_traced(
+    sigs, phase_seen, exps, _state = run_sequence_traced(
         ltf_df, est_fn, SequenceConfig(),
         htf_poi_fn=htf_poi_fn, ltf_tf="M15", htf="H4", est_htf_ctx_fn=None,
     )
