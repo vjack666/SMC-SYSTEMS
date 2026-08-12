@@ -88,6 +88,10 @@ def closed_row_at_time(df: pd.DataFrame, t: Any, duration: Any) -> Any:
 
     Devuelve la fila cuya barra ya CERRÓ respecto a `t` (time + duration <= t).
     `duration` es OBLIGATORIO.
+
+    Si NINGUNA vela del TF cerró antes de `t - duration`, devuelve None
+    (no hay disponibilidad). NUNCA devuelve la primera vela del DF cuando esta
+    aún no ha cerrado: eso sería look-ahead (ver auditoría market_replay).
     """
     if duration is None:
         raise TypeError("closed_row_at_time requiere duration obligatorio (HTF closed-only)")
@@ -101,9 +105,10 @@ def closed_row_at_time(df: pd.DataFrame, t: Any, duration: Any) -> Any:
         prior_idx = df.index[times <= cutoff].to_numpy()
         if len(prior_idx):
             return df.iloc[int(prior_idx[-1])]
+        # Ninguna vela cerró antes del cutoff => no hay disponibilidad (anti look-ahead).
+        return None
     except Exception:
-        pass
-    return df.iloc[0]
+        return None
 
 
 def avg_candle_range(df: pd.DataFrame, window: int = 50) -> pd.Series:

@@ -72,6 +72,34 @@ destrucción: con `ict_backtest` bloqueado, `market_replay` importa OK).
 - `scripts/audit_motor_backtest_boundary.py` → PASS.
 - `scripts/audit_market_replay_boundary.py` → PASS.
 
+### 6.5 Batería de auditoría temporal y MTF (2026-08-12)
+
+`tests/test_market_replay_audit_battery.py` (12 tests) cubre la batería
+completa exigida, SIN modificar `engine` y SIN usar `ict_backtest` como oráculo.
+La "referencia independiente" se construye dentro del test: un oráculo de
+disponibilidad basado en `time + duration` puro y un replay naive que llama al
+motor con ventana recortada.
+
+| # | Ítem | Test | Resultado |
+|---|------|------|-----------|
+| 1 | Disponibilidad de velas (HTF closed-only) | `test_disponibilidad_velas_ltf_y_htf` | PASS |
+| 2 | Cierre temporal (anti look-ahead) | `test_cierre_temporal_anti_lookahead` | PASS |
+| 3 | Orden de eventos (journal temporal + parent chain) | `test_orden_eventos_journal` | PASS |
+| 4 | Reinicio (reset + reanudación == continuación) | `test_reinicio_continuacion` | PASS |
+| 5 | Gaps (timestamps no contiguos no anticipan) | `test_gaps_no_anticipan` | PASS |
+| 6 | Duplicados (mismo timestamp no duplica eventos) | `test_duplicados_no_duplican_eventos` | PASS |
+| 7 | Timestamps (UTC, monotonicidad, tz-aware/naive) | `test_timestamps_utc_monotonicos` + `test_timestamps_tz_aware_consistentes` | PASS |
+| 8 | Determinismo (mismo input ⇒ mismo journal/estado) | `test_determinismo` | PASS |
+| 9 | Aislamiento entre TFs (M1 no contamina D1) | `test_aislamiento_entre_timeframes` | PASS |
+| 10 | Equivalencia contra referencia independiente | `test_equivalencia_referencia_independiente` + `test_equivalencia_disponibilidad_contra_oraculo` | PASS |
+
+**Brecha descubierta y cerrada:** la auditoría detectó look-ahead en
+`engine._util.closed_row_at_time` — cuando NINGUNA vela del TF había cerrado
+antes de `t - duration`, devolvía `df.iloc[0]` (la primera vela, aunque futura).
+Corregido a `return None` (no hay disponibilidad). Es fix de infraestructura
+temporal (anti look-ahead), NO de lógica de decisión SMC. Tras el fix, la
+batería pasa 12/12 y `test_ict_backtest.py` sigue en 8 passed (sin regresión).
+
 ## 7. Respuesta a la condición del Director
 
 > ¿Si mañana borramos `ict_backtest/`, puedo arrancar el motor, alimentarlo
