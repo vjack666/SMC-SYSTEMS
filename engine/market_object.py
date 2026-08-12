@@ -25,6 +25,8 @@ class ObjectType(str, Enum):
     ORDER_BLOCK = "ORDER_BLOCK"
     LIQUIDITY = "LIQUIDITY"
     SWEEP = "SWEEP"
+    DISPLACEMENT = "DISPLACEMENT"
+    RETURN = "RETURN"
     CANDLE = "CANDLE"  # R9 Paso 3: vista de vela con su contexto ICT completo (sequence)
 
 

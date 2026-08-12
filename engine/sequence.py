@@ -47,7 +47,7 @@ import pandas as pd
 # NUNCA importa ict_backtest/ (Ley). Consume del motor y de la geometria pura.
 from engine.multitf_context import MultiTFContext, extract_htf_layer
 from engine.plan import top_down_allows_trade, _closed_row_at_time as closed_row_at_time
-from engine.market_object import MarketObject, ObjectState, ObjectType, Role
+from engine.market_object import MarketObject, ObjectState, ObjectType, Role, _POI_TFS
 # POI anclado: UNICA fuente = engine (Ley). El backtest no tiene logica propia.
 from engine.poi_anchor import poi_present
 # B5 (Ley 8 / Ley 7 / Ley 4): el Expediente por señal vive en el motor.
@@ -683,10 +683,14 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 # cerrado, y REFINEMENT LTF (role=REFINEMENT, la zona FVG/OB) hijo
                 # del POI. Si no hay POI HTF anclado (htf_poi_fn=None o False), el
                 # REFINEMENT LTF se ancla directo al BOS (sin inventar POI).
+                # ONTología DURA: el POI institucional SOLO existe en HTF (D1/H4/H1).
+                # Si el llamador no pasó un TF HTF real (htf=None), NO se crea POI
+                # (evita ValueError en MarketObject y respeta la restricción de capa).
                 _poi_anchored = bool(htf_poi_fn is not None and htf_poi_fn(i, target))
-                if _poi_anchored:
+                _have_htf = bool(htf) and str(htf).upper() in _POI_TFS
+                if _poi_anchored and _have_htf:
                     _poi_obj = _make_event_object(
-                        obj.meta.get("symbol", "") or "", htf or ltf_tf, "BOS",
+                        obj.meta.get("symbol", "") or "", htf, "POI",
                         target, i, obj.meta.get("time"), state.bos_level, state.bos_id,
                         {"phase": "POI", "anchored": True},
                         role="POI", obj_type="BOS")

@@ -76,3 +76,23 @@ linaje causal) son fase posterior separada, fuera de HYP-002 fase de lectura.
 2. **Cerrar GAP-1 (macro)**: conectar una fuente macro objetiva antes de claim de contexto.
 3. **Solo tras validar la lectura** (esta fase): abrir FORMACIÓN→VALIDACIÓN MACRO/NEWS→
    OUT-OF-SAMPLE/FOREX→ESTUDIO ESTADÍSTICO→EDGE/WR/PF. No invertir el orden.
+
+---
+
+## 7. ADDENDUM — ESTADO VIGENTE POST-FASE 6 (2026-08-11)
+
+El veredicto de §4 (`B) SETUP NO FORMADO COMPLETAMENTE`) corresponde a la **fase de
+LECTURA** (piloto 1, previo a la Fase 6). La Fase 6 **cerró las 3 uniones UNKNOWN**
+de §2 mediante identidad causal 1:1 conservada en el motor (`event_ids` +
+`event_objects` con `parent_object` explícito):
+
+| Unión causal | Veredicto en lectura (piloto 1) | Veredicto post-Fase 6 |
+|---|---|---|
+| Sweep → Displacement | UNKNOWN (solo proximidad) | **OBSERVABLE** (`DISPLACE.parent=SWEEP`) |
+| Displacement → BOS | UNKNOWN (no conserva swing) | **OBSERVABLE** (`BOS.parent=DISPLACE`) |
+| BOS → POI | UNKNOWN (anclaje por dirección) | **OBSERVABLE** (`POI.parent=BOS` ya cerrado; HTF) |
+
+El linaje ahora es recorrible setup por setup sin reconstrucción por proximidad
+(ver `PHASE6_AUDIT_CLOSURE.md` §9 y `PHASE6_FINDINGS_AUDIT.md`). El `SETUP_FORMATION_MAP`
+original se conserva como registro histórico de la fase de lectura; no contradice el
+cierre de la Fase 6.

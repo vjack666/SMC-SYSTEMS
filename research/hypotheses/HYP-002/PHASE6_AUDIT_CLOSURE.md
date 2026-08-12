@@ -130,3 +130,43 @@ construyeron, en qué orden, quién depende de quién, y qué ocurrió al invali
 
 Siguiente puerta científica (cuando el Director autorice): **Macro/News como
 contexto** + luego OOS/FOREX → estadística → edge. El orden de la tesis se respeta.
+
+---
+
+## 9. ADDENDUM — 2ª AUDITORÍA INDEPENDIENTE (2026-08-11, post-2901e0c)
+
+Re-ejecución del consumidor + verificador independiente contra el grafo REA emitido
+(ver `PHASE6_FINDINGS_AUDIT.md`). No se asumió el veredicto previo.
+
+### 9.1 Bugs corregidos en esta pasada
+
+- **Bug A (fidelidad):** `ObjectType` no tenía `DISPLACEMENT`/`RETURN` → esos nodos
+  se creaban como `type=CANDLE`. Añadidos a `engine/market_object.py`.
+- **Bug B (regresión):** POI latente crasheaba con `htf=None` (`origin_tf=M15` +
+  `role=POI` → `ValueError`). Ahora el POI requiere `htf` real; si no, no se crea.
+- **Bug C (falso positivo de validación):** el verificador previo NO auditaba la
+  causalidad de POI ni REFINEMENT. Nuevo `phase6_verifier.py` audita **todos** los
+  eslabones vía `event_objects`, clasifica OBSERVABLE/DERIVABLE/UNKNOWN.
+
+### 9.2 Evidencia (ejecutada 2026-08-11, Python 3.14)
+
+- Setup completo con POI HTF: `RETURN→REFINEMENT→POI→BOS→DISPLACE→SWEEP→LIQUIDITY`,
+  **A VALIDADA (completa)**, 0 UNKNOWN, 0 ciclos.
+- Sin POI: `RETURN→REFINEMENT→BOS→DISPLACE→SWEEP→LIQUIDITY`, A VALIDADA.
+- Adversariales (padre futuro/fantasma/incorrecto/dos-setups): todos rechazados o
+  marcados; el sistema **NO elige padre por proximidad** (usa el declarado).
+- `tests/test_phase6_lineage.py`: **7 passed, 1 skipped**; batería motor/lineage/gate
+  **32 passed, 0 regresiones**.
+
+### 9.3 Hallazgo de diseño (deuda, fuera de Fase 6)
+
+La zona LTF solo se traza en `SWEEP_DONE`/`DISPLACE_DONE`. Si FVG y BOS caen en la
+misma vela (común en ICT), la zona queda NaN y el setup no completa. Documentado en
+§4 de `PHASE6_FINDINGS_AUDIT.md`. No se alteró el motor de decisión para "arreglarlo".
+
+### 9.4 Veredicto reconfirmado
+
+**A VALIDADA (completa)** con las 3 correcciones aplicadas. Los 6 ejes (identity,
+link, causality, temporality, graph, ontology) son OBSERVABLE; UNKNOWN = 0.
+Caveat: evidencia sobre datos reales no reproducible local (sin parquet en `data/`);
+evidencia de 60k velas en corrida nube (§3 de este doc).
