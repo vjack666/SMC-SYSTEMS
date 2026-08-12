@@ -132,7 +132,58 @@ Tests (`tests/test_real_market_read.py`): 3 passed, 1 skipped.
 EURUSD real (CLI exit 0, journal captura state_snapshot). El cuello es la
 velocidad del motor (~3s/vela), no la infraestructura de replay. No se infla
 "lectura demostrada con setup" porque el barrido masivo no es viable en el
-tiempo de test; se deja cableado para Shadow Market.
+tiempo de test; se deja cableado para Shadow/inspección (background).
+
+### 6.7 PRUEBA DE LECTURA REAL — FASES 1-6 (2026-08-12)
+
+Misión de EVIDENCIA (no construcción; no toca lógica SMC del engine):
+`scripts/real_market_read_proof.py` (FASES 1/2/4/5) y
+`scripts/profile_replay_scaling.py` (FASE 1 pura). Responde a la orden del
+Director: demostrar que EURUSD real → OHLC → market_replay → ENGINE →
+journal produce lectura causal observable, separando INFRAESTRUCTURA /
+LECTURA REAL / RENDIMIENTO.
+
+**FASE 1 — PERFIL (dónde están los ~3s/vela):** medición empírica sobre
+EURUSD M15 real + D1/H4/H1 (cadena de 4 TFs), `MarketReplay.run()`:
+
+| n_velas | total_s | seg/vela |
+|--------:|--------:|---------:|
+|     100 |    3.45 |   0.0345 |
+|     200 |    6.62 |   0.0331 |
+|     400 |   21.87 |   0.0547 |
+|     800 |   43.29 |   0.0541 |
+|    1600 |  160.40 |   0.1003 |
+
+El costo POR VELA crece con el histórico (0.034 → 0.100 al pasar de 100 a
+1600). Radio tamaño 16x ⇒ radio tiempo 46x (peor que lineal). El motor de
+decisión SMC es O(1) incremental por vela (loop `range(start_i+1, n)` con
+`start_i=i-1` procesa solo la vela i; `_effective_bos_gap`/`_build_ltf_contract`
+son O(50)/O(1)). El cuello ESTÁ en el ADAPTADOR: `TemporalAvailability.snapshot`
+→ `engine._util.closed_row_at_time` rescanea el DataFrame HTF COMPLETO por
+cada vela M15 (O(n_M15 × n_HTF) = O(n²) total). Conclusiones:
+
+- NO es "el motor de ICT lento". Es el adaptador de replay rescanendo HTF.
+- La optimización es de INDEXACIÓN TEMPORAL del adaptador (`closed_row_at_time`
+  con búsqueda binaria / caché de última vela), NO lógica de decisión SMC.
+- Por tanto la lectura real ES viable: 1600 velas = 160s; el barrido de 114k
+  velas requiere arreglar el adaptador (fuera de esta misión, sin autorización
+  de engine).
+
+**FASE 4 — NO FUTURO:** `ok=True`. El snapshot closed-only cumple
+`time+duration <= t` para toda vela HTF disponible en t; el estado en t no
+incluye velas posteriores.
+
+**FASE 5 — REPLAY:** `identidad_logica_igual=True`. Dos corridas
+independientes dan los mismos readouts lógicos (timestamp, event_type,
+origin_tf, dir, zones), ignorando UUID.
+
+**FASE 2 — LECTURA REAL:** en curso (barrido de 3000 velas en background).
+El motor es estricto; el tramo inicial de 2024 (rango) no formó setups en
+60-400 velas. Se reporta el resultado real al cerrar, sin forzar.
+
+**Tests:** `tests/test_real_market_read_proof.py` → 3 passed, 1 skipped
+(FASE 1/4/5 rápidas sobre 60 velas; FASE 2 skip honesto: el barrido masivo
+corre como script en background, no en test unitario).
 
 ## 7. Respuesta a la condición del Director
 
