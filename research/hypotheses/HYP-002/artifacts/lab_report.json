@@ -1,0 +1,75 @@
+{
+  "FASE2_batch_vs_stream": {
+    "event_divergences": 0,
+    "feature_leaks": 0,
+    "leak_sample": [],
+    "pass": true
+  },
+  "FASE3_determinism": {
+    "blocks": [
+      1,
+      10,
+      100,
+      500
+    ],
+    "divergences_per_block": [
+      206,
+      40,
+      0
+    ],
+    "total_divergences": 246,
+    "pass": false
+  },
+  "FASE4_temporal_cut": {
+    "cut": 60,
+    "events_le_cut_real": 0,
+    "events_equal": true,
+    "feature_diffs_le_cut": 0,
+    "pass": true
+  },
+  "FASE5_future_mutation": {
+    "cut": 70,
+    "events_le_cut_real": 0,
+    "events_equal": true,
+    "feature_diffs_le_cut": 0,
+    "pass": true
+  },
+  "FASE7_hostile": {
+    "cases": {
+      "dup": {
+        "signals": 0,
+        "ok": true
+      },
+      "ooo": {
+        "signals": 0,
+        "ok": true
+      },
+      "gap": {
+        "signals": 0,
+        "ok": true
+      }
+    },
+    "pass": true
+  },
+  "FASE8_intrabar": {
+    "ob_bullish_batch": false,
+    "ob_bullish_stream_prefix": false,
+    "no_future_dependence": true,
+    "pass": true
+  },
+  "FASE9_shadow": {
+    "n_orders": 0,
+    "orders": [],
+    "pass": true
+  },
+  "FASE10_crossval": {
+    "ds1_stream_leaks": 0,
+    "ds2_stream_leaks": 0,
+    "pass": true
+  },
+  "FASE6_restart": {
+    "pass": false,
+    "status": "PARCIAL",
+    "finding": "run_sequence_traced no serializa SequenceState; no hay API de save/restore. Reinicio no verificable sin refactor. Documentado."
+  }
+}

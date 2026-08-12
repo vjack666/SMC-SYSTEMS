@@ -17,8 +17,17 @@ def detect_order_blocks(frame: pd.DataFrame) -> pd.DataFrame:
     bullish_candle = data["close"] > data["open"]
     strong_impulse = body_ratio > 0.7
 
-    bullish_followthrough = data["close"].shift(-1) > data["high"]
-    bearish_followthrough = data["close"].shift(-1) < data["low"]
+    # --- Causalidad (sin look-ahead): el OB se marca por la GEOMETRIA de la
+    # propia vela de impulso, NO mirando la vela siguiente (close.shift(-1)
+    # era fuga de futuro: el OB en k solo aparecia si k+1 confirmaba).
+    # Un OB alcista = vela bajista de cuerpo fuerte cuyo CUERPO rompe el rango
+    # de la vela anterior (desplazamiento ya visible en el close de k).
+    # Un OB bajista = vela alcista de cuerpo fuerte cuyo cuerpo rompe el rango
+    # de la vela anterior. Todo usa solo filas <= k.
+    prev_high = data["high"].shift(1)
+    prev_low = data["low"].shift(1)
+    bullish_followthrough = bearish_candle & (data["close"] < prev_low)
+    bearish_followthrough = bullish_candle & (data["close"] > prev_high)
 
     data["ob_bullish"] = bearish_candle & strong_impulse & bullish_followthrough
     data["ob_bearish"] = bullish_candle & strong_impulse & bearish_followthrough
