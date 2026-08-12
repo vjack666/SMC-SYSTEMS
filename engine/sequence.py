@@ -39,6 +39,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+import json
 
 import numpy as np
 import pandas as pd
@@ -149,6 +150,146 @@ class SequenceState:
         self.event_objs = {}
     def note(self, tag: str, i: int, extra: str = ""):
         self.history.append((tag, i, extra))
+
+    # ------------------------------------------------------------------
+    # Persistencia (HYP-002 M3): snapshot JSON-serializable, sin referencias
+    # vivas. Solo estado ya decidido (filas <= k). Versionado.
+    # ------------------------------------------------------------------
+    SCHEMA_VERSION = "1.0"
+
+    def to_snapshot(self) -> dict:
+        """Snapshot puro del estado ya decidido (JSON-serializable)."""
+        from engine.invalidation import InvalidationRule
+        return {
+            "schema_version": self.SCHEMA_VERSION,
+            "phase": self.phase,
+            "direction": int(self.direction),
+            "sweep_idx": int(self.sweep_idx),
+            "displace_idx": int(self.displace_idx),
+            "bos_idx": int(self.bos_idx),
+            "bos_level": _f(self.bos_level),
+            "zone_high": _f(self.zone_high),
+            "zone_low": _f(self.zone_low),
+            "zone_pd_type": self.zone_pd_type,
+            "zone_pd_tier": self.zone_pd_tier,
+            "zone_authority": _safe(self.zone_authority),
+            "htf_aligned": bool(self.htf_aligned),
+            "htf_reason": self.htf_reason,
+            "poi_present": self.poi_present,
+            "invalidation_rules": [_rule_to_dict(r) for r in self.invalidation_rules],
+            "history": [(str(t), int(i), str(e)) for t, i, e in self.history],
+            "liquidity_id": self.liquidity_id,
+            "sweep_id": self.sweep_id,
+            "displace_id": self.displace_id,
+            "bos_id": self.bos_id,
+            "poi_id": self.poi_id,
+            "refinement_id": self.refinement_id,
+            "entry_id": self.entry_id,
+            "contract_id": self.contract_id,
+            "event_objs": {
+                oid: (obj.to_dict() if hasattr(obj, "to_dict") else obj)
+                for oid, obj in self.event_objs.items()
+            },
+            "expediente": (
+                self.expediente.to_dict() if self.expediente is not None else None
+            ),
+        }
+
+    @classmethod
+    def from_snapshot(cls, data: dict) -> "SequenceState":
+        """Reconstruye SequenceState desde un snapshot (round-trip)."""
+        from engine.market_object import MarketObject
+        from engine.expediente import Expediente
+        ver = str(data.get("schema_version", "1.0"))
+        if ver.split(".")[0] != cls.SCHEMA_VERSION.split(".")[0]:
+            raise ValueError(f"Schema incompatible: {ver} vs {cls.SCHEMA_VERSION}")
+        st = cls()
+        st.phase = data["phase"]
+        st.direction = int(data["direction"])
+        st.sweep_idx = int(data["sweep_idx"])
+        st.displace_idx = int(data["displace_idx"])
+        st.bos_idx = int(data["bos_idx"])
+        st.bos_level = _nan_safe(data["bos_level"])
+        st.zone_high = _nan_safe(data["zone_high"])
+        st.zone_low = _nan_safe(data["zone_low"])
+        st.zone_pd_type = data.get("zone_pd_tier", "NONE") and data.get("zone_pd_type", "NONE")
+        st.zone_pd_tier = data.get("zone_pd_tier", "NONE")
+        st.zone_authority = data.get("zone_authority")
+        st.htf_aligned = bool(data.get("htf_aligned", True))
+        st.htf_reason = data.get("htf_reason", "ok")
+        st.poi_present = data.get("poi_present")
+        st.invalidation_rules = [_rule_from_dict(r) for r in data.get("invalidation_rules", [])]
+        st.history = [(t, int(i), e) for t, i, e in data.get("history", [])]
+        st.liquidity_id = data.get("liquidity_id", "")
+        st.sweep_id = data.get("sweep_id", "")
+        st.displace_id = data.get("displace_id", "")
+        st.bos_id = data.get("bos_id", "")
+        st.poi_id = data.get("poi_id", "")
+        st.refinement_id = data.get("refinement_id", "")
+        st.entry_id = data.get("entry_id", "")
+        st.contract_id = data.get("contract_id", "")
+        st.event_objs = {
+            oid: MarketObject.from_dict(d) for oid, d in data.get("event_objs", {}).items()
+        }
+        exp_d = data.get("expediente")
+        st.expediente = Expediente.from_dict(exp_d) if exp_d else None
+        return st
+
+    def save(self, path: str) -> None:
+        from pathlib import Path
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("w", encoding="utf-8") as f:
+            json.dump(self.to_snapshot(), f, indent=2, default=str)
+
+    @classmethod
+    def load(cls, path: str) -> "SequenceState":
+        from pathlib import Path
+        with Path(path).open("r", encoding="utf-8") as f:
+            return cls.from_snapshot(json.load(f))
+
+
+# Helpers de serializacion (privados, modulo sequence).
+def _f(x):
+    if x is None or (isinstance(x, float) and x != x):
+        return None
+    return float(x)
+
+
+def _nan_safe(x):
+    return float("nan") if x is None else float(x)
+
+
+def _safe(obj):
+    if obj is None:
+        return None
+    if hasattr(obj, "to_dict"):
+        return obj.to_dict()
+    if isinstance(obj, (dict, list, str, int, float, bool)):
+        return obj
+    return str(obj)
+
+
+def _rule_to_dict(r) -> dict:
+    return {
+        "kind": getattr(r, "kind", ""),
+        "level": _f(getattr(r, "level", None)),
+        "deadline_idx": (None if getattr(r, "deadline_idx", None) is None
+                         else int(getattr(r, "deadline_idx"))),
+        "descr": getattr(r, "descr", ""),
+        "direction": int(getattr(r, "direction", 0)),
+    }
+
+
+def _rule_from_dict(d: dict):
+    from engine.invalidation import InvalidationRule
+    return InvalidationRule(
+        kind=d.get("kind", ""),
+        level=_nan_safe(d.get("level")),
+        deadline_idx=(None if d.get("deadline_idx") is None else int(d["deadline_idx"])),
+        descr=d.get("descr", ""),
+        direction=int(d.get("direction", 0)),
+    )
 # ---------------------------------------------------------------------------
 # R9 Paso 3: constructor de objetos (NO toca translation.py)
 # ---------------------------------------------------------------------------
@@ -520,7 +661,8 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                  htf_poi_fn=None, ltf_tf: str = "M15", bos_table: dict | None = None,
                  htf_pd_index=None, ltf_map: dict | None = None,
                  htf: str | None = None,
-                 est_htf_ctx_fn=None, exec_frames: dict | None = None):
+                 est_htf_ctx_fn=None, exec_frames: dict | None = None,
+                 initial_state: Any = None, start_i: int = 0):
     """Recorre el LTF y devuelve lista de dicts de senal.
 
     R9 Paso 3: acepta DataFrame O lista de MarketObject (type=CANDLE). En
@@ -558,7 +700,7 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
     else:
         objs = list(ltf_df_or_objs)
 
-    state = SequenceState()
+    state = initial_state if initial_state is not None else SequenceState()
     signals: list[dict] = []
     n = len(objs)
     phase_seen = {"SWEEP": 0, "DISPLACE": 0, "BOS": 0, "ENTRY": 0}
@@ -571,7 +713,7 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
     # rango promedio (matematica pura high-low, sin indicadores).
     CTX_WINDOW = 50
 
-    for i in range(n):
+    for i in range(start_i + 1, n):
         obj = objs[i]
         # Fase 1 (lectura multitemporal): si se pasó est_htf_ctx_fn, run_sequence
         # recibe el MultiTFContext completo y lo reduce al MISMO HTF de antes
@@ -924,7 +1066,7 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 state.note("ENTRY", i)
                 phase_seen["ENTRY"] += 1
                 state.reset()  # una secuencia por senal
-    return signals, phase_seen, expedientes
+    return signals, phase_seen, expedientes, state
 
 
 def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
@@ -934,10 +1076,10 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 est_htf_ctx_fn=None, exec_frames: dict | None = None):
     """Wrapper 2-tuple (signals, phase_seen) — firma legacy preservada.
 
-    El motor autónomo usa _run_sequence_impl (3-tuple); aquí se descarta la
-    lista de expedientes para no romper llamadores existentes.
+    El motor autónomo usa _run_sequence_impl (4-tuple); aquí se descartan los
+    expedientes y el estado para no romper llamadores existentes.
     """
-    s, p, _ = _run_sequence_impl(
+    s, p, _, _ = _run_sequence_impl(
         ltf_df_or_objs, est_htf_fn, cfg,
         htf_poi_fn=htf_poi_fn, ltf_tf=ltf_tf, bos_table=bos_table,
         htf_pd_index=htf_pd_index, ltf_map=ltf_map,
@@ -950,11 +1092,17 @@ def run_sequence_traced(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                         htf_poi_fn=None, ltf_tf: str = "M15", bos_table: dict | None = None,
                         htf_pd_index=None, ltf_map: dict | None = None,
                         htf: str | None = None,
-                        est_htf_ctx_fn=None, exec_frames: dict | None = None):
-    """B1: (signals, phase_seen, expedientes) — trazabilidad completa (Ley 8/7/4)."""
+                        est_htf_ctx_fn=None, exec_frames: dict | None = None,
+                        initial_state=None, start_i: int = 0):
+    """B1: (signals, phase_seen, expedientes, state) — trazabilidad + estado.
+
+    Devuelve el SequenceState final para persistencia (HYP-002 M3). El llamador
+    puede pasar initial_state+start_i para reanudar tras un crash.
+    """
     return _run_sequence_impl(
         ltf_df_or_objs, est_htf_fn, cfg,
         htf_poi_fn=htf_poi_fn, ltf_tf=ltf_tf, bos_table=bos_table,
         htf_pd_index=htf_pd_index, ltf_map=ltf_map,
         htf=htf, est_htf_ctx_fn=est_htf_ctx_fn, exec_frames=exec_frames,
+        initial_state=initial_state, start_i=start_i,
     )

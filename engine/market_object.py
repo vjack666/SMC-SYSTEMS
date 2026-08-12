@@ -85,6 +85,12 @@ class MarketObject:
         linaje causal por parent_object sin acoplarse al dataclass. No altera
         ninguna regla ICT/SMC ni introduce indicadores.
         """
+        def _f(v):
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                return v
+            return None if fv != fv else fv
         return {
             "id": self.id,
             "symbol": self.symbol,
@@ -92,13 +98,35 @@ class MarketObject:
             "origin_tf": self.origin_tf,
             "role": self.role.value if isinstance(self.role, Role) else self.role,
             "direction": int(self.direction),
-            "zone_high": float(self.zone_high),
-            "zone_low": float(self.zone_low),
+            "zone_high": _f(self.zone_high),
+            "zone_low": _f(self.zone_low),
             "creation_time": str(self.creation_time) if self.creation_time is not None else None,
             "state": self.state.value if isinstance(self.state, ObjectState) else self.state,
             "parent_object": self.parent_object,
             "related_objects": list(self.related_objects),
             "bar_index": int(self.bar_index) if self.bar_index is not None else None,
             "bar_time": str(self.bar_time) if self.bar_time is not None else None,
-            "meta": dict(self.meta),
+            "meta": {k: _f(v) for k, v in self.meta.items()},
         }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "MarketObject":
+        """Reconstruye un MarketObject desde su to_dict (round-trip persistence)."""
+        return cls(
+            id=d.get("id", ""),
+            symbol=d.get("symbol", ""),
+            type=ObjectType(d["type"]),
+            origin_tf=d.get("origin_tf", ""),
+            role=Role(d["role"]),
+            direction=int(d.get("direction", 0)),
+            zone_high=float(d.get("zone_high", 0.0)) if d.get("zone_high") is not None else float("nan"),
+            zone_low=float(d.get("zone_low", 0.0)) if d.get("zone_low") is not None else float("nan"),
+            creation_time=d.get("creation_time"),
+            state=ObjectState(d["state"]),
+            meta=dict(d.get("meta", {})),
+            parent_object=d.get("parent_object"),
+            related_objects=list(d.get("related_objects", [])),
+            quality_score=d.get("quality_score"),
+            bar_index=d.get("bar_index"),
+            bar_time=d.get("bar_time"),
+        )

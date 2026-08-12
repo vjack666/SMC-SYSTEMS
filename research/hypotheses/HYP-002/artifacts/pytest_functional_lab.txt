@@ -1,0 +1,8 @@
+.....                                                                    [100%]
+============================== warnings summary ===============================
+engine\bias\narrative.py:303
+  C:\Users\v_jac\Desktop\SMC-SYSTEMS\engine\bias\narrative.py:303: Pandas4Warning: 'future.no_silent_downcasting' is deprecated, please refrain from using it.
+    pd.set_option("future.no_silent_downcasting", True)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+5 passed, 1 warning in 410.14s (0:06:50)

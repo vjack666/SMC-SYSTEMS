@@ -68,8 +68,11 @@
     "pass": true
   },
   "FASE6_restart": {
-    "pass": false,
-    "status": "PARCIAL",
-    "finding": "run_sequence_traced no serializa SequenceState; no hay API de save/restore. Reinicio no verificable sin refactor. Documentado."
+    "cut": 120,
+    "continuous_signals": 0,
+    "resumed_signals": 0,
+    "causal_graphs_equal": true,
+    "roundtrip_ok": true,
+    "pass": true
   }
 }

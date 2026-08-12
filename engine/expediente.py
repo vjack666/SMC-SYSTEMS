@@ -53,6 +53,17 @@ class PhaseEvent:
             "parent_event_id": self.parent_event_id,
         }
 
+    @classmethod
+    def from_dict(cls, d: dict) -> "PhaseEvent":
+        return cls(
+            phase=d["phase"],
+            idx=int(d["idx"]),
+            time=d.get("time"),
+            condition=d.get("condition", ""),
+            event_id=d.get("event_id", ""),
+            parent_event_id=d.get("parent_event_id", ""),
+        )
+
 
 @dataclass
 class Expediente:
@@ -159,3 +170,26 @@ class Expediente:
             "outcome": self.outcome,
             "meta": self.meta,
         }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Expediente":
+        """Reconstruye un Expediente desde su to_dict (round-trip persistence)."""
+        exp = cls(
+            id=d["id"],
+            symbol=d["symbol"],
+            tf=d["tf"],
+            direction=int(d["direction"]),
+            birth_idx=int(d["birth_idx"]),
+            birth_time=d.get("birth_time"),
+            birth_condition=d.get("birth_condition", ""),
+            invalidation_rule=d.get("invalidation_rule", ""),
+            invalidation_idx=d.get("invalidation_idx"),
+            invalidation_time=d.get("invalidation_time"),
+            invalidation_reason=d.get("invalidation_reason"),
+            outcome=d.get("outcome", "OPEN"),
+            meta=dict(d.get("meta", {})),
+        )
+        exp.phase_events = [PhaseEvent.from_dict(e) for e in d.get("phase_events", [])]
+        # Restaura la guarda anti-look-ahead al ultimo idx registrado.
+        exp._last_idx = exp.phase_events[-1].idx if exp.phase_events else int(exp.birth_idx)
+        return exp

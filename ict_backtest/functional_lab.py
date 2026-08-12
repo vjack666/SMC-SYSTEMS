@@ -108,6 +108,71 @@ def _make_htf(n):
     return hdf
 
 
+def make_signal_objs(n=12, base=1.1000):
+    """Dataset que SÍ dispara un setup LONG (sweep→displace→BOS→return).
+
+    Construye MarketObject[] directamente (el motor acepta objs como feed) con
+    `meta` manual, para tener una corrida NO vacía y probar paridad de reinicio
+    de forma no trivial. HTF estimator devuelve BULLISH en todas las velas.
+    """
+    from engine.market_object import MarketObject, ObjectType, Role, ObjectState
+    import pandas as pd
+    objs = []
+    for i in range(n):
+        meta = {
+            "open": base + 0.0005 * i,
+            "high": base + 0.0005 * i + 0.0004,
+            "low": base + 0.0005 * i - 0.0004,
+            "close": base + 0.0005 * i + 0.0001,
+            "volume": 100.0,
+            "atr": 0.0008,
+            "liquidity_sweep_down": False,
+            "liquidity_sweep_up": False,
+            "displacement_bullish": False,
+            "displacement_bearish": False,
+            "fvg_bullish": False,
+            "fvg_bearish": False,
+            "ob_direction": "-",
+            "bos_dir": 0,
+            "choch_dir": 0,
+            "ssl_price": None,
+            "bsl_price": None,
+            "bos_level": None,
+            "pd_type": None,
+            "pd_tier": None,
+        }
+        objs.append(MarketObject(
+            id=f"c{i}", symbol="EURUSD", type=ObjectType.CANDLE, origin_tf="M15",
+            role=Role.REFINEMENT, direction=0, bar_index=i,
+            bar_time=pd.Timestamp("2026-03-01 00:00") + pd.Timedelta(minutes=15 * i),
+            meta=meta, state=ObjectState.ACTIVE))
+    # 1) sweep DOWN (barre SSL) — idx>=1 porque el loop empieza en i=start_i+1
+    objs[1].meta["liquidity_sweep_down"] = True
+    objs[1].meta["ssl_price"] = objs[1].meta["low"]
+    # 3) displacement alcista
+    objs[3].meta["displacement_bullish"] = True
+    # 4) FVG alcista (zona de entrada)
+    objs[4].meta["fvg_bullish"] = True
+    objs[4].meta["high"] = base + 0.0100
+    objs[4].meta["low"] = base + 0.0090
+    # 6) BOS alcista
+    objs[6].meta["bos_dir"] = 1
+    objs[6].meta["bos_level"] = base + 0.0120
+    # 9) retorno a la zona del FVG (entry)
+    objs[9].meta["high"] = base + 0.0101
+    objs[9].meta["low"] = base + 0.0089
+    return objs
+
+
+def make_signal_est():
+    def f(i):
+        return {"trend": "BULLISH", "sweep_up": False, "sweep_down": False,
+                "displacement_bullish": False, "displacement_bearish": False,
+                "fvg_bullish": False, "fvg_bearish": False,
+                "ob_bullish": False, "ob_bearish": False, "bos_dir": 0}
+    return f
+
+
 # Columnas que el motor lee en el loop (deben ser identicas batch vs stream).
 _WATCH_COLS = ["ob_bullish", "ob_bearish", "fvg_bullish", "fvg_bearish",
                "bos_dir", "swing_high", "swing_low", "trend",
@@ -118,7 +183,7 @@ def _run_batch(df):
     """Batch real: build_features sobre TODO el df + run_sequence_traced."""
     feat = build_features(df)
     est = _est_htf_fn(_make_htf(len(df)))
-    sigs, ps, exps = run_sequence_traced(feat, est, SequenceConfig(),
+    sigs, ps, exps, _state = run_sequence_traced(feat, est, SequenceConfig(),
                                           htf_poi_fn=None, ltf_tf="M15", htf=None)
     return feat, sigs, ps, exps
 
@@ -173,7 +238,7 @@ def audit_batch_vs_stream(df):
     for k in range(n):
         feat_k = _features_prefix(df, k)
         est = _est_htf_fn(_make_htf(n))
-        sigs_k, _, _ = run_sequence_traced(feat_k, est, SequenceConfig(),
+        sigs_k, _, _, _ = run_sequence_traced(feat_k, est, SequenceConfig(),
                                            htf_poi_fn=None, ltf_tf="M15", htf=None)
         ev_batch = _events_at(sigs_batch, k)
         ev_stream = _events_at(sigs_k, k)
@@ -356,6 +421,99 @@ def build_shadow(df):
     return {"n_orders": len(journal), "orders": journal[:3], "pass": True}
 
 
+def _role_graph(sig):
+    """Grafo causal INVARIANTE de un setup.
+
+    El id de MarketObject es uuid4 aleatorio (cambia cada invocacion), pero el
+    linaje causal (rol + parent-rol + bar_index + type) es deterministico.
+    Comparar esto, no los uuid crudos, es la prueba correcta de continuidad.
+    """
+    eo = sig.get("event_objects", {})
+    ids = sig.get("event_ids", {})
+    roles = ["LIQUIDITY", "SWEEP", "DISPLACE", "BOS", "POI", "REFINEMENT", "RETURN", "CONTRACT"]
+    g = {"direction": sig.get("direction"), "roles": {}}
+    for r in roles:
+        oid = ids.get(r)
+        o = eo.get(oid) if oid else None
+        if o is None:
+            continue
+        parent_role = None
+        # busca el rol del parent por su id
+        parent_id = o.get("parent_object")
+        if parent_id:
+            for pr in roles:
+                if ids.get(pr) == parent_id:
+                    parent_role = pr
+                    break
+        g["roles"][r] = {
+            "type": o.get("type"),
+            "role": o.get("role"),
+            "bi": o.get("bar_index"),
+            "parent_role": parent_role,
+        }
+    return g
+
+
+def _signals_of(objs, est, cfg, initial_state=None, start_i=0):
+    sigs, _, _, _ = run_sequence_traced(
+        objs, est, cfg, htf_poi_fn=None, ltf_tf="M15",
+        initial_state=initial_state, start_i=start_i)
+    return sigs
+
+
+def audit_restart_parity(objs=None, cut=6):
+    """FASE 6 (HYP-002 M3). RUN CONTINUO vs SAVE -> CRASH -> LOAD -> RESUME.
+
+    El motor almacena en state.*_idx la POSICION en el feed. Por eso el resume
+    NO rebasa el slice: se re-alimenta el OBJS COMPLETO con start_i=cut+1 y el
+    estado restaurado (posiciones absolutas preservadas). Se compara el grafo
+    causal de cada senal (no los uuid, que son aleatorios por disenio).
+    """
+    from engine.sequence import SequenceState
+    if objs is None:
+        objs = make_signal_objs(12)
+    est = make_signal_est()
+    cfg = SequenceConfig(bos_gap=20, displace_gap=6)
+
+    # 1) corrida continua
+    sigs_full, _, _, _ = run_sequence_traced(
+        objs, est, cfg, htf_poi_fn=None, ltf_tf="M15")
+    g_full = [_role_graph(s) for s in sigs_full]
+
+    # 2) correr hasta el corte, guardar snapshot, "crash", recargar
+    partial = objs[:cut + 1]
+    _, _, _, state_k = run_sequence_traced(
+        partial, est, cfg, htf_poi_fn=None, ltf_tf="M15")
+
+    # snapshot + restore por round-trip (in-memory y en disco)
+    snap = state_k.to_snapshot()
+    restored = SequenceState.from_snapshot(snap)
+    # round-trip OK se chequea AQUI: luego `restored` se usa como initial_state
+    # del resume y el motor lo muta in-place.
+    roundtrip_ok = (restored.to_snapshot() == snap)
+    _tmp = "research/hypotheses/HYP-002/artifacts/_restart_test_state.json"
+    state_k.save(_tmp)
+    restored_file = SequenceState.load(_tmp)
+    assert restored_file.to_snapshot() == snap, "save/load round-trip roto"
+
+    # 3) continuar desde cut+1 con estado restaurado (OBJS COMPLETO, start_i)
+    sigs_cont, _, _, _ = run_sequence_traced(
+        objs, est, cfg, htf_poi_fn=None, ltf_tf="M15",
+        initial_state=restored, start_i=cut)
+    g_cont = [_role_graph(s) for s in sigs_cont]
+
+    same = (g_full == g_cont)
+    return {
+        "cut": cut,
+        "continuous_signals": len(g_full),
+        "resumed_signals": len(g_cont),
+        "causal_graphs_equal": same,
+        "roundtrip_ok": roundtrip_ok,
+        "non_trivial": len(g_full) > 0,
+        "pass": same and len(g_full) > 0,
+    }
+
+
 def run_all():
     n = 250
     df = _make_ltf(n, 40, 44, 46, 50, 80)
@@ -374,13 +532,8 @@ def run_all():
         "ds2_stream_leaks": audit_batch_vs_stream(df2)["feature_leaks"],
         "pass": True,
     }
-    # FASE6 restart: el motor no expone API de serializacion de SequenceState.
-    out["FASE6_restart"] = {
-        "pass": False,
-        "status": "PARCIAL",
-        "finding": "run_sequence_traced no serializa SequenceState; no hay API de "
-                   "save/restore. Reinicio no verificable sin refactor. Documentado.",
-    }
+    # FASE6 restart (HYP-002 M3): serializacion + resume verificado (dataset con senal).
+    out["FASE6_restart"] = audit_restart_parity()
     (ART / "lab_report.json").write_text(json.dumps(out, indent=2, default=str))
     return out
 

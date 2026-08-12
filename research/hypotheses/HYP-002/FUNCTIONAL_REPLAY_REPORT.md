@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-08-11 · **Ejecutor:** Hermes (modo autónomo CEO-delegado)
 **Alcance:** comportamiento TEMPORAL/OPERACIONAL del motor. NO WR/PF/edge.
-**Commit:** pendiente de push (rama `feature/backtest-ict`)
+**Commit:** d76783f → M3 (rama `feature/backtest-ict`) · **Push:** pendiente de OK
 **Script:** `ict_backtest/functional_lab.py` · **Contrato:** `FUNCTIONAL_REPLAY_CONTRACT.md`
 **Artefactos:** `research/hypotheses/HYP-002/artifacts/lab_report.json`
 
@@ -45,7 +45,7 @@ Reglas respetadas:
 | 3 | Determinismo (bloques) | **FAIL** | 246 divergencias bloque-independiente vs creciente |
 | 4 | Corte temporal | **PASS** | futuro alterado no cambia ≤cut (feature_diffs=0) |
 | 5 | Future Mutation | **PASS** | ídem |
-| 6 | Reinicio | **PARCIAL** | sin API de serialización de SequenceState |
+| 6 | Reinicio | **PASS** | RUN CONTINUO == SAVE→CRASH→LOAD→RESUME (grafo causal idéntico) |
 | 7 | Datos hostiles | **PASS** | dup/ooo/gap: sin crash, sin señal falsa |
 | 8 | Intrabar / OB causal | **PASS** | ob_bullish batch==stream (leak shift(-1) CERRADO) |
 | 9 | Shadow Market | **PASS** | journal + virtual exec sin broker |
@@ -85,11 +85,18 @@ RESTRICCIÓN OPERACIONAL: **el replay en vivo debe llevar el historial de featur
 acumulado**, no recalcular bloque a bloque. Se documenta como requisito de
 implementación del feed real. No se "parcheó" el resultado.
 
-### 4.3 (PARCIAL) Reinicio — `engine/sequence.py`
-`run_sequence_traced` no expone API de serialización de `SequenceState`
-(memoria de fase, ids, zona, idx). No se puede probar "continúa == reinicia"
-sin un refactor de persistencia. Auditado como PARCIAL y documentado; fuera del
-alcance de esta misión cerrar la serialización (requiere diseño de estado).
+### 4.3 (PASS) Reinicio — `engine/sequence.py` (HYP-002 M3)
+`SequenceState` ahora expone `to_snapshot()` / `from_snapshot()` / `save()` /
+`load()` (JSON, `schema_version="1.0"`). `run_sequence_traced` acepta
+`initial_state` + `start_i` y devuelve el estado final (4-tuple). Demostrado:
+RUN CONTINUO == SAVE→CRASH→LOAD→RESUME a nivel de grafo causal (ids uuid son
+aleatorios por diseño; se compara rol+parent-rol+bar_index+type). `MarketObject`
+y `Expediente` ganaron `from_dict` para el round-trip.
+
+Detalle de integración clave: el motor guarda en `state.sweep_idx` etc. la
+**POSICIÓN** en el feed (0-based), no `obj.bar_index`. Por eso el resume
+re-alimenta el df COMPLETO con `start_i = cut+1`; cortar con `df.iloc[k+1:]`
+rebasaría posiciones y rompería la paridad (anti-patrón documentado en el contrato).
 
 ---
 
@@ -106,7 +113,8 @@ alcance de esta misión cerrar la serialización (requiere diseño de estado).
   (`detectors/ob.py`). FASE8 PASS.
 - Determinismo: restricción operacional documentada (el feed vivo debe acumular
   features; no recalcular por bloque).
-- Reinicio: documentado como PARCIAL (deuda de API de estado).
+- Reinicio: CERRADO — `SequenceState` serializable + resume idéntico (grafo causal)
+  vía `to_snapshot/from_snapshot/save/load` + `run_sequence_traced(initial_state, start_i)`.
 
 Archivos modificados:
 - `detectors/ob.py` (corrección causal OB)
@@ -125,9 +133,8 @@ Archivos modificados:
   shift(-1)) fue cerrada.
 
 ### IMPORTANTE
-- **FASE6 Reinicio**: `SequenceState` no es serializable. Para un bot autónomo
-  real esto es bloqueante. Requiere API `save()/load()` de estado (fuera de
-  alcance aquí, pero debe entrar en el backlog antes de demo).
+- (cerrada) **FASE6 Reinicio**: `SequenceState` serializable + resume idéntico
+  (HYP-002 M3). Verificado por `audit_restart_parity` y `tests/test_sequence_persistence.py`.
 
 ### MENOR
 - FASE3 requiere que el feed vivo acumule features históricas (no recalcular por
@@ -142,13 +149,24 @@ Archivos modificados:
 
 ## 7. Veredicto
 
-**A VALIDADA (con una deuda IMPORTANTE documentada).**
+**A VALIDADA — funcionamiento temporal, con dos condiciones operacionales abiertas.**
 
 El motor, alimentado vela-a-vela con su pipeline real, produce eventos
 causalmente disponibles: batch == stream, corte temporal y mutación de futuro no
 alteran el pasado, datos hostiles no generan señal falsa, el OB look-ahead fue
-cerrado, y el shadow market corre sin broker. Queda una deuda IMPORTANTE
-(serialización de estado para reinicio) que debe cerrarse ANTES de demo autónoma,
-y la restricción operacional de acumular features en el feed vivo.
+cerrado, el shadow market corre sin broker, y el reinicio (SAVE→CRASH→LOAD→RESUME)
+es idéntico a la corrida continua a nivel de grafo causal.
+
+Las DOS condiciones operacionales abiertas (no bugs del motor, sino de
+infraestructura/alcance):
+
+1. **FASE3 — invariante de feed:** el feed en vivo DEBE conservar el historial de
+   features acumulado. Recalcular por bloque olvidando el contexto introduce
+   divergencias (246 demostradas). Regla de infraestructura, no del motor.
+2. **Datos reales / ITF-LTF-CONTRACT / estadística:** aún no probados (bloqueo de
+   parquet documentado; arquitectura de capas fuera de alcance de esta misión;
+   WR/PF/edge expresamente excluidos).
 
 No se aprobó nada con WR/PF. La misión valida COMPORTAMIENTO TEMPORAL, no edge.
+El motor NO está "listo para operar" hasta cerrar (1) la continuidad de feed en
+el adaptador real y (2) la evaluación estadística.

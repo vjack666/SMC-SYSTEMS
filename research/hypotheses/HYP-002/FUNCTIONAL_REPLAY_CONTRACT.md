@@ -31,11 +31,30 @@ NO puede conservar referencias a filas futuras ni leer el dataframe completo.
 
 ## 5. Look-ahead = cualquier dependencia de j > k en la fila k.
 
-## 6. Reinicio
+## 6. Reinicio (HYP-002 M3 — CERRADO)
 
 Reinicio = serializar el estado en `k`, apagar, reconstruir en `k`, continuar.
-El motor DEBE ofrecer una API de serialización; si no existe, la auditoría de
-reinicio queda PARCIAL (se documenta el bloqueo, no se simula falsamente).
+`SequenceState` expone `to_snapshot()` / `from_snapshot()` / `save()` / `load()`
+(JSON, `schema_version`). `run_sequence_traced` acepta `initial_state` + `start_i`
+y devuelve `(signals, phase_seen, expedientes, state)`.
+
+PARIDAD de reinicio (RUN CONTINUO == SAVE→CRASH→LOAD→RESUME):
+
+- El motor almacena en `state.sweep_idx/displace_idx/bos_idx` la **POSICIÓN** en
+  el feed (0-based), NO `obj.bar_index`. Por eso el resume re-alimenta el **df
+  COMPLETO** con `start_i = cut+1` y el estado restaurado: las posiciones quedan
+  absolutas y la genealogía es idéntica. Cortar con `df.iloc[k+1:]` REBASA las
+  posiciones y ROMPE la paridad (anti-patrón documentado).
+- El id de `MarketObject` es `uuid4` aleatorio (cambia cada invocación). La prueba
+  de continuidad compara el **grafo causal** (rol + parent-rol + bar_index + type),
+  que es determinista, NO los uuid crudos.
+
+## 6b. Invariante de feed (deuda FASE3 → regla de infraestructura)
+
+El feed en vivo DEBE conservar el historial de features acumulado. Recalcular
+features POR BLOQUE olvidando el contexto introduce divergencias (FASE3 FAIL).
+La continuidad del feed y la continuidad del estado son dos problemas distintos;
+ambos resueltos: estado vía §6, feed vía acumulación de features en el replay.
 
 ## 7. Reproducibilidad
 
@@ -51,7 +70,7 @@ el futuro NO debe cambiar el pasado.
 | Determinismo (bloques) | bloque-indep == stream | diverge en borde de bloque |
 | Corte temporal | futuro alterado no cambia ≤cut | cambia |
 | Future Mutation | ídem | ídem |
-| Reinicio | estado serializable + igual | sin API → PARCIAL |
+| Reinicio | estado serializable + resume idéntico (grafo causal) | sin API → PARCIAL |
 | Datos hostiles | detecta/rechaza/marca UNKNOWN | emite señal falsa |
 | Intrabar | evento usa solo vela cerrada | usa high/low no finalizados |
 | Shadow Market | journal + virtual exec sin broker | — |
