@@ -1,7 +1,7 @@
 """Compara detectores viejos (detectors/) vs nuevo (market_structure) en XAUUSD H4."""
 from ict_backtest.data_feed import load_frames
 from detectors import detect_bos as old_bos, detect_choch as old_choch
-from ict_backtest.market_structure import detect_market_structure
+from engine.market_structure import detect_market_structure
 
 fr = load_frames("XAUUSD", ("H4",))
 df = fr["H4"]

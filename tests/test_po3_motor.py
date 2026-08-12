@@ -107,20 +107,26 @@ def test_po3_config_por_defecto_funciona():
 
 
 def test_po3_delega_en_build_po3_state(monkeypatch):
-    """Aisla el motor: con build_po3_state mockeado, delega y devuelve lo que diga."""
-    from ict_backtest.po3_motor import build_po3_state as _real
+    """Aisla el motor: con build_po3_state mockeado, delega y devuelve lo que diga.
+
+    Tras la migración HYP-002 la fuente canónica de build_po3_state vive en
+    ``engine.po3`` (capa permanente del motor); ict_backtest.po3_motor es shim.
+    compute_po3_complete delega en engine.po3.build_po3_state.
+    """
+    from engine.po3 import build_po3_state as _real
 
     calls = {}
 
     def _fake(structure_data, bias, votes=None, exec_tf="M15", htf="H4"):
         calls["called"] = True
         calls["bias"] = bias
+
         # State fake con complete=True
         class _S:
             complete = True
         return _S()
 
-    monkeypatch.setattr("ict_backtest.po3_motor.build_po3_state", _fake)
+    monkeypatch.setattr("engine.po3.build_po3_state", _fake)
     cfg = Po3MotorConfig(bias="BULLISH")
     out = compute_po3_complete({"M15": {}}, config=cfg)
     assert calls.get("called") is True, "el motor no delegó en build_po3_state"

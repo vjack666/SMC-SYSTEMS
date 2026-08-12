@@ -18,7 +18,7 @@ import pandas as pd
 
 from ict_backtest.costs import resolve_cost
 from ict_backtest.data_feed import load_frames
-from ict_backtest.market_structure import detect_market_structure
+from engine.market_structure import detect_market_structure
 from ict_backtest.run_backtest import _metrics, _write_runner_progress, generate_sequence_signals
 from ict_backtest.v2.coverage import build_coverage_report
 from ict_backtest.v2.event_log import EventLog

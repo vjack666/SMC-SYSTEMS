@@ -65,12 +65,12 @@ def _write_runner_progress(
 from ict_backtest.data_feed import load_frames  # noqa: E402
 from ict_backtest.costs import resolve_cost  # noqa: E402
 from ict_backtest.engine import simulate_trade, ICTSignal  # noqa: E402
-from ict_backtest.market_structure import detect_market_structure  # noqa: E402
+from engine.market_structure import detect_market_structure  # noqa: E402
 from ict_backtest.canonical import (  # noqa: E402
     evaluate_signals,
     load_bos_table,
 )
-from ict_backtest.plan_attach import attach_alignment  # noqa: E402
+from engine.plan_attach import attach_alignment  # noqa: E402
 
 
 def _metrics(pnls: list[float]) -> dict[str, float]:
@@ -298,8 +298,8 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
     plan_gate_fsm = None
     plan_gate_vetoes: list = []
     if plan_gate:
-        from ict_backtest.plan_driver import plan_step, _state_rank
-        from ict_backtest.plan_fsm import PlanFSM, PlanState
+        from engine.plan_driver import plan_step, _state_rank
+        from engine.plan_fsm import PlanFSM, PlanState
         plan_gate_fsm = PlanFSM()
         plan_gate_objs = _build_objs_by_tf(frames, symbol)
         plan_gate_threshold = PlanState.STRUCTURE_OK

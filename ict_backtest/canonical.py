@@ -31,10 +31,10 @@ from ict_backtest.engine import (
     fill_entry_price,
     _tp_liquidity,
 )
-from ict_backtest.market_structure import detect_market_structure
-from ict_backtest.multitf_context import MultiTFContext, build_multitf_context, extract_htf_layer
-from ict_backtest.dealing_range_motor import compute_zone_class
-from ict_backtest.po3_motor import compute_po3_complete, Po3MotorConfig
+from engine.market_structure import detect_market_structure
+from engine.multitf_context import MultiTFContext, build_multitf_context, extract_htf_layer
+from engine.dealing_range_eq import compute_zone_class
+from engine.po3 import compute_po3_complete, Po3MotorConfig
 from engine.killzone import killzone_en
 from ict_backtest.sequence import SequenceConfig, run_sequence
 from engine.rr_by_setup import rr_for
@@ -69,18 +69,18 @@ def _rr_for_raw_signal(s: dict, ltf_df: pd.DataFrame, direction: int, ltf: str =
         # Importar por modulo (no por la ref del top) para que los tests
         # puedan mockear a nivel de modulo del detector y para respetar
         # overrides en runtime.
-        from ict_backtest.setups import silver_bullet as sb_mod
-        from ict_backtest.setups import turtle_soup as ts_mod
-        from ict_backtest.setups import ote as ote_mod
+        from engine.silver_bullet import is_silver_bullet as _is_sb
+        from engine.turtle_soup import is_turtle_soup as _is_ts
+        from engine.ote import is_ote_entry as _is_ote
         try:
             sweep_ts = ltf_df.iloc[int(sweep_at)]["time"]
             entry_ts = ltf_df.iloc[int(entry_at)]["time"]
-            sb_confirmed, _ = sb_mod.is_silver_bullet(sweep_ts, entry_ts, direction, killzone_en)
+            sb_confirmed, _ = _is_sb(sweep_ts, entry_ts, direction, killzone_en)
         except Exception:
             sb_confirmed = False
         try:
             _frames = {ltf: ltf_df}
-            turtle_confirmed, _ = ts_mod.is_turtle_soup(sweep_ts, direction, _frames, ltf)
+            turtle_confirmed, _ = _is_ts(sweep_ts, direction, _frames, ltf)
         except Exception:
             turtle_confirmed = False
         try:
@@ -89,7 +89,7 @@ def _rr_for_raw_signal(s: dict, ltf_df: pd.DataFrame, direction: int, ltf: str =
                 sh = ltf_df.iloc[int(entry_at)].get("swing_high")
                 sl = ltf_df.iloc[int(entry_at)].get("swing_low")
                 if not (pd.isna(sh) or pd.isna(sl)):
-                    ote_confirmed, _ = ote_mod.is_ote_entry(float(s.get("entry", 0.0)), float(sh), float(sl), direction)
+                    ote_confirmed, _ = _is_ote(float(s.get("entry", 0.0)), float(sh), float(sl), direction)
         except Exception:
             ote_confirmed = False
     if sb_confirmed:
@@ -387,7 +387,7 @@ def evaluate_signals(
     # evaluate_signals AHORA llama estos flags sobre su propia salida.
     from engine.silver_bullet import flag_silver_bullet
     from engine.turtle_soup import flag_turtle_soup
-    from ict_backtest.setups.ote import flag_ote
+    from engine.ote import flag_ote
     from engine.rr_by_setup import flag_rr
     from engine.liquidity_internal_external import flag_liquidity_irl_erl
 

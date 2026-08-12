@@ -38,7 +38,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ict_backtest.data_feed import load_frames  # noqa: E402
-from ict_backtest.market_structure import detect_market_structure  # noqa: E402
+from engine.market_structure import detect_market_structure  # noqa: E402
 from ict_backtest.sequence import run_sequence, SequenceConfig  # noqa: E402
 from ict_backtest._util import closed_row_at_time, infer_tf_duration, avg_candle_range  # noqa: E402
 from ict_backtest.costs import resolve_cost  # noqa: E402
