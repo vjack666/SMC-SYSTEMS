@@ -32,6 +32,7 @@ class JournalEntry:
     direction: int = 0           # +1/-1/0
     level: float = float("nan")  # nivel relevante (si aplica)
     state: str = ""              # fase de la secuencia en ese instante
+    state_snapshot: dict = field(default_factory=dict)  # SequenceState.to_snapshot() en ese instante
     meta: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:

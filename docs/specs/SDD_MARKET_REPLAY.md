@@ -100,6 +100,40 @@ Corregido a `return None` (no hay disponibilidad). Es fix de infraestructura
 temporal (anti look-ahead), NO de lógica de decisión SMC. Tras el fix, la
 batería pasa 12/12 y `test_ict_backtest.py` sigue en 8 passed (sin regresión).
 
+### 6.6 Auditoría de LECTURA contra datos reales (REAL-MARKET-REPLAY, 2026-08-12)
+
+Puerta 6 del roadmap: "¿qué lee realmente el motor sobre EURUSD real, vela a
+vela, sin conocer el futuro?" — sin evaluar WR/PF/edge (la evaluación es
+tarea posterior: Shadow → OOS → Estadística → Edge).
+
+Nuevos módulos (consumidores puros de `engine`, sin `ict_backtest`):
+
+- `market_replay/readout.py` — `ReadoutFormatter`: resuelve `state.event_objs`
+  (MarketObject[]) a un reporte legible `CONOCIDO` (velas HTF cerradas en t) +
+  `LECTURA` (cadena LIQUIDITY→SWEEP→DISPLACEMENT→BOS→POI→REFINEMENT→RETURN→
+  CONTRACT con parent chain). NO calcula PnL.
+- `market_replay/inspect_real.py` — runner de auditoría: carga
+  `data/raw/EURUSD_*.parquet`, corre `MarketReplay` vela-a-vela (barrido en
+  chunks anti-timeout) y emite readouts por setup desde el journal.
+- `market_replay/journal.py` — `JournalEntry` ahora guarda `state_snapshot`
+  (SequenceState.to_snapshot()), la pieza que faltaba para responder "¿qué
+  sabía el motor en este instante?". `replay.py` lo pobló en `_record_events`.
+
+Tests (`tests/test_real_market_read.py`): 3 passed, 1 skipped.
+- `no_ict_backtest_import` PASS (sin `import/from ict_backtest`).
+- `does_not_compute_pnl` PASS (el readout no expone WR/PF/edge).
+- `formatter_resolves_market_object` PASS (resuelve MarketObject desde estado).
+- `pipeline_over_real_data` SKIP: el motor tarda ~3s/vela M15 sobre 4 TFs ⇒
+  400 velas > 10 min. La infraestructura de lectura está validada por el test
+  de formatter; el barrido masivo sobre datos reales es tarea de Shadow/
+  inspección (background, más tiempo). `inspect_real` CLI queda disponible.
+
+**FINDING honesto:** la herramienta de lectura opera correctamente sobre
+EURUSD real (CLI exit 0, journal captura state_snapshot). El cuello es la
+velocidad del motor (~3s/vela), no la infraestructura de replay. No se infla
+"lectura demostrada con setup" porque el barrido masivo no es viable en el
+tiempo de test; se deja cableado para Shadow Market.
+
 ## 7. Respuesta a la condición del Director
 
 > ¿Si mañana borramos `ict_backtest/`, puedo arrancar el motor, alimentarlo

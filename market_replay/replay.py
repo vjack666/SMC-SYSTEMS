@@ -141,6 +141,7 @@ class MarketReplay:
                     direction=int(getattr(state, "direction", 0) or 0),
                     level=float(getattr(state, "bos_level", float("nan")) or float("nan")),
                     state=str(getattr(state, "phase", "")),
+                    state_snapshot=state.to_snapshot(),
                 )
             )
 
