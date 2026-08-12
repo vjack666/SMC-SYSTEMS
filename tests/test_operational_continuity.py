@@ -17,21 +17,27 @@ Contrato validado (ver ict_backtest/operational_continuity_lab.py):
 """
 
 import pytest
+import sys
+from pathlib import Path
 from engine.sequence import SequenceConfig, run_sequence_traced, SequenceState
-from ict_backtest.operational_continuity_lab import (
-    make_multi_setup_objs,
-    make_signal_est,
-    run_session,
-    audit_multi_restart,
-    audit_gaps,
-    audit_duplicates,
-    audit_out_of_order,
-    audit_session_change,
-    audit_setup_lifecycle,
-    run_all,
-    _role_graph,
-    _resume_session,
-)
+
+_REPLAY = Path(__file__).resolve().parent.parent / "research" / "hypotheses" / "HYP-002" / "functional_replay"
+if str(_REPLAY) not in sys.path:
+    sys.path.insert(0, str(_REPLAY))
+import operational_continuity_battery as lab
+
+make_multi_setup_objs = lab.make_multi_setup_objs
+make_signal_est = lab.make_signal_est
+run_session = lab.run_session
+audit_multi_restart = lab.audit_multi_restart
+audit_gaps = lab.audit_gaps
+audit_duplicates = lab.audit_duplicates
+audit_out_of_order = lab.audit_out_of_order
+audit_session_change = lab.audit_session_change
+audit_setup_lifecycle = lab.audit_setup_lifecycle
+run_all = lab.run_all
+_role_graph = lab._role_graph
+_resume_session = lab._resume_session
 
 
 @pytest.fixture

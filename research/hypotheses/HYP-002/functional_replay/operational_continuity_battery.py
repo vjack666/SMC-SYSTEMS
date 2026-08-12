@@ -43,6 +43,14 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
+import sys
+from pathlib import Path
+
+# Mismo dir que replay_core.py -> import relativo de archivo (sin paquete).
+_THIS = str(Path(__file__).resolve().parent)
+if _THIS not in sys.path:
+    sys.path.insert(0, _THIS)
+
 from engine.sequence import (
     SequenceConfig,
     SequenceState,
@@ -50,7 +58,12 @@ from engine.sequence import (
 )
 from engine.market_object import MarketObject, ObjectType, Role, ObjectState
 
-from ict_backtest.functional_lab import make_signal_objs, make_signal_est, _role_graph
+import replay_core as _rc
+from replay_core import (  # noqa: F401
+    make_signal_objs,
+    make_signal_est,
+    _role_graph,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers de construcción de velas (objetos MarketObject tipo CANDLE)

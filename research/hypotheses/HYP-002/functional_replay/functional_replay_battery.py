@@ -1,15 +1,17 @@
-"""HYP-002 Functional Replay Lab — audita el comportamiento TEMPORAL del motor.
+"""HYP-002 Functional Replay — audita el comportamiento TEMPORAL del motor.
 
-NO es un segundo motor. Reusa ICT_BACKTEST (canonical) build_features + engine.sequence
-(run_sequence_traced) como CONSUMIDOR. El replay solo adapta la forma de entrega de
-datos: vela-a-vela via ventana creciente, para emular un feed de mercado vivo.
+CONSUMIDOR PURO DEL MOTOR. Vive FUERA de ict_backtest/ (arquitectura M4):
+importa uniciamente `engine.*` (build_features en engine.market_features +
+run_sequence_traced en engine.sequence). El replay SOBREVIVE a la eliminacion
+del backtest; cuando ict_backtest/ desaparezca, este replay y sus auditorias
+siguen validando el motor.
 
 No mide WR/PF/edge. Mide: causalidad, determinismo, corte temporal, mutacion de
 futuro, reinicio, datos hostiles, intrabar, shadow market, cross-validation.
 
 Uso:
-  python ict_backtest/functional_lab.py        # corre toda la bateria
-  pytest tests/test_functional_lab.py -q       # version test (mismo nucleo)
+  python research/hypotheses/HYP-002/functional_replay/functional_replay_battery.py
+  pytest tests/test_functional_lab.py -q
 
 Resultado: dict de auditorias con PASS/FAIL/PARCIAL + evidencia en artifacts/.
 """
@@ -23,16 +25,16 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-# Al correr como `python ict_backtest/functional_lab.py`, el dir del script
-# (ict_backtest/) queda en sys.path[0] y sombrea el paquete top-level `engine`.
-# Lo removemos para que `from engine.killzone` resuelva al paquete real.
+ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
+# Al correr como script, el dir del script queda en sys.path[0] y podria
+# sombrear el paquete top-level `engine`. Lo removemos para que `from engine...`
+# resuelva al paquete real del repo.
 _ME = str(Path(__file__).resolve().parent)
 if _ME in sys.path:
     sys.path.remove(_ME)
 sys.path.insert(0, str(ROOT))
 
-from ict_backtest.data_feed import build_features
+from engine.market_features import build_features
 from engine.sequence import SequenceConfig, run_sequence_traced
 
 ART = ROOT / "research" / "hypotheses" / "HYP-002" / "artifacts"

@@ -5,14 +5,23 @@ No mide WR/PF/edge. Solo: round-trip de serializacion y paridad de reinicio
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from engine.market_object import MarketObject, ObjectType, Role, ObjectState
 from engine.expediente import Expediente, PhaseEvent
 from engine.sequence import SequenceState, run_sequence_traced, SequenceConfig
 
-from ict_backtest.functional_lab import (
-    _make_ltf, _make_htf, _est_htf_fn, audit_restart_parity,
+_REPLAY = Path(__file__).resolve().parent.parent / "research" / "hypotheses" / "HYP-002" / "functional_replay"
+if str(_REPLAY) not in sys.path:
+    sys.path.insert(0, str(_REPLAY))
+import functional_replay_battery as fl
+
+from functional_replay_battery import (
+    _make_ltf,
+    _make_htf,
+    _est_htf_fn,
+    audit_restart_parity,
 )
 
 

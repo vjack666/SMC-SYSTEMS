@@ -3,7 +3,7 @@
 **Fecha:** 2026-08-11 · **Ejecutor:** Hermes (modo autónomo CEO-delegado)
 **Alcance:** comportamiento TEMPORAL/OPERACIONAL del motor. NO WR/PF/edge.
 **Commit:** d76783f → M3 (rama `feature/backtest-ict`) · **Push:** pendiente de OK
-**Script:** `ict_backtest/functional_lab.py` · **Contrato:** `FUNCTIONAL_REPLAY_CONTRACT.md`
+**Script:** `research/hypotheses/HYP-002/functional_replay/functional_replay_battery.py` (FUERA de ict_backtest/, arquitectura M4) · **Contrato:** `FUNCTIONAL_REPLAY_CONTRACT.md`
 **Artefactos:** `research/hypotheses/HYP-002/artifacts/lab_report.json`
 
 ---
@@ -17,7 +17,7 @@ pipeline real de producción:
 Historical/Synthetic DataFrame
         │  (ventana creciente [0..k] en la vela k)
         ▼
-ict_backtest.data_feed.build_features   ← detectores ICT reales (CONSUMIDOR)
+engine.market_features.build_features       ← detectores ICT reales (CONSUMIDOR, capa permanente del motor)
         │
         ▼
 engine.sequence.run_sequence_traced      ← MOTOR real (única fuente de decisión)
@@ -58,7 +58,7 @@ Reglas respetadas:
 - Dataset: sintético determinista `_make_ltf(n=250)` + `_make_ltf(n=250, variant)`,
   más `make_ob_dataset()` para la prueba focal de OB. Sin parquet real en el repo
   (data/raw/* ausente localmente — bloqueo de datos ya documentado en AGENTS.md).
-- `python ict_backtest/functional_lab.py` → `artifacts/lab_report.json` (EXIT 0).
+- `python research/hypotheses/HYP-002/functional_replay/functional_replay_battery.py` → `artifacts/lab_report.json` (EXIT 0).
 - `pytest tests/test_functional_lab.py -q` → verificación de regresión.
 - Commit de esta misión (hash en push).
 

@@ -23,7 +23,7 @@ deuda de contrato (no bug) que pertenece al adaptador real de feed, no al motor.
 
 ## 2. Lo que se construyó (laboratorio)
 
-`ict_backtest/operational_continuity_lab.py` — consumidor puro del motor:
+`research/hypotheses/HYP-002/functional_replay/operational_continuity_battery.py` — consumidor puro del motor (FUERA de ict_backtest/, arquitectura M4):
 
 - `FeedAdapter`: simula la entrega operacional de velas (gaps, duplicados,
   fuera-de-orden, drops) sobre un feed base de `MarketObject` (CANDLE).
