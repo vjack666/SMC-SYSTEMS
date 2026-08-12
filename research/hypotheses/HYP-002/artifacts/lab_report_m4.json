@@ -1,0 +1,633 @@
+{
+  "M4_continuous": {
+    "n_signals": 2,
+    "causal_graphs": [
+      {
+        "direction": 1,
+        "roles": {
+          "LIQUIDITY": {
+            "type": "LIQUIDITY",
+            "role": "CONTEXT",
+            "bi": 6,
+            "parent_role": null
+          },
+          "SWEEP": {
+            "type": "SWEEP",
+            "role": "CONTEXT",
+            "bi": 6,
+            "parent_role": "LIQUIDITY"
+          },
+          "DISPLACE": {
+            "type": "DISPLACEMENT",
+            "role": "CONTEXT",
+            "bi": 9,
+            "parent_role": "SWEEP"
+          },
+          "BOS": {
+            "type": "BOS",
+            "role": "CONTEXT",
+            "bi": 12,
+            "parent_role": "DISPLACE"
+          },
+          "REFINEMENT": {
+            "type": "ORDER_BLOCK",
+            "role": "REFINEMENT",
+            "bi": 12,
+            "parent_role": "BOS"
+          },
+          "RETURN": {
+            "type": "RETURN",
+            "role": "CONTEXT",
+            "bi": 18,
+            "parent_role": "REFINEMENT"
+          },
+          "CONTRACT": {
+            "type": "CONTRACT",
+            "role": "EXECUTION",
+            "bi": 18,
+            "parent_role": "RETURN"
+          }
+        }
+      },
+      {
+        "direction": 1,
+        "roles": {
+          "LIQUIDITY": {
+            "type": "LIQUIDITY",
+            "role": "CONTEXT",
+            "bi": 26,
+            "parent_role": null
+          },
+          "SWEEP": {
+            "type": "SWEEP",
+            "role": "CONTEXT",
+            "bi": 26,
+            "parent_role": "LIQUIDITY"
+          },
+          "DISPLACE": {
+            "type": "DISPLACEMENT",
+            "role": "CONTEXT",
+            "bi": 29,
+            "parent_role": "SWEEP"
+          },
+          "BOS": {
+            "type": "BOS",
+            "role": "CONTEXT",
+            "bi": 32,
+            "parent_role": "DISPLACE"
+          },
+          "REFINEMENT": {
+            "type": "ORDER_BLOCK",
+            "role": "REFINEMENT",
+            "bi": 32,
+            "parent_role": "BOS"
+          },
+          "RETURN": {
+            "type": "RETURN",
+            "role": "CONTEXT",
+            "bi": 38,
+            "parent_role": "REFINEMENT"
+          },
+          "CONTRACT": {
+            "type": "CONTRACT",
+            "role": "EXECUTION",
+            "bi": 38,
+            "parent_role": "RETURN"
+          }
+        }
+      }
+    ],
+    "phase_seen": {
+      "SWEEP": 2,
+      "DISPLACE": 2,
+      "BOS": 2,
+      "ENTRY": 2
+    },
+    "signals": [
+      {
+        "time": "None",
+        "direction": 1,
+        "entry": 1.1091,
+        "bos_level": 1.115,
+        "sweep_at": 6,
+        "displace_at": 9,
+        "bos_at": 12,
+        "entry_at": 18,
+        "zone_authority": null,
+        "poi_present": null,
+        "htf_aligned": true,
+        "htf_reason": "ok",
+        "event_ids": {
+          "LIQUIDITY": "4a962bc9-9770-4013-a678-bbca4e87d107",
+          "SWEEP": "ff5765af-3651-4e2b-9d4d-efea0038c542",
+          "DISPLACE": "7b74285a-c885-4782-9225-0b66bc39101f",
+          "BOS": "51e0e763-049e-443f-95c3-97381ab7c6cd",
+          "POI": "",
+          "REFINEMENT": "cd961c2a-2d36-446a-88eb-bbe9f5d13c6f",
+          "RETURN": "48533ab8-9e12-453a-98c2-cc29169a54de",
+          "CONTRACT": "05b037bf-2351-4d87-8088-2bf4b4c7660a"
+        },
+        "levels": {
+          "liquidity": 1.1026,
+          "sweep": 1.1026,
+          "displace": 1.1046,
+          "bos": 1.115,
+          "zone_high": 1.113,
+          "zone_low": 1.1119999999999999
+        },
+        "expediente": "Expediente(id='1ce29d3a33bf5ed1', symbol='', tf='M15', direction=1, birth_idx=6, birth_time=None, birth_condition='SWEEP_DOWN@LTF', phase_events=[PhaseEvent(phase='SWEEP', idx=6, time=None, condition='SWEEP_DOWN@LTF', event_id='ff5765af-3651-4e2b-9d4d-efea0038c542', parent_event_id='4a962bc9-9770-4013-a678-bbca4e87d107'), PhaseEvent(phase='LIQUIDITY', idx=6, time=None, condition='', event_id='4a962bc9-9770-4013-a678-bbca4e87d107', parent_event_id=''), PhaseEvent(phase='DISPLACE', idx=9, time=None, condition='', event_id='7b74285a-c885-4782-9225-0b66bc39101f', parent_event_id='ff5765af-3651-4e2b-9d4d-efea0038c542'), PhaseEvent(phase='REFINEMENT', idx=12, time=None, condition='', event_id='cd961c2a-2d36-446a-88eb-bbe9f5d13c6f', parent_event_id='51e0e763-049e-443f-95c3-97381ab7c6cd'), PhaseEvent(phase='BOS', idx=12, time=None, condition='', event_id='51e0e763-049e-443f-95c3-97381ab7c6cd', parent_event_id='7b74285a-c885-4782-9225-0b66bc39101f'), PhaseEvent(phase='ENTRY', idx=18, time=None, condition='', event_id='48533ab8-9e12-453a-98c2-cc29169a54de', parent_event_id='cd961c2a-2d36-446a-88eb-bbe9f5d13c6f'), PhaseEvent(phase='CONTRACT', idx=18, time=None, condition='', event_id='05b037bf-2351-4d87-8088-2bf4b4c7660a', parent_event_id='48533ab8-9e12-453a-98c2-cc29169a54de')], invalidation_rule='timeout si i-sweep_idx supera 26', invalidation_idx=None, invalidation_time=None, invalidation_reason=None, outcome='ENTRY', meta={'symbol': '', 'ltf_tf': 'M15'})",
+        "event_objects": {
+          "4a962bc9-9770-4013-a678-bbca4e87d107": {
+            "id": "4a962bc9-9770-4013-a678-bbca4e87d107",
+            "symbol": "",
+            "type": "LIQUIDITY",
+            "origin_tf": "M15",
+            "role": "CONTEXT",
+            "direction": 1,
+            "zone_high": 1.1026,
+            "zone_low": 1.1026,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": null,
+            "related_objects": [],
+            "bar_index": 6,
+            "bar_time": null,
+            "meta": {
+              "phase": "LIQUIDITY",
+              "kind": "SSL"
+            }
+          },
+          "ff5765af-3651-4e2b-9d4d-efea0038c542": {
+            "id": "ff5765af-3651-4e2b-9d4d-efea0038c542",
+            "symbol": "",
+            "type": "SWEEP",
+            "origin_tf": "M15",
+            "role": "CONTEXT",
+            "direction": 1,
+            "zone_high": null,
+            "zone_low": null,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "4a962bc9-9770-4013-a678-bbca4e87d107",
+            "related_objects": [],
+            "bar_index": 6,
+            "bar_time": null,
+            "meta": {
+              "phase": "SWEEP",
+              "condition": "SWEEP_DOWN@LTF"
+            }
+          },
+          "7b74285a-c885-4782-9225-0b66bc39101f": {
+            "id": "7b74285a-c885-4782-9225-0b66bc39101f",
+            "symbol": "",
+            "type": "DISPLACEMENT",
+            "origin_tf": "M15",
+            "role": "CONTEXT",
+            "direction": 1,
+            "zone_high": 1.1046,
+            "zone_low": 1.1046,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "ff5765af-3651-4e2b-9d4d-efea0038c542",
+            "related_objects": [],
+            "bar_index": 9,
+            "bar_time": null,
+            "meta": {
+              "phase": "DISPLACE"
+            }
+          },
+          "51e0e763-049e-443f-95c3-97381ab7c6cd": {
+            "id": "51e0e763-049e-443f-95c3-97381ab7c6cd",
+            "symbol": "",
+            "type": "BOS",
+            "origin_tf": "M15",
+            "role": "CONTEXT",
+            "direction": 1,
+            "zone_high": 1.115,
+            "zone_low": 1.115,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "7b74285a-c885-4782-9225-0b66bc39101f",
+            "related_objects": [],
+            "bar_index": 12,
+            "bar_time": null,
+            "meta": {
+              "phase": "BOS"
+            }
+          },
+          "cd961c2a-2d36-446a-88eb-bbe9f5d13c6f": {
+            "id": "cd961c2a-2d36-446a-88eb-bbe9f5d13c6f",
+            "symbol": "",
+            "type": "ORDER_BLOCK",
+            "origin_tf": "M15",
+            "role": "REFINEMENT",
+            "direction": 1,
+            "zone_high": 1.1124999999999998,
+            "zone_low": 1.1124999999999998,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "51e0e763-049e-443f-95c3-97381ab7c6cd",
+            "related_objects": [],
+            "bar_index": 12,
+            "bar_time": null,
+            "meta": {
+              "phase": "REFINEMENT",
+              "pd_type": "None",
+              "poi_anchored": 0.0
+            }
+          },
+          "48533ab8-9e12-453a-98c2-cc29169a54de": {
+            "id": "48533ab8-9e12-453a-98c2-cc29169a54de",
+            "symbol": "",
+            "type": "RETURN",
+            "origin_tf": "M15",
+            "role": "CONTEXT",
+            "direction": 1,
+            "zone_high": 1.1091,
+            "zone_low": 1.1091,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "cd961c2a-2d36-446a-88eb-bbe9f5d13c6f",
+            "related_objects": [],
+            "bar_index": 18,
+            "bar_time": null,
+            "meta": {
+              "phase": "ENTRY",
+              "poi_anchored": 0.0
+            }
+          },
+          "05b037bf-2351-4d87-8088-2bf4b4c7660a": {
+            "id": "05b037bf-2351-4d87-8088-2bf4b4c7660a",
+            "symbol": "",
+            "type": "CONTRACT",
+            "origin_tf": "M15",
+            "role": "EXECUTION",
+            "direction": 1,
+            "zone_high": 1.1091,
+            "zone_low": 1.1091,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "48533ab8-9e12-453a-98c2-cc29169a54de",
+            "related_objects": [],
+            "bar_index": 18,
+            "bar_time": null,
+            "meta": {
+              "phase": "CONTRACT",
+              "entry": 1.1091,
+              "sl": 1.10236,
+              "tp": 1.1293199999999999,
+              "rr": 3.0,
+              "exec_tf": "M15",
+              "fine": 0.0,
+              "poi_anchored": 0.0
+            }
+          }
+        }
+      },
+      {
+        "time": "None",
+        "direction": 1,
+        "entry": 1.1191,
+        "bos_level": 1.125,
+        "sweep_at": 26,
+        "displace_at": 29,
+        "bos_at": 32,
+        "entry_at": 38,
+        "zone_authority": null,
+        "poi_present": null,
+        "htf_aligned": true,
+        "htf_reason": "ok",
+        "event_ids": {
+          "LIQUIDITY": "19159fb0-eb9c-4ac2-b10a-70c433a2713c",
+          "SWEEP": "9042c8b3-8509-4b79-9fce-d0aee683527d",
+          "DISPLACE": "f8471c1f-5a9d-4258-912c-bcf937ab83d0",
+          "BOS": "4cbe44e0-a35c-4190-a5b5-0bf5cdb894b5",
+          "POI": "",
+          "REFINEMENT": "9cc37554-d68f-4922-b211-f656fe47d3d5",
+          "RETURN": "45cf8392-112d-4019-a951-3bc1c647b6ac",
+          "CONTRACT": "8b0971a6-6894-44e2-98fe-15001423decb"
+        },
+        "levels": {
+          "liquidity": 1.1126,
+          "sweep": 1.1126,
+          "displace": 1.1146,
+          "bos": 1.125,
+          "zone_high": 1.123,
+          "zone_low": 1.1219999999999999
+        },
+        "expediente": "Expediente(id='e235c238fd00dfac', symbol='', tf='M15', direction=1, birth_idx=26, birth_time=None, birth_condition='SWEEP_DOWN@LTF', phase_events=[PhaseEvent(phase='SWEEP', idx=26, time=None, condition='SWEEP_DOWN@LTF', event_id='9042c8b3-8509-4b79-9fce-d0aee683527d', parent_event_id='19159fb0-eb9c-4ac2-b10a-70c433a2713c'), PhaseEvent(phase='LIQUIDITY', idx=26, time=None, condition='', event_id='19159fb0-eb9c-4ac2-b10a-70c433a2713c', parent_event_id=''), PhaseEvent(phase='DISPLACE', idx=29, time=None, condition='', event_id='f8471c1f-5a9d-4258-912c-bcf937ab83d0', parent_event_id='9042c8b3-8509-4b79-9fce-d0aee683527d'), PhaseEvent(phase='REFINEMENT', idx=32, time=None, condition='', event_id='9cc37554-d68f-4922-b211-f656fe47d3d5', parent_event_id='4cbe44e0-a35c-4190-a5b5-0bf5cdb894b5'), PhaseEvent(phase='BOS', idx=32, time=None, condition='', event_id='4cbe44e0-a35c-4190-a5b5-0bf5cdb894b5', parent_event_id='f8471c1f-5a9d-4258-912c-bcf937ab83d0'), PhaseEvent(phase='ENTRY', idx=38, time=None, condition='', event_id='45cf8392-112d-4019-a951-3bc1c647b6ac', parent_event_id='9cc37554-d68f-4922-b211-f656fe47d3d5'), PhaseEvent(phase='CONTRACT', idx=38, time=None, condition='', event_id='8b0971a6-6894-44e2-98fe-15001423decb', parent_event_id='45cf8392-112d-4019-a951-3bc1c647b6ac')], invalidation_rule='timeout si i-sweep_idx supera 46', invalidation_idx=None, invalidation_time=None, invalidation_reason=None, outcome='ENTRY', meta={'symbol': '', 'ltf_tf': 'M15'})",
+        "event_objects": {
+          "19159fb0-eb9c-4ac2-b10a-70c433a2713c": {
+            "id": "19159fb0-eb9c-4ac2-b10a-70c433a2713c",
+            "symbol": "",
+            "type": "LIQUIDITY",
+            "origin_tf": "M15",
+            "role": "CONTEXT",
+            "direction": 1,
+            "zone_high": 1.1126,
+            "zone_low": 1.1126,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": null,
+            "related_objects": [],
+            "bar_index": 26,
+            "bar_time": null,
+            "meta": {
+              "phase": "LIQUIDITY",
+              "kind": "SSL"
+            }
+          },
+          "9042c8b3-8509-4b79-9fce-d0aee683527d": {
+            "id": "9042c8b3-8509-4b79-9fce-d0aee683527d",
+            "symbol": "",
+            "type": "SWEEP",
+            "origin_tf": "M15",
+            "role": "CONTEXT",
+            "direction": 1,
+            "zone_high": null,
+            "zone_low": null,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "19159fb0-eb9c-4ac2-b10a-70c433a2713c",
+            "related_objects": [],
+            "bar_index": 26,
+            "bar_time": null,
+            "meta": {
+              "phase": "SWEEP",
+              "condition": "SWEEP_DOWN@LTF"
+            }
+          },
+          "f8471c1f-5a9d-4258-912c-bcf937ab83d0": {
+            "id": "f8471c1f-5a9d-4258-912c-bcf937ab83d0",
+            "symbol": "",
+            "type": "DISPLACEMENT",
+            "origin_tf": "M15",
+            "role": "CONTEXT",
+            "direction": 1,
+            "zone_high": 1.1146,
+            "zone_low": 1.1146,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "9042c8b3-8509-4b79-9fce-d0aee683527d",
+            "related_objects": [],
+            "bar_index": 29,
+            "bar_time": null,
+            "meta": {
+              "phase": "DISPLACE"
+            }
+          },
+          "4cbe44e0-a35c-4190-a5b5-0bf5cdb894b5": {
+            "id": "4cbe44e0-a35c-4190-a5b5-0bf5cdb894b5",
+            "symbol": "",
+            "type": "BOS",
+            "origin_tf": "M15",
+            "role": "CONTEXT",
+            "direction": 1,
+            "zone_high": 1.125,
+            "zone_low": 1.125,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "f8471c1f-5a9d-4258-912c-bcf937ab83d0",
+            "related_objects": [],
+            "bar_index": 32,
+            "bar_time": null,
+            "meta": {
+              "phase": "BOS"
+            }
+          },
+          "9cc37554-d68f-4922-b211-f656fe47d3d5": {
+            "id": "9cc37554-d68f-4922-b211-f656fe47d3d5",
+            "symbol": "",
+            "type": "ORDER_BLOCK",
+            "origin_tf": "M15",
+            "role": "REFINEMENT",
+            "direction": 1,
+            "zone_high": 1.1225,
+            "zone_low": 1.1225,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "4cbe44e0-a35c-4190-a5b5-0bf5cdb894b5",
+            "related_objects": [],
+            "bar_index": 32,
+            "bar_time": null,
+            "meta": {
+              "phase": "REFINEMENT",
+              "pd_type": "None",
+              "poi_anchored": 0.0
+            }
+          },
+          "45cf8392-112d-4019-a951-3bc1c647b6ac": {
+            "id": "45cf8392-112d-4019-a951-3bc1c647b6ac",
+            "symbol": "",
+            "type": "RETURN",
+            "origin_tf": "M15",
+            "role": "CONTEXT",
+            "direction": 1,
+            "zone_high": 1.1191,
+            "zone_low": 1.1191,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "9cc37554-d68f-4922-b211-f656fe47d3d5",
+            "related_objects": [],
+            "bar_index": 38,
+            "bar_time": null,
+            "meta": {
+              "phase": "ENTRY",
+              "poi_anchored": 0.0
+            }
+          },
+          "8b0971a6-6894-44e2-98fe-15001423decb": {
+            "id": "8b0971a6-6894-44e2-98fe-15001423decb",
+            "symbol": "",
+            "type": "CONTRACT",
+            "origin_tf": "M15",
+            "role": "EXECUTION",
+            "direction": 1,
+            "zone_high": 1.1191,
+            "zone_low": 1.1191,
+            "creation_time": null,
+            "state": "CREATED",
+            "parent_object": "45cf8392-112d-4019-a951-3bc1c647b6ac",
+            "related_objects": [],
+            "bar_index": 38,
+            "bar_time": null,
+            "meta": {
+              "phase": "CONTRACT",
+              "entry": 1.1191,
+              "sl": 1.11236,
+              "tp": 1.1393199999999999,
+              "rr": 3.0,
+              "exec_tf": "M15",
+              "fine": 0.0,
+              "poi_anchored": 0.0
+            }
+          }
+        }
+      }
+    ]
+  },
+  "M4_multi_restart": {
+    "continuous_n": 2,
+    "resumed_n": 2,
+    "causal_graphs_equal": true,
+    "cuts": [
+      15,
+      35
+    ],
+    "pass": true
+  },
+  "M4_gaps": {
+    "gaps": [
+      20,
+      40
+    ],
+    "delivered_bars": 58,
+    "n_signals": 2,
+    "causal_graphs": [
+      {
+        "direction": 1,
+        "roles": {
+          "LIQUIDITY": {
+            "type": "LIQUIDITY",
+            "role": "CONTEXT",
+            "bi": 6,
+            "parent_role": null
+          },
+          "SWEEP": {
+            "type": "SWEEP",
+            "role": "CONTEXT",
+            "bi": 6,
+            "parent_role": "LIQUIDITY"
+          },
+          "DISPLACE": {
+            "type": "DISPLACEMENT",
+            "role": "CONTEXT",
+            "bi": 9,
+            "parent_role": "SWEEP"
+          },
+          "BOS": {
+            "type": "BOS",
+            "role": "CONTEXT",
+            "bi": 12,
+            "parent_role": "DISPLACE"
+          },
+          "REFINEMENT": {
+            "type": "ORDER_BLOCK",
+            "role": "REFINEMENT",
+            "bi": 12,
+            "parent_role": "BOS"
+          },
+          "RETURN": {
+            "type": "RETURN",
+            "role": "CONTEXT",
+            "bi": 18,
+            "parent_role": "REFINEMENT"
+          },
+          "CONTRACT": {
+            "type": "CONTRACT",
+            "role": "EXECUTION",
+            "bi": 18,
+            "parent_role": "RETURN"
+          }
+        }
+      },
+      {
+        "direction": 1,
+        "roles": {
+          "LIQUIDITY": {
+            "type": "LIQUIDITY",
+            "role": "CONTEXT",
+            "bi": 25,
+            "parent_role": null
+          },
+          "SWEEP": {
+            "type": "SWEEP",
+            "role": "CONTEXT",
+            "bi": 25,
+            "parent_role": "LIQUIDITY"
+          },
+          "DISPLACE": {
+            "type": "DISPLACEMENT",
+            "role": "CONTEXT",
+            "bi": 28,
+            "parent_role": "SWEEP"
+          },
+          "BOS": {
+            "type": "BOS",
+            "role": "CONTEXT",
+            "bi": 31,
+            "parent_role": "DISPLACE"
+          },
+          "REFINEMENT": {
+            "type": "ORDER_BLOCK",
+            "role": "REFINEMENT",
+            "bi": 31,
+            "parent_role": "BOS"
+          },
+          "RETURN": {
+            "type": "RETURN",
+            "role": "CONTEXT",
+            "bi": 37,
+            "parent_role": "REFINEMENT"
+          },
+          "CONTRACT": {
+            "type": "CONTRACT",
+            "role": "EXECUTION",
+            "bi": 37,
+            "parent_role": "RETURN"
+          }
+        }
+      }
+    ],
+    "pass": true
+  },
+  "M4_duplicates": {
+    "dups": [
+      10,
+      30
+    ],
+    "delivered_bars": 62,
+    "baseline_n": 2,
+    "dup_n": 2,
+    "no_duplicate_signals": true,
+    "pass": true
+  },
+  "M4_out_of_order": {
+    "ooo": [
+      10,
+      30
+    ],
+    "baseline_n": 2,
+    "ooo_n": 2,
+    "diverged_as_expected": false,
+    "pass": true,
+    "note": "El adaptador real DEBE ordenar el feed; fuera-de-orden corrupte la memoria de contexto del motor (CTX_WINDOW). Deuda fuera de alcance."
+  },
+  "M4_session_change": {
+    "n_signals": 1,
+    "phase_seen": {
+      "SWEEP": 3,
+      "DISPLACE": 2,
+      "BOS": 1,
+      "ENTRY": 1
+    },
+    "pass": true
+  },
+  "M4_setup_lifecycle": {
+    "born_setups": 2,
+    "died_setup_emitted": 0,
+    "died_correctly_reset": true,
+    "pass": true
+  },
+  "M4_determinism_post_recovery": {
+    "run1_equal": true,
+    "run2_equal": true,
+    "deterministic": true,
+    "pass": true
+  },
+  "_overall": {
+    "pass": true,
+    "n_audits": 7,
+    "scope_note": "Motor consumidor puro; adaptador de feed simulado. Fuera de alcance: estad\u00edstica/WR/PF/edge, Macro/News, concurrencia de setups en el mismo lane (arquitectura single-lane), normalizaci\u00f3n fuera-de-orden (responsabilidad del adaptador real)."
+  }
+}
