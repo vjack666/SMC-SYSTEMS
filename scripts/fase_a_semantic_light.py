@@ -116,15 +116,25 @@ def main():
                 "sweep_down": bool(r.get("liquidity_sweep_down", False)),
                 "pd_zones": pd_zones}
 
-    # ---------- ETAPA 3: GENERACION DE SENALES (run_sequence_traced via wrapper) ----------
+    # ---------- ETAPA 3: GENERACION DE SENALES (run_sequence_traced DIRECTO) ----------
+    # Usamos run_sequence_traced DIRECTO (no evaluate_signals/generate_sequence_signals)
+    # porque estos reempaquetan las senales en ICTSignal y PIERDEN event_objects/
+    # event_ids (linaje). run_sequence_traced retorna (signals, phase_seen, exp, state)
+    # con el linaje intacto desde _run_sequence_impl. Consumidor puro: no toca engine/.
     _heartbeat._etapa = "generacion"
-    print(f"[3/3] generate_sequence_signals ({HTF}->{LTF}, run_sequence_traced) ...", flush=True)
-    signals, phase_seen = rb.generate_sequence_signals(
-        SYMBOL, HTF, LTF,
+    print(f"[3/3] run_sequence_traced ({HTF}->{LTF}) — linaje intacto ...", flush=True)
+    from engine.sequence import run_sequence_traced, SequenceConfig
+    cfg = SequenceConfig(
+        counter_trend=False, tp_mode="fixed2r",
         require_displacement=True, displace_gap=6, bos_gap=10,
-        frames=frames, fill_mode="next_open",
-        enable_pd_index=True, invalidate_on_opposite_swing=False,
-        return_phase_seen=True,
+        invalidate_on_opposite_swing=False,
+    )
+    # est_htf_fn legacy (dict plano) que espera run_sequence_traced como 2o arg
+    def est_htf_fn_legacy(i: int) -> dict:
+        return est_htf_fn(i)
+    signals, phase_seen, _, _ = run_sequence_traced(
+        ms[LTF], est_htf_fn_legacy, cfg,
+        ltf_tf=LTF, htf=HTF, est_htf_ctx_fn=est_htf_fn,
     )
     n_sig = len(signals)
     # trades no se simulan en FASE A ligero; funnel = phase_seen
