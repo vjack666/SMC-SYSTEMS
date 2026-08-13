@@ -40,6 +40,7 @@ DECISION_SURFACES = {
 # (capa permanente del motor). Ninguno contiene lógica de decisión propia.
 # Mantener esta lista sincronizada con cada migración HYP-002.
 SHIM_FILES = {
+    "ict_backtest/engine.py",
     "ict_backtest/sequence.py",
     "ict_backtest/data_feed.py",
     "ict_backtest/market_object.py",
@@ -57,6 +58,24 @@ SHIM_FILES = {
     "ict_backtest/setups/turtle_soup.py",
     "ict_backtest/v2/context_mtf.py",
 }
+
+# These modules may contain experimental detectors for isolated research
+# tests, but they must not be imported by the active backtest path. They are
+# not a source of production decisions.
+EXPERIMENTAL_ONLY = {
+    "ict_backtest/setups/breaker_block.py",
+    "ict_backtest/setups/smart_money.py",
+    "ict_backtest/setups/smt_divergence.py",
+}
+
+
+def _defined_names(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    return {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    }
 
 
 def _imports(path: Path) -> list[str]:
@@ -87,6 +106,16 @@ def main() -> int:
             continue
         violations.append(f"DECISION_SURFACE_IN_BACKTEST: {rel}")
 
+    facade = BACKTEST / "engine.py"
+    if facade.exists():
+        local_defs = _defined_names(facade)
+        forbidden = local_defs & {
+            "ICTSignal", "ICTTrade", "simulate_trade", "simulate_trade_with_context",
+            "fill_entry_price", "calc_structural_sl", "_tp_liquidity",
+        }
+        for name in sorted(forbidden):
+            violations.append(f"BACKTEST_ENGINE_IMPLEMENTATION: ict_backtest/engine.py::{name}")
+
     for path in sorted(BACKTEST.rglob("*.py")):
         rel = path.relative_to(ROOT).as_posix()
         if rel in SHIM_FILES:
@@ -100,6 +129,19 @@ def main() -> int:
                 "ict_backtest.plan_fsm",
             }:
                 violations.append(f"BACKTEST_DECISION_DEPENDENCY: {rel} -> {module}")
+
+    # Experimental detectors are allowed only when explicitly exercised by
+    # their own tests/research. A runtime import would turn them into a
+    # second backtest motor.
+    for path in sorted(BACKTEST.rglob("*.py")):
+        rel = path.relative_to(ROOT).as_posix()
+        if rel in EXPERIMENTAL_ONLY:
+            continue
+        for module in _imports(path):
+            for experimental in EXPERIMENTAL_ONLY:
+                module_name = experimental[:-3].replace("/", ".")
+                if module == module_name or module.startswith(module_name + "."):
+                    violations.append(f"BACKTEST_EXPERIMENTAL_DEPENDENCY: {rel} -> {module}")
 
     if violations:
         print("MOTOR/BACKTEST BOUNDARY: BLOCKED")
