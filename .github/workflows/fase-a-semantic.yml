@@ -1,27 +1,23 @@
 name: FASE-A-SEMANTIC
 
 # Cierre semantico del motor (FASE A del Director, 2026-08-13).
-# Consumidor puro del motor sobre datos reales EURUSD (3 meses de M15).
-# Audita el grafo causal con HYP-002/phase6_verifier (dimensiones SDD_GOVERNANCE §4).
-# NO toca engine/. NO optimiza. NO crea SDD.
-#
-# NOTA (fix run 31739223530): se quita `pip install -e .` porque arrastra el
-# paquete smc-successor (bot HISTORICO, no cableado) que exige MetaTrader5/PySide6
-# inexistentes en el runner Linux. Los paquetes engine/ ict_backtest/ detectors/
-# research/ son importables como fuente plana (sys.path.insert(0,'.')), igual que
-# en pilot-phase6-a.yml. Solo se necesita pandas/numpy/pyarrow para leer parquet.
+# RUNNER LIGERO: usa generate_sequence_signals (-> run_sequence_traced) que RETORNA
+# las senales CON event_ids/event_objects (linaje real). NO usa run_sequence_backtest
+# (que descarta signals y simula PnL). Carga solo D1/H4/H1/M15. Sin fase de simulacion.
+# Telemetria viva: etapas, PID, CPU/RAM, heartbeat 5s, .jsonl historico, .json estado.
+# NO toca engine/. Audita dimensiones SDD_GOVERNANCE §4 via phase6_verifier.
 
 on:
   workflow_dispatch:
     inputs:
       window_months:
-        description: "Meses de M15 a auditar (default 3)"
+        description: "Meses de M15 a auditar (default 2)"
         required: false
-        default: "3"
+        default: "2"
   push:
     branches: [feature/backtest-ict]
     paths:
-      - 'scripts/fase_a_cloud.py'
+      - 'scripts/fase_a_semantic_light.py'
       - 'engine/sequence.py'
       - 'engine/expediente.py'
       - 'ict_backtest/rules.py'
@@ -37,14 +33,16 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: pip install pandas numpy pyarrow
-      - name: Run FASE A semantic audit (3 months)
-        run: python scripts/fase_a_cloud.py
+        run: pip install pandas numpy pyarrow psutil
+      - name: Run FASE A semantic audit (light, runner)
+        run: python scripts/fase_a_semantic_light.py 2
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: fase-a-semantic-report
           path: |
-            results/fase_a_semantic_eurhusd_CLOUD.md
-            results/fase_a_semantic_eurhusd_CLOUD.json
+            results/fase_a_semantic_eurhusd_LIGHT.md
+            results/fase_a_semantic_eurhusd_LIGHT.json
+            results/fase_a_light_state.json
+            results/fase_a_light_history.jsonl
           if-no-files-found: warn
