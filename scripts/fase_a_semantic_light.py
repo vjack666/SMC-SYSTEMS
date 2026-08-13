@@ -99,22 +99,35 @@ def main():
     ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
     _stage("deteccion", done=2, total=3, extra={"TF_CHAIN": list(LIGHT_CHAIN)})
 
-    # est_htf_ctx_fn: contexto HTF fiel (trend REAL, no RANGING forzado)
-    htf_df = ms.get(HTF, ms[LTF])
-    from engine._util import closed_row_at_time, tf_duration
+    # est_htf_ctx_fn: IGUAL que ict_backtest/canonical.py:196 (contexto HTF fiel,
+    # trend REAL via detect_market_structure). Usa build_multitf_context, no
+    # closed_row_at_time crudo, para evitar ambiguedad de tipos.
     from engine.poi_anchor import build_htf_structure_index
+    from engine.multitf_context import build_multitf_context
     htf_frames = {tf: df for tf, df in ms.items() if tf != LTF}
-    anchored = build_htf_structure_index(htf_frames) if htf_frames else []
+    _anchored_events = build_htf_structure_index(htf_frames) if htf_frames else []
 
     def est_htf_fn(i: int) -> dict:
         t = ms[LTF].iloc[i]["time"]
-        r = closed_row_at_time(htf_df, t, tf_duration(HTF)) or {}
-        ltf_t = pd.to_datetime(t, utc=True, errors="coerce")
-        pd_zones = [e for e in anchored if e.time is not None and e.time <= ltf_t]
-        return {"trend": str(r.get("trend", "RANGING")),
-                "sweep_up": bool(r.get("liquidity_sweep_up", False)),
-                "sweep_down": bool(r.get("liquidity_sweep_down", False)),
-                "pd_zones": pd_zones}
+        anchored = None
+        if _anchored_events:
+            ltf_t = pd.to_datetime(ms[LTF].iloc[i]["time"], utc=True, errors="coerce")
+            prior = [e for e in _anchored_events if e.time is not None and e.time <= ltf_t]
+            anchored = {}
+            for e in prior:
+                anchored.setdefault(e.tf, []).append(e)
+        ctx = build_multitf_context(
+            ms, t, tfs=("D1", "H4", "H1", "M15"),
+            anchored_pd_zones=anchored,
+        )
+        # extract_htf_layer para reducir al HTF pedido (igual que canonical legacy)
+        layer = ctx.get(HTF, {}) if isinstance(ctx, dict) else {}
+        return {
+            "trend": str(layer.get("trend", "RANGING") if isinstance(layer, dict) else "RANGING"),
+            "sweep_up": bool(layer.get("liquidity_sweep_up", False)) if isinstance(layer, dict) else False,
+            "sweep_down": bool(layer.get("liquidity_sweep_down", False)) if isinstance(layer, dict) else False,
+            "pd_zones": anchored or {},
+        }
 
     # ---------- ETAPA 3: GENERACION DE SENALES (run_sequence_traced DIRECTO) ----------
     # Usamos run_sequence_traced DIRECTO (no evaluate_signals/generate_sequence_signals)
