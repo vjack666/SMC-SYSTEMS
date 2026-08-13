@@ -1,0 +1,8 @@
+{
+  "mode": "advisory",
+  "doR_checks": 13,
+  "min_confidence": 0.55,
+  "states_path": "gate/states.json",
+  "veto_registry_path": "gate/veto_registry.json",
+  "audit_assignments_path": "gate/audit_assignments.json"
+}

@@ -1,0 +1,11 @@
+{
+  "feature/backtest-ict": {
+    "state": "READY",
+    "promoted": true,
+    "dor_passed": true,
+    "creator": "ingeniero",
+    "auditor": "auditor_independiente",
+    "has_evidence": true,
+    "note": "HYP-002 Fase 6 (cierre de formacion causal del setup). DoR cumplido: SDD de trazabilidad causal + ontologia POI HTF vs refinement LTF. Evidencia: tests/test_phase6_lineage.py (7 passed, 1 skipped), phase6_verifier.py (verificador independiente), corpus empirico run_sequence_traced. Auditor distinto al creador. Sin veto activo para esta task. Promovida 2026-08-11 para autorizar commit de engine/."
+  }
+}

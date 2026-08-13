@@ -1,0 +1,20 @@
+[
+  {
+    "task_id": "TASK-E1",
+    "auditor_id": "auditor_X",
+    "reason": "Resultados no reproducibles",
+    "created_at": "2026-08-11T19:58:40.520539",
+    "expires_at": null,
+    "status": "ACTIVE",
+    "resolution": null
+  },
+  {
+    "task_id": "TASK-J1",
+    "auditor_id": "auditor_X",
+    "reason": "Evidencia no reproducible",
+    "created_at": "2026-08-11T19:58:40.476126",
+    "expires_at": null,
+    "status": "ACTIVE",
+    "resolution": null
+  }
+]

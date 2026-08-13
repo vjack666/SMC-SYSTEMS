@@ -1,0 +1,18 @@
+{
+  "protected_paths": [
+    "engine/",
+    "ict_backtest/",
+    "docs/ict/SPEC_TESIS_FORMAL.md",
+    "docs/specs/SDD_GOVERNANCE.md",
+    "agents/governance/"
+  ],
+  "unprotected_paths": [
+    "docs/",
+    "results/",
+    "research/",
+    "reports/",
+    "tests/_broken/"
+  ],
+  "sensitive_extensions": [".py", ".md"],
+  "description": "Perímetro de cambio protegido por el gate de gobernanza. Engine es única fuente de decisión pero NO de cambio."
+}
