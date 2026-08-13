@@ -1,0 +1,45 @@
+name: FASE-A-SEMANTIC
+
+# Cierre semantico del motor (FASE A del Director, 2026-08-13).
+# Consumidor puro del motor sobre datos reales EURUSD (3 meses de M15).
+# Audita el grafo causal con HYP-002/phase6_verifier (dimensiones SDD_GOVERNANCE §4).
+# NO toca engine/. NO optimiza. NO crea SDD.
+
+on:
+  workflow_dispatch:
+    inputs:
+      window_months:
+        description: "Meses de M15 a auditar (default 3)"
+        required: false
+        default: "3"
+  push:
+    branches: [feature/backtest-ict]
+    paths:
+      - 'scripts/fase_a_cloud.py'
+      - 'engine/sequence.py'
+      - 'engine/expediente.py'
+      - '.github/workflows/fase-a-semantic.yml'
+
+jobs:
+  fase-a:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pandas numpy pyarrow
+      - name: Run FASE A semantic audit (3 months)
+        run: python scripts/fase_a_cloud.py
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fase-a-semantic-report
+          path: |
+            results/fase_a_semantic_eurhusd_CLOUD.md
+            results/fase_a_semantic_eurhusd_CLOUD.json
+          if-no-files-found: warn
