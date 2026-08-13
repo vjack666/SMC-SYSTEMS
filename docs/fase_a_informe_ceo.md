@@ -95,20 +95,70 @@ Mi primer intento dio `A REFUTADA` por 0 setups. Causa raíz (dos bugs míos, no
 
 ---
 
-## 8. PRÓXIMOS PASOS (Consejo, no ejecución)
+## 8. FASE B — AUDITORÍA DE FRONTERA (Camino 3, solo descubrimiento, NO-FIX)
 
-1. **Esperar veredicto del run completo `31740419288`** (3 meses) para confirmar que el pipeline end-to-end (con PnL) corre sin error en nube. Es prueba de que el backtest funciona, no de semántica (esa ya está validada).
-2. **Cerrar GAP POI ancla=0** (componente 5) en investigación separada si se quiere sellar la dimensión de Autoridad de niveles.
-3. **Auditar frontera completa** antes del SDD de infraestructura: incluye `sweep_up/down` y `pd_zones` que MarketReplay NO pasa (`replay.py:80-84` solo pasa trend/high/low/close).
+### 8.1 Primer entregable: auditoría campo-por-campo
+`docs/auditoria_frontera_engine_infra.md` — mapea el contrato real del motor
+(`run_sequence_traced` → `est_htf_ctx_fn` → `MultiTFContext`) contra backtest
+canónico (100% fiel) y contra MarketReplay (`_htf_ctx_fn`: solo trend/high/low/close).
+Clasificación: trend=TRANSFORMADO/INCORRECTO, sweep_up/down/pd_zones/fvg*/ob*/time=FALTANTE,
+MultiTFContext=TRANSFORMADO; high/low/close/alignment/look-ahead=IGUAL.
+Veredicto: MarketReplay NO reproduce fielmente el contexto del motor.
+
+### 8.2 Segundo entregable: auditoría de CONTRATO (cambio de paradigma del Director)
+`docs/auditoria_contrato_marketreplay.md` — corrige la interpretación final:
+**NO es arquitectura indefinida; es una implementación de MarketReplay POR DEBAJO
+del contrato que ya existe** (`SDD_MARKET_REPLAY`, `SDD_SEPARACION_MOTOR_BACKTEST`,
+`MDS_BIAS_HTF`, `MDS_B1_POI_ANCLADO` ya definen todo).
+
+- **A) Datos que DEBE transportar M.R.**: OHLC + disponibilidad closed-only → **ya cumple**.
+- **B) Contexto que DEBE calcular el ENGINE** (sus autoridades YA existentes): bias
+  (`engine/bias/narrative`), estructura (`detect_market_structure`), POI
+  (`poi_anchor`/`htf_pd_index`/`zone_authority`), `MultiTFContext`
+  (`build_multitf_context`). Todas ✅ HECHO.
+- **C) Lógica PROHIBIDA mover a M.R.**: sesgo/BOS/sweep/POI/FVG/OB/CHOCH (SDD_SEPARACION).
+
+**GAP (cableado, no lógica):** MarketReplay llama `run_sequence_traced` SIN pasar
+`htf_poi_fn` ni `htf_pd_index` (el motor los acepta en `sequence.py:1099`; el backtest
+canónico los cablea en `canonical.py:234`). Y usa `_htf_ctx_fn` propio (dict plano)
+en vez de `build_multitf_context`. Por eso el motor, alimentado por replay, ve
+`trend=RANGING` y `poi=None` → rechaza/anota 0 setups.
+
+**POI=0 de FASE A reinterpretado:** NO es fallo del motor. Mi runner ligero y
+MarketReplay no pasaron `htf_poi_fn` a `run_sequence_traced`. El motor SÍ puede
+anclar POI (FASE A con backtest canónico dio A VALIDADA con POI vía `htf_poi_fn`).
+Es GAP de CABLEADO del consumidor, no del motor.
+
+**Deuda documental:** `SDD_M2_LINEAGE.md` describe como PENDIENTE agregar
+`event_objects` a `run_sequence_traced` — pero el código YA lo emite (FASE A se
+validó con eso). Está **SUPERSEDED**; requiere limpieza documental, no re-implementación.
+
+### 8.3 Veredicto de dirección
+- 🟢 **NO se necesita un nuevo SDD.** Ya existe `SDD_MARKET_REPLAY`.
+- 🟢 **NO se necesita un Consejo para elegir A/B/C** como arquitectura indefinida.
+- 🟡 SÍ se necesita un **addendum a `SDD_MARKET_REPLAY`** (§9 Frontera de contexto HTF)
+  que cite las auditorías y marque el contrato objetivo: MarketReplay cablea las
+  autoridades del engine (NO las reimplementa).
+- 🟡 `SDD_M2_LINEAGE.md` debe marcarse SUPERSEDED.
+
+---
+
+## 9. PRÓXIMOS PASOS (Consejo, no ejecución)
+
+1. **Esperar veredicto del run completo `31740419288`** (3 meses) para confirmar que el pipeline end-to-end (con PnL) corre sin error en nube. Prueba de que el backtest funciona, no de semántica (ya validada).
+2. **Addendum a `SDD_MARKET_REPLAY`** (no SDD nuevo): registrar contrato objetivo de frontera HTF, citando `auditoria_frontera_engine_infra.md` + `auditoria_contrato_marketreplay.md`. Marcar `SDD_M2_LINEAGE.md` como SUPERSEDED. Solo documentación, sin tocar código.
+3. **DECISIÓN DEL CONSEJO** (cuando autorice): el fix correcto es **cablear** `est_htf_ctx_fn`/`htf_poi_fn`/`htf_pd_index` de las autoridades del engine en `MarketReplay.run()`, NO escribir lógica SMC en replay. Hasta ahí: NO-FIX.
 4. **Decidir destino del loop operativo vivo** (`orchestration/`, `paper_trading/`, `monitoring/`): ¿cablearlo a la Ley Fundamental o archivarlo? Hoy HISTÓRICO en `TRUTH_MATRIX.md`.
 
 ---
 
-## 9. TRAZABILIDAD
+## 10. TRAZABILIDAD
 
 - `results/fase_a_semantic_eurhusd_LIGHT.md` / `.json` — veredicto local (A VALIDADA, 18 setups).
 - `results/fase_a_light_state.json` / `.jsonl` — telemetría viva del run.
 - `docs/infra_deuda_frontera.md` — deuda de frontera (NO-FIX).
+- `docs/auditoria_frontera_engine_infra.md` — auditoría frontera campo-por-campo (NO-FIX).
+- `docs/auditoria_contrato_marketreplay.md` — auditoría de contrato vs SDD/MDS (NO-FIX, cambio de paradigma).
 - `scripts/fase_a_semantic_light.py` — runner ligero (consumidor puro, `run_sequence_traced` directo).
 - `research/hypotheses/HYP-002/PHASE6_FINDINGS_AUDIT.md` — veredicto previo A VALIDADA (35 setups).
 - Run nube completo: `31740419288` (in_progress, no tocado).
