@@ -24,6 +24,8 @@ on:
       - 'scripts/fase_a_cloud.py'
       - 'engine/sequence.py'
       - 'engine/expediente.py'
+      - 'ict_backtest/rules.py'
+      - 'ict_backtest/run_backtest.py'
       - '.github/workflows/fase-a-semantic.yml'
 
 jobs:
