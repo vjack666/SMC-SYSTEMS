@@ -4,6 +4,12 @@ name: FASE-A-SEMANTIC
 # Consumidor puro del motor sobre datos reales EURUSD (3 meses de M15).
 # Audita el grafo causal con HYP-002/phase6_verifier (dimensiones SDD_GOVERNANCE §4).
 # NO toca engine/. NO optimiza. NO crea SDD.
+#
+# NOTA (fix run 31739223530): se quita `pip install -e .` porque arrastra el
+# paquete smc-successor (bot HISTORICO, no cableado) que exige MetaTrader5/PySide6
+# inexistentes en el runner Linux. Los paquetes engine/ ict_backtest/ detectors/
+# research/ son importables como fuente plana (sys.path.insert(0,'.')), igual que
+# en pilot-phase6-a.yml. Solo se necesita pandas/numpy/pyarrow para leer parquet.
 
 on:
   workflow_dispatch:
@@ -29,10 +35,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install pandas numpy pyarrow
+        run: pip install pandas numpy pyarrow
       - name: Run FASE A semantic audit (3 months)
         run: python scripts/fase_a_cloud.py
       - if: always()
