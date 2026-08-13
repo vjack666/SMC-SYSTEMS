@@ -662,7 +662,8 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                  htf_pd_index=None, ltf_map: dict | None = None,
                  htf: str | None = None,
                  est_htf_ctx_fn=None, exec_frames: dict | None = None,
-                 initial_state: Any = None, start_i: int = 0):
+                 initial_state: Any = None, start_i: int = 0,
+                 copy_objs: bool = True):
     """Recorre el LTF y devuelve lista de dicts de senal.
 
     R9 Paso 3: acepta DataFrame O lista de MarketObject (type=CANDLE). En
@@ -698,7 +699,13 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
     if isinstance(ltf_df_or_objs, pd.DataFrame):
         objs = _candle_objects(ltf_df_or_objs, ltf_tf)
     else:
-        objs = list(ltf_df_or_objs)
+        # M2 (2026-08-12): copy_objs controla si recreamos una copia superficial
+        # de la coleccion en cada llamada. El motor SOLO LEE `objs` por indice
+        # `<= i` (no hay append/pop/sort ni mutacion de elementos dentro del
+        # loop), por lo que reutilizar la coleccion por referencia (copy_objs=False)
+        # es semánticamente idéntico y elimina el O(n) por llamada. El default
+        # True preserva el comportamiento histórico hasta demostrar equivalencia.
+        objs = list(ltf_df_or_objs) if copy_objs else ltf_df_or_objs
 
     state = initial_state if initial_state is not None else SequenceState()
     signals: list[dict] = []
@@ -1093,7 +1100,8 @@ def run_sequence_traced(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                         htf_pd_index=None, ltf_map: dict | None = None,
                         htf: str | None = None,
                         est_htf_ctx_fn=None, exec_frames: dict | None = None,
-                        initial_state=None, start_i: int = 0):
+                        initial_state=None, start_i: int = 0,
+                        copy_objs: bool = True):
     """B1: (signals, phase_seen, expedientes, state) — trazabilidad + estado.
 
     Devuelve el SequenceState final para persistencia (HYP-002 M3). El llamador
@@ -1105,4 +1113,5 @@ def run_sequence_traced(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
         htf_pd_index=htf_pd_index, ltf_map=ltf_map,
         htf=htf, est_htf_ctx_fn=est_htf_ctx_fn, exec_frames=exec_frames,
         initial_state=initial_state, start_i=start_i,
+        copy_objs=copy_objs,
     )

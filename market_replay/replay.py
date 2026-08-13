@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from engine.sequence import SequenceConfig, run_sequence_traced, SequenceState
+from engine.sequence import SequenceConfig, run_sequence_traced, SequenceState, _candle_objects
 from market_replay.availability import TemporalAvailability, TF_CHAIN
 from market_replay.feed import MarketFeed
 from market_replay.journal import EventJournal, JournalEntry
@@ -98,6 +98,14 @@ class MarketReplay:
         if len(ltf_df_full) == 0:
             return ReplayResult(journal=self.journal, final_state=None, steps=0)
 
+        # M2-bis (2026-08-12): preconvertir la lista de objetos LTF UNA sola vez.
+        # Antes, cada paso recortaba el DataFrame y el motor reconstruia los
+        # MarketObject desde cero (O(n) por vela => O(n^2) total). Ahora pasamos
+        # una sublista por referencia (slice O(1)) y copy_objs=False en el motor,
+        # que SOLO LEE objs por indice <= i (FASE 0: sin mutacion). Equivalencia
+        # estructural vela-a-vela demostrada en tests/test_sequence_copy_equivalence.py.
+        objs_full = _candle_objects(ltf_df_full, self.ltf)
+
         state = SequenceState()
         prev_ids: set[str] = set()
         all_signals: list = []
@@ -105,8 +113,9 @@ class MarketReplay:
 
         for i in range(1, len(ltf_df_full)):
             t = ltf_df_full.iloc[i]["time"]
-            # Ventana disponible EN ESTE instante (anti look-ahead).
-            win = ltf_df_full.iloc[: i + 1].reset_index(drop=True)
+            # Ventana disponible EN ESTE instante (anti look-ahead): sublista por
+            # referencia, O(1), sin reconversion ni copia.
+            win = objs_full[: i + 1]
 
             signals, _phase, _exp, state = run_sequence_traced(
                 win,
@@ -115,6 +124,7 @@ class MarketReplay:
                 ltf_tf=self.ltf,
                 initial_state=state,
                 start_i=i - 1,
+                copy_objs=False,
             )
             all_signals.extend(signals)
             self._record_events(state, t, self.ltf, i, prev_ids)

@@ -20,8 +20,11 @@ from market_replay.replay import MarketReplay
 
 
 def _scaling(symbol, sizes, data_dir=None) -> dict:
+    import sys
+    tc = time.perf_counter()
     frames = load_frames(symbol, ("D1", "H4", "H1", "M15"),
                          **({"data_dir": data_dir} if data_dir else {}))
+    print(f"[profile] load_frames: {time.perf_counter()-tc:.2f}s (M15={len(frames['M15'])})", flush=True)
     m15 = frames["M15"]
     rows = []
     for n in sizes:
@@ -36,6 +39,7 @@ def _scaling(symbol, sizes, data_dir=None) -> dict:
         rp.run()
         dt = time.perf_counter() - t0
         rows.append({"n_velas": e, "total_s": round(dt, 3), "seg_por_vela": round(dt / max(1, e), 4)})
+        print(f"[profile] n={e} run={dt:.2f}s ({dt/max(1,e):.4f}s/vela)", flush=True)
     # deducir orden: comparar ratio de tiempo vs ratio de tamaño entre extremos.
     a, b = rows[0], rows[-1]
     r_n = b["n_velas"] / a["n_velas"]
