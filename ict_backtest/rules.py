@@ -3,6 +3,8 @@
 La unica fuente de killzone_en es engine.killzone. Este modulo lo re-exporta para
 no romper el dashboard/observador. El checklist PO3 (intradia/scalping) queda.
 """
+from __future__ import annotations  # diferir anotaciones (datetime | None en firmas)
+
 import datetime  # noqa: F401  (usado en firmas de funciones mas abajo; requerido en entorno limpio)
 
 from engine.killzone import (  # noqa: F401
