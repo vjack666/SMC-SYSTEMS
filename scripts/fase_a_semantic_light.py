@@ -108,6 +108,11 @@ def main():
     _anchored_events = build_htf_structure_index(htf_frames) if htf_frames else []
 
     def est_htf_fn(i: int) -> dict:
+        # Debe retornar el MultiTFContext COMPLETO (no un dict aplanado), porque
+        # run_sequence hace extract_htf_layer(_ctx, htf) sobre el. Si retornamos
+        # dict plano, extract_htf_layer no encuentra la capa H4 => trend=RANGING
+        # forzado => el motor rechaza TODOS los setups (reproduce la deuda B de
+        # MarketReplay). Igual que ict_backtest/canonical.py:196-208.
         t = ms[LTF].iloc[i]["time"]
         anchored = None
         if _anchored_events:
@@ -116,18 +121,10 @@ def main():
             anchored = {}
             for e in prior:
                 anchored.setdefault(e.tf, []).append(e)
-        ctx = build_multitf_context(
+        return build_multitf_context(
             ms, t, tfs=("D1", "H4", "H1", "M15"),
             anchored_pd_zones=anchored,
         )
-        # extract_htf_layer para reducir al HTF pedido (igual que canonical legacy)
-        layer = ctx.get(HTF, {}) if isinstance(ctx, dict) else {}
-        return {
-            "trend": str(layer.get("trend", "RANGING") if isinstance(layer, dict) else "RANGING"),
-            "sweep_up": bool(layer.get("liquidity_sweep_up", False)) if isinstance(layer, dict) else False,
-            "sweep_down": bool(layer.get("liquidity_sweep_down", False)) if isinstance(layer, dict) else False,
-            "pd_zones": anchored or {},
-        }
 
     # ---------- ETAPA 3: GENERACION DE SENALES (run_sequence_traced DIRECTO) ----------
     # Usamos run_sequence_traced DIRECTO (no evaluate_signals/generate_sequence_signals)
