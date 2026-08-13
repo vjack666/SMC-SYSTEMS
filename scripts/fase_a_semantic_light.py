@@ -108,7 +108,7 @@ def main():
 
     def est_htf_fn(i: int) -> dict:
         t = ms[LTF].iloc[i]["time"]
-        r = closed_row_at_time(htf_df, t, tf_duration(HTF))
+        r = closed_row_at_time(htf_df, t, tf_duration(HTF)) or {}
         ltf_t = pd.to_datetime(t, utc=True, errors="coerce")
         pd_zones = [e for e in anchored if e.time is not None and e.time <= ltf_t]
         return {"trend": str(r.get("trend", "RANGING")),
