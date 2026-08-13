@@ -145,3 +145,40 @@ marcado HISTÓRICO/OBSOLETO/_descartado NUNCA prevalece sobre un CURRENT.
 `opencode.json` contra el árbol real y falla si hay referencias rotas activas, referencias a
 docs históricos como autoridad, o referencias a proyectos ajenos. Correrlo antes de declarar
 cualquier misión de documentación CLOSED.
+
+### §18 — MANDATO OPERATIVO: CERRAR MOTOR ↔ BACKTEST SIN MEZCLA
+
+Este mandato es obligatorio para Hermes y para cualquier agente que trabaje en HYP/EXP,
+auditorías o backtest. Su objetivo es impedir que una auditoría vuelva a construir una
+segunda estrategia dentro de `ict_backtest/` o que una migración parcial se declare cerrada.
+
+1. **Separar diagnóstico de implementación.** Una auditoría/replay es un consumidor puro:
+   observa `engine/`, conserva evidencia y reporta `GAP`, `FAIL` o `PASS`. Si descubre una
+   capacidad faltante, NO la implementa dentro del laboratorio ni mezcla el cambio del motor
+   con el cierre de la auditoría. Debe emitir un finding y abrir una fase de Ingeniero que
+   implemente en `engine/`; después la auditoría se repite contra el motor actualizado.
+2. **El camino canónico manda.** Antes de añadir o conservar código en `ict_backtest/`, Hermes
+   debe demostrar que es solo feed, reloj, adaptador, simulación de resultados o métricas.
+   Detectores, clasificadores, generadores de señales, gates de estrategia, POI, BOS/CHOCH,
+   sesgo, SL/TP y reglas de setup pertenecen a `engine/`. Un módulo histórico no es una
+   excepción: se mueve a `legacy/`, se convierte en shim explícito o se elimina cuando no haya
+   consumidores.
+3. **Migración completa, no rescate aislado.** `engine/` no puede importar `ict_backtest/` y
+   el backtest canónico tampoco puede depender de detectores/reglas decisionales de
+   `ict_backtest/`. Un shim de compatibilidad solo puede reexportar una implementación que
+   viva en `engine/`; no puede contener una copia funcional.
+4. **No declarar cierre por una prueba unilateral.** El AST guard `engine → ict_backtest` y el
+   reexport de `data_feed.build_features` no prueban que el backtest sea puro. La Definition of
+   Done exige ejecutar `scripts/audit_motor_backtest_boundary.py`, auditar el grafo
+   `ict_backtest → engine`, el camino real de `run_sequence_backtest`/`run_sequence_parity` y
+   el inventario de módulos decisionales.
+5. **Orden de trabajo obligatorio:** (a) inventario de dependencias y consumidores, (b) SDD y
+   finding, (c) migración a `engine/`, (d) shim o retiro del módulo antiguo, (e) guardas
+   arquitectónicas en ambos sentidos, (f) pruebas del camino canónico, (g) auditoría
+   independiente, (h) aceptación del Director. Si un paso falta, el estado es `BLOCKED`, no
+   `CLOSED`.
+
+**Orden directa a Hermes:** reparar la mezcla existente siguiendo §18. No agregar más lógica de
+   estrategia a `ict_backtest/`, no usar compatibilidad como excusa para conservar duplicados,
+   no modificar el motor desde una auditoría sin fase de Ingeniero trazable y no presentar M4
+   como separación total hasta que el backtest canónico sea un consumidor verificable.

@@ -1,6 +1,6 @@
 # SDD — Separación definitiva MOTOR ↔ BACKTEST (HYP-002, misión de frontera)
 
-**Estado:** READY · **Autoridad:** SDD de implementación (cadena AGENTS.md §18 → DECISION_BACKTEST_UNICO → engine → SDD_GOVERNANCE)
+**Estado:** TESTED · **Autoridad:** SDD de implementación (cadena AGENTS.md §18 → DECISION_BACKTEST_UNICO → engine → SDD_GOVERNANCE)
 **Fecha:** 2026-08-12 · **Ejecutor:** Hermes (autónomo, ORDEN DEL DIRECTOR)
 **Alcance:** dejar `engine/` como ÚNICA fuente de decisión; `ict_backtest/` solo feed/reloj/adaptadores/simulación/métricas; auditorías en `research/` consumidoras puras.
 **Fuera de alcance (por directiva):** WR/PF/edge, Macro/News, estadística, nuevo Market Replay (es misión posterior, no esta).
@@ -27,56 +27,46 @@
 
 ## 2. Inventario real (fuente: imports, no documentación)
 
-### 2.1 Camino VIVO (canónico único, consume motor + duplicados)
-- `ict_backtest/run_backtest.py::run_sequence_backtest` → `canonical.evaluate_signals`.
-- `ict_backtest/canonical.py::evaluate_signals` → YA usa `engine.plan`, `engine.execution`, `engine.poi_anchor`, `engine.rr_by_setup`, `engine.silver_bullet`, `engine.turtle_soup`, `engine.liquidity_internal_external`, `engine.killzone`, `engine.sequence`.
-  PERO TAMBIÉN importa duplicados de `ict_backtest/`:
-  - `ict_backtest.market_structure.detect_market_structure`
-  - `ict_backtest.dealing_range_motor.compute_zone_class`
-  - `ict_backtest.po3_motor.compute_po3_complete`
-  - `ict_backtest.setups.ote` (`is_ote_entry`, `flag_ote`)
-  - `ict_backtest.plan_attach` / `plan_driver` / `plan_fsm` (capa plan legacy)
-  - `ict_backtest.rules`, `ict_backtest.structure` (solo `__init__`)
-- `ict_backtest/v2/orchestrator.py::run_sequence_parity` → consume `run_backtest` + `market_structure` + `strategy_legacy`.
+### 2.1 Camino VIVO (canónico único)
+- `ict_backtest/run_backtest.py::run_sequence_backtest` → `canonical.evaluate_signals` → `engine.*` para decisiones y `ict_backtest.simulator` para resultados.
+- `ict_backtest/canonical.py::evaluate_signals` → usa `engine.plan`, `engine.execution`, `engine.poi_anchor`, `engine.rr_by_setup`, `engine.silver_bullet`, `engine.turtle_soup`, `engine.liquidity_internal_external`, `engine.killzone`, `engine.sequence` y `engine.trade_levels`.
+- `ict_backtest/v2/orchestrator.py::run_sequence_parity` → consume el camino canónico y los contratos del motor.
 
-### 2.2 Superficies de decisión en `ict_backtest/` (flagueadas por el auditor)
+### 2.2 Superficies de decisión en `ict_backtest/` (resultado de la migración)
 | Módulo | ¿Tiene equivalente en engine? | Consumidores vivos | Decisión |
 |---|---|---|---|
-| `market_structure.py` | SÍ (`engine.bos.detect_market_structure`) | canonical, run_backtest, optimize, plot, v2/orch, setups/ote, _cmp_bos, _diag | MIGRAR a engine + shim |
-| `dealing_range_motor.py` | PARCIAL (`engine.dealing_range`) | canonical | MIGRAR compute_zone_class a engine + shim |
-| `po3_motor.py` | NO | canonical | MIGRAR a `engine/po3.py` + shim |
-| `setups/ote.py` | NO | canonical | MIGRAR a `engine/ote.py` + shim |
-| `plan_attach/plan_driver/plan_fsm` | SÍ (`engine.plan`) | run_backtest, canonical(no) | REDIRIGIR a engine + shim o BORRAR |
-| `rules.py` | checklist UI | solo `__init__` | DEJAR como UI puro o BORRAR |
-| `structure.py` | `engine.bos` cubre | `__init__`, `_smoke` | REDIRIGIR/BORRAR |
+| `market_structure.py` | SÍ (`engine.market_structure`) | consumidores de compatibilidad | SHIM |
+| `dealing_range_motor.py` | SÍ (`engine.dealing_range_eq`) | consumidores de compatibilidad | SHIM |
+| `po3_motor.py` | SÍ (`engine.po3`) | consumidores de compatibilidad | SHIM |
+| `setups/ote.py` | SÍ (`engine.ote`) | consumidores de compatibilidad | SHIM |
+| `plan_attach/plan_driver/plan_fsm` | SÍ (`engine.plan_*`) | compatibilidad | SHIM |
+| `rules.py` | checklist UI | `__init__` | UI puro, fuera del motor canónico |
+| `structure.py` | clasificación auxiliar | `__init__` | adaptador/UI, fuera del motor canónico |
 | `setups/silver_bullet.py` | SÍ (`engine.silver_bullet`) | canonical (engine) | YA shim (en SHIM_FILES) |
 | `setups/turtle_soup.py` | SÍ (`engine.turtle_soup`) | canonical (engine) | YA shim (en SHIM_FILES) |
 
-### 2.3 Muertos (0 consumidores → BORRAR)
-`bar_by_bar_engine.py`, `setups/breaker_block.py`, `setups/smart_money.py`, `setups/smt_divergence.py`, `_cmp_bos.py`, `_diag_signals.py`, `optimize.py`.
+### 2.3 Legacy y herramientas fuera del camino canónico
+- Eliminados por no tener consumidores: `bar_by_bar_engine.py` y el comparador ejecutable anterior `_cmp_bos.py`.
+- `setups/breaker_block.py`, `setups/smart_money.py` y `setups/smt_divergence.py` quedan aislados para pruebas/investigación; el auditor impide que el backtest activo los importe.
+- `optimize.py` permanece como herramienta de backtest: optimiza parámetros sobre datos históricos y consume el motor para generar decisiones; no es un motor alternativo.
 
 ---
 
 ## 3. Plan de migración por capas (sin cambio semántico — regresión cero)
 
 ### Capa 1 — Infraestructura común a engine
-- `engine/bos.detect_market_structure` ya existe → el shim `ict_backtest/market_structure.py` reexporta devolviendo `.frame` (misma firma DataFrame que hoy).
-- Crear `engine/dealing_range.compute_zone_class` (mover de `dealing_range_motor`).
-- Crear `engine/po3.py` (`compute_po3_complete`, `Po3MotorConfig`).
-- Crear `engine/ote.py` (`is_ote_entry`, `flag_ote`).
+- `engine.market_structure`, `engine.dealing_range_eq`, `engine.po3` y `engine.ote` son las fuentes permanentes.
 
-### Capa 2 — Re-enrutar el camino vivo a engine
-- `canonical.py`: cambiar imports `ict_backtest.market_structure` → `engine.bos`, `ict_backtest.dealing_range_motor` → `engine.dealing_range`, `ict_backtest.po3_motor` → `engine.po3`, `ict_backtest.setups.ote` → `engine.ote`, `ict_backtest.plan_*` → `engine.plan` (o borrar si no usados en runtime).
-- `run_backtest.py` / `v2/orchestrator.py`: eliminar imports de `market_structure`, `plan_driver`, `plan_fsm` (usar engine vía canonical).
-- Interfaz PÚBLICA idéntica (`ICTSignal`, `evaluate_signals`, `latest_plan`) → observador sigue igual.
+### Capa 2 — Re-enrutamiento del camino vivo
+- `canonical.py`, `run_backtest.py`, `optimize.py` y V2 importan las decisiones desde `engine.*` y la simulación desde `ict_backtest.simulator`.
+- La interfaz pública (`ICTSignal`, `evaluate_signals`, `latest_plan`) permanece compatible.
 
 ### Capa 3 — Shims explícitos
-- `ict_backtest/market_structure.py`, `dealing_range_motor.py`, `po3_motor.py`, `setups/ote.py` → shims `from engine.X import Y` (sin lógica).
-- Añadir estos a `SHIM_FILES` en `scripts/audit_motor_backtest_boundary.py`.
-- `plan_attach/plan_driver/plan_fsm`: si tras Capa 2 nadie los llama en runtime, BORRAR.
+- `ict_backtest/engine.py` y las superficies de compatibilidad reexportan desde `engine.*` o `ict_backtest.simulator`; no contienen implementación decisional.
 
-### Capa 4 — Eliminar muertos
-- Borrar los 7 módulos de §2.3.
+### Capa 4 — Eliminar o aislar legacy
+- Eliminar módulos sin consumidores que dupliquen el loop o ejecuten datos al importarse.
+- Mantener herramientas de backtest y detectores experimentales únicamente fuera del camino canónico y con guardas de importación.
 
 ### Capa 5 — Guardas en ambos sentidos
 - `engine → ict_backtest`: ya cubierto por `tests/test_architecture_motor_autonomy.py` (AST).
@@ -94,6 +84,13 @@
 - Prueba de destrucción: motor + auditorías PASS sin `ict_backtest`.
 - Documentado: este SDD + informe ejecutivo + deuda real.
 - **NO commit/push sin autorización expresa de Ruben (regla #12 del orden).**
+
+### Evidencia de esta ejecución
+- `engine/signal.py` es la fuente permanente de `ICTSignal`.
+- `engine/trade_levels.py` es la fuente permanente de SL estructural y objetivos de liquidez.
+- `ict_backtest/simulator.py` contiene reloj/fill/costos/SL-TP/hold y emisión de datos crudos para diagnóstico.
+- `ict_backtest/engine.py` solo conserva compatibilidad de imports y el auditor rechaza implementaciones locales allí.
+- `bar_by_bar_engine.py` fue retirado porque duplicaba decisiones y no tenía consumidores.
 
 ---
 
