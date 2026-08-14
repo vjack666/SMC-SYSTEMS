@@ -24,13 +24,20 @@ from engine.sequence import SequenceConfig, run_sequence_traced, SequenceState, 
 # FIX frontera (2026-08-13, Consejo autorizado): MarketReplay REUTILIZA las
 # autoridades de contexto del engine en lugar de entregar un dict plano
 # degradado. NO se implementa logica SMC aqui (prohibido por SDD_SEPARACION).
-from engine.multitf_context import build_multitf_context
+from engine.multitf_context import build_multitf_context, extract_htf_layer, MultiTFContext
 from engine.poi_anchor import make_htf_poi_fn
 from engine.htf_pd_index import HtfPdIndex
 from engine.market_structure import detect_market_structure
+from engine._util import tf_duration
 from market_replay.availability import TemporalAvailability, TF_CHAIN
 from market_replay.feed import MarketFeed
 from market_replay.journal import EventJournal, JournalEntry
+
+import time as _time
+import psutil as _psutil
+
+# Log de avances: cada N velas se imprime estado del replay (observabilidad).
+LOG_EVERY = 50
 
 
 # Mapa de campos del SequenceState -> tipo de evento del journal.
@@ -75,28 +82,58 @@ class MarketReplay:
 
     # ------------------------------------------------------------------
     def _htf_ctx_fn(self, i: int):
-        """Contexto HTF closed-only en t, REUTILIZANDO las autoridades del engine.
+        """Contexto HTF closed-only en t[i], O(1) via array precomputado.
 
-        FIX frontera (2026-08-13, Consejo autorizado): en lugar de entregar un
-        dict plano degradado {trend,h,low,close} con trend=RANGING forzado,
-        delegamos en build_multitf_context del engine, que calcula el bias
-        top-down real (D1->H4->H1) y pd_zones via build_context_stack. El motor
-        recibe el MISMO contrato que via backtest canonico (canonical.est_htf_ctx_fn).
-        NO se implementa logica SMC aqui: solo se orquesta la autoridad existente.
+        SOLUCION A (rendimiento, 2026-08-14): el contexto HTF ya NO se
+        recomputa por vela (era O(n^2): build_multitf_context es O(n) por
+        llamada y se invocaba n veces dentro del loop de run_sequence_traced).
+        En run() precomputamos, UNA sola vez y de forma incremental, el indice
+        de la vela HTF cerrada <= t[i] para cada TF (O(n) total). Aqui solo
+        hacemos lookup O(1) y reconstruimos el MultiTFContext hasta i,
+        preservando causalidad (closed-only, sin mirar futuro).
         """
-        ltf_df = getattr(self, "_ltf_df", None)
-        t = ltf_df.iloc[i]["time"] if ltf_df is not None else None
-        if t is None:
+        arr = getattr(self, "_htf_closed_idx", None)
+        if arr is None:
             return {}
-        # ms con detect_market_structure ya aplicado (autoridad del engine,
-        # igual que el backtest canonico en canonical.py:187). Construido
-        # UNA vez en run(), no por vela.
-        ms = getattr(self, "_ms_struct", None)
-        if ms is None:
-            return {}
-        # anchored_pd_zones lo aporta el engine; pasamos None para no duplicar
-        # logica de replay (la autoridad vive en engine.poi_anchor).
-        return build_multitf_context(ms, t, tfs=tuple(ms.keys()), anchored_pd_zones=None)
+        ctx = {}
+        for tf, idx_by_i in arr.items():
+            ji = idx_by_i[i]
+            if ji is None:
+                continue
+            ctx[tf] = self._ms_struct[tf].iloc[ji].to_dict()
+        return extract_htf_layer(MultiTFContext(ctx), self.htf) if self.htf else ctx
+
+    # ------------------------------------------------------------------
+    def _precompute_htf_index(self, ltf_df_full: pd.DataFrame) -> None:
+        """Precomputa, O(n) total, el indice HTF cerrado <= t[i] por vela LTF.
+
+        Barrido a dos punteros (no usa closed_row_at_time, que es O(n) ciego):
+        como t[i] crece monotonicamente, el indice HTF valido solo avanza.
+        Costo total O(n_ltf + n_htf), O(1) amortizado por vela. Esto elimina
+        el O(n^2) que existia al recomputar build_multitf_context por vela.
+        """
+        self._htf_closed_idx = {}
+        for tf in ("D1", "H4", "H1"):
+            if tf not in self._ms_struct:
+                continue
+            htf_df = self._ms_struct[tf]
+            dur = tf_duration(tf)
+            htimes = pd.to_datetime(htf_df["time"], utc=True, errors="coerce")
+            ltimes = pd.to_datetime(ltf_df_full["time"], utc=True, errors="coerce")
+            n_ltf = len(ltf_df_full)
+            n_htf = len(htf_df)
+            idx_by_i: list = [None] * n_ltf
+            ji = -1
+            for i in range(n_ltf):
+                t = ltimes.iloc[i]
+                if pd.isna(t):
+                    continue
+                cutoff = t - pd.Timedelta(dur)
+                # Avanza el puntero HTF mientras la vela ji+1 haya CERRADO (<= cutoff).
+                while ji + 1 < n_htf and not pd.isna(htimes.iloc[ji + 1]) and htimes.iloc[ji + 1] <= cutoff:
+                    ji += 1
+                idx_by_i[i] = ji if ji >= 0 else None
+            self._htf_closed_idx[tf] = idx_by_i
 
     # ------------------------------------------------------------------
     def run(self) -> ReplayResult:
@@ -155,10 +192,16 @@ class MarketReplay:
         ltf_struct_full = self._ms_struct.get(self.ltf, ltf_df_full)
         objs_full = _candle_objects(ltf_struct_full, self.ltf)
 
+        # SOLUCION A (rendimiento, 2026-08-14): precomputar indices HTF cerrados
+        # UNA vez (O(n) total) antes del loop, para que _htf_ctx_fn sea O(1).
+        self._precompute_htf_index(ltf_df_full)
+
         state = SequenceState()
         prev_ids: set[str] = set()
         all_signals: list = []
         steps = 0
+        _t0 = _time.time()
+        _proc = _psutil.Process()
 
         for i in range(1, len(ltf_df_full)):
             t = ltf_df_full.iloc[i]["time"]
@@ -183,6 +226,24 @@ class MarketReplay:
             self._record_events(state, t, self.ltf, i, prev_ids)
             prev_ids = {fid for fid, _ in _state_event_pairs(state)}
             steps += 1
+
+            # LOG DE AVANCES (observabilidad): cada LOG_EVERY velas.
+            if i % LOG_EVERY == 0:
+                _bias = "?"
+                _arr = getattr(self, "_htf_closed_idx", {})
+                if "H4" in _arr and _arr["H4"][i] is not None:
+                    _row = self._ms_struct["H4"].iloc[_arr["H4"][i]]
+                    _bias = str(_row.get("trend", "?")).replace("RANGING", "R")
+                _mem = _proc.memory_info().rss / (1024 * 1024)
+                _cpu = _proc.cpu_percent()
+                _el = _time.time() - _t0
+                print(
+                    f"[REPLAY {self.ltf}] vela {i}/{len(ltf_df_full)-1} "
+                    f"biasH4={_bias} fase={getattr(state,'phase','?')} "
+                    f"setups={len(all_signals)} "
+                    f"{_el:.1f}s mem={_mem:.0f}MB cpu={_cpu:.0f}%",
+                    flush=True,
+                )
 
         return ReplayResult(journal=self.journal, signals=all_signals, final_state=state, steps=steps)
 
