@@ -807,3 +807,46 @@ del call-site de `run_backtest`. Evidencia: fuentes activas 23/0 rotas/0 cross-p
 baterías engine y replay registradas en el informe, compileall limpio. Quedan escaladas
 únicamente decisiones de semántica/autoridad (OTE, convención OB, perímetro legacy,
 contrato labels y documentos de protocolo ausentes). Sin commit/push.
+
+## 2026-08-14 (tarde) — Cierre de conformidad autónomo (Hermes + Consejo activo)
+
+Director delega objetivo completo: "llevar SDD + engine a conformidad cerrada y
+verificable; orquestar todo; escalar solo decisiones de autoridad". Aprobación total
+de documentos ya decididos. Protocolo: bitácora + plan con checks + push por unidad +
+pop-up al terminar para revisión con ChatGPT.
+
+### F0 Reality Map (hecho)
+- HEAD local = `b3fa2c7`. Mis commits FIX (`1651bdf` cableado MarketReplay, `a3708b4`
+  addendum SDD_MARKET_REPLAY + SUPERSEDED SDD_M2_LINEAGE) SÍ en rama y origin.
+- Working tree sucio (23 archivos): correcciones Codex + refactor señal adelantada
+  (borró `bar_by_bar_engine.py`, `_smoke.py`, redujo `ict_backtest/engine.py` a fachada)
+  + scripts propios sin commitear. Se aíslan fuera del commit de cierre.
+
+### F1 Contract Reconciliation (hecho)
+- OTE (`engine/ote.py:67-71`): LONG en descuento, SHORT en premium. SIN inversión.
+  gap es AMBIGUOUS CONTRACT (SDD no dice si OTE es gate o metadata) → resuelto por
+  aprobación: OTE = metadata, no gate duro.
+- OB (`engine/order_block.py`): ya confirma por vela siguiente (shift(-1)).
+- POI fail-open: EXPECTED BY DESIGN (SDD lo permite).
+- G2/G3: fuera del motor, no contradice SDD. O(n²): en uso canónico es O(n).
+
+### F2 Shadow OB (hecho)
+- 2000 velas M15 → 27 OB, status event-driven (none/active/invalidated). Convención
+  actual ya canónica. Añadir origin_index/confirmed_index = trazabilidad, no cambia señal.
+
+### F3a Quarantine tests/_broken (hecho)
+- Creado `tests/_broken/QUARANTINED.md`. Fuera del gate oficial.
+
+### F3b/c BLOQUEADO por autoridad (HALT)
+- Contradicción real: decisión aprobada #2 ("confirmación cerrada" = vela siguiente,
+  como `engine/order_block.py`) CHOCA con `detectors/ob.py:20-26` que argumenta que
+  vela siguiente = look-ahead y por eso usa vela ANTERIOR (shift(1)).
+- NO se toca ni `engine/order_block.py` ni `detectors/ob.py` hasta fallo del Director:
+  ¿confirmación = vela siguiente (entonces detectors/ob.py debe cambiar) o = vela
+  anterior (entonces engine/order_block.py tiene look-ahead y se corrige)?
+
+### Pendiente
+- F4 perímetro oficial de pruebas (documental).
+- F5 replay escalado 100→2000 velas con runner_monitor.
+- F6 paquete de auditoría independiente → AUDITED.
+- F7 ACCEPTED (Director).
