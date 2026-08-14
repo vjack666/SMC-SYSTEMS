@@ -123,5 +123,7 @@ def avg_candle_range(df: pd.DataFrame, window: int = 50) -> pd.Series:
     low = df["low"].to_numpy(dtype=float)
     rng = pd.Series(high - low, index=df.index)
     rng = rng.mask(rng <= 0.0)
-    avg = rng.rolling(window=window, min_periods=max(1, window // 2)).mean().ffill().bfill()
+    # La ventana usa solo velas disponibles hasta i. No rellenar hacia atrás:
+    # eso usaría rangos de velas futuras y violaría el contrato causal.
+    avg = rng.rolling(window=window, min_periods=1).mean()
     return avg

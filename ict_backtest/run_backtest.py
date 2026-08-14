@@ -28,7 +28,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from ict_backtest.engine import ICTSignal, simulate_trade_with_context  # noqa: E402
+from engine.signal import ICTSignal  # noqa: E402
+from ict_backtest.simulator import simulate_trade_with_context  # noqa: E402
 # POI anclado: UNICA fuente = engine (Ley). El backtest no construye indice propio.
 from engine.poi_anchor import build_htf_structure_index  # noqa: E402
 from ict_backtest._util import (  # noqa: E402
@@ -42,6 +43,7 @@ def _write_runner_progress(
     done: int | None = None,
     total: int | None = None,
     unit: str = "items",
+    details: dict | None = None,
 ) -> None:
     """Real progress for Hermes Runner Monitor (HERMES_PROGRESS_FILE).
 
@@ -55,6 +57,8 @@ def _write_runner_progress(
         payload["done"] = int(done)
     if total is not None:
         payload["total"] = int(total)
+    if details:
+        payload["details"] = details
     try:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -64,7 +68,7 @@ def _write_runner_progress(
 
 from ict_backtest.data_feed import load_frames  # noqa: E402
 from ict_backtest.costs import resolve_cost  # noqa: E402
-from ict_backtest.engine import simulate_trade, ICTSignal  # noqa: E402
+from ict_backtest.simulator import simulate_trade  # noqa: E402
 from engine.market_structure import detect_market_structure  # noqa: E402
 from ict_backtest.canonical import (  # noqa: E402
     evaluate_signals,
@@ -227,6 +231,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         done=0,
         total=3,
         unit="stages",
+        details={"stage": "load+structure", "symbol": symbol, "htf": htf, "ltf": ltf},
     )
     t0 = time.time()
     load_kwargs: dict = {}
@@ -273,8 +278,9 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         done=1,
         total=3,
         unit="stages",
+        details={"stage": "sequence_signals", "frames": sorted(frames)},
     )
-    signals, phase_seen = generate_sequence_signals(symbol, htf, ltf,
+    generated = generate_sequence_signals(symbol, htf, ltf,
                                         counter_trend=counter_trend,
                                         tp_mode=tp_mode,
                                         require_displacement=require_displacement,
@@ -286,9 +292,28 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                                         exec_tf=exec_tf,
                                         return_phase_seen=True,
                                         invalidate_on_opposite_swing=invalidate_on_opposite_swing)
+    # Compatibility with thin test/consumer doubles that return only signals;
+    # the canonical wrapper returns (signals, phase_seen) when requested.
+    if isinstance(generated, tuple) and len(generated) >= 2:
+        signals, phase_seen = generated[0], generated[1]
+    else:
+        signals = generated
+        phase_seen = {"SWEEP": 0, "DISPLACE": 0, "BOS": 0, "ENTRY": 0}
     print(f"      features en {time.time()-t0:.1f}s", flush=True)
     print(f"[2/3] Secuencia EVENT-DRIVEN (sweep->displace->BOS->retorno cuadro) ...", flush=True)
     print(f"      {len(signals)} senales", flush=True)
+    _write_runner_progress(
+        current=f"[2/3] sequence signals ready {symbol}",
+        done=2,
+        total=3,
+        unit="stages",
+        details={
+            "stage": "sequence_signals_ready",
+            "frames": sorted(frames),
+            "signals": len(signals),
+            "phase_seen": phase_seen,
+        },
+    )
 
     # A1 Opción B: compuerta de ejecución FSM (plan_gate). run_sequence intacto:
     # usa TODAS las señales; solo decide cuáles SE OPERAN. El dict objs por TF
@@ -315,6 +340,7 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         done=0,
         total=max(total, 1),
         unit="signals",
+        details={"stage": "simulate_trades", "signals_total": total, "trades_found": 0},
     )
     # Fase 5 (Brecha A1, modo OBSERVE): medidor de alineacion multi-TF.
     # Fuente canonica de MarketObjects por TF: build_objects (Fase A/B/C),
@@ -380,6 +406,12 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
                 done=k,
                 total=total,
                 unit="signals",
+                details={
+                    "stage": "simulate_trades",
+                    "signals_total": total,
+                    "signals_processed": k,
+                    "trades_found": len(pnls),
+                },
             )
 
     m = _metrics(pnls)
@@ -404,6 +436,15 @@ def run_sequence_backtest(symbol: str, htf: str, ltf: str, max_hold: int,
         done=total if total else 1,
         total=total if total else 1,
         unit="signals",
+        details={
+            "stage": "completed",
+            "signals_total": total,
+            "signals_processed": total,
+            "trades": m["trades"],
+            "winrate": m["winrate"],
+            "pf": m["pf"],
+            "total_r": m["total_r"],
+        },
     )
     print(f"\n===== RESULTADO [{tag}] =====", flush=True)
     print(f"  simbolo      : {symbol}  |  Capa2 sequence  |  {htf}->{ltf}", flush=True)

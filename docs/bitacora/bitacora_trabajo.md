@@ -795,3 +795,15 @@ y calcula OTE (retroceso 0.62-0.79) sobre (1) rango HTF M15 (lookback=10) y
 - JSON: `results/ote_c_EURUSD.json`.
 
 **Sin commit/push (regla Ruben: requiere OK expreso).**
+
+## Auditoría de conformidad engine/ vs SDD — 2026-08-14
+
+Se registró la auditoría completa en `docs/auditoria_conformidad_engine_sdd_2026-08-14.md`.
+Correcciones técnicas aplicadas: verificador de fuentes UTF-8 seguro; consumidores de
+`run_sequence_traced` alineados a la tupla de cuatro valores; `avg_candle_range` sin
+`bfill()` futuro y shim del backtest hacia `engine._util`; `engine.market_structure`
+convertido en fachada hacia `engine.bos.structure`; aliases de killzone y normalización
+del call-site de `run_backtest`. Evidencia: fuentes activas 23/0 rotas/0 cross-project,
+baterías engine y replay registradas en el informe, compileall limpio. Quedan escaladas
+únicamente decisiones de semántica/autoridad (OTE, convención OB, perímetro legacy,
+contrato labels y documentos de protocolo ausentes). Sin commit/push.

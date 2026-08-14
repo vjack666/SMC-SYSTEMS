@@ -136,10 +136,10 @@ def _run_setup(htf_poi=False):
     est = _est_htf_fn(hdf)
     if htf_poi:
         fn = make_htf_poi_fn(ltf, {"H4": hdf})
-        sigs, _, _ = run_sequence_traced(ltf, est, SequenceConfig(),
+        sigs, _, _, _state = run_sequence_traced(ltf, est, SequenceConfig(),
                                          htf_poi_fn=fn, ltf_tf="M15", htf="H4")
     else:
-        sigs, _, _ = run_sequence_traced(ltf, est, SequenceConfig(),
+        sigs, _, _, _state = run_sequence_traced(ltf, est, SequenceConfig(),
                                          htf_poi_fn=None, ltf_tf="M15", htf=None)
     return sigs
 
@@ -318,7 +318,7 @@ def test_zone_capture_fvg_on_bos():
     ltf = _make_ltf(n, 40, 44, 50, 50, 80)
     hdf = _make_htf_df(n)
     est = _est_htf_fn(hdf)
-    sigs, _, _ = run_sequence_traced(ltf, est, SequenceConfig(),
+    sigs, _, _, _state = run_sequence_traced(ltf, est, SequenceConfig(),
                                      htf_poi_fn=None, ltf_tf="M15", htf=None)
     assert sigs, "el caso limite FVG-en-BOS debe completar el setup"
     sig = sigs[0]

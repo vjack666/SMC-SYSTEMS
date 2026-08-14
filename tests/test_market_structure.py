@@ -61,9 +61,12 @@ def test_onsets_vs_active_bars():
     df = _frame(time, high, low, close)
     ms = detect_market_structure(df, StructureConfig(confirm_bars=1))
     bos_onsets = int((ms["bos_dir"] != 0).sum())
-    bos_active_bars = int((ms["bos_status"] == "active").sum())
-    assert bos_onsets <= bos_active_bars, (
-        f"Los onsets {bos_onsets} no pueden ser mas que las barras activas {bos_active_bars}"
+    # The canonical engine supersedes an older same-direction BOS when a new
+    # onset arrives (MDS_BOS_CHOCH §4.3); count the complete event lifecycle,
+    # not only the final active state.
+    bos_lifecycle_bars = int(ms["bos_status"].isin(("active", "superseded", "invalidated")).sum())
+    assert bos_onsets <= bos_lifecycle_bars, (
+        f"Los onsets {bos_onsets} no pueden exceder los eventos {bos_lifecycle_bars}"
     )
 
 

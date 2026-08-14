@@ -82,6 +82,12 @@ KILLZONES_UTC = {
 }
 
 
+def killzone_en(ts, broker_tz=None) -> str:
+    """Compatibility facade over the engine's canonical killzone function."""
+    from engine.killzone import killzone_en as _engine_killzone_en
+    return _engine_killzone_en(ts, broker_tz=broker_tz)
+
+
 def killzone_activa_ahora() -> str:
     """Nombre de la killzone activa AHORA (calculo en UTC) o '' si ninguna.
 

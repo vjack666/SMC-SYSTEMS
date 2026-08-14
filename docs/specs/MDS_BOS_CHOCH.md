@@ -25,6 +25,9 @@ canon ICT sobre un timeframe:
 Es la ontología de estructura **única** del motor: el sesgo HTF, el POI anclado
 y la secuencia de ejecución leen de aquí.
 
+`engine/market_structure.py` queda únicamente como fachada de compatibilidad
+que devuelve `MarketStructure.frame`; no contiene una segunda implementación.
+
 ---
 
 ## 2. Por qué importa

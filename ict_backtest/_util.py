@@ -9,6 +9,8 @@ from typing import Any
 
 import pandas as pd
 
+from engine._util import avg_candle_range as _engine_avg_candle_range
+
 
 def row_at_time(df: pd.DataFrame, t: Any, freq: Any = None) -> Any:
     """Devuelve la fila de `df` cuyo 'time' coincide con `t` (o la previa más
@@ -140,14 +142,9 @@ def avg_candle_range(df: pd.DataFrame, window: int = 50) -> pd.Series:
 
     - Ventanas con high==low (rango 0) se tratan como NA para no contaminar
       el promedio ni producir división por cero en los consumidores.
-    - Devuelve una Serie alineada al índice de `df` (rolling mean, ffill del
-      arranque hasta tener `window` velas).
+    - Devuelve una Serie alineada al índice de `df`; durante el calentamiento
+      usa solo las velas válidas ya observadas.
     """
-    high = df["high"].to_numpy(dtype=float)
-    low = df["low"].to_numpy(dtype=float)
-    rng = pd.Series(high - low, index=df.index)
-    # high==low (rango 0) -> NaN, para no contaminar el promedio ni dividir por 0.
-    rng = rng.mask(rng <= 0.0)
-    avg = rng.rolling(window=window, min_periods=max(1, window // 2)).mean().ffill().bfill()
-    return avg
+    # Shim de compatibilidad: la implementación permanente vive en engine/.
+    return _engine_avg_candle_range(df, window=window)
 

@@ -28,6 +28,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# Windows may expose the console as cp1252.  The audit report can contain
+# Unicode markers copied from repository documentation; keep verification
+# deterministic by replacing only characters the active console cannot emit.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # Autoridad ACTIVA que debe existir (verificación positiva).
 ACTIVE_AUTHORITY = [
     "AGENTS.md", "README.md",

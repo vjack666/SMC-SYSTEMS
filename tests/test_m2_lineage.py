@@ -84,7 +84,7 @@ def test_run_sequence_traced_emits_event_objects():
     """REGRESION CERO + ADITIVO: la señal trazada incluye event_objects."""
     ltf_df = _make_ltf_df()
     cfg = SequenceConfig(counter_trend=False, require_displacement=False)
-    sigs, _, exps = run_sequence_traced(
+    sigs, _, exps, _state = run_sequence_traced(
         ltf_df, _no_htf_fn, cfg, ltf_tf="M15"
     )
     # No forzamos que haya señal completa en datos sintéticos; si la hay,
@@ -102,7 +102,7 @@ def test_event_objects_snapshot_inmutable_en_signals():
     """event_objects es un dict de dicts (snapshot), no objetos vivos."""
     ltf_df = _make_ltf_df()
     cfg = SequenceConfig(counter_trend=False, require_displacement=False)
-    sigs, _, _ = run_sequence_traced(ltf_df, _no_htf_fn, cfg, ltf_tf="M15")
+    sigs, _, _, _state = run_sequence_traced(ltf_df, _no_htf_fn, cfg, ltf_tf="M15")
     if sigs:
         for oid, odict in sigs[0]["event_objects"].items():
             assert isinstance(odict, dict), "event_objects debe ser id->dict"

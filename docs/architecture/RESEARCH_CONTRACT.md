@@ -512,8 +512,8 @@ sin backtest, sin WR/PF/R, sin EXP-READ-001, sin ejecución.
 `research/hypotheses/HYP-002/SETUP_AUDITOR_DATA_FORENSICS.md`: localiza cómo obtener 5 emisiones de
 `run_sequence` conservando `Expediente` + `MarketObject[]` + señal + timestamps + contexto HTF, SIN
 modificar `engine/` ni backtest de rendimiento. Hallazgos:
-- `run_sequence` (público) descarta el `Expediente`; `run_sequence_traced` (`engine/sequence.py:660`)
-  SÍ devuelve `(signals, phase_seen, expedientes)` — esa es la vía correcta. El atributo real es
+- `run_sequence` (público) descarta el `Expediente`; `run_sequence_traced` (`engine/sequence.py`)
+  SÍ devuelve `(signals, phase_seen, expedientes, state)` — esa es la vía correcta. El atributo real es
   `Expediente.phase_events` (los docs HYP-002 lo llaman `history` por error de nombre).
 - `data/raw/*.parquet` contiene SOLO `time,O,H,L,C` (verificado EURUSD_M15 = 114,237 filas, OHLC);
   las features ICT (`sweep_low`, `bsl/ssl_price`, `fvg_mid`, `displacement_mag`) NO están persistidas
@@ -575,7 +575,7 @@ El Director autorizó el Piloto 1 bajo regla rectora estricta (14 condiciones, v
 - Objetivo EXCLUSIVO: comprobar si podemos **reconstruir y auditar la FORMACIÓN REAL**
   del setup ICT/SMC sin inventar causalidad.
 - Consumidor puro del motor: `engine.sequence.run_sequence_traced` (devuelve
-  `(signals, phase_seen, expedientes)`), con `est_htf_ctx_fn` cableado igual que
+  `(signals, phase_seen, expedientes, state)`), con `est_htf_ctx_fn` cableado igual que
   `ict_backtest/canonical.py` (vía `engine.plan.build_multitf_context` +
   `engine.poi_anchor`). **Sin tocar `engine/`, ni detectores, ni backtester.**
 - Condición de datos verificada (prueba de emisión ad-hoc): el motor emite **79 setups
