@@ -98,37 +98,68 @@ CAUSAL y RÁPIDO simultáneamente, el motor debe precomputar el contexto HTF en 
 internamente (Opción 3 de la Fase 4), no depender de que el llamador cachee un
 contexto que puede ser semánticamente distinto al de `build_multitf_context`.
 
-## FASE 4 — Decisión de autoridad (tu fallo requerido)
-La investigación aisló que el cuello NO es semántica de setups sino INFRAESTRUCTURA:
-`build_multitf_context` (o `closed_row_at_time`) es O(n) por llamada → O(n²) por vela.
-El motor asume `est_htf_ctx_fn` O(1). Tres caminos:
+## FASE 5 — EXP-CAUSAL-EQUIV (contexto ORIGINAL vs OPTIMIZADO vela por vela)
 
-- **Opción 3 (RECOMENDADA, toca engine/):** el motor precompute el contexto HTF
-  O(n) total (índices closed por TF una sola vez en `build_context_stack`/`closed_row_at_time`),
-  haciendo `est_htf_ctx_fn` un lookup O(1) fiel a `build_multitf_context`. REQUIERE
-  Change Gate (toca engine/_util.py o engine/plan.py). Es optimización pura, sin
-  cambio de semántica de decisión.
-- **Opción 1 (consumidor):** cada llamador cachea `build_multitf_context` fielmente
-  (mi Solución A pero CORRIGIENDO el contexto para que sea idéntico al real, no dicts
-  crudos). No toca engine/, pero el cache debe replicar EXACTAMENTE la salida de
-  build_multitf_context (campos derivados incluidos).
-- **Opción 2 (motor, mayor):** API `step(i)` de 1 vela con estado interno. Toca engine/.
+Corrida sobre dataset sintético (12 velas M15, dispara 1 setup LONG). Por cada
+vela t se comparó contexto ORIGINAL (`build_multitf_context`) vs OPTIMIZADO
+(mi cache Solución A), campo por campo de la capa H4.
 
-Mi recomendación de Ingeniero: **Opción 3** — el motor debe ser O(n) por diseño.
-Pero es Change Gate (toca engine/). Requiere tu autorización escrita.
+**RESULTADO: 12/12 velas DIVERGEN.**
+- ORIGINAL: `trend: BULLISH`
+- OPTIMIZADO (mi cache): `trend: RANGING`
 
-## Estado final de la misión (honesto)
-- FASE 1: ✅ Antecedente recuperado (FUNCTIONAL_REPLAY_CONTRACT §8 exige Batch==Stream).
-- FASE 2: ✅ Sublista descartada como causa.
-- FASE 3: ✅ `est_htf_fn` legacy descartado; O(n²) en build_multitf_context aislado
-  como cuello real; mi Solución A es fiel en chico pero FASE A usaba ventana grande
-  donde O(n²) la mataba. La divergencia batch(18)/incremental(0) es un EFECTO del
-  O(n²) que impedía a FASE A correr en ventana grande, NO una inconsistencia semántica
-  del motor per se.
-- FASE 4: ⏸️ Pendiente tu fallo (Opción 3 recomendada, Change Gate).
-- FASE 5/6/7: ⏸️ Tras Fase 4.
+**CAUSA RAÍZ (corrige mi frase de Fase 3):** Mi Solución A cachea `ctx[tf] =
+htf_data[tf].iloc[j].to_dict()` — una fila CRUDa. Pero `build_multitf_context`
+(ORIGINAL) PROCESA esa fila (calcula `trend` vía `_bias_from_frame`, extrae
+`bos_dir`/`choch` desde columnas estructuradas). Mi dict crudo no tiene `trend`
+calculado; `extract_htf_layer` lee `None` → devuelve `RANGING` por defecto.
 
-**Solución A (cache de replay) queda EN CUESTIÓN:** acelera pero su contexto debe
-ser auditado contra build_multitf_context en ventana grande antes de declararla válida.
-**Solución A (batch) sigue DESCARTADA como objetivo de la misión.**
-**Regla mantenida: no afirmar PASS sin evidencia; backtest ≠ online.**
+**CONCLUSIÓN CORREGIDA:** La Solución A NO es semánticamente neutra. Entrega
+contexto HTF DEGRADADO (`RANGING` en vez de `BULLISH`). En datos reales eso hace
+que `top_down_allows_trade` vea HTF en RANGING y vete TODOS los setups → 0 setups.
+**MI SOLUCIÓN A ES LA CAUSA DEL 0 SETUPS EN VENTANA GRANDE**, no el O(n²) per se.
+La frase de Fase 3 ("la divergencia es efecto del O(n²)") era FALSA: el O(n²)
+solo impedía correr ventana grande; el cache, al ser incorrecto, daba 0 AUNQUE
+terminara. El Director lo corrigió oportunamente.
+
+## FASE 6 — Opción 3 correcta (REQUERE Change Gate, autorizable como optimización neutra)
+
+La Opción 3 que el Director autorizó ("precomputar índices HTF O(n)") debe
+implementarse de forma SEMANTICAMENTE NEUTRA: el cache entrega la MISMA fila que
+`build_multitf_context` usaría, y `build_multitf_context` la PROCESA igual. El
+lookup O(1) debe evitar SOLO el recálculo del índice (`closed_row_at_time`), no
+sustituir el procesamiento de la fila.
+
+Forma correcta (requiere tocar engine/):
+- `build_multitf_context` / `build_context_stack` acepta un índice HTF precomputado
+  (o lo precompute internamente UNA vez) en vez de llamar `closed_row_at_time` por
+  vela (O(n) ciego).
+- El llamador (replay) precompute `idx_by_i[tf][i]` O(n) total y se lo pasa, O el
+  motor lo hace internamente.
+
+Esto es Change Gate (toca engine/_util.py o engine/plan.py). Es optimización pura,
+SIN cambio de semántica de decisión. Coincide con la tabla del Director:
+"Opción 3: optimización causal HTF — 🟡 AUTORIZABLE, pero solo como optimización".
+
+**NO se toca la lógica del engine para producir setups.** Si tras Opción 3 el
+replay sigue en 0, la conclusión es que el motor no forma setups en régimen
+causal → se investiga la semántica del engine (justificado por evidencia).
+
+## Estado de la misión (actualizado)
+- FASE 1: ✅ Antecedente recuperado.
+- FASE 2: ✅ Sublista descartada.
+- FASE 3: ✅ est_htf_fn legacy descartado; O(n²) aislado. PERO mi frase sobre
+  "efecto del O(n²)" era FALSA (corregida en Fase 5).
+- FASE 4: ✅ Decisión: Opción 3 autorizable como optimización neutra (Change Gate).
+- FASE 5: ✅ EXP-CAUSAL-EQUIV: mi Solución A NO es neutra (RANGING vs BULLISH).
+  La Solución A queda INVALIDADA como cache de contexto.
+- FASE 6: ⏸️ Implementar Opción 3 correcta (Change Gate, pendiente autorización).
+- FASE 7: ⏸️ Tras Fase 6, prueba mínima reproducible (setup conocido) demostrando
+  REPLAY(t)=LIVE(t) vela por vela.
+
+**Solución A (cache de replay) FORMALMENTE INVALIDADA:** entregaba contexto
+degradado. Debe reemplazarse por Opción 3 neutra o revertirse a build_multitf_context
+(fiel, O(n²), solo en ventana chica).**
+**Solución A (batch) sigue DESCARTADA como objetivo.**
+**Regla mantenida: no afirmar PASS sin evidencia; backtest ≠ online; optimización
+debe ser semánticamente neutra vela por vela.**
