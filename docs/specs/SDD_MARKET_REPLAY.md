@@ -392,3 +392,48 @@ puede eliminarse sin perder la capacidad de leer el mercado.
 - OOS / OTC / validación.
 - Estadística / Edge.
 - Eliminación de `ict_backtest/` (requiere migrar sus tests consumidores).
+
+---
+
+## 9. ADENDUM DE FRONTERA (2026-08-14) — Contrato objetivo MarketReplay → Engine
+
+**Contexto:** auditoría de frontera (FASE B) confirmó que MarketReplay estaba
+**por debajo del contrato existente**, no frente a una arquitectura indefinida. El
+motor (`engine/`) ya posee todas las autoridades; MarketReplay solo debía
+**cablearlas**, no reimplementarlas. Ver `docs/auditoria_frontera_engine_infra.md`,
+`docs/auditoria_contrato_marketreplay.md` y `docs/auditoria_market_replay_2026-08-14.md`.
+
+### 9.1 Contrato objetivo (lo que MarketReplay DEBE hacer)
+
+1. **Transportar OHLC cerrado** por TF (ya lo hace vía `MarketFeed`/`TemporalAvailability`).
+2. **Construir contexto HTF** reutilizando `engine.market_structure.detect_market_structure`
+   + `engine.multitf_context.build_multitf_context` (igual que el backtest canónico
+   `ict_backtest/canonical.py:187-208`). NO un dict plano degradado.
+3. **Entregar el LTF ESTRUCTURADO** al motor: los `MarketObject` se construyen desde
+   el frame con `detect_market_structure` (`self._ms_struct[ltf]`), no desde el OHLC
+   crudo. El motor lee `bos_dir`/`choch_dir` del objeto LTF; sin ellos, `0 setups`.
+4. **Pasar `htf` explícito** (infiere `H4` si disponible) a `run_sequence_traced`.
+5. **Pasar `htf_poi_fn` / `htf_pd_index`** (autoridades de `engine.poi_anchor` /
+   `engine.htf_pd_index`) cuando aplique, para POI anclado.
+
+### 9.2 Prohibiciones (vigentes, reforzadas)
+
+- ❌ Lógica SMC propia en `market_replay/` (BOS/sweep/POI/FVG/OB/CHOCH/dirección/entrada).
+- ❌ Calcular `anchored_pd_zones` localmente; se pide al engine (`build_htf_structure_index`).
+- ❌ `market_replay → ict_backtest` (solo `market_replay → engine`).
+- ❌ Usar `SequenceConfig()` con `bos_gap=None`; el camino canónico usa `bos_gap=10`.
+
+### 9.3 FIX aplicado (commit `1651bdf`)
+
+`market_replay/replay.py` cablea las autoridades del engine (contexto HTF real +
+LTF estructurado + `htf=H4`). Causa del `0 setups` aislada por Codex
+(`docs/auditoria_market_replay_2026-08-14.md`): el LTF se convertía desde OHLC crudo
+(sin `bos_dir`/`choch_dir`) y faltaba `htf`. Tras el fix: **18 setups, SWEEP=33 /
+DISPLACE=32 / BOS=18 / ENTRY=18**, batería existente `14 passed`. Cero lógica SMC
+nueva en replay.
+
+### 9.4 Pendiente de contrato (decisión de alcance, no bug)
+
+Codex dejó abierto si el LTF de replay debe transportar también
+`engine.market_features.build_features` (fvg/OB/displacement/sweeps) o solo
+estructura. Se documenta antes de extender el cableado.

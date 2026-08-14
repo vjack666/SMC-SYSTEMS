@@ -1,6 +1,6 @@
 # SDD_M2_LINEAGE.md — Piloto SDD: Trazabilidad Causal Emitida del Motor
 
-**Estado:** DRAFT → (este documento lo lleva a READY vía DoR en §9)
+**Estado:** SUPERSEDED (el código ya implementa `event_objects`; ver nota 2026-08-14)
 **Autoridad:** spec de diseño de estrategia (cadena SDD_GOVERNANCE.md §0 #7)
 **Dominio:** Forex / ICT-SMC exclusivo. Prohibido: binarias, QUOTEX, OTC, indicadores (ATR/RSI/EMA).
 **Motor afectado:** `engine/sequence.py` + nuevo módulo `engine/lineage.py` (consumidor puro)
@@ -158,3 +158,12 @@ por origen — falsando SDD_GOVERNANCE §8. (Hipótesis de trabajo: con el códi
 DRAFT (este doc) → READY (DoR §9) → IMPLEMENTING (engine/sequence.py + engine/lineage.py)
 → TESTED (tests/test_m2_lineage.py) → SEMANTICALLY_VERIFIED (§4 dims) → AUDITED
 (Auditor Independiente: trazabilidad + veto PROMOCIÓN si cambia semántica) → ACCEPTED (Director).
+
+**Estado final (2026-08-14): SUPERSEDED.** El piloto cumplió su objetivo: el motor ya
+emite `event_objects` / `event_ids` / `parent_event_id` en `run_sequence_traced`
+(engine/sequence.py:1065+; engine/lineage.py consumidor puro). FASE A (2026-08-13) lo
+demostró con 18 setups de linaje íntegro, y el FIX de MarketReplay (commit `1651bdf`)
+confirmó que el consumidor replay también recibe linaje completo al cablear las
+autoridades del engine. No se requiere re-ejecutar la implementación; solo se cierra
+el spec como SUPERSEDED porque el código lo superó. Referencia:
+`docs/auditoria_market_replay_2026-08-14.md` (auditoría de Codex).
