@@ -37,9 +37,28 @@ def load_frames(n_m15):
 
 
 def est_htf_ctx_fn_factory(ms, htf_frames):
+    """Cache O(n): precompute indices HTF cerrados por vela LTF (dos punteros),
+    devuelve MultiTFContext O(1) por vela. Evita O(n^2) de build_multitf_context."""
+    from engine.multitf_context import MultiTFContext
+    from engine._util import tf_duration
+    ltf_df = ms["M15"]
+    n = len(ltf_df)
+    htf_data = {tf: htf_frames[tf] for tf in htf_frames}
+    htimes = {tf: list(pd.to_datetime(htf_data[tf]["time"], utc=True, errors="coerce")) for tf in htf_data}
+    hstructures = {tf: htf_data[tf] for tf in htf_data}
+    # precompute: para cada i LTF, indice HTF cerrado (ji) por TF
+    idx_by_i = {tf: [None] * n for tf in htf_data}
+    for tf in htf_data:
+        ht = htimes[tf]
+        dur = tf_duration(tf)
+        ji = -1
+        for i in range(n):
+            t = pd.to_datetime(ltf_df.iloc[i]["time"], utc=True, errors="coerce")
+            while ji + 1 < len(ht) and ht[ji + 1] + pd.Timedelta(dur) <= t:
+                ji += 1
+            idx_by_i[tf][i] = ji if ji >= 0 else None
     _ev = build_htf_structure_index(htf_frames) if htf_frames else []
     def fn(i):
-        t = ms["M15"].iloc[i]["time"]
         anchored = None
         if _ev:
             ltf_t = pd.to_datetime(ms["M15"].iloc[i]["time"], utc=True, errors="coerce")
@@ -47,7 +66,13 @@ def est_htf_ctx_fn_factory(ms, htf_frames):
             anchored = {}
             for e in prior:
                 anchored.setdefault(e.tf, []).append(e)
-        return build_multitf_context(ms, t, tfs=("D1", "H4", "H1", "M15"), anchored_pd_zones=anchored)
+        ctx = {}
+        for tf in htf_data:
+            j = idx_by_i[tf][i]
+            if j is not None:
+                row = hstructures[tf].iloc[j]
+                ctx[tf] = row.to_dict()
+        return MultiTFContext(ctx)
     return fn
 
 
@@ -63,6 +88,7 @@ def main():
     frames = load_frames(N)
     ms = {tf: detect_market_structure(df) for tf, df in frames.items()}
     htf_frames = {tf: df for tf, df in frames.items() if tf != "M15"}
+    _ev = build_htf_structure_index(htf_frames) if htf_frames else []
     ltf = ms["M15"]
 
     cfg = SequenceConfig(counter_trend=False, tp_mode="fixed2r",
@@ -74,7 +100,26 @@ def main():
     ctx_fn = est_htf_ctx_fn_factory(ms, htf_frames)
 
     # === MODO A: FASE A style (est_htf_fn legacy + est_htf_ctx_fn) ===
-    print(f"[A] FASE-A-style sobre {N} velas M15...")
+    # A1: con build_multitf_context REAL (como FASE A original, O(n^2) pero semantico fiel)
+    def ctx_real(i):
+        t = ms["M15"].iloc[i]["time"]
+        anchored = None
+        if _ev:
+            ltf_t = pd.to_datetime(ms["M15"].iloc[i]["time"], utc=True, errors="coerce")
+            prior = [e for e in _ev if e.time is not None and e.time <= ltf_t]
+            anchored = {}
+            for e in prior:
+                anchored.setdefault(e.tf, []).append(e)
+        return build_multitf_context(ms, t, tfs=("D1", "H4", "H1", "M15"), anchored_pd_zones=anchored)
+    print(f"[A1] FASE-A REAL (build_multitf_context) sobre {N} velas M15...")
+    t0 = time.time()
+    sigs_a1, phase_a1, _, _ = run_sequence_traced(
+        ltf, est_htf_fn_legacy, cfg, ltf_tf="M15", htf="H4", est_htf_ctx_fn=ctx_real)
+    ta1 = time.time() - t0
+    print(f"    setups={len(sigs_a1)} funnel={dict(phase_a1)} tiempo={ta1:.1f}s")
+
+    ctx_fn = est_htf_ctx_fn_factory(ms, htf_frames)
+    print(f"[A2] FASE-A CACHE (mi Solucion A) sobre {N} velas M15...")
     t0 = time.time()
     sigs_a, phase_a, _, _ = run_sequence_traced(
         ltf, est_htf_fn_legacy, cfg, ltf_tf="M15", htf="H4", est_htf_ctx_fn=ctx_fn)

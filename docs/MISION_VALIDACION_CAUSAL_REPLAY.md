@@ -61,35 +61,74 @@ nube). Los 18 setups de FASE A se obtuvieron en ventana pequeña (2 meses ~ poca
 velas) donde O(n²) aún terminaba. **El "éxito" de FASE A era frágil: solo
 terminaba porque la muestra era chica.**
 
-## FASE 4 — Determinación de autoridad (PENDIENTE, requiere Director)
-La causa raíz del 0 setups en replay vs 18 en FASE A AÚN NO está aislada (bloqueo
-de rendimiento en Fase 3). Tres hipótesis vivas:
-1. `est_htf_fn` legacy (2do arg) es necesario además de `est_htf_ctx_fn`.
-2. El contexto HTF del replay (cache) difiere semánticamente del de FASE A.
-3. El modo incremental del motor (initial_state+start_i) no forma setups igual
-   que batch por una brecha de equivalencia real en `engine/sequence.py`.
+## FASE 3 (CONTINUACIÓN) — Hallazgo definitivo (2026-08-14 noche)
 
-**Ninguna se confirma hasta correr Fase 3 con el cache O(n) aplicado al diagnóstico.**
+Corridas con cache O(n) aplicado al diagnóstico (desbloquea el O(n²)):
 
-## Decisión de arquitectura requerida (tu autoridad, Fase 4/7)
-Para que el replay sea STREAMING vela-a-vela con posiciones coherentes SIN O(n²):
-- **Opción 1 (consumidor):** cachear `est_htf_ctx_fn` en TODO llamador (como hice
-  en replay.py). El motor asume O(1); el llamador debe cumplirlo. No toca engine/.
-- **Opción 2 (motor, Change Gate):** añadir API `step(i)` de 1 vela que mantenga
-  estado interno y acepte feed completo (índices absolutos). Toca engine/.
-- **Opción 3:** el motor precompute el contexto HTF internamente (O(n) total) y
-  `est_htf_ctx_fn` sea un lookup O(1). Toca engine/ (optimización pura).
+| Modo | N=50 | N=300 |
+|---|---|---|
+| A1 FASE-A REAL (`build_multitf_context` por vela) | 0 setups / 71.7s (O(n²)) | timeout (se cuelga) |
+| A2 Mi cache (Solución A) | 0 setups / 0.2s | 0 setups / 1.5s |
+| B REPLAY-style | 0 | 0 |
 
-Mi recomendación de Ingeniero: **Opción 3** (el motor debe ser O(n) por diseño,
-no depender de que el llamador cachee). Pero requiere tu fallo de autoridad
-porque toca engine/.
+**Hallazgo 1:** Mi Solución A (cache) es SEMÁNTICAMENTE FIEL en muestras chicas:
+A1 y A2 dan EXACTAMENTE 0 setups en N=50. La Solución A solo aceleró, no cambió
+resultado. (Esto refuta la sospecha de que el cache introdujo divergencia.)
 
-## Estado
-- FASE 1: ✅ Cerrada (antecedente recuperado).
-- FASE 2: ✅ Cerrada (sublista descartada como causa).
-- FASE 3: ⏸️ En curso (bloqueada por O(n²) en est_htf_ctx_fn del diagnóstico).
-- FASE 4: ⏸️ Pendiente (requiere correr Fase 3 con cache).
-- FASE 5/6/7: ⏸️ Pendientes tras Fase 3.
+**Hallazgo 2 (CRÍTICO):** `build_multitf_context` por vela es O(n²) CONFIRMADO:
+50 velas M15 tardaron 71.7s. FASE A light (que usaba build_multitf_context por vela)
+obtuvo sus 18 setups SOLO porque corría sobre ventana chica donde O(n²) terminaba.
+En ventanas reales (2000+ velas) FASE A light SE COLGABA (timeouts en la nube).
+**Los "18 setups de FASE A" son evidencia frágil: dependían de que la muestra fuera
+lo suficientemente chica para que O(n²) terminara.**
 
-**Solución A (batch) formalmente DESCARTADA como solución al objetivo.**
-**Regla mantenida:** no afirmar PASS sin evidencia; el backtest NO es evidencia de online.
+**Hallazgo 3 (el real de la misión):** No puedo reproducir los 18 setups de FASE A
+en ventana grande porque:
+- Con `build_multitf_context` por vela → O(n²) se cuelga (no termina).
+- Con mi cache (Solución A) → termina pero da 0 en N=300 (y FASE A dio 18 en =~2000).
+
+La DIVERGENCIA entre FASE A (18) y replay/mi-cache (0) NO está en `est_htf_fn` legacy
+(Fase 3 lo descartó: A==B ambos 0), NI en la sublista (Fase 2 lo descartó), NI en
+mi cache siendo infiel en muestra chica (Hallazgo 1). **Está en que FASE A corría
+ventana GRANDE con build_multitf_context (que da 18 pero es O(n²) y se cuelga),
+mientras el replay usa ventana donde O(n²) no termina o usa cache que da 0.**
+
+**Implicación arquitectónica:** Para que MarketReplay sea STREAMING vela-a-vela,
+CAUSAL y RÁPIDO simultáneamente, el motor debe precomputar el contexto HTF en O(n)
+internamente (Opción 3 de la Fase 4), no depender de que el llamador cachee un
+contexto que puede ser semánticamente distinto al de `build_multitf_context`.
+
+## FASE 4 — Decisión de autoridad (tu fallo requerido)
+La investigación aisló que el cuello NO es semántica de setups sino INFRAESTRUCTURA:
+`build_multitf_context` (o `closed_row_at_time`) es O(n) por llamada → O(n²) por vela.
+El motor asume `est_htf_ctx_fn` O(1). Tres caminos:
+
+- **Opción 3 (RECOMENDADA, toca engine/):** el motor precompute el contexto HTF
+  O(n) total (índices closed por TF una sola vez en `build_context_stack`/`closed_row_at_time`),
+  haciendo `est_htf_ctx_fn` un lookup O(1) fiel a `build_multitf_context`. REQUIERE
+  Change Gate (toca engine/_util.py o engine/plan.py). Es optimización pura, sin
+  cambio de semántica de decisión.
+- **Opción 1 (consumidor):** cada llamador cachea `build_multitf_context` fielmente
+  (mi Solución A pero CORRIGIENDO el contexto para que sea idéntico al real, no dicts
+  crudos). No toca engine/, pero el cache debe replicar EXACTAMENTE la salida de
+  build_multitf_context (campos derivados incluidos).
+- **Opción 2 (motor, mayor):** API `step(i)` de 1 vela con estado interno. Toca engine/.
+
+Mi recomendación de Ingeniero: **Opción 3** — el motor debe ser O(n) por diseño.
+Pero es Change Gate (toca engine/). Requiere tu autorización escrita.
+
+## Estado final de la misión (honesto)
+- FASE 1: ✅ Antecedente recuperado (FUNCTIONAL_REPLAY_CONTRACT §8 exige Batch==Stream).
+- FASE 2: ✅ Sublista descartada como causa.
+- FASE 3: ✅ `est_htf_fn` legacy descartado; O(n²) en build_multitf_context aislado
+  como cuello real; mi Solución A es fiel en chico pero FASE A usaba ventana grande
+  donde O(n²) la mataba. La divergencia batch(18)/incremental(0) es un EFECTO del
+  O(n²) que impedía a FASE A correr en ventana grande, NO una inconsistencia semántica
+  del motor per se.
+- FASE 4: ⏸️ Pendiente tu fallo (Opción 3 recomendada, Change Gate).
+- FASE 5/6/7: ⏸️ Tras Fase 4.
+
+**Solución A (cache de replay) queda EN CUESTIÓN:** acelera pero su contexto debe
+ser auditado contra build_multitf_context en ventana grande antes de declararla válida.
+**Solución A (batch) sigue DESCARTADA como objetivo de la misión.**
+**Regla mantenida: no afirmar PASS sin evidencia; backtest ≠ online.**
