@@ -13,14 +13,15 @@
 6. `.hermes.md` / `engineering.md` ausentes → se eliminan sus referencias del protocolo (no se crean).
 
 ## Fases
-- [x] **F0 Reality Map** — working tree mapeado (25 archivos; 23 sucios tras commits FIX pusheados).
-- [x] **F1 Contract Reconciliation** — SDD↔engine↔tests cruzado. 0 bugs ciegos. 3 AMBIGUOUS CONTRACT + 2 DOC GAP resueltos por aprobación del Director.
-- [ ] **F2 Shadow Verification OTE/OB** — comparación OLD vs NEW antes de tocar semántica.
-- [ ] **F3 Correcciones técnicas** — quarantine tests/_broken; fachada detectors/ob.py; índices OB.
-- [ ] **F4 Perímetro oficial de pruebas** — gates declarados.
-- [ ] **F5 Replay y verificación semántica** — escalado 100→2000 velas con runner_monitor.
-- [ ] **F6 Auditoría independiente** — paquete congelado + informe AUDITED.
-- [ ] **F7 Aceptación final** — decisión fechada del Director (ACCEPTED).
+- [x] **F0 Reality Map** — working tree mapeado (HEAD=b3fa2c7; commits FIX en origin).
+- [x] **F1 Contract Reconciliation** — SDD↔engine↔tests: OTE sin inversión, OB ya canónico, POI fail-open EXPECTED BY DESIGN.
+- [x] **F2 Shadow Verification OTE/OB** — OB 27/2000 velas, status event-driven; añadir índices = trazabilidad.
+- [x] **F3a Quarantine tests/_broken** — tests/QUARANTINE.md (fuera del gate).
+- [ ] **F3b/c Correcciones OB** — BLOQUEADO autoridad: confirmación vela siguiente (engine) vs anterior (detectors/ob.py:20-26). Requiere fallo Director.
+- [x] **F4 Perímetro oficial de pruebas** — docs/planificacion/PERIMETRO_PRUEBAS_CONFORMIDAD.md.
+- [~] **F5 Replay y verificación semántica** — N=100 PASS aislado; N>=400 INCONCLUSIVE_OPERATIONAL (timeout O(n²) MarketReplay). No se declara PASS escalado.
+- [x] **F6 Auditoría independiente** — docs/auditoria_cierre_conformidad_engine_sdd_2026-08-14.md → AUDITED.
+- [ ] **F7 Aceptación final** — DECISIÓN DEL DIRECTOR (ACCEPTED). Fuera del alcance de Hermes.
 
 ## Reglas de ejecución
 - Nunca "corregir" sin evidencia; shadow comparison previo a cambio de semántica.
