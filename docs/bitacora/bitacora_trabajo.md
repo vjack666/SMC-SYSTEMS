@@ -850,3 +850,39 @@ pop-up al terminar para revisión con ChatGPT.
 - F5 replay escalado 100→2000 velas con runner_monitor.
 - F6 paquete de auditoría independiente → AUDITED.
 - F7 ACCEPTED (Director).
+
+## 2026-08-14 (noche) — F4 OK, F5 INCONCLUSIVE, avance F6
+
+### F4 Perímetro oficial de pruebas (HECHO)
+- Creado `docs/planificacion/PERIMETRO_PRUEBAS_CONFORMIDAD.md`: gate oficial (truth
+  sources, compileall, separacion engine/ict_backtest, suites del motor, replay
+  rapido, equivalencia escalada) + tratamiento fuera de perimetro (QUARANTINE,
+  BLOCKED_DATA, INCONCLUSIVE). Criterio PASS estricto.
+
+### F5 Replay escalado (INCONCLUSIVE_OPERATIONAL — no PASS, no FAIL)
+- Validador `_validate_fix_quick.py` corregido para usar el FIX (htf="H4",
+  bos_gap=10). N=100: exit 0 (PASS) en corrida aislada, pero NO deterministico:
+  re-corrida N=100 y N=400 dieron timeout (exit 124, 120-200s).
+- Causa: MarketReplay sigue O(n^2) en ventanas >100 velas (diagnostico original de
+  sequence.py: copia por llamada). El FIX de cableado (contexto HTF + LTF) es
+  correcto para N pequeno pero el cuello de botella de rendimiento persiste.
+- Veredicto F5: N=100 PASS aislado; N>=400 INCONCLUSIVE_OPERATIONAL (timeout, no
+  evidencia de fallo ni de exito). NO se declara PASS del replay escalado.
+- Accion pendiente (tecnica, fuera de autoridad): aplicar parche copy_objs
+  (SequenceConfig.copy_objs ya existe en engine) para llevar MarketReplay a O(n).
+  Requiere test de equivalencia previo. Se delega a MISION rendimiento.
+
+### F6 Paquete de auditoria (EN CURSO)
+- Evidencia solida INDEPENDIENTE del replay escalado:
+  * FASE A: 18 setups en backtest canonico (run_sequence_traced directo), 100% §4.
+  * Bateria replay rapida: 12 passed (test_market_replay_audit_battery.py).
+  * Linaje: 17 passed, 1 skipped (test_m2_lineage + test_phase6_lineage).
+  * Truth sources: 23/23 activas, 0 rotas, 0 cross-project.
+  * compileall engine+ict_backtest: exit 0.
+  * 0 imports ict_backtest desde engine/.
+- Estas pruebas usan el motor directo (no MarketReplay escalado), por lo que el
+  timeout de F5 NO las afecta. El motor esta TESTED+SEMANTICALLY_VERIFIED en el
+  perimetro activo.
+
+### F3b/c sigue BLOQUEADO por autoridad (confirmacion OB vela siguiente vs anterior).
+

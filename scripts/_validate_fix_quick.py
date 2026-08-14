@@ -39,8 +39,10 @@ def main():
     for tf, df in frames.items():
         feed.ingest(tf, df)
 
+    # FIX de cableado (Codex, commit 1651bdf): el replay construye el LTF
+    # estructurado internamente y acepta htf explicito. Lo ejercitamos igual.
     t0 = time.time()
-    rp = MarketReplay(feed=feed, ltf="M15", cfg=SequenceConfig())
+    rp = MarketReplay(feed=feed, ltf="M15", htf="H4", cfg=SequenceConfig(bos_gap=10))
     res = rp.run()
     el = time.time() - t0
 
