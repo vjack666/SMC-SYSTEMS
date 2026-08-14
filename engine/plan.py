@@ -125,8 +125,18 @@ def _bias_from_frame(df: pd.DataFrame, t: Any) -> str:
 # --------------------------------------------------------------------------- #
 # snapshots cerrados por TF (closed-only al tiempo t)
 # --------------------------------------------------------------------------- #
-def snapshot_tf(ms: dict[str, pd.DataFrame], tf: str, t: Any) -> dict[str, Any]:
-    """Snapshot closed-only de un TF al tiempo t de la vela LTF."""
+def snapshot_tf(ms: dict[str, pd.DataFrame], tf: str, t: Any,
+                closed_idx: int | None = None) -> dict[str, Any]:
+    """Snapshot closed-only de un TF al tiempo t de la vela LTF.
+
+    Opción 3 (2026-08-14, Change Gate autorizado por Director): si se pasa
+    `closed_idx` (índice precomputado de la última vela HTF cerrada <= t),
+    se usa `df.iloc[closed_idx]` en vez de `_closed_row_at_time(df, t)`. El
+    procesamiento de la fila (_bias_from_frame, extracción de campos) es
+    IDÉNTICO al camino original. La optimización SOLO evita el re-cálculo del
+    índice (O(n) ciego por vela -> O(1) lookup); NO sustituye el contexto
+    procesado por un dict de fila cruda (invariante 5 del Change Gate).
+    """
     df = ms.get(tf)
     if df is None or len(df) == 0:
         return {"tf": tf, "available": False, "trend": "RANGING"}
@@ -139,7 +149,10 @@ def snapshot_tf(ms: dict[str, pd.DataFrame], tf: str, t: Any) -> dict[str, Any]:
             return {"tf": tf, "available": False, "trend": "RANGING"}
         row = df.iloc[int(prior[-1])]
     else:
-        row = _closed_row_at_time(df, t)
+        if closed_idx is not None and 0 <= closed_idx < len(df):
+            row = df.iloc[int(closed_idx)]
+        else:
+            row = _closed_row_at_time(df, t)
     if row is None:
         return {"tf": tf, "available": False, "trend": "RANGING"}
     fvg_state = str(row.get("fvg_state", "NONE") or "NONE")
@@ -163,13 +176,23 @@ def snapshot_tf(ms: dict[str, pd.DataFrame], tf: str, t: Any) -> dict[str, Any]:
     }
 
 
-def dealing_range_pd(d1: pd.DataFrame, t: Any, lookback: int = 20) -> dict[str, Any]:
-    """Premium/Discount del TF (D1/H4) usando las ultimas N velas cerradas."""
-    row = _closed_row_at_time(d1, t)
+def dealing_range_pd(d1: pd.DataFrame, t: Any, lookback: int = 20,
+                     closed_idx: int | None = None) -> dict[str, Any]:
+    """Premium/Discount del TF (D1/H4) usando las ultimas N velas cerradas.
+
+    Opción 3 (2026-08-14, Change Gate): si se pasa ``closed_idx`` (índice
+    precomputado de la última vela D1 cerrada <= t), usa ``d1.iloc[closed_idx]``
+    en vez de ``_closed_row_at_time(d1, t)``. El resto del cálculo (ventana
+    lookback, eq, range) es IDÉNTICO. Solo evita el re-cálculo O(n) del índice.
+    """
+    if closed_idx is not None and 0 <= closed_idx < len(d1):
+        row = d1.iloc[int(closed_idx)]
+    else:
+        row = _closed_row_at_time(d1, t)
     if row is None or len(d1) < 5:
         return {"pd_side": "UNKNOWN", "eq": np.nan, "range_high": np.nan, "range_low": np.nan}
-    times = pd.to_datetime(d1["time"], utc=True, errors="coerce")
     tt = pd.to_datetime(row["time"], utc=True, errors="coerce")
+    times = pd.to_datetime(d1["time"], utc=True, errors="coerce")
     mask = times <= tt
     win = d1.loc[mask].tail(lookback)
     if len(win) < 3:
@@ -327,13 +350,22 @@ def build_context_stack(
     *,
     tfs: tuple[str, ...] = ("D1", "H4", "H1", "M15"),
     anchored_pd_zones: dict[str, Any] | None = None,
+    closed_index: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Stack top-down de snapshots closed-only al tiempo t.
 
     Inyecta premium/discount (pd_side) en D1/H4 y POI anclado (H4/H1) si se
     pasa ``anchored_pd_zones``. No mezcla relojes: una t, muchos lookups cerrados.
+
+    Opción 3 (2026-08-14, Change Gate): ``closed_index`` es un dict
+    ``{tf: int}`` con el índice precomputado de la última vela HTF cerrada <= t
+    (calculado UNA vez por el llamador, O(n) total). Si se pasa, ``snapshot_tf``
+    usa ``df.iloc[idx]`` en vez de ``_closed_row_at_time`` (O(1) lookup). El
+    procesamiento de la fila es IDÉNTICO. Si no se pasa, comportamiento original
+    (retrocompatible, O(n) ciego por vela dentro de ``_closed_row_at_time``).
     """
-    stack = {tf: snapshot_tf(ms, tf, t) for tf in tfs if tf in ms or tf in tfs}
+    _ci = closed_index or {}
+    stack = {tf: snapshot_tf(ms, tf, t, closed_idx=_ci.get(tf)) for tf in tfs if tf in ms or tf in tfs}
     for tf in tfs:
         stack.setdefault(tf, {"tf": tf, "available": False, "trend": "RANGING"})
     # Capas de ejecucion fina: si el caller pide M5/M1, se enriquecen con la
@@ -357,7 +389,8 @@ def build_context_stack(
     for tf in ("D1", "H4"):
         df = ms.get(tf)
         if df is not None:
-            dr = dealing_range_pd(df, t)
+            _ci_tf = _ci.get(tf)
+            dr = dealing_range_pd(df, t, closed_idx=_ci_tf)
             stack[tf]["pd_side"] = dr.get("pd_side", "UNKNOWN")
     # Clave 'dealing' consolidada para el gate/logs/explanations
     # (lee pd_side de H4 primero, luego D1). Sin esto, top_down_allows_trade

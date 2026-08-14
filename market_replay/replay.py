@@ -79,29 +79,32 @@ class MarketReplay:
         self.cfg = cfg or SequenceConfig()
         self.avail = TemporalAvailability({tf: feed.window(tf) for tf in feed.available_tfs()}, ltf)
         self.journal = EventJournal(journal_path)
+        self._ltf_df_full = None  # se setea en run() para Opción 3 (est_htf_ctx_fn)
 
     # ------------------------------------------------------------------
     def _htf_ctx_fn(self, i: int):
-        """Contexto HTF closed-only en t[i], O(1) via array precomputado.
+        """Contexto HTF closed-only en t[i], O(1) via indice precomputado.
 
-        SOLUCION A (rendimiento, 2026-08-14): el contexto HTF ya NO se
-        recomputa por vela (era O(n^2): build_multitf_context es O(n) por
-        llamada y se invocaba n veces dentro del loop de run_sequence_traced).
-        En run() precomputamos, UNA sola vez y de forma incremental, el indice
-        de la vela HTF cerrada <= t[i] para cada TF (O(n) total). Aqui solo
-        hacemos lookup O(1) y reconstruimos el MultiTFContext hasta i,
-        preservando causalidad (closed-only, sin mirar futuro).
+        OPCION 3 (Change Gate 2026-08-14, autorizada por Director): pasa el
+        indice HTF precomputado a build_multitf_context (que usa df.iloc[idx] en
+        snapshot_tf). El procesamiento de la fila es IDENTICO al camino original
+        (_bias_from_frame, etc.). NO construye un dict de fila cruda (invariante 5).
+        Elimina el O(n^2) de build_multitf_context por vela sin cambiar semantica.
         """
         arr = getattr(self, "_htf_closed_idx", None)
         if arr is None:
-            return {}
-        ctx = {}
+            # Fallback neutro (sin precompute): contexto fiel completo.
+            return build_multitf_context(self._ms_struct, self._ltf_df_full.iloc[i]["time"],
+                                        tfs=("D1", "H4", "H1"), anchored_pd_zones=None)
+        closed_index = {}
         for tf, idx_by_i in arr.items():
             ji = idx_by_i[i]
-            if ji is None:
-                continue
-            ctx[tf] = self._ms_struct[tf].iloc[ji].to_dict()
-        return extract_htf_layer(MultiTFContext(ctx), self.htf) if self.htf else ctx
+            if ji is not None:
+                closed_index[tf] = ji
+        return build_multitf_context(
+            self._ms_struct, self._ltf_df_full.iloc[i]["time"],
+            tfs=("D1", "H4", "H1"),
+            anchored_pd_zones=None, closed_index=closed_index)
 
     # ------------------------------------------------------------------
     def _precompute_htf_index(self, ltf_df_full: pd.DataFrame) -> None:
@@ -194,6 +197,7 @@ class MarketReplay:
 
         # SOLUCION A (rendimiento, 2026-08-14): precomputar indices HTF cerrados
         # UNA vez (O(n) total) antes del loop, para que _htf_ctx_fn sea O(1).
+        self._ltf_df_full = ltf_df_full
         self._precompute_htf_index(ltf_df_full)
 
         state = SequenceState()

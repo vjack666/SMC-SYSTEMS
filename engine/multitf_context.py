@@ -36,19 +36,28 @@ def build_multitf_context(
     *,
     tfs: tuple[str, ...] = ("D1", "H4", "H1", "M15", "M5", "M1"),
     anchored_pd_zones: dict[str, Any] | None = None,
+    closed_index: dict[str, int] | None = None,
 ) -> MultiTFContext:
     """Construye el MultiTFContext closed-only en t.
 
-    Delega en build_context_stack (v2/context_mtf), que ya garantiza
+    Delega en build_context_stack (engine.plan), que ya garantiza
     anti-look-ahead vía closed_row_at_time por TF. Devuelve MultiTFContext.
 
-    Import lazy de v2.context_mtf para evitar el ciclo de import:
-    ict_backtest.v2.__init__ -> orchestrator -> run_backtest -> canonical
-    -> multitf_context.
+    Opción 3 (2026-08-14, Change Gate): ``closed_index`` es un dict
+    ``{tf: int}`` con el índice precomputado de la última vela HTF cerrada
+    <= t. Si se pasa, build_context_stack usa df.iloc[idx] en vez de
+    _closed_row_at_time (O(1) lookup, mismo procesamiento de fila). Si no
+    se pasa, comportamiento original (retrocompatible).
+
+    Import lazy de engine.plan para evitar ciclo de import.
     """
     from engine.plan import build_context_stack
 
-    stack = build_context_stack(ms, t, tfs=tfs, anchored_pd_zones=anchored_pd_zones)
+    stack = build_context_stack(
+        ms, t, tfs=tfs,
+        anchored_pd_zones=anchored_pd_zones,
+        closed_index=closed_index,
+    )
     return MultiTFContext(stack)
 
 
