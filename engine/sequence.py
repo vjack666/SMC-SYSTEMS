@@ -1,4 +1,4 @@
-"""ict_backtest/sequence.py — Capa 2: motor EVENT-SEQUENCE (memoria de eventos).
+"""ict_backtest/sequence.py - Capa 2: motor EVENT-SEQUENCE (memoria de eventos).
 
 Arregla la raiz del problema que viste: el mini-check del dashboard evaluaba
 sweep + BOS + displacement en la MISMA vela ("todo de golpe"). En ICT real los
@@ -18,14 +18,14 @@ Esto es la "memoria" que pediste, antes de meter ML (Capa 3): el estado de
 que eventos ya pasaron y hace cuantas velas.
 
 ============================================================================
-R9 PASO 3 — Refactor de tipo de dato (SIN cambiar reglas ICT).
+R9 PASO 3 - Refactor de tipo de dato (SIN cambiar reglas ICT).
 ============================================================================
 El motor AHORA consume MarketObject[] en lugar de columnas sueltas del
 DataFrame. Cada vela del LTF se envuelve en UN MarketObject(type=CANDLE) que
 carga en su `meta` TODOS los campos ICT de esa vela (bos_dir, choch_dir,
 fvg_*, ob_*, sweep_*, displacement_*, high/low/open/close/atr/bos_level/time).
 Las funciones internas (_has_sweep, _has_bos, _latest_fvg_zone, etc.) leen
-exclusivamente de MarketObject — NUNCA de ltf_df.iloc[i][col].
+exclusivamente de MarketObject - NUNCA de ltf_df.iloc[i][col].
 
 La conversion inicial (DataFrame -> MarketObject[]) vive en `_candle_objects`,
 que NO toca translation.py (capa de compatibilidad intacta). `run_sequence`
@@ -44,7 +44,7 @@ import json
 import numpy as np
 import pandas as pd
 
-# engine/sequence.py — B1: la secuencia sube al MOTOR (fuente unica de decision).
+# engine/sequence.py - B1: la secuencia sube al MOTOR (fuente unica de decision).
 # NUNCA importa ict_backtest/ (Ley). Consume del motor y de la geometria pura.
 from engine.multitf_context import MultiTFContext, extract_htf_layer
 from engine.plan import top_down_allows_trade, _closed_row_at_time as closed_row_at_time
@@ -315,7 +315,7 @@ def _candle_objects(ltf_df: pd.DataFrame, ltf_tf: str) -> list[MarketObject]:
 
 
 # ---------------------------------------------------------------------------
-# Funciones internas — leen MarketObject (NO columnas del DataFrame)
+# Funciones internas - leen MarketObject (NO columnas del DataFrame)
 # ---------------------------------------------------------------------------
 
 def _has_sweep(obj: MarketObject, est_htf: dict, direction: int) -> bool:
@@ -539,7 +539,7 @@ def _check_and_apply_invalidation(state: "SequenceState", obj: MarketObject, i: 
 
     Devuelve True si el expediente fue invalidado (y la secuencia debe
     reiniciarse). Las reglas son descriptivas salvo OPPOSITE_SWING_BREAK, que
-    SI cambia la decision — pero solo cuando el flag esta ON (regresion cero).
+    SI cambia la decision - pero solo cuando el flag esta ON (regresion cero).
     """
     if not state.invalidation_rules or state.expediente is None:
         return False
@@ -663,7 +663,7 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                  htf: str | None = None,
                  est_htf_ctx_fn=None, exec_frames: dict | None = None,
                  initial_state: Any = None, start_i: int = 0,
-                 copy_objs: bool = True):
+                 copy_objs: bool = True, single_step: bool = False):
     """Recorre el LTF y devuelve lista de dicts de senal.
 
     R9 Paso 3: acepta DataFrame O lista de MarketObject (type=CANDLE). En
@@ -694,8 +694,15 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
         zona, NO gate duro). El conteo de senales NO cambia: C solo aporta
         informacion contextual (Contrato de no invasion de C).
     Cada senal: {time, direction, entry, phase_log, zone_authority}.
-    """
-    # Conversion inicial: DataFrame -> MarketObject[] (si no vino ya como objetos).
+
+    single_step (Opción B, Change Gate Mayor 2026-08-14, autorizado por Director):
+        si True, el loop itera SOLO la vela `start_i+1` (una transición). Usado
+        por SequenceRunner.step(i) para replay/streaming vela-a-vela O(N) con
+        índices absolutos intactos (objs completo, NO sublista). Es el MISMO
+        cuerpo de máquina de estados; solo se limita a 1 iteración. Cero
+            segunda implementación semántica, cero look-ahead.
+        """
+        # Conversion inicial: DataFrame -> MarketObject[] (si no vino ya como objetos).
     if isinstance(ltf_df_or_objs, pd.DataFrame):
         objs = _candle_objects(ltf_df_or_objs, ltf_tf)
     else:
@@ -720,7 +727,7 @@ def _run_sequence_impl(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
     # rango promedio (matematica pura high-low, sin indicadores).
     CTX_WINDOW = 50
 
-    for i in range(start_i + 1, n):
+    for i in range(start_i + 1, (start_i + 2) if single_step else n):
         obj = objs[i]
         # Fase 1 (lectura multitemporal): si se pasó est_htf_ctx_fn, run_sequence
         # recibe el MultiTFContext completo y lo reduce al MISMO HTF de antes
@@ -1081,7 +1088,7 @@ def run_sequence(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                 htf_pd_index=None, ltf_map: dict | None = None,
                 htf: str | None = None,
                 est_htf_ctx_fn=None, exec_frames: dict | None = None):
-    """Wrapper 2-tuple (signals, phase_seen) — firma legacy preservada.
+    """Wrapper 2-tuple (signals, phase_seen) - firma legacy preservada.
 
     El motor autónomo usa _run_sequence_impl (4-tuple); aquí se descartan los
     expedientes y el estado para no romper llamadores existentes.
@@ -1102,16 +1109,84 @@ def run_sequence_traced(ltf_df_or_objs: Any, est_htf_fn, cfg: SequenceConfig,
                         est_htf_ctx_fn=None, exec_frames: dict | None = None,
                         initial_state=None, start_i: int = 0,
                         copy_objs: bool = True):
-    """B1: (signals, phase_seen, expedientes, state) — trazabilidad + estado.
+    """B1: (signals, phase_seen, expedientes, state) - trazabilidad + estado.
 
     Devuelve el SequenceState final para persistencia (HYP-002 M3). El llamador
     puede pasar initial_state+start_i para reanudar tras un crash.
+
+    Opción B (2026-08-14): usa SequenceRunner (misma lógica que step(i)),
+    garantizando una sola implementación de la máquina de estados.
     """
-    return _run_sequence_impl(
-        ltf_df_or_objs, est_htf_fn, cfg,
-        htf_poi_fn=htf_poi_fn, ltf_tf=ltf_tf, bos_table=bos_table,
-        htf_pd_index=htf_pd_index, ltf_map=ltf_map,
-        htf=htf, est_htf_ctx_fn=est_htf_ctx_fn, exec_frames=exec_frames,
-        initial_state=initial_state, start_i=start_i,
-        copy_objs=copy_objs,
-    )
+    # Conversion inicial: DataFrame -> MarketObject[] (si no vino ya como objetos).
+    if isinstance(ltf_df_or_objs, pd.DataFrame):
+        objs = _candle_objects(ltf_df_or_objs, ltf_tf)
+    else:
+        objs = list(ltf_df_or_objs) if copy_objs else ltf_df_or_objs
+    runner = SequenceRunner(
+        objs, est_htf_ctx_fn, cfg, ltf_tf=ltf_tf, htf=htf,
+        htf_poi_fn=htf_poi_fn, bos_table=bos_table, htf_pd_index=htf_pd_index,
+        ltf_map=ltf_map, exec_frames=exec_frames, initial_state=initial_state)
+    return runner.run_all(start_i=start_i)
+
+
+class SequenceRunner:
+    """Opción B (Change Gate Mayor 2026-08-14, autorizado por Director).
+
+    Runner incremental vela-a-vela para replay/streaming. Mantiene el estado
+    absoluto del motor y expone step(i) que procesa SOLO la transición de la
+    vela i (O(1) por llamada, O(N) total). NO es un segundo motor: step(i)
+    delega en _run_sequence_impl con single_step=True, el MISMO cuerpo de
+    máquina de estados. Índices absolutos intactos (objs completo, no sublista).
+
+    Garantía de una sola lógica: run_sequence_traced() usa SequenceRunner en su
+    loop interno, por lo que batch y streaming comparten idéntico código.
+    """
+
+    def __init__(self, objs, est_htf_ctx_fn, cfg, ltf_tf="M15", htf=None,
+                 htf_poi_fn=None, bos_table=None, htf_pd_index=None,
+                 ltf_map=None, exec_frames=None, initial_state=None):
+        # objs es la lista COMPLETA de MarketObject[] (índices absolutos).
+        self.objs = list(objs) if not isinstance(objs, list) else objs
+        self.est_htf_ctx_fn = est_htf_ctx_fn
+        self.cfg = cfg
+        self.ltf_tf = ltf_tf
+        self.htf = htf
+        self.htf_poi_fn = htf_poi_fn
+        self.bos_table = bos_table
+        self.htf_pd_index = htf_pd_index
+        self.ltf_map = ltf_map
+        self.exec_frames = exec_frames
+        self.state = initial_state if initial_state is not None else SequenceState()
+        self.signals: list[dict] = []
+        self.phase_seen = {"SWEEP": 0, "DISPLACE": 0, "BOS": 0, "ENTRY": 0}
+        self.expedientes: list = []
+
+    def step(self, i: int):
+        """Procesa SOLO la transición de la vela i (índice absoluto).
+
+        Usa single_step=True: _run_sequence_impl itera range(i, i+1).
+        El estado se acumula entre llamadas (initial_state=self.state).
+        """
+        sigs, phase, exp, state = _run_sequence_impl(
+            self.objs, None, self.cfg,
+            htf_poi_fn=self.htf_poi_fn, ltf_tf=self.ltf_tf,
+            bos_table=self.bos_table, htf_pd_index=self.htf_pd_index,
+            ltf_map=self.ltf_map, htf=self.htf,
+            est_htf_ctx_fn=self.est_htf_ctx_fn, exec_frames=self.exec_frames,
+            initial_state=self.state, start_i=i - 1, single_step=True,
+            copy_objs=False,
+        )
+        self.state = state
+        self.signals.extend(sigs)
+        for k in self.phase_seen:
+            self.phase_seen[k] += phase.get(k, 0)
+        self.expedientes.extend(exp)
+        return sigs
+
+    def run_all(self, start_i: int = 0, end_i: int | None = None):
+        """Conveniencia: corre step(i) para i en [start_i+1, end_i)."""
+        n = len(self.objs)
+        end = n if end_i is None else min(end_i, n)
+        for i in range(start_i + 1, end):
+            self.step(i)
+        return self.signals, self.phase_seen, self.expedientes, self.state

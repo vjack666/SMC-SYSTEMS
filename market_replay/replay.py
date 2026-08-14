@@ -200,7 +200,17 @@ class MarketReplay:
         self._ltf_df_full = ltf_df_full
         self._precompute_htf_index(ltf_df_full)
 
-        state = SequenceState()
+        # Opción B (Change Gate Mayor 2026-08-14, autorizado por Director):
+        # SequenceRunner mantiene el estado absoluto y expone step(i) que
+        # procesa SOLO la vela i (single_step=True en _run_sequence_impl).
+        # objs_full COMPLETO (no sublista) => indices absolutos intactos.
+        # O(N) total, cero rebaseo de indices, cero segunda logica.
+        from engine.sequence import SequenceRunner
+        runner = SequenceRunner(
+            objs_full, self._htf_ctx_fn, self.cfg, ltf_tf=self.ltf,
+            htf=replay_htf, htf_poi_fn=htf_poi_fn, htf_pd_index=htf_pd_index,
+            initial_state=SequenceState())
+
         prev_ids: set[str] = set()
         all_signals: list = []
         steps = 0
@@ -209,26 +219,11 @@ class MarketReplay:
 
         for i in range(1, len(ltf_df_full)):
             t = ltf_df_full.iloc[i]["time"]
-            # Ventana disponible EN ESTE instante (anti look-ahead): sublista por
-            # referencia, O(1), sin reconversion ni copia.
-            win = objs_full[: i + 1]
-
-            signals, _phase, _exp, state = run_sequence_traced(
-                win,
-                None,  # est_htf_fn legacy: no usamos el path plano
-                self.cfg,
-                ltf_tf=self.ltf,
-                initial_state=state,
-                start_i=i - 1,
-                copy_objs=False,
-                est_htf_ctx_fn=self._htf_ctx_fn,
-                htf_poi_fn=htf_poi_fn,
-                htf_pd_index=htf_pd_index,
-                htf=replay_htf,
-            )
+            # step(i) procesa SOLO la transición de la vela i (O(1)).
+            signals = runner.step(i)
             all_signals.extend(signals)
-            self._record_events(state, t, self.ltf, i, prev_ids)
-            prev_ids = {fid for fid, _ in _state_event_pairs(state)}
+            self._record_events(runner.state, t, self.ltf, i, prev_ids)
+            prev_ids = {fid for fid, _ in _state_event_pairs(runner.state)}
             steps += 1
 
             # LOG DE AVANCES (observabilidad): cada LOG_EVERY velas.
@@ -243,13 +238,13 @@ class MarketReplay:
                 _el = _time.time() - _t0
                 print(
                     f"[REPLAY {self.ltf}] vela {i}/{len(ltf_df_full)-1} "
-                    f"biasH4={_bias} fase={getattr(state,'phase','?')} "
+                    f"biasH4={_bias} fase={getattr(runner.state,'phase','?')} "
                     f"setups={len(all_signals)} "
                     f"{_el:.1f}s mem={_mem:.0f}MB cpu={_cpu:.0f}%",
                     flush=True,
                 )
 
-        return ReplayResult(journal=self.journal, signals=all_signals, final_state=state, steps=steps)
+        return ReplayResult(journal=self.journal, signals=all_signals, final_state=runner.state, steps=steps)
 
     # ------------------------------------------------------------------
     def _record_events(self, state: SequenceState, t, tf: str, i: int, prev_ids: set[str]) -> None:
